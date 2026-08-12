@@ -5,6 +5,7 @@ using BioShockStudio.Core.Havok.Detection;
 using BioShockStudio.Core.Havok.Packfile;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
 
 if (args.Length == 0)
 {
@@ -34,6 +35,8 @@ try
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
         "characters" => Characters(root, args),
+        "textures" => Textures(root, args),
+        "export-textures" => ExportTextures(root, args),
         "animation" => AnimationInspect(root, args),
         "export-firstperson" => ExportFirstPerson(root, args),
         _ => Usage(),
@@ -60,6 +63,9 @@ static int Usage()
           meshes <package>              Report which SkeletalMeshes decode to geometry.
           context <package> <group>     Show an asset group and everything it owns.
           characters <package>          List animated character assets in a package.
+          textures <package> [pattern]  List textures with format and size.
+          export-textures <package> <out-dir> [pattern]
+                                        Write textures as PNG (and DDS when compressed).
           animation inspect <package> <object> <animation>
                                         Dump an animation's tracks, samples and events.
           export-blender <package> <object> <out-dir> [owner]
@@ -284,6 +290,68 @@ static int Animations(string root, string[] args)
 
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
+    return 0;
+}
+
+static int Textures(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: textures <package> [pattern]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    string? pattern = args.Length > 2 ? args[2] : null;
+
+    int decoded = 0, failed = 0;
+    foreach (var export in package.Exports.Where(e => package.GetClassName(e) == TextureReader.ClassName))
+    {
+        if (pattern is not null && !export.ObjectName.Contains(pattern, StringComparison.OrdinalIgnoreCase)) continue;
+
+        var texture = TextureReader.Read(package, export);
+        if (texture is null) { failed++; continue; }
+        decoded++;
+        Console.WriteLine($"  {texture.Name,-40} {texture.Format,-6} {texture.Width,5}x{texture.Height,-5} " +
+                          $"mips={texture.Mips.Count,-3} {export.SerialSize,10}");
+    }
+
+    Console.WriteLine($"\n{decoded} decoded, {failed} not understood.");
+    return 0;
+}
+
+static int ExportTextures(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: export-textures <package> <out-dir> [pattern]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    string outputDirectory = args[2];
+    string? pattern = args.Length > 3 ? args[3] : null;
+    Directory.CreateDirectory(outputDirectory);
+
+    int written = 0, failed = 0;
+    foreach (var export in package.Exports.Where(e => package.GetClassName(e) == TextureReader.ClassName))
+    {
+        if (pattern is not null && !export.ObjectName.Contains(pattern, StringComparison.OrdinalIgnoreCase)) continue;
+
+        BioShockTexture? texture;
+        try { texture = TextureReader.Read(package, export); }
+        catch (Exception ex) { Console.Error.WriteLine($"  {export.ObjectName}: {ex.Message}"); failed++; continue; }
+        if (texture is null) { failed++; continue; }
+
+        // Object names repeat within a package, so the group disambiguates the file name.
+        string group = AssetContextResolver.TopLevelGroup(package, export);
+        string stem = group == texture.Name ? texture.Name : $"{group}.{texture.Name}";
+        stem = string.Concat(stem.Split(Path.GetInvalidFileNameChars()));
+
+        var top = texture.Mips[0];
+        byte[] rgba = BlockCompression.Decode(texture.Format, top.Data, top.Width, top.Height);
+        PngWriter.Write(Path.Combine(outputDirectory, stem + ".png"), rgba, top.Width, top.Height);
+
+        // DDS keeps the shipped compression and the whole mip chain.
+        if (texture.Format != BioShockTextureFormat.Rgba8)
+            DdsWriter.Write(Path.Combine(outputDirectory, stem + ".dds"), texture);
+
+        written++;
+    }
+
+    Console.WriteLine($"wrote {written} textures to {outputDirectory}; {failed} not understood.");
     return 0;
 }
 
