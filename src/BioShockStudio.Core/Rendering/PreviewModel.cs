@@ -29,6 +29,12 @@ public sealed class PreviewModel
     /// <summary>Base colour map, already decoded. Null means the model draws untextured.</summary>
     public PreviewImage? Texture { get; init; }
 
+    /// <summary>Tangent-space normal map, when the material binds one.</summary>
+    public PreviewImage? NormalMap { get; init; }
+
+    /// <summary>Specular colour map, when the material binds one.</summary>
+    public PreviewImage? SpecularMap { get; init; }
+
     /// <summary>Centre of the geometry in its rest pose, used as the camera's orbit target.</summary>
     public required Vector3 Centre { get; init; }
 
@@ -48,7 +54,9 @@ public sealed class PreviewModel
         SkeletalMeshGeometry? geometry,
         BioShockSkeleton? skeleton,
         IReadOnlyList<MeshSocket>? sockets = null,
-        PreviewImage? texture = null)
+        PreviewImage? texture = null,
+        PreviewImage? normalMap = null,
+        PreviewImage? specularMap = null)
     {
         var bones = new List<PreviewBone>();
 
@@ -84,6 +92,8 @@ public sealed class PreviewModel
             Bones = bones,
             Sockets = socketList,
             Texture = texture,
+            NormalMap = normalMap,
+            SpecularMap = specularMap,
             Centre = centre,
             Radius = radius,
         };
@@ -230,6 +240,40 @@ public sealed class PreviewModel
             // Weights sum to one in this data, but a vertex whose influences all fell outside the
             // skeleton must not collapse to the origin.
             result[i] = total > 0.001f ? accumulated / total : vertex.Position;
+        }
+
+        return result;
+    }
+
+    /// <summary>Rest-pose tangents rotated by a set of skinning matrices.</summary>
+    public Vector3[] SkinTangents(Matrix4x4[]? skinning) => SkinDirections(skinning, v => v.Tangent);
+
+    /// <summary>Rest-pose binormals rotated by a set of skinning matrices.</summary>
+    public Vector3[] SkinBinormals(Matrix4x4[]? skinning) => SkinDirections(skinning, v => v.Binormal);
+
+    private Vector3[] SkinDirections(Matrix4x4[]? skinning, Func<MeshVertex, Vector3> select)
+    {
+        var result = new Vector3[Vertices.Count];
+
+        for (int i = 0; i < result.Length; i++)
+        {
+            var vertex = Vertices[i];
+            var source = select(vertex);
+
+            if (skinning is null || vertex.Influences.Count == 0)
+            {
+                result[i] = source;
+                continue;
+            }
+
+            var accumulated = Vector3.Zero;
+            foreach (var influence in vertex.Influences)
+            {
+                if (influence.BoneIndex < 0 || influence.BoneIndex >= skinning.Length) continue;
+                accumulated += Vector3.TransformNormal(source, skinning[influence.BoneIndex]) * influence.Weight;
+            }
+
+            result[i] = accumulated.LengthSquared() > 1e-8f ? Vector3.Normalize(accumulated) : source;
         }
 
         return result;

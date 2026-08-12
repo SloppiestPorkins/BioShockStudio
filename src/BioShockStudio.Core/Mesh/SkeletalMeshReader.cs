@@ -232,6 +232,8 @@ public static class SkeletalMeshReader
         new()
         {
             Position = ReadVector(payload, offset),
+            Tangent = ReadVector(payload, offset + 12),
+            Binormal = ReadVector(payload, offset + 24),
             Normal = ReadVector(payload, offset + 36),
             Uv = new Vector2(
                 BinaryPrimitives.ReadSingleLittleEndian(payload[(offset + 48)..]),

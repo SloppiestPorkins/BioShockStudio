@@ -10,6 +10,15 @@ public sealed record MeshVertex
 {
     public required Vector3 Position { get; init; }
     public required Vector3 Normal { get; init; }
+
+    /// <summary>
+    /// Tangent basis, as shipped. The game stores a tangent and a binormal per vertex alongside the
+    /// normal; both are needed to apply a tangent-space normal map without inventing a basis.
+    /// </summary>
+    public Vector3 Tangent { get; init; }
+
+    public Vector3 Binormal { get; init; }
+
     public required Vector2 Uv { get; init; }
 
     /// <summary>Influences with a non-zero weight. Never truncated to satisfy an exporter limit.</summary>

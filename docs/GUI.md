@@ -148,6 +148,13 @@ The hands travel far enough during a reload to leave a rest-framed view entirely
 instead would keep the subject centred but make the camera chase it. The cost is that no single
 frame fills the view.
 
+**Shading.** The base colour, normal and specular maps the material binds are all applied. The
+normal map is tangent-space and the mesh ships a per-vertex tangent and binormal, so it is applied in
+the basis it was authored in rather than one derived here — the reader now keeps that basis instead
+of discarding it. A degenerate basis falls back to the interpolated normal rather than producing a
+NaN, which would leave a black hole in the surface. The `Normal + spec` toggle turns it off, which
+is what you want when checking a skinning problem rather than a material.
+
 A mesh whose geometry variant is unsupported still draws its skeleton, with the reason shown.
 
 ## Context: a first-person set is two rigs

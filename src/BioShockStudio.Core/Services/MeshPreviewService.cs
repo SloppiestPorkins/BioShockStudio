@@ -40,6 +40,8 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         SkeletalMeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
         PreviewImage? texture = null;
+        PreviewImage? normalMap = null;
+        PreviewImage? specularMap = null;
         string? problem = null;
 
         if (meshExport is not null)
@@ -54,7 +56,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
                           + "skeleton can be shown.";
             }
 
-            texture = LoadDiffuse(package, meshExport);
+            (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
         }
         else
         {
@@ -70,7 +72,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             catch (Exception ex) { problem ??= $"Animations could not be read: {ex.Message}"; }
         }
 
-        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture);
+        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
 
         var names = animations is null
             ? []
@@ -103,6 +105,8 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         SkeletalMeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
         PreviewImage? texture = null;
+        PreviewImage? normalMap = null;
+        PreviewImage? specularMap = null;
         string? problem = null;
 
         if (meshExport is null)
@@ -114,7 +118,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             byte[] payload = package.ReadExportData(meshExport);
             geometry = SkeletalMeshReader.ReadGeometry(payload);
             sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
-            texture = LoadDiffuse(package, meshExport);
+            (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
             if (geometry is null) problem = $"'{candidate.MeshObject}' uses a geometry layout this tool does not read yet.";
         }
 
@@ -126,7 +130,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             catch (Exception ex) { problem ??= $"Its animations could not be read: {ex.Message}"; }
         }
 
-        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture);
+        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
         var names = animations is null ? [] : animations.Animations.Select(a => a.Name).Distinct().Order().ToList();
 
         return new PreviewSubject(model, names, problem);
@@ -189,16 +193,27 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             .MaxBy(e => e.SerialSize);
 
     /// <summary>
-    /// The mesh's base colour map, decoded small enough to sample per pixel without cost.
+    /// The mesh's base colour, normal and specular maps, at a size cheap to sample per pixel.
     /// </summary>
     /// <remarks>
     /// Resolved through the material, so a <c>FacingShader</c> yields its facing diffuse rather than
-    /// nothing. A mesh with no resolvable material simply draws in flat grey.
+    /// nothing. A mesh with no resolvable material simply draws in flat grey; a material that binds
+    /// only some of the three gets only those.
     /// </remarks>
-    private static PreviewImage? LoadDiffuse(BioShockPackage package, ObjectExport meshExport)
+    private static (PreviewImage? Diffuse, PreviewImage? Normal, PreviewImage? Specular) LoadMaps(
+        BioShockPackage package, ObjectExport meshExport)
     {
         var material = MaterialReader.ReadForMesh(package, meshExport);
-        string? name = material?.DiffuseTexture;
+        if (material is null) return (null, null, null);
+
+        return (
+            LoadTexture(package, material.DiffuseTexture),
+            LoadTexture(package, material.NormalTexture),
+            LoadTexture(package, material.SpecularTexture));
+    }
+
+    private static PreviewImage? LoadTexture(BioShockPackage package, string? name)
+    {
         if (name is null) return null;
 
         var export = package.Exports

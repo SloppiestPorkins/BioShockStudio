@@ -44,6 +44,7 @@ public partial class MainViewModel
 
     [ObservableProperty] private bool _showTextures = true;
     [ObservableProperty] private bool _showWireframe;
+    [ObservableProperty] private bool _showShading = true;
     [ObservableProperty] private bool _showSkeleton;
     [ObservableProperty] private bool _showSockets;
 
@@ -64,6 +65,7 @@ public partial class MainViewModel
 
     partial void OnShowTexturesChanged(bool value) => RequestRender();
     partial void OnShowWireframeChanged(bool value) => RequestRender();
+    partial void OnShowShadingChanged(bool value) => RequestRender();
     partial void OnShowSkeletonChanged(bool value) => RequestRender();
     partial void OnShowSocketsChanged(bool value) => RequestRender();
     partial void OnFrameChanged(int value) => RequestRender();
@@ -410,6 +412,7 @@ public partial class MainViewModel
                 var options = new RenderOptions
                 {
                     Textured = ShowTextures,
+                    Shaded = ShowShading,
                     Wireframe = ShowWireframe,
                     ShowSkeleton = ShowSkeleton,
                     ShowSockets = ShowSockets,

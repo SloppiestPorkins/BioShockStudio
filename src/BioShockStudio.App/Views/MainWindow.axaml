@@ -150,6 +150,8 @@
 
                             <WrapPanel>
                                 <CheckBox Content="Textured" IsChecked="{Binding ShowTextures}" Margin="0,0,10,0" />
+                                <CheckBox Content="Normal + spec" IsChecked="{Binding ShowShading}" Margin="0,0,10,0"
+                                          ToolTip.Tip="Apply the material's normal and specular maps, not just its base colour." />
                                 <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
                                 <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
                                 <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />

@@ -143,6 +143,42 @@ public sealed class RenderingTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Model_LoadsTheNormalAndSpecularMapsTheMaterialBinds()
+    {
+        var (service, entry) = Hands();
+        var model = service.Load(entry).Model;
+
+        // The hands' FacingShader binds Hand_DIFF, Hand_NORM and Hand_SPEC.
+        Assert.NotNull(model.Texture);
+        Assert.NotNull(model.NormalMap);
+        Assert.NotNull(model.SpecularMap);
+
+        // And the shipped tangent basis survives the mesh read, or a normal map cannot be applied
+        // in the space it was authored in.
+        Assert.Contains(model.Vertices, v => v.Tangent.LengthSquared() > 0.5f);
+        Assert.Contains(model.Vertices, v => v.Binormal.LengthSquared() > 0.5f);
+    }
+
+    [RequiresGameFact]
+    public void Render_NormalAndSpecularMapsChangeTheSurface()
+    {
+        var (service, entry) = Hands();
+        var model = service.Load(entry).Model;
+        var camera = PreviewCamera.Frame(model);
+
+        var flat = SoftwareRenderer.Render(
+            model, camera, new RenderOptions { Shaded = false }, Width, Height);
+        var shaded = SoftwareRenderer.Render(
+            model, camera, new RenderOptions { Shaded = true }, Width, Height);
+
+        // Same geometry and same base colour, so any difference is the normal and specular maps.
+        Assert.True(Difference(flat, shaded) > 0.02, "the maps made no visible difference");
+
+        // Neither may blank the model or produce out-of-range colour.
+        Assert.True(Coverage(shaded) > 0.08);
+    }
+
+    [RequiresGameFact]
     public void Render_SkeletonAndSocketOverlaysDraw()
     {
         var (service, entry) = Hands();
@@ -211,7 +247,7 @@ public sealed class RenderingTests(GameFixture game)
         var camera = PreviewCamera.Frame(centre, radius).Orbit(0.6f, 0f);
 
         var image = SoftwareRenderer.Render(
-            model, camera, new RenderOptions { ShowSkeleton = true, ShowSockets = true }, 640, 720,
+            model, camera, new RenderOptions { ShowSkeleton = false, ShowSockets = false }, 640, 720,
             animation is null ? null : model.Pose(animation.Decoded, 27));
 
         Core.Textures.PngWriter.Write(target, image.Rgba, image.Width, image.Height);

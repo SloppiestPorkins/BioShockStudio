@@ -1,6 +1,6 @@
 # Handoff
 
-132/132 tests pass against the installed game.
+134/134 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -28,7 +28,7 @@ No game data is in the repo.
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Application services | Installation, catalogue, details, texture preview, extraction. Tested without a window. |
 | GUI | Avalonia: game discovery and validation, browse 14,378 distinct assets by category, search, asset details, texture preview, 3D preview with animation playback, extraction queue with progress and cancellation. |
-| 3D preview | Software rasteriser in `Core/Rendering`: skinned mesh, textures, skeleton and socket overlays, orbit camera, animation transport. Verified by rendering and asserting on pixels. |
+| 3D preview | Software rasteriser in `Core/Rendering`: skinned mesh, base colour, normal and specular maps, skeleton and socket overlays, orbit camera, animation transport. Verified by rendering and asserting on pixels. |
 | Asset context | The weapon a hands socket names is resolved, placed on its socket bone and played in sync. `Confirmed` only when the attachment's skeleton root matches the socket bone. |
 
 ## Key facts that were expensive to learn

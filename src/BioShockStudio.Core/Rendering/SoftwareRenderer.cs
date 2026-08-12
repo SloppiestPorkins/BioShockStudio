@@ -55,6 +55,16 @@ public sealed record PreviewInstance(PreviewModel Model, Matrix4x4[]? Pose = nul
 public sealed record RenderOptions
 {
     public bool Textured { get; init; } = true;
+
+    /// <summary>
+    /// Apply the material's normal and specular maps as well as its base colour.
+    /// </summary>
+    /// <remarks>
+    /// The game ships all three and the mesh carries a per-vertex tangent basis, so the surface
+    /// detail is real data rather than something this renderer invents. Turning it off shows the
+    /// geometry alone, which is what you want when checking a skinning problem.
+    /// </remarks>
+    public bool Shaded { get; init; } = true;
     public bool Wireframe { get; init; }
     public bool ShowSkeleton { get; init; }
     public bool ShowSockets { get; init; }
@@ -131,17 +141,23 @@ public static class SoftwareRenderer
             var positions = model.SkinPositions(skinning);
             var normals = model.SkinNormals(skinning);
 
+            bool wantsBasis = options.Shaded && options.Textured && model.NormalMap is not null;
+            var tangents = wantsBasis ? model.SkinTangents(skinning) : null;
+            var binormals = wantsBasis ? model.SkinBinormals(skinning) : null;
+
             if (!instance.Transform.IsIdentity)
             {
                 for (int i = 0; i < positions.Length; i++)
                 {
                     positions[i] = Vector3.Transform(positions[i], instance.Transform);
                     normals[i] = Vector3.Normalize(Vector3.TransformNormal(normals[i], instance.Transform));
+                    if (tangents is not null) tangents[i] = Vector3.TransformNormal(tangents[i], instance.Transform);
+                    if (binormals is not null) binormals[i] = Vector3.TransformNormal(binormals[i], instance.Transform);
                 }
             }
 
             if (model.HasGeometry && !options.Wireframe)
-                DrawSolid(target, model, positions, normals, viewProjection, camera, options);
+                DrawSolid(target, model, positions, normals, tangents, binormals, viewProjection, camera, options);
             else if (model.HasGeometry)
                 DrawWireframe(target, model, positions, viewProjection);
 
@@ -161,12 +177,16 @@ public static class SoftwareRenderer
         PreviewModel model,
         Vector3[] positions,
         Vector3[] normals,
+        Vector3[]? tangents,
+        Vector3[]? binormals,
         Matrix4x4 viewProjection,
         PreviewCamera camera,
         RenderOptions options)
     {
         var eye = camera.Eye;
         var texture = options.Textured ? model.Texture : null;
+        var normalMap = options.Shaded && options.Textured ? model.NormalMap : null;
+        var specularMap = options.Shaded && options.Textured ? model.SpecularMap : null;
 
         for (int i = 0; i + 2 < model.Indices.Count; i += 3)
         {
@@ -186,6 +206,19 @@ public static class SoftwareRenderer
                     normals[a] * bary.X + normals[b] * bary.Y + normals[c] * bary.Z);
                 var point = positions[a] * bary.X + positions[b] * bary.Y + positions[c] * bary.Z;
 
+                var uv = model.Vertices[a].Uv * bary.X
+                         + model.Vertices[b].Uv * bary.Y
+                         + model.Vertices[c].Uv * bary.Z;
+
+                // The shipped tangent basis, interpolated, so the normal map is applied in the space
+                // it was authored in rather than one derived here.
+                if (normalMap is not null && tangents is not null && binormals is not null)
+                {
+                    var tangent = tangents[a] * bary.X + tangents[b] * bary.Y + tangents[c] * bary.Z;
+                    var binormal = binormals[a] * bary.X + binormals[b] * bary.Y + binormals[c] * bary.Z;
+                    normal = ApplyNormalMap(normalMap, uv, normal, tangent, binormal);
+                }
+
                 // A headlamp: the light sits at the camera, so nothing is ever unlit and the shape
                 // reads from any angle without a lighting rig to set up.
                 var toEye = Vector3.Normalize(eye - point);
@@ -193,20 +226,25 @@ public static class SoftwareRenderer
                 float shade = 0.18f + 0.82f * lambert;
 
                 byte r, g, bl;
-                if (texture is not null)
+                if (texture is not null) (r, g, bl) = Sample(texture, uv);
+                else r = g = bl = 190;
+
+                float red = r * shade;
+                float green = g * shade;
+                float blue = bl * shade;
+
+                if (specularMap is not null)
                 {
-                    var uv = model.Vertices[a].Uv * bary.X
-                             + model.Vertices[b].Uv * bary.Y
-                             + model.Vertices[c].Uv * bary.Z;
-                    (r, g, bl) = Sample(texture, uv);
-                }
-                else
-                {
-                    r = g = bl = 190;
+                    // Blinn-Phong against the headlamp, so the light and the eye coincide and the
+                    // half vector is the view direction.
+                    float highlight = MathF.Pow(MathF.Max(0f, Vector3.Dot(normal, toEye)), 24f);
+                    var (sr, sg, sb) = Sample(specularMap, uv);
+                    red += sr * highlight;
+                    green += sg * highlight;
+                    blue += sb * highlight;
                 }
 
-                target.Plot(x, y, depth,
-                    (byte)(r * shade), (byte)(g * shade), (byte)(bl * shade));
+                target.Plot(x, y, depth, Clamp(red), Clamp(green), Clamp(blue));
             });
         }
     }
@@ -348,6 +386,32 @@ public static class SoftwareRenderer
             if (ignoreDepth) target.PlotOver(x, y, r, g, b);
             else if (target.DepthTest(x, y, depth)) target.Plot(x, y, depth, r, g, b);
         }
+    }
+
+    private static byte Clamp(float value) => (byte)Math.Clamp(value, 0f, 255f);
+
+    /// <summary>
+    /// Perturbs a surface normal by a tangent-space normal map.
+    /// </summary>
+    /// <remarks>
+    /// The map stores a direction as a colour, so each channel is expanded from 0..1 back to -1..1.
+    /// A degenerate tangent basis — some vertices have one — falls back to the interpolated normal
+    /// rather than producing a NaN that would leave a black hole in the surface.
+    /// </remarks>
+    private static Vector3 ApplyNormalMap(
+        PreviewImage map, Vector2 uv, Vector3 normal, Vector3 tangent, Vector3 binormal)
+    {
+        if (tangent.LengthSquared() < 1e-8f || binormal.LengthSquared() < 1e-8f) return normal;
+
+        var (r, g, b) = Sample(map, uv);
+        var sampled = new Vector3(r / 127.5f - 1f, g / 127.5f - 1f, b / 127.5f - 1f);
+        if (sampled.LengthSquared() < 1e-6f) return normal;
+
+        var perturbed = Vector3.Normalize(tangent) * sampled.X
+                        + Vector3.Normalize(binormal) * sampled.Y
+                        + normal * sampled.Z;
+
+        return perturbed.LengthSquared() > 1e-8f ? Vector3.Normalize(perturbed) : normal;
     }
 
     private static (byte R, byte G, byte B) Sample(PreviewImage texture, Vector2 uv)
