@@ -26,6 +26,8 @@ try
         "assets" => Assets(root, args),
         "inspect" => Inspect(root, args),
         "havok" => Havok(root, args),
+        "skeleton" => Skeleton(root, args),
+        "animations" => Animations(root, args),
         _ => Usage(),
     };
 }
@@ -44,6 +46,9 @@ static int Usage()
           assets [--class C] [pattern]  List indexed assets, optionally filtered.
           inspect <package> [pattern]   Show a package's header, imports and exports.
           havok <package> <object>      Parse the Havok packfiles inside an export's payload.
+          skeleton <package> <object>   Show the skeleton of an AnimationPackageWrapper.
+          animations <package> <object> [owner]
+                                        List decoded animations, optionally for one weapon.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -160,6 +165,62 @@ static int Havok(string root, string[] args)
             Console.WriteLine($"    classes: {string.Join(", ", hk.ClassNames.Values.Distinct().Order())}");
         Console.WriteLine();
     }
+    return 0;
+}
+
+static AnimationPackage LoadAnimationPackage(string root, string packageName, string objectName)
+{
+    using var package = BioShockPackage.Open(ResolvePackage(root, packageName));
+    var export = package.Exports
+        .Where(e => string.Equals(e.ObjectName, objectName, StringComparison.OrdinalIgnoreCase)
+                    && package.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
+        .MaxBy(e => e.SerialSize)
+        ?? throw new FileNotFoundException($"No AnimationPackageWrapper named '{objectName}' in {packageName}.");
+
+    return AnimationPackage.Load(package, export);
+}
+
+static int Skeleton(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: skeleton <package> <object>"); return 1; }
+
+    var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
+    var skeleton = animationPackage.Skeleton;
+
+    Console.WriteLine($"{skeleton.Name} — {skeleton.BoneCount} bones (from {skeleton.SourceSection}+{skeleton.SourceOffset})");
+    foreach (string line in skeleton.DescribeHierarchy()) Console.WriteLine(line);
+    return 0;
+}
+
+static int Animations(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: animations <package> <object> [owner]"); return 1; }
+
+    var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
+    string? owner = args.Length > 3 ? args[3] : null;
+
+    var selected = (owner is null ? animationPackage.Animations : animationPackage.ForOwner(owner))
+        .OrderBy(a => a.Owner).ThenBy(a => a.Name).ToList();
+
+    Console.WriteLine($"{animationPackage.ObjectName}: {animationPackage.Animations.Count} animations, " +
+                      $"skeleton '{animationPackage.Skeleton.Name}' with {animationPackage.Skeleton.BoneCount} bones");
+    Console.WriteLine($"owners: {string.Join(", ", animationPackage.Owners)}\n");
+
+    Console.WriteLine($"{"owner",-18} {"name",-30} {"secs",6} {"frames",7} {"fps",7} {"tracks",7}  section");
+    foreach (var a in selected)
+    {
+        Console.WriteLine($"{a.Owner,-18} {a.Name,-30} {a.Duration,6:0.00} {a.FrameCount,7} " +
+                          $"{a.FrameRate,7:0.00} {a.TransformTrackCount,7}  {a.SectionTag}");
+    }
+
+    if (animationPackage.Failures.Count > 0)
+    {
+        Console.WriteLine($"\n{animationPackage.Failures.Count} undecoded:");
+        foreach (var failure in animationPackage.Failures) Console.WriteLine($"  {failure}");
+    }
+
+    Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
+                      $"{animationPackage.Failures.Count} unsupported.");
     return 0;
 }
 

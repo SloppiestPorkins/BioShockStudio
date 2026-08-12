@@ -1,4 +1,5 @@
 using System.Text;
+using BioShockStudio.Core.Havok.Objects;
 
 namespace BioShockStudio.Core.Havok.Packfile;
 
@@ -66,6 +67,68 @@ public sealed class HavokPackfile
         foreach (var s in Sections)
             if (s.SectionTag == tag) return s;
         return null;
+    }
+
+    private HavokSection[]? _resolvedSections;
+
+    /// <summary>Sections with their fixup tables parsed. Built on first access.</summary>
+    public IReadOnlyList<HavokSection> ResolvedSections
+    {
+        get
+        {
+            if (_resolvedSections is null)
+            {
+                var resolved = new HavokSection[Sections.Count];
+                for (int i = 0; i < resolved.Length; i++)
+                    resolved[i] = new HavokSection(i, Sections[i], _buffer);
+                _resolvedSections = resolved;
+            }
+            return _resolvedSections;
+        }
+    }
+
+    public HavokSection? FindResolvedSection(string tag)
+    {
+        foreach (var s in ResolvedSections)
+            if (s.Tag == tag) return s;
+        return null;
+    }
+
+    /// <summary>
+    /// Every object in the packfile, from the virtual fixup tables. This is the object graph's
+    /// node list: each entry gives a class name and the offset its data starts at.
+    /// </summary>
+    public IEnumerable<HavokObject> EnumerateObjects()
+    {
+        foreach (var section in ResolvedSections)
+        {
+            foreach (var fixup in section.VirtualFixups)
+            {
+                yield return new HavokObject
+                {
+                    SectionIndex = section.Index,
+                    SectionTag = section.Tag,
+                    Offset = fixup.SourceOffset,
+                    ClassName = ClassNames.TryGetValue(fixup.ClassNameOffset, out var name)
+                        ? name
+                        : $"<unknown class @{fixup.ClassNameOffset}>",
+                };
+            }
+        }
+    }
+
+    /// <summary>The packfile's root object, as named by the header's contents fields.</summary>
+    public HavokObject? RootObject
+    {
+        get
+        {
+            foreach (var obj in EnumerateObjects())
+            {
+                if (obj.SectionIndex == Header.ContentsSectionIndex && obj.Offset == Header.ContentsSectionOffset)
+                    return obj;
+            }
+            return null;
+        }
     }
 
     /// <summary>
