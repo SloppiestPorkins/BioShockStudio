@@ -3,6 +3,7 @@ using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Havok.Detection;
 using BioShockStudio.Core.Havok.Packfile;
+using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
@@ -29,9 +30,12 @@ try
         "assets" => Assets(root, args),
         "inspect" => Inspect(root, args),
         "havok" => Havok(root, args),
+        "properties" => Properties(root, args),
+        "materials" => Materials(root, args),
         "skeleton" => Skeleton(root, args),
         "animations" => Animations(root, args),
         "export-blender" => ExportBlender(root, args),
+        "export-fbx" => ExportFbx(root, args),
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
         "characters" => Characters(root, args),
@@ -61,6 +65,9 @@ static int Usage()
           animations <package> <object> [owner]
                                         List decoded animations, optionally for one weapon.
           meshes <package>              Report which SkeletalMeshes decode to geometry.
+          materials <package> [pattern] Resolve each SkeletalMesh's material and its textures.
+          properties <package> <object|--class C> [n]
+                                        Dump an export's Unreal property list and what follows it.
           context <package> <group>     Show an asset group and everything it owns.
           characters <package>          List animated character assets in a package.
           textures <package> [pattern]  List textures with format and size.
@@ -70,6 +77,12 @@ static int Usage()
                                         Dump an animation's tracks, samples and events.
           export-blender <package> <object> <out-dir> [owner]
                                         Write scene JSON for the Blender importer.
+          export-fbx <package> <object> <out-dir> [owner]
+                                        Write FBX (mesh, skeleton, one file per animation) plus a
+                                        manifest for the Unreal importer.
+          export-firstperson <weapon> <out-dir> [--fbx] [--preview=<animation>]
+                                        Assemble the hands, the weapon and both animation sets.
+                                        --preview also writes a mesh-plus-animation file to look at.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -189,6 +202,116 @@ static int Havok(string root, string[] args)
     return 0;
 }
 
+/// <summary>
+/// Dumps an export's Unreal property list and the first bytes of whatever follows it. This is the
+/// reconnaissance command: it is how an unparsed class is looked at before anything is written.
+/// </summary>
+static int Properties(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: properties <package> <object|--class C> [limit]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+
+    bool byClass = args[2] == "--class";
+    string selector = byClass ? args[3] : args[2];
+    string? limitArgument = args.ElementAtOrDefault(byClass ? 4 : 3);
+    int limit = int.TryParse(limitArgument, out int parsed) ? parsed : 1;
+
+    var matches = (byClass
+            ? package.Exports.Where(e => package.GetClassName(e) == selector)
+            : package.Exports.Where(e => e.ObjectName.Contains(selector, StringComparison.OrdinalIgnoreCase)))
+        .OrderByDescending(e => e.SerialSize).Take(limit).ToList();
+
+    foreach (var export in matches)
+    {
+        byte[] payload = package.ReadExportData(export);
+        Console.WriteLine($"\n{package.GetClassName(export)} {export.ObjectName}  " +
+                          $"[{export.Index}] {payload.Length} bytes  outer={DescribeReference(package, export.OuterIndex.Value)}");
+
+        int end;
+        List<UnrealProperty> properties;
+        try { properties = UnrealPropertyReader.Read(payload, package.Names, out end); }
+        catch (Exception ex) { Console.WriteLine($"  property list unreadable: {ex.Message}"); continue; }
+
+        foreach (var property in properties)
+        {
+            string value = property.Type switch
+            {
+                UnrealPropertyType.Object or UnrealPropertyType.Class =>
+                    DescribeReference(package, ReadCompact(property.Value)),
+                UnrealPropertyType.Int => property.AsInt().ToString(),
+                UnrealPropertyType.Float => property.AsFloat().ToString("0.####"),
+                UnrealPropertyType.Byte => property.AsByte().ToString(),
+                UnrealPropertyType.Bool => "true",
+                UnrealPropertyType.Name => NameOf(package, property.Value),
+                _ => Convert.ToHexString(property.Value.Take(24).ToArray()),
+            };
+            Console.WriteLine($"  {property.Name,-28} {property.Type,-8} {property.StructName,-16} {value}");
+        }
+
+        int tail = Math.Min(64, payload.Length - end);
+        if (tail > 0)
+            Console.WriteLine($"  +{end} trailing {payload.Length - end} bytes: " +
+                              Convert.ToHexString(payload.AsSpan(end, tail)));
+    }
+
+    Console.WriteLine($"\n{matches.Count} shown.");
+    return 0;
+}
+
+/// <summary>Resolves an FCompactIndex package reference: positive is an export, negative an import.</summary>
+static string DescribeReference(BioShockPackage package, int reference)
+{
+    var index = new PackageIndex(reference);
+    if (index.IsNull) return "<none>";
+    if (index.IsExport)
+    {
+        var export = package.Exports[index.ExportIndex];
+        return $"export {package.GetClassName(export)} '{export.ObjectName}'";
+    }
+    var import = package.Imports[index.ImportIndex];
+    return $"import {import.ClassName} '{import.ObjectName}'";
+}
+
+static int ReadCompact(byte[] value)
+{
+    int offset = 0;
+    byte b = value[offset++];
+    bool negative = (b & 0x80) != 0;
+    int result = b & 0x3F;
+    if ((b & 0x40) != 0)
+    {
+        int shift = 6;
+        while (offset < value.Length)
+        {
+            byte c = value[offset++];
+            result |= (c & 0x7F) << shift;
+            shift += 7;
+            if ((c & 0x80) == 0) break;
+        }
+    }
+    return negative ? -result : result;
+}
+
+static string NameOf(BioShockPackage package, byte[] value)
+{
+    int offset = 0;
+    byte b = value[offset++];
+    int index = b & 0x3F;
+    if ((b & 0x40) != 0)
+    {
+        int shift = 6;
+        while (offset < value.Length)
+        {
+            byte c = value[offset++];
+            index |= (c & 0x7F) << shift;
+            shift += 7;
+            if ((c & 0x80) == 0) break;
+        }
+    }
+    return index >= 0 && index < package.Names.Count ? package.Names[index].Name : $"<name {index}>";
+}
+
 static AnimationPackage LoadAnimationPackage(string root, string packageName, string objectName)
 {
     using var package = BioShockPackage.Open(ResolvePackage(root, packageName));
@@ -206,8 +329,8 @@ static AnimationPackage LoadAnimationPackage(string root, string packageName, st
 /// UAPW_&lt;MeshName&gt;, which is a convention rather than a reference, so a miss is reported as
 /// "no sockets" rather than treated as an error.
 /// </summary>
-static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry) ResolveMesh(
-    string root, string packageName, string wrapperName)
+static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry, SceneMaterial? Material) ResolveMesh(
+    string root, string packageName, string wrapperName, string? outputDirectory = null)
 {
     string meshName = wrapperName.StartsWith("UAPW_", StringComparison.OrdinalIgnoreCase)
         ? wrapperName["UAPW_".Length..]
@@ -219,10 +342,14 @@ static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry) Resol
                     && package.GetClassName(e) == AssetClasses.SkeletalMesh)
         .MaxBy(e => e.SerialSize);
 
-    if (export is null) return ([], null);
+    if (export is null) return ([], null, null);
 
     byte[] payload = package.ReadExportData(export);
-    return (SkeletalMeshReader.ReadSockets(payload, package.Names), SkeletalMeshReader.ReadGeometry(payload));
+    // Textures are only written when there is somewhere to put them; listing commands resolve the
+    // mesh without wanting a directory full of PNGs as a side effect.
+    var material = outputDirectory is null ? null : MaterialExporter.Resolve(package, export, outputDirectory);
+
+    return (SkeletalMeshReader.ReadSockets(payload, package.Names), SkeletalMeshReader.ReadGeometry(payload), material);
 }
 
 /// <summary>
@@ -460,6 +587,54 @@ static int AnimationInspect(string root, string[] args)
     return 0;
 }
 
+/// <summary>
+/// Reports the material each SkeletalMesh resolves to, and the textures that material binds. This
+/// is the coverage check for the mesh-to-material link, so it reports misses as well as hits.
+/// </summary>
+static int Materials(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: materials <package> [pattern]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    string? pattern = args.Length > 2 ? args[2] : null;
+
+    var meshes = package.Exports
+        .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh && e.SerialSize > 0)
+        .Where(e => pattern is null || e.ObjectName.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(e => e.SerialSize)
+        .ToList();
+
+    int resolved = 0, textured = 0;
+    foreach (var mesh in meshes)
+    {
+        var material = MaterialReader.ReadForMesh(package, mesh);
+        if (material is null)
+        {
+            Console.WriteLine($"  --    {mesh.ObjectName,-36} no material reference");
+            continue;
+        }
+
+        resolved++;
+        if (material.Textures.Count > 0) textured++;
+        Console.WriteLine($"  ok    {mesh.ObjectName,-36} {material.ClassName} {material.Name}" +
+                          (material.Truncated ? "  (partial)" : string.Empty));
+        foreach (var texture in material.Textures)
+            Console.WriteLine($"          {texture.Slot,-18} {texture.TextureName}{(texture.IsExternal ? "  (external)" : string.Empty)}");
+        if (material.UnhandledProperties.Count > 0)
+            Console.WriteLine($"          uninterpreted: {string.Join(", ", material.UnhandledProperties.Distinct())}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"{resolved}/{meshes.Count} SkeletalMeshes resolve to a material; {textured} bind at least one texture.");
+
+    var materials = package.Exports.Where(e => MaterialReader.IsMaterialClass(package.GetClassName(e))).ToList();
+    var decoded = materials.Select(e => MaterialReader.Read(package, e)).Where(m => m is not null).ToList();
+    int partial = decoded.Count(m => m!.Truncated);
+    Console.WriteLine($"{decoded.Count}/{materials.Count} material objects in the package decode, " +
+                      $"{partial} of them only partly.");
+    return 0;
+}
+
 static int Meshes(string root, string[] args)
 {
     if (args.Length < 2) { Console.Error.WriteLine("usage: meshes <package>"); return 1; }
@@ -515,8 +690,10 @@ static int ExportBlender(string root, string[] args)
     Directory.CreateDirectory(outputDirectory);
 
     var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
-    var (sockets, geometry) = ResolveMesh(root, args[1], args[2]);
+    var (sockets, geometry, material) = ResolveMesh(root, args[1], args[2], outputDirectory);
     if (sockets.Count > 0) Console.WriteLine($"resolved {sockets.Count} sockets from the companion SkeletalMesh");
+    if (material is not null) Console.WriteLine($"resolved material {material.ClassName} {material.Name} " +
+                                                $"with {material.Textures.Count} texture bindings");
     if (geometry is not null)
         Console.WriteLine($"resolved mesh: {geometry.Vertices.Count} vertices, {geometry.TriangleCount} triangles");
 
@@ -524,7 +701,7 @@ static int ExportBlender(string root, string[] args)
     if (events.Count > 0)
         Console.WriteLine($"resolved events for {events.Count} animations");
 
-    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events);
+    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events, material);
 
     string suffix = owner is null ? string.Empty : "_" + owner;
     string scenePath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.json");
@@ -543,6 +720,54 @@ static int ExportBlender(string root, string[] args)
 }
 
 /// <summary>
+/// Writes the same scene as <c>export-blender</c> in FBX, for Unreal or any DCC that reads FBX.
+/// </summary>
+static int ExportFbx(string root, string[] args)
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine("usage: export-fbx <package> <object> <output-dir> [owner]");
+        return 1;
+    }
+
+    string outputDirectory = args[3];
+    string? owner = args.Length > 4 ? args[4] : null;
+
+    Directory.CreateDirectory(outputDirectory);
+    var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
+    var (sockets, geometry, material) = ResolveMesh(root, args[1], args[2], outputDirectory);
+    var events = ResolveEvents(root, args[1], animationPackage);
+    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events, material);
+
+    return WriteFbx(scene, outputDirectory);
+}
+
+static int WriteFbx(AnimationScene scene, string outputDirectory, string? preview = null)
+{
+    var manifest = FbxExporter.Write(scene, outputDirectory, previewAnimation: preview);
+
+    foreach (var rig in manifest.Rigs)
+    {
+        string attached = rig.AttachedTo is null
+            ? string.Empty
+            : $"  attached to {rig.AttachedTo.Host}'s '{rig.AttachedTo.Socket}' socket on {rig.AttachedTo.Bone}";
+        Console.WriteLine($"{rig.Name}: {rig.BoneCount} bones, {rig.VertexCount} vertices, " +
+                          $"{rig.Sockets.Count} sockets, {rig.Animations.Count} animations{attached}");
+        Console.WriteLine($"  {Path.Combine(outputDirectory, rig.Mesh)}");
+        if (rig.Preview is not null)
+            Console.WriteLine($"  {Path.Combine(outputDirectory, rig.Preview)}  (mesh + animation, for viewing)");
+        int notified = rig.Animations.Count(a => a.Notifies.Count > 0);
+        if (notified > 0) Console.WriteLine($"  {notified} animations carry notifies (manifest only; FBX has no place for them)");
+        if (rig.Undecoded > 0) Console.WriteLine($"  {rig.Undecoded} animations did not decode and were not written");
+    }
+
+    Console.WriteLine($"\nmanifest: {Path.Combine(outputDirectory, FbxExporter.ManifestFileName)}");
+    Console.WriteLine("To import into Unreal, run this inside the editor's Python console:");
+    Console.WriteLine($"  import_bioshock.main(r\"{Path.GetFullPath(outputDirectory)}\", \"/Game/BioShock\")");
+    return 0;
+}
+
+/// <summary>
 /// Builds a complete first-person setup: the player hands, the weapon that attaches to them, and
 /// both animation sets.
 /// <para>
@@ -554,23 +779,28 @@ static int ExportBlender(string root, string[] args)
 /// </summary>
 static int ExportFirstPerson(string root, string[] args)
 {
-    if (args.Length < 3)
+    var positional = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    bool asFbx = args.Contains("--fbx", StringComparer.OrdinalIgnoreCase);
+    string? preview = args.FirstOrDefault(a => a.StartsWith("--preview=", StringComparison.OrdinalIgnoreCase))
+        ?["--preview=".Length..];
+
+    if (positional.Count < 2)
     {
-        Console.Error.WriteLine("usage: export-firstperson <weapon> <out-dir>");
+        Console.Error.WriteLine("usage: export-firstperson <weapon> <out-dir> [--fbx]");
         return 1;
     }
 
-    string weapon = args[1];
-    string outputDirectory = args[2];
+    string weapon = positional[0];
+    string outputDirectory = positional[1];
     Directory.CreateDirectory(outputDirectory);
 
     string weaponPackagePath = GameLocator.WeaponPackage(root)
         ?? throw new FileNotFoundException("ShockGame.U not found; it holds the first-person weapon viewmodels.");
 
     var hands = LoadAnimationPackage(root, "0-Lighthouse", "UAPW_NEWPlayerHands");
-    var (sockets, geometry) = ResolveMesh(root, "0-Lighthouse", "UAPW_NEWPlayerHands");
+    var (sockets, geometry, material) = ResolveMesh(root, "0-Lighthouse", "UAPW_NEWPlayerHands", outputDirectory);
     var handEvents = ResolveEvents(root, "0-Lighthouse", hands);
-    var scene = AnimationSceneExporter.Build(hands, weapon, sockets, geometry, handEvents);
+    var scene = AnimationSceneExporter.Build(hands, weapon, sockets, geometry, handEvents, material);
 
     var socket = sockets.FirstOrDefault(s => string.Equals(s.Name, weapon, StringComparison.OrdinalIgnoreCase));
     if (socket is null)
@@ -607,8 +837,12 @@ static int ExportFirstPerson(string root, string[] args)
     byte[] weaponPayload = weaponPackage.ReadExportData(weaponMeshExport);
     var weaponGeometry = SkeletalMeshReader.ReadGeometry(weaponPayload);
     var weaponSockets = SkeletalMeshReader.ReadSockets(weaponPayload, weaponPackage.Names);
-    var weaponScene = AnimationSceneExporter.Build(weaponAnimations, null, weaponSockets, weaponGeometry);
+    var weaponMaterial = MaterialExporter.Resolve(weaponPackage, weaponMeshExport, outputDirectory);
+    var weaponScene = AnimationSceneExporter.Build(
+        weaponAnimations, null, weaponSockets, weaponGeometry, null, weaponMaterial);
 
+    if (weaponMaterial is not null)
+        Console.WriteLine($"weapon material: {weaponMaterial.Name} with {weaponMaterial.Textures.Count} texture bindings");
     Console.WriteLine($"weapon: {weaponMeshExport.ObjectName}, {weaponScene.Bones.Count} bones " +
                       $"(root '{weaponAnimations.Skeleton.Bones[0].Name}'), " +
                       $"{weaponScene.Animations.Count} animations, {weaponGeometry?.Vertices.Count ?? 0} vertices");
@@ -625,6 +859,12 @@ static int ExportFirstPerson(string root, string[] args)
             },
         ],
     };
+
+    if (asFbx)
+    {
+        Console.WriteLine();
+        return WriteFbx(scene, outputDirectory, preview);
+    }
 
     string scenePath = Path.Combine(outputDirectory, $"{weapon}_FirstPerson.json");
     AnimationSceneExporter.WriteJson(scene, scenePath);
