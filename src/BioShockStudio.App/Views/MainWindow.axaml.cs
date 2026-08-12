@@ -125,7 +125,12 @@ public partial class MainWindow : Window
 
         host.PointerWheelChanged += (_, e) =>
         {
-            if (DataContext is MainViewModel model) model.ZoomCamera(e.Delta.Y);
+            if (DataContext is not MainViewModel model) return;
+            model.ZoomCamera(e.Delta.Y);
+
+            // The viewport sits inside the details panel's ScrollViewer, which would otherwise take
+            // the wheel and scroll the panel — so the zoom appeared not to work at all.
+            e.Handled = true;
         };
 
         // Render at the size the viewport actually is, so the image is not scaled up and blurred.

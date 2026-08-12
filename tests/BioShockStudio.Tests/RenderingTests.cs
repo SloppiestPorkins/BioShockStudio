@@ -123,6 +123,28 @@ public sealed class RenderingTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Camera_ZoomMovesTowardAndAwayAndCannotInvert()
+    {
+        var (service, entry) = Hands();
+        var model = service.Load(entry).Model;
+        var camera = PreviewCamera.Frame(model);
+
+        var closer = camera.Zoom(0.88f);
+        var further = camera.Zoom(1f / 0.88f);
+        Assert.True(closer.Distance < camera.Distance);
+        Assert.True(further.Distance > camera.Distance);
+
+        // Zooming in hard must not pass through the subject and come out inverted.
+        var hard = camera;
+        for (int i = 0; i < 200; i++) hard = hard.Zoom(0.88f);
+        Assert.True(hard.Distance > 0f);
+
+        var near = SoftwareRenderer.Render(model, closer, new RenderOptions(), Width, Height);
+        var far = SoftwareRenderer.Render(model, further, new RenderOptions(), Width, Height);
+        Assert.True(Coverage(near) > Coverage(far), "zooming in should fill more of the view");
+    }
+
+    [RequiresGameFact]
     public void Render_IsStableForTheSameInputs()
     {
         var (service, entry) = Hands();

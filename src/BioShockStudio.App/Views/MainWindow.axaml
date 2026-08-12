@@ -161,6 +161,10 @@
                                 <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
                                 <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
                                 <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
+                                <Button Content="−" Command="{Binding ZoomOutCommand}" Padding="10,2"
+                                        ToolTip.Tip="Zoom out" />
+                                <Button Content="+" Command="{Binding ZoomInCommand}" Padding="10,2" Margin="4,0"
+                                        ToolTip.Tip="Zoom in" />
                                 <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
                             </WrapPanel>
 

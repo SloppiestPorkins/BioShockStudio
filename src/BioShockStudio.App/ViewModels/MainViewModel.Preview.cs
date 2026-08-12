@@ -378,6 +378,14 @@ public partial class MainViewModel
         RequestRender();
     }
 
+    /// <summary>One notch closer. Bound to the + button, matching one wheel notch.</summary>
+    [RelayCommand]
+    private void ZoomIn() => ZoomCamera(1);
+
+    /// <summary>One notch further away.</summary>
+    [RelayCommand]
+    private void ZoomOut() => ZoomCamera(-1);
+
     [RelayCommand]
     private void ResetCamera()
     {

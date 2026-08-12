@@ -187,6 +187,9 @@ rejected); what is actually proven is that their frame counts match exactly.
 - **Keyboard.** `Ctrl+F` focuses search, `Escape` clears it, `Space` plays and pauses, `←` and `→`
   step frames. The shortcuts are on the tunnelling pass so they work wherever focus is, but Space and
   the arrows are ignored while the search box has focus, or typing would not produce text.
+- **Zoom.** Wheel over the viewport, or the `−` and `+` buttons. The wheel event is marked handled
+  there, because the viewport sits inside the details panel's `ScrollViewer` and the panel was taking
+  the wheel instead — so zooming appeared not to work at all.
 - **The viewport says "Loading…"** while a heavy mesh is read. A blank panel reads as a failure.
 
 ## Not built yet
