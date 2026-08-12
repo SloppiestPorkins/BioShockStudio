@@ -34,10 +34,22 @@ It is the `FCompactIndex` immediately after the fixed tag block, the field
 
 ```
 ...bounds...
-int32 4, int32 5, byte 1      the tag block
-FCompactIndex                 -> the Shader              <- this
+int32 4, int32 5              the tag block
+FCompactIndex count           how many materials        <- was read as part of the tag
+count x FCompactIndex         -> Shader objects
 float3 scale
 float3 origin
+```
+
+**The count was originally recorded as a fixed `byte 1`.** It is not fixed. Meshes with two
+materials read 2 there, and reading it as part of the tag meant their second material was never
+seen — and worse, meshes that happened to sit at a different alignment resolved nothing at all:
+
+```
+WP_PistolMesh           04000000 05000000 01 7BB001          one material
+TommyGunMESH            04000000 05000000 02 6FB201 7F49     two
+WP_GrenadeLauncherMesh  04000000 05000000 01 5848            one
+PlasmidEquipMESH        04000000 05000000 02 57B101 7A49     two
 ```
 
 For `WP_PistolMesh` the bytes at the tag block are
@@ -73,16 +85,15 @@ Measured against the installed game:
 
 | Package | Meshes resolving to a material | Material objects decoding |
 |---|---|---|
-| `ShockGame.U` (weapon viewmodels) | 6 / 10 | 48 / 58 fully |
-| `0-Lighthouse` | 35 / 46 | 499 / 499, 43 partial |
+| `ShockGame.U` (weapon viewmodels) | **10 / 10** | 58 / 58, 11 partial |
+| `0-Lighthouse` | **41 / 46** | 499 / 499, 43 partial |
 | `1-Medical` | 40 / 55 | 819 / 819, 432 partial |
 | `6-Slums` | 40 / 54 | 797 / 797, 418 partial |
 
-The four weapon meshes that resolve to nothing are `TommyGunMESH`, `WP_GrenadeLauncherMesh`,
-`PlasmidEquipMESH` and `WP_CrossbowMesh` — **the same meshes whose geometry does not decode**. That
-is a useful correlation rather than a second problem: those meshes are a container variant this
-project does not yet read, and the material reference is missing for the same reason the vertices
-are.
+`TommyGunMESH`, `WP_GrenadeLauncherMesh`, `PlasmidEquipMESH` and `WP_CrossbowMesh` now all resolve
+their materials. The earlier note that they failed "for the same reason the vertices are" was
+**wrong**: their materials were missed because of the count above, and their geometry fails for a
+separate reason that is still open. The correlation was a coincidence of the same four meshes.
 
 ## `HkMeshProxy` is not the material link
 

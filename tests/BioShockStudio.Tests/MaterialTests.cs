@@ -59,6 +59,31 @@ public sealed partial class MaterialTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Mesh_MaterialListIsAnArrayNotASingleReference()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+
+        // The byte after the tag block was recorded as a fixed 1. It is an FCompactIndex count, and
+        // meshes with two materials read 2 — reading it as part of the tag meant their second
+        // material was never seen, and the mesh looked as though it had none.
+        byte[] tommy = package.ReadExportData(Mesh(package, "TommyGunMESH"));
+        var references = MaterialReader.ReadMeshMaterialReferences(tommy, package);
+        Assert.Equal(2, references.Count);
+
+        byte[] pistol = package.ReadExportData(Mesh(package, "WP_PistolMesh"));
+        Assert.Single(MaterialReader.ReadMeshMaterialReferences(pistol, package));
+
+        // Every weapon viewmodel in the script package now resolves a material, including the four
+        // whose geometry this tool still cannot read.
+        foreach (string name in new[] { "TommyGunMESH", "WP_GrenadeLauncherMesh", "PlasmidEquipMESH", "WP_CrossbowMesh" })
+        {
+            var material = MaterialReader.ReadForMesh(package, Mesh(package, name));
+            Assert.NotNull(material);
+            Assert.NotNull(material.DiffuseTexture);
+        }
+    }
+
+    [RequiresGameFact]
     public void MeshReference_IsRejectedWhenItDoesNotNameAMaterial()
     {
         using var package = BioShockPackage.Open(game.LighthousePackage);

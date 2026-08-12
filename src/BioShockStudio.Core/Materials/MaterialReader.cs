@@ -113,11 +113,20 @@ public static class MaterialReader
     ];
 
     /// <summary>
-    /// The block that separates a <c>SkeletalMesh</c>'s bounds from its material reference:
-    /// <c>int32 4, int32 5, byte 1</c>. Its position varies between meshes — 64 in
-    /// <c>NEWPlayerHands</c>, 54 in <c>WP_PistolMesh</c> — so it is searched for rather than assumed.
+    /// The block that separates a <c>SkeletalMesh</c>'s bounds from its material list:
+    /// <c>int32 4, int32 5</c>. Its position varies between meshes — 64 in <c>NEWPlayerHands</c>,
+    /// 54 in <c>WP_PistolMesh</c> — so it is searched for rather than assumed.
     /// </summary>
-    private static readonly byte[] TagBlock = [4, 0, 0, 0, 5, 0, 0, 0, 1];
+    /// <remarks>
+    /// What follows was recorded as a fixed <c>byte 1</c> and a single reference. It is not: it is an
+    /// <c>FCompactIndex</c> count and that many references. Meshes with two materials read 2 there —
+    /// <c>TommyGunMESH</c> and <c>PlasmidEquipMESH</c> both do — and reading the count as part of a
+    /// fixed tag meant their second material was never seen.
+    /// </remarks>
+    private static readonly byte[] TagBlock = [4, 0, 0, 0, 5, 0, 0, 0];
+
+    /// <summary>More materials than this on one mesh means the count was misread.</summary>
+    private const int MaximumMaterials = 16;
 
     /// <summary>How far into a payload the tag block is looked for.</summary>
     private const int TagBlockSearchLimit = 256;
@@ -128,23 +137,49 @@ public static class MaterialReader
     /// Reads the material reference out of a mesh payload, or null when the tag block is not found or
     /// the reference does not resolve to a material.
     /// </summary>
-    public static PackageIndex? ReadMeshMaterialReference(ReadOnlySpan<byte> payload, BioShockPackage package)
+    public static PackageIndex? ReadMeshMaterialReference(ReadOnlySpan<byte> payload, BioShockPackage package) =>
+        ReadMeshMaterialReferences(payload, package).FirstOrDefault(r => r.IsExport || r.IsImport) is { } first
+        && first.Value != 0
+            ? first
+            : null;
+
+    /// <summary>
+    /// Reads a mesh's material list. Empty when the tag block is not found or nothing after it names
+    /// a material.
+    /// </summary>
+    public static IReadOnlyList<PackageIndex> ReadMeshMaterialReferences(
+        ReadOnlySpan<byte> payload, BioShockPackage package)
     {
         int limit = Math.Min(TagBlockSearchLimit, payload.Length - TagBlock.Length);
+
         for (int at = 0; at < limit; at++)
         {
             if (!payload.Slice(at, TagBlock.Length).SequenceEqual(TagBlock)) continue;
 
             int offset = at + TagBlock.Length;
-            int value;
-            try { value = ReadCompactIndex(payload, ref offset); }
-            catch (InvalidDataException) { return null; }
+            var references = new List<PackageIndex>();
 
-            var reference = new PackageIndex(value);
-            return NamesAMaterial(package, reference) ? reference : null;
+            try
+            {
+                int count = ReadCompactIndex(payload, ref offset);
+                if (count is <= 0 or > MaximumMaterials) return [];
+
+                for (int i = 0; i < count; i++)
+                {
+                    var reference = new PackageIndex(ReadCompactIndex(payload, ref offset));
+                    if (!NamesAMaterial(package, reference)) return references;
+                    references.Add(reference);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+            {
+                return references;
+            }
+
+            return references;
         }
 
-        return null;
+        return [];
     }
 
     /// <summary>The material a mesh export uses, or null when it does not resolve to one in this package.</summary>

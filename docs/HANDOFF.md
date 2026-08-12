@@ -1,6 +1,6 @@
 # Handoff
 
-136/136 tests pass against the installed game.
+137/137 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -54,6 +54,8 @@ No game data is in the repo.
   27.02 all occur within the pistol set), so each animation gets its own file.
 - **A `SkeletalMesh`'s property list is empty.** Its material reference is in the binary payload,
   after a tag block whose position varies between meshes.
+- **A mesh's material reference is a counted array, not one reference.** The count was recorded as
+  a fixed `byte 1`; meshes with two materials read 2 and lost their second.
 - **The hands use a `FacingShader`, not a `Shader`** — different slot names entirely, so a reader
   that knows only `Diffuse` reports them as having no base colour map.
 - Names differ in case between the Havok tables and the Unreal objects (`R_Grip`/`R_grip`).
@@ -102,9 +104,14 @@ numbers measures Blender's interpolation, not the file.
    documented API and has never been run. Two things would be settled immediately: whether Unreal
    takes the `SOCKET_*` null nodes as sockets or as bones (`IncludeSocketNodes` turns them off if
    they become bones), and whether the notify API exists under the name that script uses.
-2. **Mesh coverage.** ~40% of `SkeletalMesh` decode. `TommyGunMESH`, `WP_GrenadeLauncherMesh`,
-   `PlasmidEquipMESH` and `WP_CrossbowMesh` are among the failures — and the same four are the only
-   weapon meshes that fail to resolve a material, so it is likely one cause rather than two.
+2. **Mesh coverage.** ~40% of `SkeletalMesh` decode to geometry. `TommyGunMESH`,
+   `WP_GrenadeLauncherMesh`, `PlasmidEquipMESH` and `WP_CrossbowMesh` are among the failures.
+   They now all resolve their **materials**, so the earlier guess that geometry and materials
+   failed for one shared cause was wrong — the materials were a count misread, and the geometry is
+   a separate, still-open question. `ReadGeometry` locates the vertex chain by search and requires
+   tangent, binormal and normal to be unit length at +12/+24/+36 with a 64- or 57-byte stride;
+   a mesh that yields nothing means no candidate satisfied every constraint, which points at a
+   different vertex stride rather than a different offset.
 3. **`MaskMaterial` nested struct sizes.** The declared size is one byte short of its content when
    the content holds a sized reference, which stops the shader walk there. Roughly half the shaders
    in the larger packages are reported partial for this reason. Byte evidence for both the working
