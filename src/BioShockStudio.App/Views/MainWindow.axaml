@@ -79,7 +79,7 @@
         </Border>
 
         <!-- ============================================ browser -->
-        <Grid Grid.Row="1" ColumnDefinitions="220,4,*,4,400" IsVisible="{Binding HasInstall}">
+        <Grid Grid.Row="1" ColumnDefinitions="220,4,*,4,470" IsVisible="{Binding HasInstall}">
 
             <!-- categories -->
             <DockPanel Grid.Column="0" Margin="10">
@@ -137,6 +137,59 @@
                         <Border Background="#33B86B6B" CornerRadius="4" Padding="10"
                                 IsVisible="{Binding DetailsProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <TextBlock Text="{Binding DetailsProblem}" TextWrapping="Wrap" />
+                        </Border>
+
+
+                        <!-- 3D preview -->
+                        <StackPanel Spacing="6" IsVisible="{Binding HasViewport}">
+                            <Border Name="ViewportHost" Background="#FF202020" CornerRadius="4"
+                                    Height="300" ClipToBounds="True" Cursor="Hand"
+                                    ToolTip.Tip="Drag to orbit · Shift-drag or middle-drag to pan · Wheel to zoom">
+                                <Image Source="{Binding Viewport}" Stretch="Uniform" />
+                            </Border>
+
+                            <WrapPanel>
+                                <CheckBox Content="Textured" IsChecked="{Binding ShowTextures}" Margin="0,0,10,0" />
+                                <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
+                                <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
+                                <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
+                                <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
+                            </WrapPanel>
+
+                            <!-- animation transport -->
+                            <StackPanel Spacing="6" IsVisible="{Binding PreviewAnimations.Count}">
+                                <ComboBox ItemsSource="{Binding PreviewAnimations}"
+                                          SelectedItem="{Binding SelectedAnimation}"
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="Choose an animation to play" />
+
+                                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto"
+                                      IsVisible="{Binding SelectedAnimation, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Button Grid.Column="0" Content="⏮" Command="{Binding PreviousFrameCommand}"
+                                            Padding="8,2" ToolTip.Tip="Previous frame" />
+                                    <Button Grid.Column="1" Content="▶" Command="{Binding TogglePlayCommand}"
+                                            Padding="8,2" Margin="4,0" ToolTip.Tip="Play or pause" />
+                                    <Button Grid.Column="2" Content="⏭" Command="{Binding NextFrameCommand}"
+                                            Padding="8,2" ToolTip.Tip="Next frame" />
+                                    <Slider Grid.Column="3" Margin="10,0" Minimum="0" Maximum="{Binding LastFrame}"
+                                            Value="{Binding Frame}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="4" ItemsSource="{Binding PlaybackSpeeds}"
+                                              SelectedItem="{Binding PlaybackSpeed}" MinWidth="76" />
+                                </Grid>
+
+                                <TextBlock Opacity="0.7" FontSize="12"
+                                           IsVisible="{Binding AnimationSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Run Text="Frame" />
+                                    <Run Text="{Binding Frame}" />
+                                    <Run Text="·" />
+                                    <Run Text="{Binding AnimationSummary}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Background="#33B86B6B" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding ViewportProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding ViewportProblem}" TextWrapping="Wrap" FontSize="12" />
                         </Border>
 
                         <!-- texture preview -->

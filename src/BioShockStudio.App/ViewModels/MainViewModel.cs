@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly AssetDetailsService _details;
     private readonly TexturePreviewService _textures;
     private readonly ExtractionService _extraction;
+    private readonly MeshPreviewService _preview;
 
     private CancellationTokenSource? _work;
     private CancellationTokenSource? _detailsWork;
@@ -107,6 +108,7 @@ public partial class MainViewModel : ViewModelBase
         _details = new AssetDetailsService(_catalog);
         _textures = new TexturePreviewService(_catalog);
         _extraction = new ExtractionService(_catalog);
+        _preview = new MeshPreviewService(_catalog);
 
         string? found = _installation.Detect();
         if (found is not null) _ = UseInstallAsync(found);
@@ -266,7 +268,11 @@ public partial class MainViewModel : ViewModelBase
             : $"{ShownCount:N0} of {TotalCount:N0}";
     }
 
-    partial void OnSelectedAssetChanged(CatalogEntry? value) => _ = ShowDetailsAsync(value);
+    partial void OnSelectedAssetChanged(CatalogEntry? value)
+    {
+        _ = ShowDetailsAsync(value);
+        _ = LoadPreviewAsync(value);
+    }
 
     private async Task ShowDetailsAsync(CatalogEntry? entry)
     {
@@ -338,7 +344,7 @@ public partial class MainViewModel : ViewModelBase
     /// The decoder produces RGBA and Avalonia's surface format is BGRA, so the red and blue channels
     /// are swapped here. Skipping this is not subtle — everything comes out blue.
     /// </remarks>
-    private static Bitmap ToBitmap(PreviewImage image)
+    internal static Bitmap ToBitmap(PreviewImage image)
     {
         var bitmap = new WriteableBitmap(
             new Avalonia.PixelSize(image.Width, image.Height),

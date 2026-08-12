@@ -99,13 +99,29 @@ public sealed class WindowTests
         model.SelectedAsset = model.Assets.FirstOrDefault(a => a.Category == AssetCategory.FirstPerson)
                               ?? model.Assets.FirstOrDefault();
 
-        for (int i = 0; i < 200 && model.DetailFields.Count == 0; i++)
+        for (int i = 0; i < 200 && (model.DetailFields.Count == 0 || model.Viewport is null); i++)
         {
             Dispatcher.UIThread.RunJobs();
             Thread.Sleep(50);
         }
 
-        Dispatcher.UIThread.RunJobs();
+        // Choose an animation so the transport and the posed model are both in the picture.
+        model.ShowSockets = true;
+        model.SelectedAnimation = model.PreviewAnimations.FirstOrDefault(a => a == "FastReloadPistol")
+                                  ?? model.PreviewAnimations.FirstOrDefault();
+
+        for (int i = 0; i < 200 && model.LastFrame == 0; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(50);
+        }
+
+        model.Frame = model.LastFrame / 2;
+        for (int i = 0; i < 60; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(30);
+        }
         window.CaptureRenderedFrame()?.Save(target);
         Assert.True(File.Exists(target));
     }

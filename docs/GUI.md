@@ -90,14 +90,37 @@ BIOSHOCK_UI_SNAPSHOT=/tmp/ui.png dotnet test --filter FullyQualifiedName~WindowT
 It renders offscreen. Do not screen-capture the running application to check it — the capture
 follows whatever is in front on the desktop, not the window you meant.
 
-## Not built yet
+## The 3D preview
 
-- **3D preview.** No mesh, skeleton or animation viewport. Avalonia has no built-in 3D, so this
-  needs either a software rasteriser or an OpenGL control, and it is the next substantial piece of
-  work. The data behind it is ready: `SkeletalMeshGeometry` and the decoded animation tracks are
-  what the FBX exporter already consumes.
+`Core/Rendering` holds a CPU triangle rasteriser — z-buffered, perspective, with linear-blend
+skinning, per-vertex normals, a headlamp light and texture sampling.
+
+**Software rather than GPU deliberately.** Avalonia has no built-in 3D, and the alternatives — an
+OpenGL control or a rendering dependency — cannot be drawn in a headless test. This one can, so the
+viewport is checked the way everything else here is: by rendering it and asserting on the pixels.
+`RenderingTests` covers coverage, determinism, that orbiting changes the view, that a posed frame
+differs from frame 0, and that the skeleton and socket overlays actually draw.
+
+It is not fast in absolute terms and does not need to be: the largest asset is ~9,000 triangles.
+Renders run on a background thread and frames are dropped rather than queued when one overruns, so
+dragging stays responsive instead of building a backlog.
+
+The preview loads through the same readers the exporters use. If the viewport shows a mesh deforming
+correctly, that is the geometry, skinning and animation the FBX will contain — it is not a second,
+looser interpretation of the data.
+
+**Framing.** The camera frames the union of poses sampled across the animation, not the rest pose.
+The hands travel far enough during a reload to leave a rest-framed view entirely; framing per frame
+instead would keep the subject centred but make the camera chase it. The cost is that no single
+frame fills the view.
+
+A mesh whose geometry variant is unsupported still draws its skeleton, with the reason shown.
+
+## Not built yet
 - **Asset relationship tree.** The details panel lists relationships per section; there is no graph
   view yet.
+- **Bone picking.** The renderer takes a `SelectedBone` and highlights it, but nothing in the UI
+  selects one yet, and bone names are not drawn.
 - **Context-aware preview** — hands plus weapon, character plus companion. `AssetContextResolver`
   establishes group ownership; what a first-person set needs is proven for the pistol and is not yet
   generalised.

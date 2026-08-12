@@ -1,6 +1,6 @@
 # Handoff
 
-115/115 tests pass against the installed game.
+124/124 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -27,7 +27,8 @@ No game data is in the repo.
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Application services | Installation, catalogue, details, texture preview, extraction. Tested without a window. |
-| GUI | Avalonia: game discovery and validation, browse 71,106 assets by category, search, asset details, texture preview, extraction queue with progress and cancellation. No 3D preview yet. |
+| GUI | Avalonia: game discovery and validation, browse 71,106 assets by category, search, asset details, texture preview, 3D preview with animation playback, extraction queue with progress and cancellation. |
+| 3D preview | Software rasteriser in `Core/Rendering`: skinned mesh, textures, skeleton and socket overlays, orbit camera, animation transport. Verified by rendering and asserting on pixels. |
 
 ## Key facts that were expensive to learn
 
@@ -107,10 +108,9 @@ numbers measures Blender's interpolation, not the file.
    the content holds a sized reference, which stops the shader walk there. Roughly half the shaders
    in the larger packages are reported partial for this reason. Byte evidence for both the working
    and the failing case is in `docs/research/materials.md`.
-4. **3D preview.** The window browses, previews textures and extracts, but has no mesh, skeleton or
-   animation viewport. Avalonia has no built-in 3D, so this needs a software rasteriser or an
-   OpenGL control. The data is ready — `SkeletalMeshGeometry` and the decoded tracks are what the
-   FBX exporter already consumes.
+4. **Context-aware preview.** The viewport shows one rig. A first-person set is two — hands plus
+   weapon at the socket — and the pistol case is proven but not generalised. `PreviewModel` already
+   carries sockets and their bones, so the missing piece is loading a second model and parenting it.
 5. **The game camera.** `PlayerCameraAnim` (2 bones, 56 recoil animations) is decoded but its space
    is not related to the viewmodel's. The exported camera is a preview, explicitly not a
    reconstruction.
