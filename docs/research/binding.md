@@ -54,3 +54,35 @@ every track with a partial mask — 4,452 of them in the hands package alone.
 
 `UNKNOWN`: the meaning of `m_blendHint`'s values in BioShock. It is carried through to
 `AnimationBinding.BlendHint` unchanged rather than interpreted.
+
+## Blender rest-pose orientation (CONFIRMED)
+
+The single largest source of visually wrong animation, found after the animations already "worked":
+bones must be created by assigning `EditBone.matrix`, not by setting head and tail.
+
+Blender derives a bone's roll from its head, tail and roll value. Building bones from head/tail
+alone lets Blender choose an arbitrary roll, so the rest matrix it stores is **not** the game's
+reference-pose matrix. Measured against `NEWPlayerHands`, rest orientations differed by up to
+**2.0** in individual matrix elements — a full axis flip — while bone *positions* were exact.
+
+That matters because the pose conversion is
+
+```
+basis = restMatrix⁻¹ · animatedWorld
+```
+
+which is only correct when `restMatrix` is the same matrix the animation's local transforms are
+composed against. With a mismatched rest basis the rig still animates, the mesh still deforms and
+the timing is still right — it is simply the wrong motion.
+
+After assigning `EditBone.matrix`:
+
+| Check | Before | After |
+|---|---|---|
+| Worst rest-matrix element error | 2.0 | 0.00002 |
+| Worst posed bone position error | — | 0.000006 m |
+
+The second row is measured across all ten pistol animations at the first, middle and last frame,
+against world transforms composed independently from the game's own track data.
+
+`tools/blender/validate_scene.py` performs both checks and exits non-zero on failure.

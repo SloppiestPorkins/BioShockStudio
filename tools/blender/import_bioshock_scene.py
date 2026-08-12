@@ -40,6 +40,19 @@ def local_matrix(bone):
     return Matrix.Translation(translation) @ rotation @ scale
 
 
+def orthonormal(matrix):
+    """Strip scale and shear, keeping rotation and translation.
+
+    Blender bone rest matrices are rigid transforms, so any scale in the game's reference pose has
+    to be dropped here rather than silently baked into the rig.
+    """
+    rotation = matrix.to_3x3()
+    rotation.normalize()
+    result = rotation.to_4x4()
+    result.translation = matrix.to_translation()
+    return result
+
+
 def global_matrices(bones):
     """Compose reference-pose matrices into armature space. Bones are stored parent-first."""
     result = []
@@ -68,14 +81,8 @@ def build_armature(scene):
     edit_bones = []
     for index, bone in enumerate(bones):
         edit_bone = armature_data.edit_bones.new(bone["name"])
-        matrix = globals_[index]
 
-        head = matrix.to_translation()
-        direction = matrix.to_3x3() @ Vector((1.0, 0.0, 0.0))
-        if direction.length < 1e-6:
-            direction = Vector((1.0, 0.0, 0.0))
-
-        # Length is cosmetic in Blender; it does not affect the pose, so a child's offset is used
+        # Length is cosmetic in Blender and does not affect the pose, so a child's offset is used
         # where available purely to make the rig readable.
         length = MIN_BONE_LENGTH
         for child in bones:
@@ -85,8 +92,14 @@ def build_armature(scene):
                     length = candidate
                     break
 
-        edit_bone.head = head
-        edit_bone.tail = head + direction.normalized() * length
+        # The bone's rest matrix must equal the game's reference-pose matrix exactly. Setting head
+        # and tail alone does not achieve that: Blender then picks its own roll, and the resulting
+        # rest orientation differs from the game's by up to a full axis flip. Assigning `matrix`
+        # makes Blender derive head, tail and roll from the orientation we hand it.
+        edit_bone.head = (0.0, 0.0, 0.0)
+        edit_bone.tail = (0.0, length, 0.0)
+        edit_bone.roll = 0.0
+        edit_bone.matrix = orthonormal(globals_[index])
         edit_bones.append(edit_bone)
 
     for index, bone in enumerate(bones):
@@ -216,6 +229,8 @@ def build_sockets(armature, scene):
 
 def build_action(armature, scene, animation, globals_):
     bones = scene["bones"]
+    # Blender's own rest hierarchy, which is what the pose basis is measured against.
+    rest_globals = [armature.data.bones[b["name"]].matrix_local for b in bones]
     action = bpy.data.actions.new(f"{animation['owner']}_{animation['name']}")
     action.use_fake_user = True
 
@@ -240,8 +255,9 @@ def build_action(armature, scene, animation, globals_):
         pose_bone.rotation_mode = "QUATERNION"
 
         parent_index = bones[bone_index]["parent"]
-        rest = globals_[bone_index]
-        rest_inverse = rest.inverted()
+        # Read the rest matrix back from Blender rather than reusing our own, so the conversion is
+        # correct even if Blender adjusted anything when the bone was created.
+        rest_inverse = armature.data.bones[pose_bone.name].matrix_local.inverted()
 
         translations = track["translations"]
         rotations = track["rotations"]
@@ -254,7 +270,7 @@ def build_action(armature, scene, animation, globals_):
             scale = Matrix.Diagonal(Vector(scales[frame * 3:frame * 3 + 3]).to_4d())
 
             local = Matrix.Translation(translation) @ rotation @ scale
-            world = local if parent_index < 0 else globals_[parent_index] @ local
+            world = local if parent_index < 0 else rest_globals[parent_index] @ local
 
             # Blender pose channels are relative to the rest pose, so convert out of world space.
             pose_bone.matrix_basis = rest_inverse @ world
