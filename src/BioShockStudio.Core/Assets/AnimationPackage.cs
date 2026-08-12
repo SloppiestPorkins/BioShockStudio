@@ -1,5 +1,6 @@
 using BioShockStudio.Core.Animation;
 using BioShockStudio.Core.Havok.Animation;
+using BioShockStudio.Core.Havok.Animation.SplineCompression;
 using BioShockStudio.Core.Havok.Detection;
 using BioShockStudio.Core.Havok.Objects;
 using BioShockStudio.Core.Havok.Packfile;
@@ -49,6 +50,50 @@ public sealed class AnimationPackage
 
     public BioShockAnimation? Find(string animationName) =>
         Animations.FirstOrDefault(a => string.Equals(a.Name, animationName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Havok packfile, kept so animations can be decoded on demand.</summary>
+    public required HavokPackfile Packfile { get; init; }
+
+    /// <summary>
+    /// Decodes an animation's compressed track data and binds each track to its skeleton bone.
+    /// </summary>
+    public DecodedAnimation Decode(BioShockAnimation animation)
+    {
+        if (animation.Compression != CompressionKind.Spline)
+            throw new NotSupportedException($"'{animation.Name}' uses {animation.Compression} compression.");
+
+        var section = Packfile.ResolvedSections[animation.SectionIndex];
+        var header = HkaSplineCompressedAnimationReader.Read(section, animation.Offset);
+
+        if (header.DataOffset is null)
+            throw new InvalidDataException($"'{animation.Name}' has no track data.");
+
+        var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
+
+        // Channels a track omits fall back to the bound bone's reference pose, so the binding has to
+        // be applied before decoding rather than after.
+        var referencePose = new ReferenceTransform[header.TransformTrackCount];
+        for (int track = 0; track < referencePose.Length; track++)
+        {
+            int bone = animation.Binding.BoneForTrack(track);
+            referencePose[track] = bone >= 0 && bone < Skeleton.BoneCount
+                ? new ReferenceTransform(
+                    Skeleton.Bones[bone].LocalTranslation,
+                    Skeleton.Bones[bone].LocalRotation,
+                    Skeleton.Bones[bone].LocalScale)
+                : ReferenceTransform.Identity;
+        }
+
+        var decoded = SplineDecompressor.Decode(
+            data, header.BlockOffsets, header.TransformTrackCount, header.NumFrames,
+            header.MaxFramesPerBlock, referencePose);
+
+        // Carry Havok's own track-to-bone mapping onto the decoded tracks.
+        foreach (var track in decoded.Tracks)
+            track.TargetBoneIndex = animation.Binding.BoneForTrack(track.OriginalTrackIndex);
+
+        return decoded;
+    }
 
     /// <summary>Loads an <c>AnimationPackageWrapper</c> export.</summary>
     public static AnimationPackage Load(BioShockPackage package, ObjectExport export)
@@ -107,6 +152,7 @@ public sealed class AnimationPackage
             Skeleton = skeleton,
             Animations = animations,
             Failures = failures,
+            Packfile = packfile,
             HavokOffset = location.Offset,
             RawPayload = payload,
         };
