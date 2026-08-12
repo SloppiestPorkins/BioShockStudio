@@ -49,6 +49,14 @@ def orthonormal(matrix):
     """
     rotation = matrix.to_3x3()
     rotation.normalize()
+
+    # Some bones carry a mirrored reference transform (a -1 scale axis; Bip01_L_Toe0Nub on the
+    # Little Sister is one). A Blender bone matrix has to be a proper rotation, so the mirror is
+    # removed here. The pose conversion reads the rest matrix back from Blender, so poses stay
+    # correct; only the rest orientation of that bone differs from the game's.
+    if rotation.determinant() < 0.0:
+        rotation[0] = [-c for c in rotation[0]]
+
     result = rotation.to_4x4()
     result.translation = matrix.to_translation()
     return result
@@ -248,11 +256,13 @@ def build_action(armature, scene, animation, globals_):
     armature.animation_data.action = action
 
     frame_count = animation["frameCount"]
+    driven = set()
 
     for track in animation["tracks"]:
         bone_index = track["boneIndex"]
         if bone_index < 0 or bone_index >= len(bones):
             continue
+        driven.add(bone_index)
 
         pose_bone = armature.pose.bones[bones[bone_index]["name"]]
         pose_bone.rotation_mode = "QUATERNION"
@@ -288,6 +298,20 @@ def build_action(armature, scene, animation, globals_):
         frame = round(event["time"] / animation["frameDuration"]) if animation["frameDuration"] > 0 else 0
         marker = action.pose_markers.new(event["name"] or event["notifyClass"])
         marker.frame = int(frame)
+
+    # Bones the animation does not drive must still be keyed, at their reference pose. Without this
+    # they keep whatever pose the previously assigned action left behind, so switching actions in
+    # Blender - or exporting to FBX - silently carries motion across. Several animations drive only
+    # a handful of bones: the Little Sister's LipFlap has a single track.
+    for index, bone in enumerate(bones):
+        if index in driven:
+            continue
+        pose_bone = armature.pose.bones[bone["name"]]
+        pose_bone.rotation_mode = "QUATERNION"
+        pose_bone.matrix_basis = Matrix.Identity(4)
+        pose_bone.keyframe_insert("location", frame=0, group=pose_bone.name)
+        pose_bone.keyframe_insert("rotation_quaternion", frame=0, group=pose_bone.name)
+        pose_bone.keyframe_insert("scale", frame=0, group=pose_bone.name)
 
     armature.animation_data.action = None
     return action

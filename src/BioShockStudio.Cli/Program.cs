@@ -33,6 +33,7 @@ try
         "export-blender" => ExportBlender(root, args),
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
+        "characters" => Characters(root, args),
         "animation" => AnimationInspect(root, args),
         "export-firstperson" => ExportFirstPerson(root, args),
         _ => Usage(),
@@ -58,6 +59,7 @@ static int Usage()
                                         List decoded animations, optionally for one weapon.
           meshes <package>              Report which SkeletalMeshes decode to geometry.
           context <package> <group>     Show an asset group and everything it owns.
+          characters <package>          List animated character assets in a package.
           animation inspect <package> <object> <animation>
                                         Dump an animation's tracks, samples and events.
           export-blender <package> <object> <out-dir> [owner]
@@ -282,6 +284,24 @@ static int Animations(string root, string[] args)
 
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
+    return 0;
+}
+
+static int Characters(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: characters <package>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var entries = CharacterCatalog.Find(package);
+
+    Console.WriteLine($"{"group",-28} {"animation package",-30} {"anims",6} {"textures",9} {"mesh bytes",11}  meshes");
+    foreach (var entry in entries)
+    {
+        Console.WriteLine($"{entry.Group,-28} {entry.AnimationPackageObject,-30} {entry.AnimationCount,6} " +
+                          $"{entry.TextureCount,9} {entry.LargestMeshSize,11}  {string.Join(", ", entry.Meshes.Take(3))}");
+    }
+
+    Console.WriteLine($"\n{entries.Count} animated assets.");
     return 0;
 }
 

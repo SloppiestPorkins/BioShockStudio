@@ -51,14 +51,22 @@ def check_rest(armature, bones):
 
     worst = 0.0
     worst_name = ""
+    mirrored = []
     for index, bone in enumerate(bones):
+        # A mirrored reference transform cannot be a Blender bone matrix, which must be a proper
+        # rotation. Those bones are reported rather than compared; the pose conversion reads the rest
+        # matrix back from Blender, so their poses are still correct.
+        if globals_[index].to_3x3().determinant() < 0.0:
+            mirrored.append(bone["name"])
+            continue
+
         rest = armature.data.bones[bone["name"]].matrix_local
         error = max(abs(rest[r][c] - globals_[index][r][c]) for r in range(3) for c in range(3))
         error = max(error, (rest.to_translation() - globals_[index].to_translation()).length)
         if error > worst:
             worst, worst_name = error, bone["name"]
 
-    print(f"rest pose: worst error {worst:.6f} ({worst_name})")
+    print(f"rest pose: worst error {worst:.6f} ({worst_name}); {len(mirrored)} mirrored bones skipped")
     return worst <= REST_TOLERANCE, globals_
 
 
@@ -78,17 +86,27 @@ def check_poses(armature, scene, bones):
         frames = animation["frameCount"]
 
         for frame in {0, frames // 2, frames - 1}:
+            # Bones without a track keep their rest transform, and animated children still hang off
+            # them, so the chain has to fall back to the rest pose rather than treating such a bone
+            # as a root.
+            world = [None] * len(bones)
             expected = [None] * len(bones)
             for index, bone in enumerate(bones):
                 track = tracks.get(index)
+                parent = bone["parent"]
+                parent_world = Matrix.Identity(4) if parent < 0 else world[parent]
+
                 if track is None:
+                    local = local_matrix(bone["translation"], bone["rotation"], bone["scale"])
+                    world[index] = parent_world @ local
                     continue
+
                 local = local_matrix(
                     track["translations"][frame * 3:frame * 3 + 3],
                     track["rotations"][frame * 4:frame * 4 + 4],
                     track["scales"][frame * 3:frame * 3 + 3])
-                parent = bone["parent"]
-                expected[index] = local if parent < 0 or expected[parent] is None else expected[parent] @ local
+                world[index] = parent_world @ local
+                expected[index] = world[index]
 
             bpy.context.scene.frame_set(frame)
             depsgraph.update()
@@ -114,7 +132,9 @@ def main():
     armatures = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     if not armatures:
         raise SystemExit("no armature in the .blend")
-    armature = armatures[0]
+
+    # A first-person scene contains the host rig and its attached weapon rig; validate the host.
+    armature = next((o for o in armatures if o.name == scene["sourceObject"]), None) or armatures[0]
 
     rest_ok, _ = check_rest(armature, bones)
     pose_ok, _ = check_poses(armature, scene, bones)
