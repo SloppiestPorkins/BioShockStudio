@@ -190,7 +190,8 @@ static AnimationPackage LoadAnimationPackage(string root, string packageName, st
 /// UAPW_&lt;MeshName&gt;, which is a convention rather than a reference, so a miss is reported as
 /// "no sockets" rather than treated as an error.
 /// </summary>
-static IReadOnlyList<MeshSocket> ResolveSockets(string root, string packageName, string wrapperName)
+static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry) ResolveMesh(
+    string root, string packageName, string wrapperName)
 {
     string meshName = wrapperName.StartsWith("UAPW_", StringComparison.OrdinalIgnoreCase)
         ? wrapperName["UAPW_".Length..]
@@ -202,7 +203,10 @@ static IReadOnlyList<MeshSocket> ResolveSockets(string root, string packageName,
                     && package.GetClassName(e) == AssetClasses.SkeletalMesh)
         .MaxBy(e => e.SerialSize);
 
-    return export is null ? [] : SkeletalMeshReader.ReadSockets(package.ReadExportData(export), package.Names);
+    if (export is null) return ([], null);
+
+    byte[] payload = package.ReadExportData(export);
+    return (SkeletalMeshReader.ReadSockets(payload, package.Names), SkeletalMeshReader.ReadGeometry(payload));
 }
 
 static int Skeleton(string root, string[] args)
@@ -262,10 +266,12 @@ static int ExportBlender(string root, string[] args)
     Directory.CreateDirectory(outputDirectory);
 
     var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
-    var sockets = ResolveSockets(root, args[1], args[2]);
+    var (sockets, geometry) = ResolveMesh(root, args[1], args[2]);
     if (sockets.Count > 0) Console.WriteLine($"resolved {sockets.Count} sockets from the companion SkeletalMesh");
+    if (geometry is not null)
+        Console.WriteLine($"resolved mesh: {geometry.Vertices.Count} vertices, {geometry.TriangleCount} triangles");
 
-    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets);
+    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry);
 
     string suffix = owner is null ? string.Empty : "_" + owner;
     string scenePath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.json");

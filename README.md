@@ -10,9 +10,8 @@ export something that plays back correctly in UE5.
 
 ## Status
 
-The **animation pipeline is complete end to end**: a shipped package goes in, a Blender file with a
-correct armature and playable actions comes out. The mesh pipeline has not been started, so what
-exports today is a skeleton and its animations, not a skinned character.
+**A shipped package goes in and a skinned, animated Blender file comes out.** The first-person hands
+mesh, its skeleton, its weapon sockets and all 130 animations extract and play correctly.
 
 | Area | State |
 |---|---|
@@ -23,9 +22,8 @@ exports today is a skeleton and its animations, not a skinned character.
 | `hkaSkeleton` | Complete, original bone indices preserved. |
 | `hkaAnimationBinding` | Complete, from Havok's own track-to-bone array. |
 | Spline decompression | Complete. 130/130 animations decode, zero failures. |
-| Blender export | Complete for skeleton + actions + sockets. |
-| `SkeletalMesh` header + sockets | Complete. 19 sockets on the hands mesh, all weapons on `R_Grip`. |
-| `SkeletalMesh` geometry | Vertex format decoded; **bone table unknown**, so no skinned export yet. |
+| `SkeletalMesh` | Complete: header, sockets, bone map, geometry, skin weights. |
+| Blender export | Complete: skinned mesh, armature, actions, sockets. |
 | FBX / UE5 export | Not started. |
 | GUI, viewport preview | Not started. |
 
@@ -105,12 +103,10 @@ dotnet run --project src/BioShockStudio.Cli -- export-blender 0-Lighthouse UAPW_
 blender --background --python tools/blender/import_bioshock_scene.py -- artifacts/UAPW_NEWPlayerHands_Pistol.json artifacts/UAPW_NEWPlayerHands_Pistol.blend
 ```
 
-The result, verified in Blender 5.1: a 47-bone armature with a single root, ten actions, 19 socket
-empties parented to their bones, game bone indices preserved as custom properties, and 46 of 47
-bones rigid under animation. The `Pistol` socket sits exactly on `R_grip` and travels 31 cm through
-the reload.
-
-There is no mesh yet — see [skeletalmesh.md](docs/research/skeletalmesh.md).
+The result, verified in Blender 5.1: a 4,852-vertex skinned mesh with 8,726 triangles and 38 vertex
+groups, a 47-bone armature with a single root, ten actions, and 19 socket empties parented to their
+bones. Every vertex is weighted, weights sum to 1, and the mesh deforms correctly under the
+animations. The `Pistol` socket sits exactly on `R_grip` and travels 31 cm through the reload.
 
 ## Layout
 

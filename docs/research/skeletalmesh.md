@@ -2,7 +2,7 @@
 
 **Implementation:** `src/BioShockStudio.Core/Mesh/SkeletalMeshReader.cs`
 **Tests:** `tests/BioShockStudio.Tests/SkeletalMeshTests.cs`
-**Status:** header and sockets implemented; geometry decoded but not yet exported; bone table unknown.
+**Status:** header, sockets, bone map, geometry and skinning all decoded and exporting to Blender.
 
 962 `SkeletalMesh` exports ship across the 21 packages, 46 of them in `0-Lighthouse.bsm`.
 
@@ -87,24 +87,64 @@ sensible 0..1 range.
 Index buffers are `uint16` and sit immediately before their vertex block — confirmed on
 `FireSpread_Mesh`, whose 36 indices form the expected `0,1,2 / 2,3,0` quad pattern over 24 vertices.
 
-## What blocks a skinned export
+## Bone map
 
-`UNKNOWN`: **the mesh bone table.** Vertex bone indices are mesh-local (0..37 in the hands mesh) and
-do **not** index the Havok skeleton directly. Tested geometrically: mapping mesh index *n* to
-skeleton bone *n* gives a mean vertex-to-dominant-bone distance of 55.6 units, which is *worse* than
-random permutations (43–50). So a bone table or bone map exists and has not been found.
+`CONFIRMED_BYTES`. Vertex bone indices are **mesh-local**, not skeleton indices. A `uint16` bone map
+translates them.
 
-It is not an `FName` array of bone names in the package name table: only 27 bone-like names exist
-there against 47 skeleton bones, and no run of them appears in the payload.
+For `NEWPlayerHands` it has 38 entries:
 
-Until that table is decoded, exporting the geometry would produce a mesh skinned to the wrong bones,
-which is worse than exporting no mesh at all. The armature and animations export correctly today.
+```
+4, 25, 5, 23, 26, 46, 6, 27, 7, 28, 29, 8, 30, 9, 13, 34, 10, 31, 19, 40, 37, 16, 32, 20, ...
+```
 
-## Next steps
+which resolves to `Bip01_L_UpperArm`, `Bip01_R_UpperArm`, `Bip01_L_Forearm`, `Bip01_L_ForeTwist1`,
+`Bip01_R_Forearm`, … — left and right interleaved, exactly what a two-armed viewmodel would use.
 
-1. Find the bone table or per-chunk bone map. Likely candidates: a `uint16` bone-map array adjacent
-   to each vertex chunk, or `HkMeshProxy` (8,961 instances), whose name suggests it bridges the
-   Unreal mesh and the Havok skeleton.
-2. Parse the LOD/section container so vertex and index blocks are located structurally rather than
-   by scanning for geometric invariants.
-3. Then: skinned mesh export to Blender, and FBX for UE5.
+Validated geometrically, by mean distance from a vertex to its dominant bone:
+
+| Mapping | Mean distance |
+|---|---|
+| Through the bone map | **6.73** |
+| Identity | 56.87 |
+| Shuffled bone map | 31.0 – 40.0 |
+
+## Geometry container
+
+`CONFIRMED_BYTES`. A chain of `FCompactIndex`-counted arrays that fit together exactly:
+
+```
+FCompactIndex boneMapCount,  boneMapCount x uint16    38 entries, ends on the index count
+FCompactIndex indexCount,    indexCount   x uint16    26,178 indices, ends on the vertex header
+4 bytes                                               unknown, observed as 1
+FCompactIndex skinnedCount,  skinnedCount x 64 bytes  3,469 skinned vertices
+FCompactIndex rigidCount,    rigidCount   x 57 bytes  1,383 rigid vertices
+```
+
+The largest index (4851) is exactly one less than the combined pool (3469 + 1383 = 4852).
+
+### Index pool ordering
+
+`CONFIRMED_BYTES`, and the subtlest detail in the format. The index buffer addresses the **rigid
+block first**, even though the skinned block is stored ahead of it in the file.
+
+Every count-based check passes under either ordering — index count divisible by three, no degenerate
+triangles, every vertex referenced, max index equal to pool size minus one. What separates them is
+triangle size: median edge 0.87 with rigid-first versus 44.04 with skinned-first, on a mesh only
+~140 units across. Rendering the wrong order gives visibly shattered geometry, which is how the bug
+was actually caught; the regression test now asserts the median edge directly.
+
+## Result
+
+`NEWPlayerHands` decodes to 4,852 vertices, 8,726 triangles, 38 vertex groups, UVs and per-vertex
+skin weights summing to 1. Exported to Blender it deforms correctly under the pistol animations.
+
+## Still unknown
+
+- Materials and texture references; the mesh exports untextured.
+- LODs. The two vertex blocks are one LOD; whether further LODs follow has not been checked.
+- The declared bounds cover the animated range rather than the bind pose, so they are not a hull of
+  the rest-pose geometry.
+- Whether other meshes use additional vertex strides. The reader validates each block's tangent,
+  binormal and normal before accepting it, so an unknown stride yields no geometry rather than
+  garbage.

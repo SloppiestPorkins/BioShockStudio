@@ -33,7 +33,8 @@ public static class AnimationSceneExporter
     public static AnimationScene Build(
         AnimationPackage package,
         string? ownerFilter = null,
-        IReadOnlyList<MeshSocket>? sockets = null)
+        IReadOnlyList<MeshSocket>? sockets = null,
+        SkeletalMeshGeometry? geometry = null)
     {
         var skeleton = package.Skeleton;
 
@@ -97,6 +98,51 @@ public static class AnimationSceneExporter
             Sockets = (sockets ?? [])
                 .Select(s => new SceneSocket { Name = s.Name, BoneName = s.BoneName })
                 .ToList(),
+            Mesh = geometry is null ? null : BuildMesh(geometry),
+        };
+    }
+
+    private static SceneMesh BuildMesh(SkeletalMeshGeometry geometry)
+    {
+        var positions = new float[geometry.Vertices.Count * 3];
+        var normals = new float[geometry.Vertices.Count * 3];
+        var uvs = new float[geometry.Vertices.Count * 2];
+
+        // Influences are variable length, so they travel as a flat list plus a per-vertex count
+        // rather than being padded or truncated to a fixed four.
+        var influenceCounts = new int[geometry.Vertices.Count];
+        var influenceBones = new List<int>();
+        var influenceWeights = new List<float>();
+
+        for (int i = 0; i < geometry.Vertices.Count; i++)
+        {
+            var vertex = geometry.Vertices[i];
+            positions[i * 3] = vertex.Position.X;
+            positions[i * 3 + 1] = vertex.Position.Y;
+            positions[i * 3 + 2] = vertex.Position.Z;
+            normals[i * 3] = vertex.Normal.X;
+            normals[i * 3 + 1] = vertex.Normal.Y;
+            normals[i * 3 + 2] = vertex.Normal.Z;
+            uvs[i * 2] = vertex.Uv.X;
+            uvs[i * 2 + 1] = vertex.Uv.Y;
+
+            influenceCounts[i] = vertex.Influences.Count;
+            foreach (var influence in vertex.Influences)
+            {
+                influenceBones.Add(influence.BoneIndex);
+                influenceWeights.Add(influence.Weight);
+            }
+        }
+
+        return new SceneMesh
+        {
+            Positions = positions,
+            Normals = normals,
+            Uvs = uvs,
+            Triangles = geometry.Indices.ToArray(),
+            InfluenceCounts = influenceCounts,
+            InfluenceBones = influenceBones.ToArray(),
+            InfluenceWeights = influenceWeights.ToArray(),
         };
     }
 
@@ -121,6 +167,24 @@ public sealed record AnimationScene
 
     /// <summary>Attachment points declared by the companion SkeletalMesh, if one was resolved.</summary>
     public required IReadOnlyList<SceneSocket> Sockets { get; init; }
+
+    /// <summary>Skinned geometry, when a companion SkeletalMesh was resolved and decoded.</summary>
+    public SceneMesh? Mesh { get; init; }
+}
+
+/// <summary>Skinned geometry in flat arrays, ready for Blender's foreach_set fast paths.</summary>
+public sealed record SceneMesh
+{
+    public required float[] Positions { get; init; }
+    public required float[] Normals { get; init; }
+    public required float[] Uvs { get; init; }
+    public required int[] Triangles { get; init; }
+
+    /// <summary>Number of influences belonging to each vertex.</summary>
+    public required int[] InfluenceCounts { get; init; }
+
+    public required int[] InfluenceBones { get; init; }
+    public required float[] InfluenceWeights { get; init; }
 }
 
 /// <summary>A named attachment point and the bone it hangs off.</summary>

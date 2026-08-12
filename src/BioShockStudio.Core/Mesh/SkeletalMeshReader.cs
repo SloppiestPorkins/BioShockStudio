@@ -143,6 +143,237 @@ public static class SkeletalMeshReader
         return offset;
     }
 
+    /// <summary>Byte size of a vertex carrying four skin influences.</summary>
+    public const int SkinnedVertexStride = 64;
+
+    /// <summary>Byte size of a vertex bound rigidly to one bone.</summary>
+    public const int RigidVertexStride = 57;
+
+    /// <summary>
+    /// Reads the mesh geometry.
+    /// <para>
+    /// The relevant part of the payload is a chain of <c>FCompactIndex</c>-counted arrays:
+    /// </para>
+    /// <code>
+    /// FCompactIndex boneMapCount,  boneMapCount x uint16    mesh bone slot -> skeleton bone
+    /// FCompactIndex indexCount,    indexCount   x uint16    triangle indices
+    /// 4 bytes                                               unknown, observed as 1
+    /// FCompactIndex skinnedCount,  skinnedCount x 64 bytes  skinned vertices
+    /// FCompactIndex rigidCount,    rigidCount   x 57 bytes  rigid vertices
+    /// </code>
+    /// <para>
+    /// CONFIRMED_BYTES for <c>NEWPlayerHands</c>: the chain fits together exactly — the bone map
+    /// ends on the index count, the 26,178 indices end on the vertex header, and the largest index
+    /// (4851) is one less than the combined vertex pool (3469 skinned + 1383 rigid = 4852).
+    /// </para>
+    /// <para>
+    /// The chain is located by search rather than by a hardcoded offset, because the variable-length
+    /// data preceding it is not fully understood. Every constraint below has to hold simultaneously,
+    /// which makes a false positive implausible.
+    /// </para>
+    /// </summary>
+    public static SkeletalMeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload)
+    {
+        if (!TryLocateGeometry(payload, out var layout)) return null;
+
+        var boneMap = new int[layout.BoneMapCount];
+        for (int i = 0; i < boneMap.Length; i++)
+            boneMap[i] = BinaryPrimitives.ReadUInt16LittleEndian(payload[(layout.BoneMapOffset + i * 2)..]);
+
+        var indices = new int[layout.IndexCount];
+        for (int i = 0; i < indices.Length; i++)
+            indices[i] = BinaryPrimitives.ReadUInt16LittleEndian(payload[(layout.IndexOffset + i * 2)..]);
+
+        var vertices = new List<MeshVertex>(layout.SkinnedCount + layout.RigidCount);
+
+        // The index buffer addresses the rigid block first, even though the skinned block is stored
+        // ahead of it in the file. CONFIRMED_BYTES: with rigid-first the median triangle edge is
+        // 0.87 units; with skinned-first it is 44.04 against a mesh only ~140 units across, i.e. the
+        // triangles would span the whole model. Rendering the wrong order produces visibly shattered
+        // geometry.
+        for (int v = 0; v < layout.RigidCount; v++)
+        {
+            int o = layout.RigidOffset + v * RigidVertexStride;
+            int slot = payload[o + 56];
+            var rigidInfluences = slot < boneMap.Length
+                ? new List<SkinInfluence> { new(boneMap[slot], 1f) }
+                : [];
+            vertices.Add(ReadVertexCore(payload, o, rigidInfluences));
+        }
+
+        for (int v = 0; v < layout.SkinnedCount; v++)
+        {
+            int o = layout.SkinnedOffset + v * SkinnedVertexStride;
+            var influences = new List<SkinInfluence>(4);
+
+            for (int k = 0; k < 4; k++)
+            {
+                int slot = payload[o + 56 + k * 2];
+                int weight = payload[o + 57 + k * 2];
+                if (weight == 0) continue;
+                if (slot >= boneMap.Length) continue;
+                influences.Add(new SkinInfluence(boneMap[slot], weight / 255f));
+            }
+
+            vertices.Add(ReadVertexCore(payload, o, influences));
+        }
+
+        return new SkeletalMeshGeometry
+        {
+            Vertices = vertices,
+            Indices = indices,
+            BoneMap = boneMap,
+            SkinnedVertexCount = layout.SkinnedCount,
+            RigidVertexCount = layout.RigidCount,
+        };
+    }
+
+    private static MeshVertex ReadVertexCore(ReadOnlySpan<byte> payload, int offset, IReadOnlyList<SkinInfluence> influences) =>
+        new()
+        {
+            Position = ReadVector(payload, offset),
+            Normal = ReadVector(payload, offset + 36),
+            Uv = new Vector2(
+                BinaryPrimitives.ReadSingleLittleEndian(payload[(offset + 48)..]),
+                BinaryPrimitives.ReadSingleLittleEndian(payload[(offset + 52)..])),
+            Influences = influences,
+        };
+
+    private readonly record struct GeometryLayout(
+        int BoneMapOffset, int BoneMapCount,
+        int IndexOffset, int IndexCount,
+        int SkinnedOffset, int SkinnedCount,
+        int RigidOffset, int RigidCount);
+
+    private static bool TryLocateGeometry(ReadOnlySpan<byte> payload, out GeometryLayout layout)
+    {
+        layout = default;
+
+        for (int at = 0; at < payload.Length - 16; at++)
+        {
+            int cursor = at;
+            int indexCount;
+            try { indexCount = ReadCompactIndex(payload, ref cursor); }
+            catch { continue; }
+
+            // A real mesh has thousands of indices, always a whole number of triangles.
+            if (indexCount < 3 || indexCount % 3 != 0) continue;
+            long indexEnd = (long)cursor + indexCount * 2L;
+            if (indexEnd + 8 > payload.Length) continue;
+
+            int indexOffset = cursor;
+            int afterIndices = (int)indexEnd + 4;
+
+            int vertexCursor = afterIndices;
+            int skinnedCount;
+            try { skinnedCount = ReadCompactIndex(payload, ref vertexCursor); }
+            catch { continue; }
+            if (skinnedCount <= 0) continue;
+
+            long skinnedEnd = (long)vertexCursor + skinnedCount * (long)SkinnedVertexStride;
+            if (skinnedEnd > payload.Length) continue;
+            if (!LooksLikeVertices(payload, vertexCursor, skinnedCount, SkinnedVertexStride)) continue;
+
+            int skinnedOffset = vertexCursor;
+
+            int rigidCursor = (int)skinnedEnd;
+            int rigidCount = 0;
+            int rigidOffset = rigidCursor;
+            if (rigidCursor < payload.Length - 8)
+            {
+                int probe = rigidCursor;
+                try
+                {
+                    int candidate = ReadCompactIndex(payload, ref probe);
+                    long rigidEnd = (long)probe + candidate * (long)RigidVertexStride;
+                    if (candidate > 0 && rigidEnd <= payload.Length &&
+                        LooksLikeVertices(payload, probe, candidate, RigidVertexStride))
+                    {
+                        rigidCount = candidate;
+                        rigidOffset = probe;
+                    }
+                }
+                catch { /* no rigid block */ }
+            }
+
+            // The index buffer must address exactly the vertices that follow it.
+            int pool = skinnedCount + rigidCount;
+            int maxIndex = 0;
+            for (int i = 0; i < indexCount; i++)
+            {
+                int value = BinaryPrimitives.ReadUInt16LittleEndian(payload[(indexOffset + i * 2)..]);
+                if (value > maxIndex) maxIndex = value;
+            }
+            if (maxIndex != pool - 1) continue;
+
+            // The bone map is the array immediately preceding the index count.
+            if (!TryReadBoneMapEndingAt(payload, at, out int boneMapOffset, out int boneMapCount)) continue;
+
+            layout = new GeometryLayout(
+                boneMapOffset, boneMapCount, indexOffset, indexCount,
+                skinnedOffset, skinnedCount, rigidOffset, rigidCount);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadBoneMapEndingAt(ReadOnlySpan<byte> payload, int end, out int offset, out int count)
+    {
+        offset = 0;
+        count = 0;
+
+        for (int at = Math.Max(0, end - 600); at < end; at++)
+        {
+            int cursor = at;
+            int candidate;
+            try { candidate = ReadCompactIndex(payload, ref cursor); }
+            catch { continue; }
+
+            if (candidate is <= 0 or > 256) continue;
+            if (cursor + candidate * 2 != end) continue;
+
+            // Bone slots address a skeleton, so they are small and distinct.
+            var seen = new HashSet<int>();
+            bool ok = true;
+            for (int i = 0; i < candidate; i++)
+            {
+                int value = BinaryPrimitives.ReadUInt16LittleEndian(payload[(cursor + i * 2)..]);
+                if (value > 255 || !seen.Add(value)) { ok = false; break; }
+            }
+            if (!ok) continue;
+
+            offset = cursor;
+            count = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeVertices(ReadOnlySpan<byte> payload, int offset, int count, int stride)
+    {
+        int sampled = 0;
+        int step = Math.Max(1, count / 24);
+
+        for (int v = 0; v < count; v += step)
+        {
+            int o = offset + v * stride;
+            if (o + stride > payload.Length) return false;
+            if (!IsUnit(payload, o + 12) || !IsUnit(payload, o + 24) || !IsUnit(payload, o + 36)) return false;
+            sampled++;
+        }
+
+        return sampled > 0;
+    }
+
+    private static bool IsUnit(ReadOnlySpan<byte> payload, int offset)
+    {
+        var v = ReadVector(payload, offset);
+        float length = v.Length();
+        return length is > 0.9f and < 1.1f;
+    }
+
     private static Vector3 ReadVector(ReadOnlySpan<byte> data, int offset) => new(
         BinaryPrimitives.ReadSingleLittleEndian(data[offset..]),
         BinaryPrimitives.ReadSingleLittleEndian(data[(offset + 4)..]),

@@ -106,6 +106,78 @@ def build_armature(scene):
     return armature, globals_
 
 
+def build_mesh(armature, scene):
+    """Build the skinned mesh and bind it to the armature.
+
+    Skin weights come from the game's own bone map, so vertex groups are named after the skeleton
+    bones the influences resolve to rather than being inferred.
+    """
+    data = scene.get("mesh")
+    if not data:
+        return None
+
+    bones = scene["bones"]
+    positions = data["positions"]
+    triangles = data["triangles"]
+    vertex_count = len(positions) // 3
+
+    mesh = bpy.data.meshes.new(f"{scene['sourceObject']}_Mesh")
+    mesh.vertices.add(vertex_count)
+    mesh.vertices.foreach_set("co", [c * SCENE_SCALE for c in positions])
+
+    face_count = len(triangles) // 3
+    mesh.loops.add(len(triangles))
+    mesh.polygons.add(face_count)
+    mesh.loops.foreach_set("vertex_index", triangles)
+    mesh.polygons.foreach_set("loop_start", [i * 3 for i in range(face_count)])
+    mesh.polygons.foreach_set("loop_total", [3] * face_count)
+
+    uv_layer = mesh.uv_layers.new(name="UVMap")
+    uvs = data["uvs"]
+    # Blender's V axis runs opposite to the game's.
+    uv_layer.data.foreach_set(
+        "uv", [v for i in triangles for v in (uvs[i * 2], 1.0 - uvs[i * 2 + 1])])
+
+    mesh.update()
+    mesh.validate()
+
+    obj = bpy.data.objects.new(f"{scene['sourceObject']}_Mesh", mesh)
+    bpy.context.collection.objects.link(obj)
+
+    # Custom split normals from the game data, so shading matches the original.
+    try:
+        normals = data["normals"]
+        mesh.normals_split_custom_set_from_vertices(
+            [tuple(normals[i * 3:i * 3 + 3]) for i in range(vertex_count)])
+    except Exception as exc:
+        print(f"bioshock: could not apply custom normals ({exc})")
+
+    counts = data["influenceCounts"]
+    bone_indices = data["influenceBones"]
+    weights = data["influenceWeights"]
+
+    groups = {}
+    cursor = 0
+    for vertex in range(vertex_count):
+        for _ in range(counts[vertex]):
+            bone_index = bone_indices[cursor]
+            weight = weights[cursor]
+            cursor += 1
+            name = bones[bone_index]["name"]
+            group = groups.get(name)
+            if group is None:
+                group = obj.vertex_groups.new(name=name)
+                groups[name] = group
+            group.add([vertex], weight, "REPLACE")
+
+    obj.parent = armature
+    modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
+    modifier.object = armature
+
+    print(f"bioshock: mesh {vertex_count} verts, {face_count} tris, {len(groups)} vertex groups")
+    return obj
+
+
 def build_sockets(armature, scene):
     """Create an empty per socket, parented to the bone the game attaches it to.
 
@@ -202,6 +274,7 @@ def main():
 
     clear_scene()
     armature, globals_ = build_armature(scene)
+    mesh_object = build_mesh(armature, scene)
     sockets = build_sockets(armature, scene)
 
     for animation in scene["animations"]:
@@ -217,7 +290,8 @@ def main():
 
     print(f"bioshock: wrote {output_path}")
     print(f"bioshock: {len(scene['bones'])} bones, {len(scene['animations'])} actions, "
-          f"{len(sockets)} sockets, {len(scene['failures'])} undecoded")
+          f"{len(sockets)} sockets, mesh={'yes' if mesh_object else 'no'}, "
+          f"{len(scene['failures'])} undecoded")
 
 
 if __name__ == "__main__":
