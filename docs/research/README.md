@@ -18,6 +18,8 @@ Every claim in these documents carries a confidence label:
 | [remastered.md](remastered.md) | Install layout, file types, what shipped where. |
 | [packages.md](packages.md) | The `.bsm` package format — header, names, imports, exports. |
 | [havok.md](havok.md) | Havok 2012.2.0-r1 packfile container as BioShock uses it. |
+| [havok-compression.md](havok-compression.md) | Spline compression and quantised quaternions. |
+| [binding.md](binding.md) | Track-to-bone binding, and why it must precede decoding. |
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
 | [firstperson.md](firstperson.md) | First-person hands, weapons and the pistol target case. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |

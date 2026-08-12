@@ -1,4 +1,5 @@
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Havok.Detection;
 using BioShockStudio.Core.Havok.Packfile;
@@ -28,6 +29,7 @@ try
         "havok" => Havok(root, args),
         "skeleton" => Skeleton(root, args),
         "animations" => Animations(root, args),
+        "export-blender" => ExportBlender(root, args),
         _ => Usage(),
     };
 }
@@ -49,6 +51,8 @@ static int Usage()
           skeleton <package> <object>   Show the skeleton of an AnimationPackageWrapper.
           animations <package> <object> [owner]
                                         List decoded animations, optionally for one weapon.
+          export-blender <package> <object> <out-dir> [owner]
+                                        Write scene JSON for the Blender importer.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -221,6 +225,37 @@ static int Animations(string root, string[] args)
 
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
+    return 0;
+}
+
+static int ExportBlender(string root, string[] args)
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine("usage: export-blender <package> <object> <output-dir> [owner]");
+        return 1;
+    }
+
+    string outputDirectory = args[3];
+    string? owner = args.Length > 4 ? args[4] : null;
+    Directory.CreateDirectory(outputDirectory);
+
+    var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
+    var scene = AnimationSceneExporter.Build(animationPackage, owner);
+
+    string suffix = owner is null ? string.Empty : "_" + owner;
+    string scenePath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.json");
+    AnimationSceneExporter.WriteJson(scene, scenePath);
+
+    Console.WriteLine($"wrote {scenePath}");
+    Console.WriteLine($"  {scene.Bones.Count} bones, {scene.Animations.Count} animations, {scene.Failures.Count} undecoded");
+
+    string blendPath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.blend");
+    string script = Path.Combine(AppContext.BaseDirectory, "tools", "blender", "import_bioshock_scene.py");
+    if (!File.Exists(script)) script = Path.Combine("tools", "blender", "import_bioshock_scene.py");
+
+    Console.WriteLine("\nTo build the .blend, run:");
+    Console.WriteLine($"  blender --background --python \"{Path.GetFullPath(script)}\" -- \"{scenePath}\" \"{blendPath}\"");
     return 0;
 }
 
