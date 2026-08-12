@@ -38,6 +38,7 @@ public partial class MainViewModel
 
     [ObservableProperty] private Bitmap? _viewport;
     [ObservableProperty] private bool _hasViewport;
+    [ObservableProperty] private bool _isPreviewLoading;
     [ObservableProperty] private string? _viewportProblem;
     [ObservableProperty] private int _viewportWidth = 420;
     [ObservableProperty] private int _viewportHeight = 300;
@@ -149,6 +150,7 @@ public partial class MainViewModel
 
         _previewWork = new CancellationTokenSource();
         var token = _previewWork.Token;
+        IsPreviewLoading = true;
 
         try
         {
@@ -184,6 +186,10 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             ViewportProblem = ex.Message;
+        }
+        finally
+        {
+            IsPreviewLoading = false;
         }
     }
 

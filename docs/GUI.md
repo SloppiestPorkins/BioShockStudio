@@ -178,6 +178,17 @@ transform, and it plays its own animation in sync — the pistol's `FastReload` 
 `FastReloadPistol`. That pairing is `HEURISTIC` (longest shared name prefix, short matches
 rejected); what is actually proven is that their frame counts match exactly.
 
+## Quality of life
+
+- **Settings persist.** Game folder, output folder, export formats and the viewport toggles are
+  remembered in `%APPDATA%\BioShockHavok\settings.json`. Re-picking a folder every launch is the
+  kind of friction that makes a tool feel unfinished. They are written once as the window closes, not
+  on every change, and a corrupt file falls back to defaults rather than stopping the app opening.
+- **Keyboard.** `Ctrl+F` focuses search, `Escape` clears it, `Space` plays and pauses, `←` and `→`
+  step frames. The shortcuts are on the tunnelling pass so they work wherever focus is, but Space and
+  the arrows are ignored while the search box has focus, or typing would not produce text.
+- **The viewport says "Loading…"** while a heavy mesh is read. A blank panel reads as a failure.
+
 ## Not built yet
 - **Asset relationship tree.** The details panel lists relationships per section; there is no graph
   view yet.

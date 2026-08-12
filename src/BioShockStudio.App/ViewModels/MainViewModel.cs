@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ExtractionService _extraction;
     private readonly MeshPreviewService _preview;
     private readonly AssetContextService _context;
+    private readonly SettingsService _settings = new();
 
     private CancellationTokenSource? _work;
     private CancellationTokenSource? _detailsWork;
@@ -112,9 +113,59 @@ public partial class MainViewModel : ViewModelBase
         _preview = new MeshPreviewService(_catalog);
         _context = new AssetContextService(_catalog);
 
-        string? found = _installation.Detect();
-        if (found is not null) _ = UseInstallAsync(found);
+        // Remembered settings first, so a chosen folder and output path survive a restart; only
+        // fall back to detection when there is nothing to remember.
+        var saved = _settings.Load();
+        Restore(saved);
+
+        string? path = saved.GamePath is not null && Directory.Exists(saved.GamePath)
+            ? saved.GamePath
+            : _installation.Detect();
+
+        if (path is not null) _ = UseInstallAsync(path);
     }
+
+    private void Restore(AppSettings saved)
+    {
+        if (!string.IsNullOrWhiteSpace(saved.OutputDirectory)) OutputDirectory = saved.OutputDirectory;
+
+        ExportSceneJson = saved.ExportSceneJson;
+        ExportFbx = saved.ExportFbx;
+        ExportPng = saved.ExportPng;
+        ExportDds = saved.ExportDds;
+        PreservePackageStructure = saved.PreservePackageStructure;
+        SkipExisting = saved.SkipExisting;
+
+        ResearchMode = saved.ResearchMode;
+        ShowTextures = saved.ShowTextures;
+        ShowShading = saved.ShowShading;
+        ShowSkeleton = saved.ShowSkeleton;
+        ShowSockets = saved.ShowSockets;
+    }
+
+    /// <summary>Writes the settings out. Called by the window as it closes.</summary>
+    public void Persist(double windowWidth = 0, double windowHeight = 0) => _settings.Save(new AppSettings
+    {
+        GamePath = HasInstall ? GamePath : null,
+        OutputDirectory = OutputDirectory,
+        ExportSceneJson = ExportSceneJson,
+        ExportFbx = ExportFbx,
+        ExportPng = ExportPng,
+        ExportDds = ExportDds,
+        PreservePackageStructure = PreservePackageStructure,
+        SkipExisting = SkipExisting,
+        ResearchMode = ResearchMode,
+        ShowTextures = ShowTextures,
+        ShowShading = ShowShading,
+        ShowSkeleton = ShowSkeleton,
+        ShowSockets = ShowSockets,
+        WindowWidth = windowWidth,
+        WindowHeight = windowHeight,
+    });
+
+    /// <summary>Clears the search box. Bound to Escape.</summary>
+    [RelayCommand]
+    private void ClearSearch() => Search = string.Empty;
 
     // ------------------------------------------------------------------ installation
 

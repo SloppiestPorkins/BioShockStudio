@@ -59,6 +59,45 @@ public sealed class ServiceTests(GameFixture game)
         Assert.False(nothing.IsUsable);
     }
 
+    // ------------------------------------------------------------------ settings
+
+    [Fact]
+    public void Settings_RoundTripAndSurviveACorruptFile()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"bioshock-settings-{Guid.NewGuid():N}.json");
+        var service = new SettingsService(path);
+
+        try
+        {
+            // Nothing saved yet: defaults, not a crash.
+            Assert.True(service.Load().ExportFbx);
+
+            Assert.True(service.Save(new AppSettings
+            {
+                GamePath = @"C:\Games\BioShock",
+                OutputDirectory = @"D:\Out",
+                ExportDds = true,
+                ExportFbx = false,
+                ResearchMode = true,
+            }));
+
+            var loaded = service.Load();
+            Assert.Equal(@"C:\Games\BioShock", loaded.GamePath);
+            Assert.Equal(@"D:\Out", loaded.OutputDirectory);
+            Assert.True(loaded.ExportDds);
+            Assert.False(loaded.ExportFbx);
+            Assert.True(loaded.ResearchMode);
+
+            // A corrupt settings file must never be the reason the application will not open.
+            File.WriteAllText(path, "{ this is not json");
+            Assert.True(service.Load().ExportFbx);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     // ------------------------------------------------------------------ catalogue
 
     [RequiresGameFact]

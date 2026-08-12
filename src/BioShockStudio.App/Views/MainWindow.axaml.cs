@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using BioShockStudio.App.ViewModels;
 
@@ -25,6 +26,63 @@ public partial class MainWindow : Window
         };
 
         HookViewport();
+        HookShortcuts();
+
+        // Settings are written on the way out rather than on every change, so a session's fiddling
+        // costs one write instead of dozens.
+        Closing += (_, _) =>
+        {
+            if (DataContext is MainViewModel model) model.Persist(Width, Height);
+        };
+    }
+
+    /// <summary>
+    /// Keyboard shortcuts for the things done most often.
+    /// </summary>
+    /// <remarks>
+    /// Handled on the tunnelling pass so they work wherever focus is, except that typing in the
+    /// search box must still produce text — Space and the arrows are ignored while it has focus.
+    /// </remarks>
+    private void HookShortcuts()
+    {
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (DataContext is not MainViewModel model) return;
+
+            var search = this.FindControl<TextBox>("SearchBox");
+            bool typing = search?.IsFocused == true;
+
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.F)
+            {
+                search?.Focus();
+                search?.SelectAll();
+                e.Handled = true;
+                return;
+            }
+
+            switch (e.Key)
+            {
+                case Key.Escape when typing:
+                    model.ClearSearchCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                case Key.Space when !typing && model.HasViewport:
+                    model.TogglePlayCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                case Key.Left when !typing && model.LastFrame > 0:
+                    model.PreviousFrameCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                case Key.Right when !typing && model.LastFrame > 0:
+                    model.NextFrameCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+            }
+        }, RoutingStrategies.Tunnel);
     }
 
     /// <summary>
