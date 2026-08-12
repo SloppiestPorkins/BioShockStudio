@@ -32,6 +32,8 @@ try
         "animations" => Animations(root, args),
         "export-blender" => ExportBlender(root, args),
         "meshes" => Meshes(root, args),
+        "context" => Context(root, args),
+        "animation" => AnimationInspect(root, args),
         _ => Usage(),
     };
 }
@@ -54,6 +56,9 @@ static int Usage()
           animations <package> <object> [owner]
                                         List decoded animations, optionally for one weapon.
           meshes <package>              Report which SkeletalMeshes decode to geometry.
+          context <package> <group>     Show an asset group and everything it owns.
+          animation inspect <package> <object> <animation>
+                                        Dump an animation's tracks, samples and events.
           export-blender <package> <object> <out-dir> [owner]
                                         Write scene JSON for the Blender importer.
 
@@ -211,6 +216,30 @@ static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry) Resol
     return (SkeletalMeshReader.ReadSockets(payload, package.Names), SkeletalMeshReader.ReadGeometry(payload));
 }
 
+/// <summary>
+/// Reads each animation's event track from its SharedSkeletonAnimationMetadata sibling. Names are
+/// matched case-insensitively: the Havok root table and the Unreal objects disagree on casing.
+/// </summary>
+static IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>> ResolveEvents(
+    string root, string packageName, AnimationPackage animationPackage)
+{
+    using var package = BioShockPackage.Open(ResolvePackage(root, packageName));
+
+    var metadata = package.Exports
+        .Where(e => package.GetClassName(e) == AnimationMetadataReader.ClassName)
+        .GroupBy(e => e.ObjectName, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+    var result = new Dictionary<string, IReadOnlyList<AnimationEvent>>(StringComparer.Ordinal);
+    foreach (var animation in animationPackage.Animations)
+    {
+        if (!metadata.TryGetValue(AnimationMetadataReader.ObjectPrefix + animation.Name, out var export)) continue;
+        var events = AnimationMetadataReader.ReadEvents(package, export, animation.Duration);
+        if (events.Count > 0) result[animation.Name] = events;
+    }
+    return result;
+}
+
 static int Skeleton(string root, string[] args)
 {
     if (args.Length < 3) { Console.Error.WriteLine("usage: skeleton <package> <object>"); return 1; }
@@ -252,6 +281,93 @@ static int Animations(string root, string[] args)
 
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
+    return 0;
+}
+
+static int Context(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: context <package> <group>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var context = AssetContextResolver.Resolve(package, args[2]);
+
+    if (context.Members.Count == 0)
+    {
+        Console.Error.WriteLine($"No asset group named '{args[2]}'. Try: context {args[1]} --list");
+        return 1;
+    }
+
+    Console.WriteLine($"{context.Name} ({context.PackageName}): {context.Members.Count} objects");
+    foreach (var group in context.Members.GroupBy(e => package.GetClassName(e)).OrderByDescending(g => g.Count()))
+    {
+        Console.WriteLine($"\n{group.Key} x{group.Count()}");
+        foreach (var member in group.OrderByDescending(e => e.SerialSize).Take(8))
+            Console.WriteLine($"      {member.ObjectName,-44} {member.SerialSize,10}");
+        if (group.Count() > 8) Console.WriteLine($"      ... {group.Count() - 8} more");
+    }
+    return 0;
+}
+
+static int AnimationInspect(string root, string[] args)
+{
+    if (args.Length < 5 || !string.Equals(args[1], "inspect", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine("usage: animation inspect <package> <object> <animation>");
+        return 1;
+    }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[2]));
+    var export = package.Exports
+        .Where(e => string.Equals(e.ObjectName, args[3], StringComparison.OrdinalIgnoreCase)
+                    && package.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
+        .MaxBy(e => e.SerialSize)
+        ?? throw new FileNotFoundException($"No AnimationPackageWrapper named '{args[3]}'.");
+
+    var animationPackage = AnimationPackage.Load(package, export);
+    var animation = animationPackage.Find(args[4])
+        ?? throw new FileNotFoundException($"No animation named '{args[4]}'.");
+
+    var decoded = animationPackage.Decode(animation);
+    var skeleton = animationPackage.Skeleton;
+
+    Console.WriteLine($"{animation.Name}  (owner {animation.Owner})");
+    Console.WriteLine($"  duration {animation.Duration:0.###}s  frames {animation.FrameCount}  " +
+                      $"{animation.FrameRate:0.##} fps  compression {animation.Compression}");
+    Console.WriteLine($"  skeleton '{skeleton.Name}' with {skeleton.BoneCount} bones, " +
+                      $"{animation.TransformTrackCount} transform tracks");
+    Console.WriteLine($"  section {animation.SectionTag}  offset {animation.Offset}");
+
+    int last = decoded.FrameCount - 1;
+    Console.WriteLine($"\n{"bone",-24} {"frame",5}  {"local translation",-30} local rotation");
+    foreach (var track in decoded.Tracks.Take(6))
+    {
+        string bone = track.TargetBoneIndex >= 0 ? skeleton.Bones[track.TargetBoneIndex].Name : "<unbound>";
+        foreach (int frame in new[] { 0, last / 2, last }.Distinct())
+        {
+            var t = track.Translations[frame];
+            var r = track.Rotations[frame];
+            Console.WriteLine($"  {bone,-24} {frame,5}  ({t.X,8:0.##},{t.Y,8:0.##},{t.Z,8:0.##})      " +
+                              $"({r.X,6:0.###},{r.Y,6:0.###},{r.Z,6:0.###},{r.W,6:0.###})");
+        }
+    }
+    if (decoded.Tracks.Count > 6) Console.WriteLine($"  ... {decoded.Tracks.Count - 6} more tracks");
+
+    var metadataExport = package.Exports.FirstOrDefault(e =>
+        string.Equals(e.ObjectName, AnimationMetadataReader.ObjectPrefix + animation.Name, StringComparison.OrdinalIgnoreCase));
+    var events = metadataExport is null
+        ? []
+        : AnimationMetadataReader.ReadEvents(package, metadataExport, animation.Duration);
+
+    Console.WriteLine($"\nevents: {events.Count}");
+    foreach (var animationEvent in events)
+        Console.WriteLine($"      {animationEvent.Time,7:0.###}s  {animationEvent.EventName,-28} {animationEvent.NotifyClass}");
+
+    string group = AssetContextResolver.TopLevelGroup(package, export);
+    var context = AssetContextResolver.Resolve(package, group);
+    Console.WriteLine($"\nowner group: {group}");
+    Console.WriteLine($"      meshes:   {string.Join(", ", context.OfClass(package, AssetClasses.SkeletalMesh).Select(e => e.ObjectName))}");
+    Console.WriteLine($"      textures: {string.Join(", ", context.OfClass(package, "Texture").Select(e => e.ObjectName).Take(6))}");
+    Console.WriteLine($"      attachments: {string.Join(", ", context.OfClass(package, AssetClasses.StaticMesh).Select(e => e.ObjectName))}");
     return 0;
 }
 
@@ -315,7 +431,11 @@ static int ExportBlender(string root, string[] args)
     if (geometry is not null)
         Console.WriteLine($"resolved mesh: {geometry.Vertices.Count} vertices, {geometry.TriangleCount} triangles");
 
-    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry);
+    var events = ResolveEvents(root, args[1], animationPackage);
+    if (events.Count > 0)
+        Console.WriteLine($"resolved events for {events.Count} animations");
+
+    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events);
 
     string suffix = owner is null ? string.Empty : "_" + owner;
     string scenePath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.json");

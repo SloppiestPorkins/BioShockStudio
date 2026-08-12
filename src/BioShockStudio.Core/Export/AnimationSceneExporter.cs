@@ -34,7 +34,8 @@ public static class AnimationSceneExporter
         AnimationPackage package,
         string? ownerFilter = null,
         IReadOnlyList<MeshSocket>? sockets = null,
-        SkeletalMeshGeometry? geometry = null)
+        SkeletalMeshGeometry? geometry = null,
+        IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>>? events = null)
     {
         var skeleton = package.Skeleton;
 
@@ -70,6 +71,11 @@ public static class AnimationSceneExporter
                     FrameCount = animation.FrameCount,
                     FrameDuration = animation.FrameDuration,
                     Compression = animation.Compression.ToString(),
+                    Events = (events is not null && events.TryGetValue(animation.Name, out var track)
+                        ? track
+                        : [])
+                        .Select(e => new SceneEvent { Time = e.Time, Name = e.EventName, NotifyClass = e.NotifyClass })
+                        .ToList(),
                     Tracks = decoded.Tracks.Select(track => new SceneTrack
                     {
                         TrackIndex = track.OriginalTrackIndex,
@@ -219,6 +225,17 @@ public sealed record SceneAnimation
     public required float FrameDuration { get; init; }
     public required string Compression { get; init; }
     public required IReadOnlyList<SceneTrack> Tracks { get; init; }
+
+    /// <summary>Timed events the animation fires, from its SharedSkeletonAnimationMetadata.</summary>
+    public required IReadOnlyList<SceneEvent> Events { get; init; }
+}
+
+/// <summary>A timed animation event, e.g. a reload beat.</summary>
+public sealed record SceneEvent
+{
+    public required float Time { get; init; }
+    public required string Name { get; init; }
+    public required string NotifyClass { get; init; }
 }
 
 public sealed record SceneTrack

@@ -279,6 +279,13 @@ def build_action(armature, scene, animation, globals_):
             pose_bone.keyframe_insert("rotation_quaternion", frame=frame, group=pose_bone.name)
             pose_bone.keyframe_insert("scale", frame=frame, group=pose_bone.name)
 
+    # Events become pose markers so the reload beats, equip points and so on are visible on the
+    # timeline instead of being lost.
+    for event in animation.get("events", []):
+        frame = round(event["time"] / animation["frameDuration"]) if animation["frameDuration"] > 0 else 0
+        marker = action.pose_markers.new(event["name"] or event["notifyClass"])
+        marker.frame = int(frame)
+
     armature.animation_data.action = None
     return action
 
