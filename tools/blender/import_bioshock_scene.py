@@ -10,6 +10,7 @@ verbatim from the game data, because Havok animation tracks address bones by ind
 
 import json
 import math
+import os
 import sys
 
 import bpy
@@ -292,6 +293,125 @@ def build_action(armature, scene, animation, globals_):
     return action
 
 
+def build_camera(scene, armature, attachment_objects):
+    """Add a camera that frames the asset so the file is usable the moment it opens.
+
+    This is a viewing convenience, not a reconstruction of the game's camera. The game does have a
+    camera rig — `PlayerCameraAnim`, a two-bone `Parent`/`CameraDummy` skeleton with 56 recoil
+    animations including `PlayerCamera_PistolFired` — but its `CameraDummy` sits at the origin of its
+    own space, and how that space relates to the viewmodel's has not been established. Guessing at it
+    produced worse framing than simply aiming at the subject, so the camera is labelled approximate.
+
+    The subject is the weapon when there is one, because that is what the viewmodel is built around.
+    """
+    subject = None
+    for obj, _ in attachment_objects:
+        if obj is None:
+            continue
+        subject = next((c for c in obj.children_recursive if c.type == "MESH"), None)
+        if subject is not None:
+            break
+    if subject is None:
+        subject = next((o for o in bpy.data.objects if o.type == "MESH"), None)
+    if subject is None:
+        return None
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    depsgraph.update()
+    evaluated = subject.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    points = [evaluated.matrix_world @ v.co for v in mesh.vertices]
+    evaluated.to_mesh_clear()
+    if not points:
+        return None
+
+    centre = sum(points, Vector()) / len(points)
+    radius = max((p - centre).length for p in points)
+
+    camera_data = bpy.data.cameras.new("PreviewCamera")
+    camera_data.angle = math.radians(50.0)
+    camera_data.clip_start = 0.01
+    camera = bpy.data.objects.new("PreviewCamera", camera_data)
+    bpy.context.collection.objects.link(camera)
+
+    # Three-quarter view from the weapon's right and slightly above, which keeps the left arm — it
+    # hangs well below the weapon and only animates during the reload — out of the way.
+    distance = max(radius * 3.5, 0.35)
+    offset = Vector((-0.55, -0.62, 0.30)).normalized() * distance
+    camera.location = centre + offset
+    direction = (centre - camera.location).normalized()
+    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+    bpy.context.scene.camera = camera
+    camera["bioshock_note"] = "preview framing only; the game camera transform is not yet known"
+    return camera
+
+
+def assign_default_actions(armature, scene, attachments):
+    """Assign an action to every rig so the file plays as soon as it is opened.
+
+    Actions are otherwise created with a fake user and left unassigned, which is why pressing play
+    did nothing. The host and its attachment are given the matching pair, so hands and weapon move
+    together.
+    """
+    if not scene["animations"]:
+        return None
+
+    def counterpart(host_animation):
+        """The attachment animation that goes with a host animation, matched by name prefix.
+
+        The weapon's "FastReload" pairs with the hands' "FastReloadPistol", so the longest shared
+        prefix wins. A short match is treated as no match rather than a wrong pairing.
+        """
+        best, best_score = None, 0
+        for _, attachment in attachments:
+            for candidate in attachment["scene"]["animations"]:
+                score = len(os.path.commonprefix([candidate["name"].lower(), host_animation["name"].lower()]))
+                if score > best_score:
+                    best, best_score = candidate, score
+        return (best, best_score) if best_score >= 4 else (None, 0)
+
+    # When something is attached, prefer an animation that drives both rigs — otherwise the weapon
+    # sits still and the file looks broken.
+    paired = [a for a in scene["animations"] if counterpart(a)[0] is not None]
+    pool = paired or scene["animations"]
+
+    preferred = ("Reload", "Fidget", "Idle", "Fire", "Equip")
+    chosen = None
+    for key in preferred:
+        chosen = next((a for a in pool if key.lower() in a["name"].lower()), None)
+        if chosen:
+            break
+    chosen = chosen or pool[0]
+
+    host_action = bpy.data.actions.get(f"{chosen['owner']}_{chosen['name']}")
+    if host_action is not None:
+        if armature.animation_data is None:
+            armature.animation_data_create()
+        armature.animation_data.action = host_action
+
+    for attachment_object, attachment in attachments:
+        if attachment_object is None:
+            continue
+        best, best_score = 0, 0
+        best = None
+        for candidate in attachment["scene"]["animations"]:
+            score = len(os.path.commonprefix([candidate["name"].lower(), chosen["name"].lower()]))
+            if score > best_score:
+                best, best_score = candidate, score
+        if best is None or best_score < 4:
+            continue
+        action = bpy.data.actions.get(f"{attachment_object.name}_{best['owner']}_{best['name']}")
+        if action is None:
+            continue
+        if attachment_object.animation_data is None:
+            attachment_object.animation_data_create()
+        attachment_object.animation_data.action = action
+        print(f"bioshock: playing {chosen['name']} with {best['name']}")
+
+    return chosen
+
+
 def build_attachment(host_armature, attachment):
     """Build an attached asset — a weapon — as its own rig parented to the host's socket bone.
 
@@ -341,14 +461,18 @@ def main():
     for animation in scene["animations"]:
         build_action(armature, scene, animation, globals_)
 
-    for attachment in scene.get("attachments", []):
-        build_attachment(armature, attachment)
+    attachments = [(build_attachment(armature, a), a) for a in scene.get("attachments", [])]
+
+    build_camera(scene, armature, attachments)
+    playing = assign_default_actions(armature, scene, attachments)
 
     if scene["animations"]:
-        longest = max(scene["animations"], key=lambda a: a["frameCount"])
+        # Frame range follows whatever is actually assigned, so play works immediately.
+        reference = playing or max(scene["animations"], key=lambda a: a["frameCount"])
         bpy.context.scene.frame_start = 0
-        bpy.context.scene.frame_end = max(1, longest["frameCount"] - 1)
-        bpy.context.scene.render.fps = max(1, int(round(1.0 / longest["frameDuration"])))
+        bpy.context.scene.frame_end = max(1, reference["frameCount"] - 1)
+        bpy.context.scene.render.fps = max(1, int(round(1.0 / reference["frameDuration"])))
+        bpy.context.scene.frame_set(0)
 
     bpy.ops.wm.save_as_mainfile(filepath=output_path)
 
