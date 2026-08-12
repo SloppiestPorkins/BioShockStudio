@@ -155,3 +155,30 @@ midpoint and returns to the closed pose — BioShock's pistol is a top-break rev
 swing-cylinder one. The `drum` bone does not rotate.
 
 `bioshock-tool export-firstperson Pistol <out>` assembles the whole thing.
+
+## Textures (CONFIRMED)
+
+`Texture` exports are an Unreal property list followed by a mip chain.
+
+Formats, confirmed by measured bytes-per-pixel across 0-Lighthouse:
+
+| `Format` | Meaning | bpp |
+|---|---|---|
+| 3 | DXT1 | 0.5 |
+| 5 | RGBA8 (stored BGRA) | 4.0 |
+| 7 | DXT3 | 1.0 |
+| 8 | DXT5 | 1.0 |
+
+Mips are located by their trailer rather than by walking the array header, which carries a field
+whose meaning is still `UNKNOWN`:
+
+```
+int32 USize, int32 VSize, byte UBits, byte VBits     with USize == 1 << UBits
+```
+
+The data for a mip is the format's byte count immediately preceding its trailer. Coverage is 1054 of
+1062 textures in 0-Lighthouse and 1937 of 1951 in 1-Medical; the rest return nothing rather than
+garbage.
+
+`SourcePath` preserves the authoring path — the hands' diffuse came from
+`..\..\..\Art\Source\Weapons\1stPersonHands...`.
