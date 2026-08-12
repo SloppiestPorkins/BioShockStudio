@@ -69,6 +69,41 @@ public sealed class RenderingTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Model_ExposesEveryMeshInTheGroupNotOnlyTheLargest()
+    {
+        var catalog = new AssetCatalogService();
+        catalog.RegisterInstall(game.RequireRoot);
+        var service = new MeshPreviewService(catalog);
+
+        using var package = BioShockPackage.Open(
+            Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+        var entry = AssetCatalogService.Catalogue(package, "1-Medical")
+            .First(e => e.Group == "AggressorBabyJane" && e.Category is AssetCategory.Characters or AssetCategory.Props);
+
+        var subject = service.Load(entry);
+
+        // The splicer group carries several bodies on one skeleton; taking only the largest hid the
+        // rest, which is what a user notices first.
+        Assert.True(subject.Meshes.Count > 1, $"expected several meshes, found {subject.Meshes.Count}");
+        Assert.NotNull(subject.SelectedMesh);
+        Assert.Contains(subject.SelectedMesh, subject.Meshes);
+
+        // Each variant must actually load as different geometry, not silently fall back to the first.
+        var counts = new List<int>();
+        foreach (string mesh in subject.Meshes.Take(3))
+        {
+            var variant = service.Load(entry, mesh);
+            Assert.Equal(mesh, variant.SelectedMesh);
+            if (variant.Model.HasGeometry) counts.Add(variant.Model.Vertices.Count);
+
+            // The skeleton is shared, so switching body must not change the rig.
+            Assert.Equal(subject.Model.Bones.Count, variant.Model.Bones.Count);
+        }
+
+        Assert.True(counts.Distinct().Count() > 1, "the variants all produced identical geometry");
+    }
+
+    [RequiresGameFact]
     public void Render_DrawsTheModelAcrossTheView()
     {
         var (service, entry) = Hands();

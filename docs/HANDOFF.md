@@ -1,6 +1,6 @@
 # Handoff
 
-134/134 tests pass against the installed game.
+136/136 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test

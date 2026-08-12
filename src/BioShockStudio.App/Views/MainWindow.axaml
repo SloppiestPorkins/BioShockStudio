@@ -158,6 +158,13 @@
                                 <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
                             </WrapPanel>
 
+                            <!-- a group is often several meshes on one skeleton -->
+                            <ComboBox ItemsSource="{Binding PreviewMeshes}"
+                                      SelectedItem="{Binding SelectedPreviewMesh}"
+                                      HorizontalAlignment="Stretch"
+                                      IsVisible="{Binding HasMeshVariants}"
+                                      ToolTip.Tip="This asset has more than one mesh on the same skeleton." />
+
                             <!-- attachments: what hangs off this asset's sockets -->
                             <StackPanel Spacing="4" IsVisible="{Binding HasAttachments}">
                                 <ComboBox ItemsSource="{Binding Attachments}"

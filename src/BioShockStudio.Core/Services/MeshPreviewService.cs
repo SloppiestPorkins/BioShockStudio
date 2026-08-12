@@ -15,8 +15,24 @@ public sealed record PreviewAnimation(string Name, DecodedAnimation Decoded, int
     public float FrameRate => FrameDuration > 0f ? 1f / FrameDuration : 0f;
 }
 
-/// <summary>Everything the preview needs for one asset: the model, and the animations it can play.</summary>
-public sealed record PreviewSubject(PreviewModel Model, IReadOnlyList<string> Animations, string? Problem);
+/// <summary>Everything the preview needs for one asset.</summary>
+/// <param name="Meshes">
+/// Every skeletal mesh in this asset's group, largest first.
+/// </param>
+/// <param name="SelectedMesh">Which of them <paramref name="Model"/> was built from.</param>
+/// <remarks>
+/// A group is often more than one mesh. <c>AggressorBabyJane</c> carries the doctor, the corpse and
+/// the Lady Smith splicer variants on one skeleton, and showing only the largest hides the rest.
+/// </remarks>
+public sealed record PreviewSubject(
+    PreviewModel Model,
+    IReadOnlyList<string> Animations,
+    string? Problem,
+    IReadOnlyList<string> Meshes = null!,
+    string? SelectedMesh = null)
+{
+    public IReadOnlyList<string> Meshes { get; init; } = Meshes ?? [];
+}
 
 /// <summary>
 /// Loads assets for the 3D preview.
@@ -28,13 +44,20 @@ public sealed record PreviewSubject(PreviewModel Model, IReadOnlyList<string> An
 /// </remarks>
 public sealed class MeshPreviewService(AssetCatalogService catalog)
 {
-    /// <summary>Loads the model for an asset, resolving its group when a mesh or animation is selected.</summary>
-    public PreviewSubject Load(CatalogEntry entry, CancellationToken cancellation = default)
+    /// <summary>
+    /// Loads the model for an asset, resolving its group when a mesh or animation is selected.
+    /// </summary>
+    /// <param name="meshName">
+    /// Which mesh of the group to build, when it holds several. Null takes the largest, which is
+    /// usually the one the asset is named after.
+    /// </param>
+    public PreviewSubject Load(CatalogEntry entry, string? meshName = null, CancellationToken cancellation = default)
     {
         using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
         cancellation.ThrowIfCancellationRequested();
 
-        var meshExport = FindMesh(package, entry);
+        var siblings = MeshesInGroup(package, entry.Group);
+        var meshExport = FindMesh(package, entry, meshName, siblings);
         var wrapper = FindAnimationPackage(package, entry.Group);
 
         SkeletalMeshGeometry? geometry = null;
@@ -81,8 +104,23 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         if (!model.HasGeometry && model.Bones.Count == 0)
             problem ??= "There is nothing here that can be drawn.";
 
-        return new PreviewSubject(model, names, problem);
+        return new PreviewSubject(
+            model, names, problem,
+            siblings.Select(e => e.ObjectName).ToList(),
+            meshExport?.ObjectName);
     }
+
+    /// <summary>Every skeletal mesh in a group, largest first, without duplicate names.</summary>
+    private static List<ObjectExport> MeshesInGroup(BioShockPackage package, string group) =>
+        package.Exports
+            .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
+                        && e.SerialSize > 0
+                        && string.Equals(AssetContextResolver.TopLevelGroup(package, e), group,
+                            StringComparison.OrdinalIgnoreCase))
+            .GroupBy(e => e.ObjectName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.MaxBy(e => e.SerialSize)!)
+            .OrderByDescending(e => e.SerialSize)
+            .ToList();
 
     /// <summary>
     /// Loads an attachment named by a socket — a first-person weapon — as its own model.
@@ -133,7 +171,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
         var names = animations is null ? [] : animations.Animations.Select(a => a.Name).Distinct().Order().ToList();
 
-        return new PreviewSubject(model, names, problem);
+        return new PreviewSubject(model, names, problem, [candidate.MeshObject], candidate.MeshObject);
     }
 
     /// <summary>Decodes an attachment's animation, which lives in its own package.</summary>
@@ -168,8 +206,16 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             animation.Name, animations.Decode(animation), animation.FrameCount, animation.FrameDuration);
     }
 
-    private static ObjectExport? FindMesh(BioShockPackage package, CatalogEntry entry)
+    private static ObjectExport? FindMesh(
+        BioShockPackage package, CatalogEntry entry, string? meshName, List<ObjectExport> siblings)
     {
+        if (meshName is not null)
+        {
+            var chosen = siblings.FirstOrDefault(e =>
+                string.Equals(e.ObjectName, meshName, StringComparison.OrdinalIgnoreCase));
+            if (chosen is not null) return chosen;
+        }
+
         if (entry.Category == AssetCategory.SkeletalMeshes || entry.Category == AssetCategory.StaticMeshes)
         {
             var direct = package.Exports
@@ -178,11 +224,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             if (direct is not null) return direct;
         }
 
-        return package.Exports
-            .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
-                        && string.Equals(AssetContextResolver.TopLevelGroup(package, e), entry.Group,
-                            StringComparison.OrdinalIgnoreCase))
-            .MaxBy(e => e.SerialSize);
+        return siblings.FirstOrDefault();
     }
 
     private static ObjectExport? FindAnimationPackage(BioShockPackage package, string group) =>

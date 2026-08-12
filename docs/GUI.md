@@ -155,6 +155,11 @@ of discarding it. A degenerate basis falls back to the interpolated normal rathe
 NaN, which would leave a black hole in the surface. The `Normal + spec` toggle turns it off, which
 is what you want when checking a skinning problem rather than a material.
 
+**Mesh variants.** A group is often several meshes sharing one skeleton — `AggressorBabyJane` carries
+the doctor, the corpse and the Lady Smith splicer bodies — so the preview lists them all and lets you
+switch. Taking only the largest, as it did at first, hid the rest. Switching rebuilds the geometry
+and leaves the skeleton, animations and attachments alone, because they are shared.
+
 A mesh whose geometry variant is unsupported still draws its skeleton, with the reason shown.
 
 ## Context: a first-person set is two rigs

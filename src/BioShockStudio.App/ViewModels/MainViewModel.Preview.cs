@@ -55,10 +55,15 @@ public partial class MainViewModel
     [ObservableProperty] private double _playbackSpeed = 1.0;
     [ObservableProperty] private string _animationSummary = "";
 
+    [ObservableProperty] private string? _selectedPreviewMesh;
+    [ObservableProperty] private bool _hasMeshVariants;
+    private bool _switchingMesh;
+
     [ObservableProperty] private string? _selectedAttachment;
     [ObservableProperty] private string _attachmentEvidence = "";
     [ObservableProperty] private bool _hasAttachments;
 
+    public ObservableCollection<string> PreviewMeshes { get; } = [];
     public ObservableCollection<string> Attachments { get; } = [];
     public ObservableCollection<string> PreviewAnimations { get; } = [];
     public ObservableCollection<double> PlaybackSpeeds { get; } = [0.25, 0.5, 1.0, 2.0];
@@ -76,6 +81,38 @@ public partial class MainViewModel
     partial void OnSelectedAnimationChanged(string? value) => _ = LoadAnimationAsync(value);
     partial void OnSelectedAttachmentChanged(string? value) => _ = LoadAttachmentAsync(value);
 
+    /// <summary>
+    /// Switches which mesh of the group is drawn.
+    /// </summary>
+    /// <remarks>
+    /// A group is often several meshes on one skeleton — the Baby Jane splicer carries the doctor,
+    /// the corpse and the Lady Smith variants — so the animations and attachments stay as they are
+    /// and only the geometry is rebuilt.
+    /// </remarks>
+    partial void OnSelectedPreviewMeshChanged(string? value)
+    {
+        if (_switchingMesh || value is null || SelectedAsset is null) return;
+        _ = SwitchMeshAsync(SelectedAsset, value);
+    }
+
+    private async Task SwitchMeshAsync(CatalogEntry entry, string meshName)
+    {
+        try
+        {
+            var subject = await Task.Run(() => _preview.Load(entry, meshName));
+            if (!ReferenceEquals(entry, SelectedAsset)) return;
+
+            _previewModel = subject.Model;
+            ViewportProblem = subject.Problem;
+            HasViewport = subject.Model.HasGeometry || subject.Model.Bones.Count > 0;
+            RequestRender();
+        }
+        catch (Exception ex)
+        {
+            ViewportProblem = ex.Message;
+        }
+    }
+
     /// <summary>Loads the model for a newly selected asset, or clears the viewport for one with none.</summary>
     private async Task LoadPreviewAsync(CatalogEntry? entry)
     {
@@ -89,6 +126,11 @@ public partial class MainViewModel
         ViewportProblem = null;
         PreviewAnimations.Clear();
         Attachments.Clear();
+        _switchingMesh = true;
+        PreviewMeshes.Clear();
+        SelectedPreviewMesh = null;
+        _switchingMesh = false;
+        HasMeshVariants = false;
         SelectedAnimation = null;
         SelectedAttachment = null;
         AttachmentEvidence = "";
@@ -110,7 +152,7 @@ public partial class MainViewModel
 
         try
         {
-            var subject = await Task.Run(() => _preview.Load(entry, token), token);
+            var subject = await Task.Run(() => _preview.Load(entry, null, token), token);
             if (token.IsCancellationRequested) return;
 
             _previewModel = subject.Model;
@@ -121,6 +163,12 @@ public partial class MainViewModel
 
             _camera = PreviewCamera.Frame(subject.Model);
             ShowSkeleton = !subject.Model.HasGeometry;
+
+            _switchingMesh = true;
+            foreach (string mesh in subject.Meshes) PreviewMeshes.Add(mesh);
+            SelectedPreviewMesh = subject.SelectedMesh;
+            _switchingMesh = false;
+            HasMeshVariants = subject.Meshes.Count > 1;
 
             foreach (string name in subject.Animations) PreviewAnimations.Add(name);
             RequestRender();
