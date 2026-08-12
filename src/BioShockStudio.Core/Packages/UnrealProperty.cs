@@ -65,15 +65,33 @@ public static class UnrealPropertyReader
 
     public static List<UnrealProperty> Read(
         ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names, out int endOffset, int start = PayloadPropertyOffset)
+        => Read(payload, names, out endOffset, out _, start);
+
+    /// <summary>
+    /// Reads a property list, reporting whether it ended on a clean terminator.
+    /// </summary>
+    /// <param name="truncated">
+    /// True when the list stopped on a numbered <c>None</c>. A terminator carries no number, so a
+    /// numbered one means the walk lost alignment inside the preceding property and everything after
+    /// it would be invented. See <c>docs/research/materials.md</c> for the case that produces it.
+    /// </param>
+    public static List<UnrealProperty> Read(
+        ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names, out int endOffset, out bool truncated,
+        int start = PayloadPropertyOffset)
     {
         var result = new List<UnrealProperty>();
         int offset = start;
+        truncated = false;
 
         // Bounded: a malformed list must not spin forever on a huge payload.
         for (int guard = 0; guard < 4096; guard++)
         {
-            string name = ReadFName(payload, ref offset, names);
-            if (name == "None") break;
+            string name = ReadFName(payload, ref offset, names, out bool numbered);
+            if (name.StartsWith("None", StringComparison.Ordinal) && (name == "None" || numbered))
+            {
+                truncated = numbered;
+                break;
+            }
 
             byte info = payload[offset++];
             var type = (UnrealPropertyType)(info & 0x0F);
@@ -117,11 +135,20 @@ public static class UnrealPropertyReader
         return result;
     }
 
-    private static string ReadFName(ReadOnlySpan<byte> data, ref int offset, IReadOnlyList<NameEntry> names)
+    private static string ReadFName(ReadOnlySpan<byte> data, ref int offset, IReadOnlyList<NameEntry> names) =>
+        ReadFName(data, ref offset, names, out _);
+
+    /// <summary>
+    /// Reads an <c>FName</c>: a name-table index plus a number that disambiguates repeated names.
+    /// </summary>
+    /// <param name="numbered">True when the name carries a disambiguating number.</param>
+    private static string ReadFName(
+        ReadOnlySpan<byte> data, ref int offset, IReadOnlyList<NameEntry> names, out bool numbered)
     {
         int index = ReadCompactIndex(data, ref offset);
         int extra = ReadInt32(data, ref offset);
         if (index < 0 || index >= names.Count) throw new InvalidDataException($"Name index {index} out of range.");
+        numbered = extra != 0;
         string baseName = names[index].Name;
         return extra == 0 ? baseName : baseName + (extra - 1);
     }

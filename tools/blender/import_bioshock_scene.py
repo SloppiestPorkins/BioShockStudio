@@ -196,8 +196,77 @@ def build_mesh(armature, scene):
     modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
     modifier.object = armature
 
+    material = build_material(scene, os.path.dirname(os.path.abspath(scene["__path__"])))
+    if material is not None:
+        mesh.materials.append(material)
+
     print(f"bioshock: mesh {vertex_count} verts, {face_count} tris, {len(groups)} vertex groups")
     return obj
+
+
+def build_material(scene, directory):
+    """Build a Principled BSDF from the game's shader.
+
+    Only the maps the game actually names are wired up. A slot the shader leaves empty is left empty
+    here rather than filled with a default, so a missing map stays visible as a missing map.
+    """
+    data = scene.get("material")
+    if not data:
+        return None
+
+    material = bpy.data.materials.new(data["name"])
+    material.use_nodes = True
+    principled = material.node_tree.nodes.get("Principled BSDF")
+    if principled is None:
+        return material
+
+    material["bioshock_shader_class"] = data["className"]
+    if data.get("partial"):
+        # The shader's property list could not be walked to its end, so this material is incomplete.
+        material["bioshock_partial"] = True
+    if data.get("uninterpreted"):
+        material["bioshock_uninterpreted"] = ", ".join(data["uninterpreted"])
+
+    def image(relative):
+        path = os.path.join(directory, relative.replace("/", os.sep))
+        if not os.path.exists(path):
+            print(f"bioshock: texture missing on disk: {path}")
+            return None
+        node = material.node_tree.nodes.new("ShaderNodeTexImage")
+        node.image = bpy.data.images.load(path, check_existing=True)
+        return node
+
+    if data.get("diffuse"):
+        node = image(data["diffuse"])
+        if node is not None:
+            node.location = (-600, 300)
+            material.node_tree.links.new(principled.inputs["Base Color"], node.outputs["Color"])
+
+    if data.get("normalMap"):
+        node = image(data["normalMap"])
+        if node is not None:
+            node.location = (-600, -300)
+            node.image.colorspace_settings.name = "Non-Color"
+            normal = material.node_tree.nodes.new("ShaderNodeNormalMap")
+            normal.location = (-300, -300)
+            material.node_tree.links.new(normal.inputs["Color"], node.outputs["Color"])
+            material.node_tree.links.new(principled.inputs["Normal"], normal.outputs["Normal"])
+
+    if data.get("specular"):
+        node = image(data["specular"])
+        if node is not None:
+            node.location = (-600, 0)
+            node.image.colorspace_settings.name = "Non-Color"
+            # The game's specular map is a colour, which Principled has no direct input for; it drives
+            # the specular tint so the information is present rather than discarded.
+            if "Specular Tint" in principled.inputs:
+                material.node_tree.links.new(principled.inputs["Specular Tint"], node.outputs["Color"])
+
+    material.use_backface_culling = not data.get("twoSided", False)
+    if data.get("masked"):
+        material.blend_method = "CLIP" if hasattr(material, "blend_method") else material.blend_method
+
+    return material
 
 
 def build_sockets(armature, scene):
@@ -444,6 +513,7 @@ def build_attachment(host_armature, attachment):
     sync with the hand animations. Merging them would destroy that structure.
     """
     scene = attachment["scene"]
+    scene.setdefault("__path__", host_armature.get("bioshock_scene_path", ""))
     bone_names = {b.name for b in host_armature.data.bones}
     target = next((n for n in bone_names if n.lower() == attachment["socketBone"].lower()), None)
     if target is None:
@@ -476,9 +546,13 @@ def main():
     scene_path, output_path = parse_args()
     with open(scene_path, "r", encoding="utf-8") as handle:
         scene = json.load(handle)
+    # Texture paths in the scene are relative to it, so the importer has to remember where it came
+    # from; attachments inherit the same base.
+    scene["__path__"] = scene_path
 
     clear_scene()
     armature, globals_ = build_armature(scene)
+    armature["bioshock_scene_path"] = scene_path
     mesh_object = build_mesh(armature, scene)
     sockets = build_sockets(armature, scene)
 

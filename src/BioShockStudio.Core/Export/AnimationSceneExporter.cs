@@ -35,7 +35,8 @@ public static class AnimationSceneExporter
         string? ownerFilter = null,
         IReadOnlyList<MeshSocket>? sockets = null,
         SkeletalMeshGeometry? geometry = null,
-        IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>>? events = null)
+        IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>>? events = null,
+        SceneMaterial? material = null)
     {
         var skeleton = package.Skeleton;
 
@@ -105,6 +106,7 @@ public static class AnimationSceneExporter
                 .Select(s => new SceneSocket { Name = s.Name, BoneName = s.BoneName })
                 .ToList(),
             Mesh = geometry is null ? null : BuildMesh(geometry),
+            Material = material,
         };
     }
 
@@ -177,6 +179,9 @@ public sealed record AnimationScene
     /// <summary>Skinned geometry, when a companion SkeletalMesh was resolved and decoded.</summary>
     public SceneMesh? Mesh { get; init; }
 
+    /// <summary>The material the mesh names, when it resolves. Null means the mesh exports untextured.</summary>
+    public SceneMaterial? Material { get; init; }
+
     /// <summary>
     /// Assets that attach to one of this scene's sockets and carry their own skeleton, mesh and
     /// animations — a first-person weapon, for instance.
@@ -209,6 +214,42 @@ public sealed record SceneMesh
 
     public required int[] InfluenceBones { get; init; }
     public required float[] InfluenceWeights { get; init; }
+}
+
+/// <summary>
+/// The material a mesh uses, with its texture bindings already resolved to written image files.
+/// </summary>
+public sealed record SceneMaterial
+{
+    public required string Name { get; init; }
+
+    /// <summary>Shader class — <c>Shader</c>, <c>FacingShader</c> and so on.</summary>
+    public required string ClassName { get; init; }
+
+    /// <summary>Texture slot to the image file written beside the scene, relative to it.</summary>
+    public required IReadOnlyDictionary<string, string> Textures { get; init; }
+
+    /// <summary>Base colour map, whichever slot this shader class puts it in.</summary>
+    public string? Diffuse { get; init; }
+
+    public string? NormalMap { get; init; }
+    public string? Specular { get; init; }
+
+    public float? Glossiness { get; init; }
+    public float? SpecularBrightness { get; init; }
+
+    /// <summary>RGBA, 0..1.</summary>
+    public float[]? DiffuseColor { get; init; }
+
+    public float[]? SpecularColor { get; init; }
+    public bool TwoSided { get; init; }
+    public bool Masked { get; init; }
+
+    /// <summary>True when the shader's property list could not be walked to its end.</summary>
+    public required bool Partial { get; init; }
+
+    /// <summary>Properties present on the shader that this exporter does not interpret.</summary>
+    public required IReadOnlyList<string> Uninterpreted { get; init; }
 }
 
 /// <summary>A named attachment point and the bone it hangs off.</summary>
