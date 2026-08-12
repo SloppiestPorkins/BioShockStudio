@@ -251,6 +251,18 @@ public partial class MainViewModel
             _attachmentModel = subject.Model;
             AttachmentEvidence = candidate.Confidence + ": " + candidate.Evidence;
 
+            // An attachment that resolves but cannot be drawn — TommyGunMESH is one — otherwise
+            // appears simply not to attach. The tool knows why; it has to say so.
+            if (subject.Problem is not null)
+            {
+                ViewportProblem = $"{candidate.Socket}: {subject.Problem}";
+            }
+            else if (!subject.Model.HasGeometry)
+            {
+                ViewportProblem = $"{candidate.Socket} attached, but '{candidate.MeshObject}' has no "
+                                  + "geometry this tool can read, so only its animation is applied.";
+            }
+
             for (int i = 0; i < host.Bones.Count; i++)
             {
                 if (string.Equals(host.Bones[i].Name, candidate.SocketBone, StringComparison.OrdinalIgnoreCase))

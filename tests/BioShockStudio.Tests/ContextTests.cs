@@ -156,6 +156,24 @@ public sealed class ContextTests(GameFixture game)
         Assert.True(difference > 0.005, $"adding the weapon changed only {difference:P2} of the view");
     }
 
+    [RequiresGameFact]
+    public void Attachment_SaysWhenItCannotBeDrawn()
+    {
+        var catalog = Catalog();
+        var tommy = new AssetContextService(catalog).Attachments(Hands()).Single(a => a.Socket == "TommyGun");
+
+        var subject = new MeshPreviewService(catalog).LoadAttachment(tommy);
+
+        // The socket resolves and the skeleton loads, but TommyGunMESH uses a geometry layout this
+        // tool does not read. Silence would look like the weapon simply not attaching.
+        Assert.False(subject.Model.HasGeometry);
+        Assert.NotNull(subject.Problem);
+        Assert.Contains("does not read yet", subject.Problem, StringComparison.OrdinalIgnoreCase);
+
+        // The rig is still there, so the animation is still worth playing.
+        Assert.NotEmpty(subject.Model.Bones);
+    }
+
     /// <summary>Renders the whole first-person set so a human can look at it.</summary>
     [RequiresGameFact]
     public void Render_ContextSnapshot()
