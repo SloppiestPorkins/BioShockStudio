@@ -10,8 +10,10 @@ export something that plays back correctly in UE5.
 
 ## Status
 
-**A shipped package goes in and a skinned, animated Blender file comes out.** The first-person hands
-mesh, its skeleton, its weapon sockets and all 130 animations extract and play correctly.
+**A shipped package goes in and a skinned, textured, animated Blender file or FBX set comes out.**
+The first-person hands mesh, its skeleton, its weapon sockets, its material and all 130 animations
+extract and play correctly. The FBX is validated by importing it back and comparing against the
+game's own transforms; it has not yet been imported into Unreal.
 
 | Area | State |
 |---|---|
@@ -22,9 +24,11 @@ mesh, its skeleton, its weapon sockets and all 130 animations extract and play c
 | `hkaSkeleton` | Complete, original bone indices preserved. |
 | `hkaAnimationBinding` | Complete, from Havok's own track-to-bone array. |
 | Spline decompression | Complete. 130/130 animations decode, zero failures. |
-| `SkeletalMesh` | Complete: header, sockets, bone map, geometry, skin weights. |
-| Blender export | Complete: skinned mesh, armature, actions, sockets. |
-| FBX / UE5 export | Not started. |
+| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights. ~40% of meshes decode. |
+| Materials | `Shader` and `FacingShader` decode; a mesh names its own shader in its payload. |
+| Blender export | Complete: skinned mesh, armature, actions, sockets, materials. |
+| FBX export | Complete: binary 7.4, validated by round trip through Blender. |
+| UE5 import | Files written and a helper script exists; **nothing has been imported into UE5 yet**. |
 | GUI, viewport preview | Not started. |
 
 See [docs/research/](docs/research/) for the evidence behind every claim and
@@ -54,11 +58,15 @@ dotnet run --project src/BioShockStudio.Cli -- scan
 |---|---|
 | `scan` | Parse every shipped package and report table integrity and the class census. |
 | `assets [--class C] [pattern]` | List indexed assets. |
+| `materials <package> [pattern]` | Resolve each mesh's material and the textures it binds. |
+| `properties <package> <object\|--class C> [n]` | Dump an export's property list and what follows it. |
 | `inspect <package> [pattern]` | Show a package's header and exports. |
 | `havok <package> <object>` | Parse the Havok packfiles inside an export's payload. |
 | `skeleton <package> <object>` | Print a skeleton's hierarchy. |
 | `animations <package> <object> [owner]` | List decoded animations. |
 | `export-blender <package> <object> <out-dir> [owner]` | Write the Blender scene JSON. |
+| `export-fbx <package> <object> <out-dir> [owner]` | Write FBX plus the Unreal manifest. |
+| `export-firstperson <weapon> <out-dir> [--fbx]` | Assemble the hands, the weapon and both animation sets. |
 
 Example — the first-person hands animation package:
 
@@ -103,6 +111,20 @@ dotnet run --project src/BioShockStudio.Cli -- export-blender 0-Lighthouse UAPW_
 blender --background --python tools/blender/import_bioshock_scene.py -- artifacts/UAPW_NEWPlayerHands_Pistol.json artifacts/UAPW_NEWPlayerHands_Pistol.blend
 ```
 
+Or export FBX instead, one file per animation plus a manifest for Unreal:
+
+```bash
+dotnet run --project src/BioShockStudio.Cli -- export-firstperson Pistol artifacts --fbx
+```
+
+```bash
+blender --background --python tools/blender/validate_fbx.py -- artifacts/Pistol_FirstPerson.json artifacts
+```
+
+That check imports the written files back and compares bone rest matrices, skin weights and posed
+bone positions against transforms composed independently from the game's own track data. See
+[docs/research/fbx.md](docs/research/fbx.md) for the numbers and for what the FBX cannot carry.
+
 The result, verified in Blender 5.1: a 4,852-vertex skinned mesh with 8,726 triangles and 38 vertex
 groups, a 47-bone armature with a single root, ten actions, and 19 socket empties parented to their
 bones. Every vertex is weighted, weights sum to 1, and the mesh deforms correctly under the
@@ -117,13 +139,14 @@ src/BioShockStudio.Core/
 ├── Havok/        Detection/, Packfile/, Objects/, Skeleton/, Animation/SplineCompression/
 ├── Skeleton/     internal skeleton representation
 ├── Animation/    internal animation, tracks and binding
-├── Export/       Blender scene JSON
+├── Export/       Blender scene JSON, and Fbx/ the binary FBX writer
 ├── Mesh/         SkeletalMesh header and sockets
 ├── Assets/       whole-game export index, AnimationPackage
 └── Game/         install detection
 src/BioShockStudio.Cli/
 tests/BioShockStudio.Tests/
-tools/blender/    headless Blender importer
+tools/blender/    headless Blender importer and the FBX round-trip validator
+tools/ue5/        Unreal editor import script (unverified)
 docs/research/
 ```
 

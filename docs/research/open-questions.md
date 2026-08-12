@@ -24,34 +24,31 @@ all third-person character animations decode with zero failures.
 `UNKNOWN` remains: the exact 12-bit quantisation midpoint (error under 0.0005), and the meaning of
 `m_blendHint`.
 
-## 4. `SkeletalMesh` payload layout — blocking for a complete asset
+## 4. ~~`SkeletalMesh` payload layout~~ — MOSTLY CLOSED
 
-962 instances, nothing decoded yet. This is now the largest remaining gap: the animation pipeline is
-complete end to end, but there is no mesh to attach it to.
+`CONFIRMED_BYTES` for the header, socket table, bone map, index buffer and both vertex blocks. See
+[skeletalmesh.md](skeletalmesh.md).
 
-Reconnaissance is recorded in [skeletalmesh.md](skeletalmesh.md): the payload opens with a shared
-2K header and what reads as an `FBoxSphereBounds`.
+`UNKNOWN` remains: roughly 40% of `SkeletalMesh` exports decode to geometry. The failures are effect
+and prop meshes and four weapon viewmodels — `TommyGunMESH`, `WP_GrenadeLauncherMesh`,
+`PlasmidEquipMESH` and `WP_CrossbowMesh` — which are likely a stride or container variant. The same
+four also fail to resolve a material, which is consistent with one cause rather than two.
 
-**How to close it:** start with `FireSpread_Mesh` (4,170 bytes) rather than `NEWPlayerHands`, and
-cross-check vertex and bone counts against UEViewer where it succeeds. The skeleton is already
-decoded, so skin-weight bone indices have something to validate against.
+**How to close it:** compare the byte range between the tag block and the bone map on a mesh that
+decodes and one that does not; the reader locates the geometry chain by search, so a failure means
+no candidate satisfied every constraint at once, not that a constraint was violated late.
 
-## 5. `HkMeshProxy` — high value
+## 5. ~~`HkMeshProxy`~~ — CLOSED, and the guess was wrong
 
-8,961 instances. The name suggests the bridge between an Unreal mesh and Havok data, which would be
-the non-name-based mesh-to-skeleton link the resolver needs.
+`CONFIRMED_BYTES`. Not a mesh-to-Havok or mesh-to-material bridge. Their outer is a `StaticMesh`,
+their property list is empty, and the payload is collision data — a friction/restitution triple and a
+transform. Nothing in the mesh, skeleton or material path uses them. See
+[materials.md](materials.md).
 
-**How to close it:** dump payloads for a few instances and look for object references into
-`SkeletalMesh` and `AnimationPackageWrapper` exports.
+## 6. ~~The first-person pistol mesh~~ — CLOSED
 
-## 6. The first-person pistol mesh
-
-`UNKNOWN`. Not located. It is not a `SkeletalMesh` named `Pistol`; `WP_AI_Pistol` is the
-third-person `StaticMesh` carried by NPCs.
-
-**How to close it:** the hands package proves the weapon association is structural (the `pistol`
-Havok section). Follow object references out of the weapon's Unreal objects rather than searching by
-name.
+`CONFIRMED_BYTES`. It is `WP_PistolMesh` in `Build/Final/BakedScripts/pc/ShockGame.U`, not in any map
+package, and it has a skeleton and animations of its own. See [firstperson.md](firstperson.md).
 
 ## 7. The 34-byte Unreal prefix on `AnimationPackageWrapper`
 
@@ -72,11 +69,36 @@ Two int32s in every export record. `Unknown32` is zero in every sample inspected
 Corroborated in that the root table's owner names are the untruncated `ChemicalThrower` and
 `GrenadeLauncher`. Nothing depends on this.
 
-## 10. Bulk content (`.blk`)
+## 10. `MaskMaterial` nested struct sizes
+
+`UNKNOWN`, and it is what limits material coverage. A `MaskMaterial` struct is itself a property
+list, and its declared size is one byte short of its content when that content includes a sized
+reference — so the walk of the containing shader loses alignment there. Roughly half the shaders in
+the larger packages stop at that point and are reported as partial.
+
+The byte evidence for both the working and the failing case is in [materials.md](materials.md).
+
+**How to close it:** decode `MaskMaterial` as a nested list on a sample of both shapes and find what
+the declared size is actually counting. The one-byte difference lines up exactly with the inner
+`Object` property's explicit size byte, which is suggestive and not sufficient.
+
+## 11. `OutputBlending` and `MaterialVisualType`
+
+`UNKNOWN`. A blend mode and a shader-variant selector, both single bytes on `Shader` objects, both
+carried through the exporter uninterpreted. Nothing yet depends on either.
+
+## 12. Unreal import
+
+`UNKNOWN`. The FBX the exporter writes is validated by round trip through Blender, but nothing has
+been imported into Unreal Engine 5 and `tools/ue5/import_bioshock.py` has never been run. Two things
+would be settled by one import: whether Unreal takes the `SOCKET_*` null nodes as sockets or as
+bones, and whether the notify API in that script exists under the name it uses.
+
+## 13. Bulk content (`.blk`)
 
 ~8 GB across 201 chunks, referenced via `CachedBulkDataSize`. Almost certainly the high-resolution
 textures. Not on the critical path for animation.
 
-## 11. ~~Third-person packages lack per-weapon sections~~ — CLOSED
+## 14. ~~Third-person packages lack per-weapon sections~~ — CLOSED
 
 `CONFIRMED_BYTES`. See [firstperson.md](firstperson.md).

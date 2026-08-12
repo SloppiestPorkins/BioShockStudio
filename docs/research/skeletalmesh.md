@@ -16,7 +16,7 @@
 +47  byte        bounds valid flag
 +48  FSphere     centre (float3), radius (float)
 +64  9 bytes     fixed tag block: int32 4, int32 5, byte 1
-+73  FCompactIndex
+     FCompactIndex  material reference -> a Shader   (see materials.md)
      float3      scale
      float3      origin
      int3        rotation
@@ -26,6 +26,13 @@
 
 The shared 18-byte prefix narrows the previously unexplained gap ahead of the Havok magic in an
 `AnimationPackageWrapper` from 34 bytes to 16.
+
+**The offsets above are `NEWPlayerHands`'; they are not universal.** The tag block sits at 64 there
+and at 54 in `WP_PistolMesh`, so the leading header is not a fixed length. Anything that needs a
+field after the bounds — the material reference does — must find the tag block by searching rather
+than by adding up the offsets above. `ReadHeader` and `ReadSockets` still use the fixed offset and
+so are only reliable for meshes shaped like the hands; both validate their result and return nothing
+rather than garbage when it does not check out.
 
 For `NEWPlayerHands` the bounds are `(-16, -67.9, -64)` to `(120, 67.9, 23.33)`, which contains
 every decoded vertex position and is in the same centimetre space as the skeleton.
@@ -141,7 +148,6 @@ skin weights summing to 1. Exported to Blender it deforms correctly under the pi
 
 ## Still unknown
 
-- Materials and texture references; the mesh exports untextured.
 - LODs. The two vertex blocks are one LOD; whether further LODs follow has not been checked.
 - The declared bounds cover the animated range rather than the bind pose, so they are not a hull of
   the rest-pose geometry.

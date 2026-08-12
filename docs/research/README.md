@@ -23,6 +23,8 @@ Every claim in these documents carries a confidence label:
 | [skeletalmesh.md](skeletalmesh.md) | Mesh reconnaissance — not yet implemented. |
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
 | [firstperson.md](firstperson.md) | First-person hands, weapons and the pistol target case. |
+| [fbx.md](fbx.md) | The FBX the exporter writes, and what it cannot carry. |
+| [materials.md](materials.md) | `Shader` objects, and how a mesh names the one it uses. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |
 
