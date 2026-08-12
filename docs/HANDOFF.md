@@ -1,6 +1,6 @@
 # Handoff
 
-98/98 tests pass against the installed game.
+115/115 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -26,7 +26,8 @@ No game data is in the repo.
 | Materials | `Shader` and `FacingShader` decode; the mesh names its own shader. |
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
-| GUI | Avalonia: browse by category, search, extract with progress and cancel. |
+| Application services | Installation, catalogue, details, texture preview, extraction. Tested without a window. |
+| GUI | Avalonia: game discovery and validation, browse 71,106 assets by category, search, asset details, texture preview, extraction queue with progress and cancellation. No 3D preview yet. |
 
 ## Key facts that were expensive to learn
 
@@ -56,6 +57,19 @@ No game data is in the repo.
 - Names differ in case between the Havok tables and the Unreal objects (`R_Grip`/`R_grip`).
 - Object names are not unique within a package; resolve by class as well.
 - **Render everything.** Numeric validation has passed twice while the result was visibly wrong.
+
+## The application
+
+Architecture, categories and what the window does and does not do: `docs/GUI.md`.
+
+The rule that matters: the view model holds no parsing. Everything it shows comes from
+`Core/Services`, which is why those are tested without a window and why the browser and the CLI
+cannot drift apart. The catalogue decodes no payloads — 71,106 assets across 22 packages in seconds
+— and skeletons, textures and materials are resolved only when something is selected.
+
+`WindowTests` renders the real window headlessly with Skia, so every binding resolves during the
+test. Do not screen-capture the running app to check it: the capture follows whatever is in front on
+the desktop.
 
 ## Validation
 
@@ -93,7 +107,10 @@ numbers measures Blender's interpolation, not the file.
    the content holds a sized reference, which stops the shader walk there. Roughly half the shaders
    in the larger packages are reported partial for this reason. Byte evidence for both the working
    and the failing case is in `docs/research/materials.md`.
-4. **GUI preview.** It browses and extracts; there is no 3D or animation view.
+4. **3D preview.** The window browses, previews textures and extracts, but has no mesh, skeleton or
+   animation viewport. Avalonia has no built-in 3D, so this needs a software rasteriser or an
+   OpenGL control. The data is ready — `SkeletalMeshGeometry` and the decoded tracks are what the
+   FBX exporter already consumes.
 5. **The game camera.** `PlayerCameraAnim` (2 bones, 56 recoil animations) is decoded but its space
    is not related to the viewmodel's. The exported camera is a preview, explicitly not a
    reconstruction.

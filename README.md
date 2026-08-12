@@ -29,7 +29,9 @@ game's own transforms; it has not yet been imported into Unreal.
 | Blender export | Complete: skinned mesh, armature, actions, sockets, materials. |
 | FBX export | Complete: binary 7.4, validated by round trip through Blender. |
 | UE5 import | Files written and a helper script exists; **nothing has been imported into UE5 yet**. |
-| GUI, viewport preview | Not started. |
+| Application | Avalonia: discovery, browse 71,106 assets, search, details, texture preview, extraction. See [docs/GUI.md](docs/GUI.md). |
+| 3D preview | Not started. |
+
 
 See [docs/research/](docs/research/) for the evidence behind every claim and
 [docs/research/open-questions.md](docs/research/open-questions.md) for what is still unknown.
