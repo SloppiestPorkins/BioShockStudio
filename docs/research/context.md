@@ -73,6 +73,39 @@ rather than as a direct object reference to a Little Sister asset.
 interaction, not a mesh. Whether the Big Daddy side carries an equivalent reference has not yet been
 checked.
 
+## Attachments are of three different kinds (CONFIRMED)
+
+Sockets do not all point at the same sort of thing, which is why a resolver written for the
+first-person weapons finds nothing on a Big Daddy.
+
+**1. A skeletal weapon in its own `WP_` group.** The first-person case. The attachment has its own
+skeleton and animations, rooted at the bone the socket names. Resolved and drawn.
+
+**2. A static mesh in the host's own group.** The Big Daddy's drill:
+
+```
+NewProtectorBouncer sockets   Drill -> SocketDrillROTATION
+                              DrillCage -> SocketDrillBase
+                              backpack -> SocketBackpack
+NewProtectorBouncer group     ConeDrill, ConeDrillCage, ConeDrillBackpack   (all StaticMesh)
+```
+
+Three sockets, three static meshes in the same group, names mapping one to one. The same shape
+appears on `AggressorBabyJane` (`Wig` -> `Wig_BJ_ShortHair`) and on the hands (`CSphoto` ->
+`CS_photo`, plus `Player_Wallet`).
+
+`UNKNOWN`: nothing here can be drawn or exported yet, because **no `StaticMesh` geometry reader
+exists**. `SkeletalMeshReader.ReadGeometry` returns nothing for `ConeDrill` as it does for
+`WP_WrenchMesh`. The relationship is established; the vertices are not.
+
+**3. A skeletal weapon in a `WP_` group named differently from the socket.** `ProtectorRosie`
+declares `RivetGunSocket -> Dummy_GunParent` and carries no static meshes; her weapon is the separate
+group `WP_AI_RivetGun`. The current name matcher does not strip the `Socket` suffix, so it misses
+this.
+
+Turrets and bots are the same third kind: `SecurityBot` declares `MGweapon -> MGattach` and
+`Weapon -> sec_bot` with nothing in its own group.
+
 ## Weapon meshes (partly resolved)
 
 `WP_*` package groups exist and are explicit: `WP_Pistol`, `WP_Shotgun`, `WP_TommyGun`,

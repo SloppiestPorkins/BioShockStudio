@@ -124,6 +124,19 @@ numbers measures Blender's interpolation, not the file.
    reconstruction.
 6. Remaining weapons and characters through the same path.
 
+## Attachments beyond the first-person weapons
+
+`docs/research/context.md` records that sockets point at three different kinds of thing, and the
+resolver only handles the first. The Big Daddy's drill, its cage and its backpack are `StaticMesh`
+objects in the character's own group, with names mapping one-to-one onto its sockets — the
+relationship is plain in the data and **cannot be drawn, because there is no `StaticMesh` geometry
+reader**. That reader is now the single blocker for drills, wigs, the hands' photo and wallet, and
+the wrench viewmodel.
+
+Rosie's rivet gun and the bots' weapons are a third kind: a separate `WP_` group whose name does not
+contain the socket name (`RivetGunSocket` against `WP_AI_RivetGun`), which the matcher misses because
+it does not strip the `Socket` suffix. That one is a small fix.
+
 ## Open unknowns
 
 Recorded in `docs/research/open-questions.md`. The load-bearing ones: what Unreal does with this
