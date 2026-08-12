@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -24,6 +25,11 @@ public partial class MainViewModel
 {
     private PreviewModel? _previewModel;
     private PreviewAnimation? _animation;
+    private PreviewModel? _attachmentModel;
+    private PreviewAnimation? _attachmentAnimation;
+    private AttachmentCandidate? _attachment;
+    private IReadOnlyList<AttachmentCandidate> _candidates = [];
+    private int _socketBone = -1;
     private PreviewCamera _camera = new();
     private DispatcherTimer? _playback;
     private CancellationTokenSource? _previewWork;
@@ -48,6 +54,11 @@ public partial class MainViewModel
     [ObservableProperty] private double _playbackSpeed = 1.0;
     [ObservableProperty] private string _animationSummary = "";
 
+    [ObservableProperty] private string? _selectedAttachment;
+    [ObservableProperty] private string _attachmentEvidence = "";
+    [ObservableProperty] private bool _hasAttachments;
+
+    public ObservableCollection<string> Attachments { get; } = [];
     public ObservableCollection<string> PreviewAnimations { get; } = [];
     public ObservableCollection<double> PlaybackSpeeds { get; } = [0.25, 0.5, 1.0, 2.0];
 
@@ -61,6 +72,7 @@ public partial class MainViewModel
     partial void OnPlaybackSpeedChanged(double value) => RestartPlaybackTimer();
 
     partial void OnSelectedAnimationChanged(string? value) => _ = LoadAnimationAsync(value);
+    partial void OnSelectedAttachmentChanged(string? value) => _ = LoadAttachmentAsync(value);
 
     /// <summary>Loads the model for a newly selected asset, or clears the viewport for one with none.</summary>
     private async Task LoadPreviewAsync(CatalogEntry? entry)
@@ -74,7 +86,16 @@ public partial class MainViewModel
         HasViewport = false;
         ViewportProblem = null;
         PreviewAnimations.Clear();
+        Attachments.Clear();
         SelectedAnimation = null;
+        SelectedAttachment = null;
+        AttachmentEvidence = "";
+        HasAttachments = false;
+        _attachment = null;
+        _attachmentModel = null;
+        _attachmentAnimation = null;
+        _socketBone = -1;
+        _candidates = [];
         LastFrame = 0;
         Frame = 0;
         AnimationSummary = "";
@@ -101,6 +122,10 @@ public partial class MainViewModel
 
             foreach (string name in subject.Animations) PreviewAnimations.Add(name);
             RequestRender();
+
+            // What attaches to this asset is a cross-package search, so it runs after the model is
+            // already on screen rather than holding it up.
+            _ = LoadAttachmentCandidatesAsync(entry, token);
         }
         catch (OperationCanceledException)
         {
@@ -110,6 +135,95 @@ public partial class MainViewModel
         {
             ViewportProblem = ex.Message;
         }
+    }
+
+    private async Task LoadAttachmentCandidatesAsync(CatalogEntry entry, CancellationToken token)
+    {
+        try
+        {
+            var candidates = await Task.Run(() => _context.Attachments(entry, token), token);
+            if (token.IsCancellationRequested || !ReferenceEquals(entry, SelectedAsset)) return;
+
+            _candidates = candidates;
+            Attachments.Clear();
+            foreach (var candidate in candidates) Attachments.Add(candidate.Socket);
+            HasAttachments = candidates.Count > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer selection.
+        }
+        catch (Exception ex)
+        {
+            ViewportProblem = ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// Loads the asset that hangs off a socket and places it there.
+    /// </summary>
+    /// <remarks>
+    /// The two rigs stay separate. The attachment is drawn with the host's socket-bone transform, so
+    /// a first-person set is what the game actually is — two skeletons played together — rather than
+    /// one merged rig.
+    /// </remarks>
+    private async Task LoadAttachmentAsync(string? socket)
+    {
+        _attachment = null;
+        _attachmentModel = null;
+        _attachmentAnimation = null;
+        _socketBone = -1;
+        AttachmentEvidence = "";
+
+        if (socket is null || _previewModel is null)
+        {
+            RequestRender();
+            return;
+        }
+
+        var candidate = _candidates.FirstOrDefault(c => c.Socket == socket);
+        if (candidate is null) { RequestRender(); return; }
+
+        var host = _previewModel;
+
+        try
+        {
+            var subject = await Task.Run(() => _preview.LoadAttachment(candidate));
+            if (!ReferenceEquals(host, _previewModel)) return;
+
+            _attachment = candidate;
+            _attachmentModel = subject.Model;
+            AttachmentEvidence = candidate.Confidence + ": " + candidate.Evidence;
+
+            for (int i = 0; i < host.Bones.Count; i++)
+            {
+                if (string.Equals(host.Bones[i].Name, candidate.SocketBone, StringComparison.OrdinalIgnoreCase))
+                {
+                    _socketBone = i;
+                    break;
+                }
+            }
+
+            await PairAttachmentAnimationAsync(subject.Animations);
+            RequestRender();
+        }
+        catch (Exception ex)
+        {
+            ViewportProblem = ex.Message;
+        }
+    }
+
+    /// <summary>Finds and loads the attachment animation that goes with the host's current one.</summary>
+    private async Task PairAttachmentAnimationAsync(IReadOnlyList<string> available)
+    {
+        _attachmentAnimation = null;
+        if (_attachment is null || SelectedAnimation is null || available.Count == 0) return;
+
+        string? paired = AssetContextService.Counterpart(SelectedAnimation, available);
+        if (paired is null) return;
+
+        var candidate = _attachment;
+        _attachmentAnimation = await Task.Run(() => _preview.LoadAttachmentAnimation(candidate, paired));
     }
 
     private async Task LoadAnimationAsync(string? name)
@@ -143,6 +257,14 @@ public partial class MainViewModel
             // Framed over the whole animation so the subject never leaves the view mid-playback.
             var (centre, radius) = model.BoundsOver(model.SamplePoses(animation.Decoded));
             _camera = _camera with { Target = centre, Distance = Math.Max(radius, 0.001f) * 2.15f };
+
+            // The weapon plays its own matching animation, in sync with the hands'.
+            if (_attachment is not null)
+            {
+                var candidate = _attachment;
+                var available = await Task.Run(() => _preview.LoadAttachment(candidate).Animations);
+                await PairAttachmentAnimationAsync(available);
+            }
 
             RequestRender();
         }
@@ -298,10 +420,25 @@ public partial class MainViewModel
                 int width = Math.Max(64, ViewportWidth);
                 int height = Math.Max(64, ViewportHeight);
 
+                var attachmentModel = _attachmentModel;
+                var attachmentAnimation = _attachmentAnimation;
+                int socketBone = _socketBone;
+
                 var image = await Task.Run(() =>
                 {
                     var pose = animation is null ? null : model.Pose(animation.Decoded, frame);
-                    return SoftwareRenderer.Render(model, camera, options, width, height, pose);
+                    var instances = new List<PreviewInstance> { new(model, pose) };
+
+                    if (attachmentModel is not null && socketBone >= 0)
+                    {
+                        var transform = pose is null ? model.Bones[socketBone].RestGlobal : pose[socketBone];
+                        var attachmentPose = attachmentAnimation is null
+                            ? null
+                            : attachmentModel.Pose(attachmentAnimation.Decoded, frame);
+                        instances.Add(new PreviewInstance(attachmentModel, attachmentPose, transform));
+                    }
+
+                    return SoftwareRenderer.Render(instances, camera, options, width, height);
                 });
 
                 if (!ReferenceEquals(model, _previewModel)) return;

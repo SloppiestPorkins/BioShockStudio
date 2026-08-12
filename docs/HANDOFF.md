@@ -1,6 +1,6 @@
 # Handoff
 
-124/124 tests pass against the installed game.
+130/130 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -29,6 +29,7 @@ No game data is in the repo.
 | Application services | Installation, catalogue, details, texture preview, extraction. Tested without a window. |
 | GUI | Avalonia: game discovery and validation, browse 71,106 assets by category, search, asset details, texture preview, 3D preview with animation playback, extraction queue with progress and cancellation. |
 | 3D preview | Software rasteriser in `Core/Rendering`: skinned mesh, textures, skeleton and socket overlays, orbit camera, animation transport. Verified by rendering and asserting on pixels. |
+| Asset context | The weapon a hands socket names is resolved, placed on its socket bone and played in sync. `Confirmed` only when the attachment's skeleton root matches the socket bone. |
 
 ## Key facts that were expensive to learn
 
@@ -108,9 +109,9 @@ numbers measures Blender's interpolation, not the file.
    the content holds a sized reference, which stops the shader walk there. Roughly half the shaders
    in the larger packages are reported partial for this reason. Byte evidence for both the working
    and the failing case is in `docs/research/materials.md`.
-4. **Context-aware preview.** The viewport shows one rig. A first-person set is two — hands plus
-   weapon at the socket — and the pistol case is proven but not generalised. `PreviewModel` already
-   carries sockets and their bones, so the missing piece is loading a second model and parenting it.
+4. **Companion context.** The hands carry `Gatherer` notifies and sockets, but whether any object
+   reference points at a Little Sister *asset* is still unknown. The attachment machinery is in
+   place and would show it if such a reference were found.
 5. **The game camera.** `PlayerCameraAnim` (2 bones, 56 recoil animations) is decoded but its space
    is not related to the viewmodel's. The exported camera is a preview, explicitly not a
    reconstruction.

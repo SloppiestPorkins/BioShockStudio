@@ -156,6 +156,17 @@
                                 <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
                             </WrapPanel>
 
+                            <!-- attachments: what hangs off this asset's sockets -->
+                            <StackPanel Spacing="4" IsVisible="{Binding HasAttachments}">
+                                <ComboBox ItemsSource="{Binding Attachments}"
+                                          SelectedItem="{Binding SelectedAttachment}"
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="Attach a weapon to a socket" />
+                                <TextBlock Text="{Binding AttachmentEvidence}" Opacity="0.65" FontSize="11"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding AttachmentEvidence, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
                             <!-- animation transport -->
                             <StackPanel Spacing="6" IsVisible="{Binding PreviewAnimations.Count}">
                                 <ComboBox ItemsSource="{Binding PreviewAnimations}"

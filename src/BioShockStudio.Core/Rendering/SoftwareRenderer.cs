@@ -45,6 +45,12 @@ public sealed record PreviewCamera
     };
 }
 
+/// <summary>One model placed in the view, optionally posed and optionally offset onto a socket.</summary>
+public sealed record PreviewInstance(PreviewModel Model, Matrix4x4[]? Pose = null, Matrix4x4 Transform = default)
+{
+    public Matrix4x4 Transform { get; init; } = Transform == default ? Matrix4x4.Identity : Transform;
+}
+
 /// <summary>What to draw.</summary>
 public sealed record RenderOptions
 {
@@ -82,30 +88,68 @@ public static class SoftwareRenderer
         RenderOptions options,
         int width,
         int height,
-        Matrix4x4[]? pose = null)
+        Matrix4x4[]? pose = null) =>
+        Render([new PreviewInstance(model, pose)], camera, options, width, height);
+
+    /// <summary>
+    /// Draws several models in one view.
+    /// </summary>
+    /// <remarks>
+    /// This is what a first-person set needs. The hands and the weapon are two rigs with their own
+    /// skeletons and their own animations, played together at a socket — merging them into one
+    /// skeleton would destroy that structure, so they are drawn as separate instances and the
+    /// weapon carries the host's socket-bone transform.
+    /// </remarks>
+    public static PreviewImage Render(
+        IReadOnlyList<PreviewInstance> instances,
+        PreviewCamera camera,
+        RenderOptions options,
+        int width,
+        int height)
     {
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
         var target = new RenderTarget(width, height, options.BackgroundGrey);
+        if (instances.Count == 0) return new PreviewImage(width, height, target.Colour);
+
+        float radius = 0f;
+        foreach (var instance in instances) radius = MathF.Max(radius, instance.Model.Radius);
 
         var view = LookAt(camera.Eye, camera.Target);
-        var projection = Perspective(camera.FieldOfView, (float)width / height, NearPlane(camera, model), FarPlane(camera, model));
+        var projection = Perspective(
+            camera.FieldOfView, (float)width / height,
+            MathF.Max(0.0005f, MathF.Min(camera.Distance, radius) * 0.01f),
+            (camera.Distance + radius) * 4f);
         var viewProjection = view * projection;
 
-        var skinning = pose is null ? null : model.SkinningMatrices(pose);
-        var positions = model.SkinPositions(skinning);
-        var normals = model.SkinNormals(skinning);
+        foreach (var instance in instances)
+        {
+            var model = instance.Model;
+            var skinning = instance.Pose is null ? null : model.SkinningMatrices(instance.Pose);
 
-        if (model.HasGeometry && !options.Wireframe)
-            DrawSolid(target, model, positions, normals, viewProjection, camera, options);
-        else if (model.HasGeometry)
-            DrawWireframe(target, model, positions, viewProjection);
+            var positions = model.SkinPositions(skinning);
+            var normals = model.SkinNormals(skinning);
 
-        if (options.ShowSkeleton || !model.HasGeometry)
-            DrawSkeleton(target, model, pose, viewProjection, options);
+            if (!instance.Transform.IsIdentity)
+            {
+                for (int i = 0; i < positions.Length; i++)
+                {
+                    positions[i] = Vector3.Transform(positions[i], instance.Transform);
+                    normals[i] = Vector3.Normalize(Vector3.TransformNormal(normals[i], instance.Transform));
+                }
+            }
 
-        if (options.ShowSockets) DrawSockets(target, model, pose, viewProjection);
+            if (model.HasGeometry && !options.Wireframe)
+                DrawSolid(target, model, positions, normals, viewProjection, camera, options);
+            else if (model.HasGeometry)
+                DrawWireframe(target, model, positions, viewProjection);
+
+            if (options.ShowSkeleton || !model.HasGeometry)
+                DrawSkeleton(target, model, instance.Pose, instance.Transform, viewProjection, options);
+
+            if (options.ShowSockets) DrawSockets(target, model, instance.Pose, instance.Transform, viewProjection);
+        }
 
         return new PreviewImage(width, height, target.Colour);
     }
@@ -185,6 +229,7 @@ public static class SoftwareRenderer
         RenderTarget target,
         PreviewModel model,
         Matrix4x4[]? pose,
+        Matrix4x4 transform,
         Matrix4x4 viewProjection,
         RenderOptions options)
     {
@@ -193,8 +238,9 @@ public static class SoftwareRenderer
             var bone = model.Bones[i];
             if (bone.Parent < 0) continue;
 
-            var from = (pose is null ? model.Bones[bone.Parent].RestGlobal : pose[bone.Parent]).Translation;
-            var to = (pose is null ? bone.RestGlobal : pose[i]).Translation;
+            var from = Vector3.Transform(
+                (pose is null ? model.Bones[bone.Parent].RestGlobal : pose[bone.Parent]).Translation, transform);
+            var to = Vector3.Transform((pose is null ? bone.RestGlobal : pose[i]).Translation, transform);
 
             bool selected = i == options.SelectedBone || bone.Parent == options.SelectedBone;
             if (selected) DrawLine(target, from, to, viewProjection, 255, 210, 90, ignoreDepth: true);
@@ -203,7 +249,7 @@ public static class SoftwareRenderer
     }
 
     private static void DrawSockets(
-        RenderTarget target, PreviewModel model, Matrix4x4[]? pose, Matrix4x4 viewProjection)
+        RenderTarget target, PreviewModel model, Matrix4x4[]? pose, Matrix4x4 transform, Matrix4x4 viewProjection)
     {
         // A socket is a point, so it is drawn as a small axis cross scaled to the model.
         float size = model.Radius * 0.05f;
@@ -212,7 +258,7 @@ public static class SoftwareRenderer
         {
             if (socket.Bone < 0 || socket.Bone >= model.Bones.Count) continue;
             var matrix = pose is null ? model.Bones[socket.Bone].RestGlobal : pose[socket.Bone];
-            var origin = matrix.Translation;
+            var origin = Vector3.Transform(matrix.Translation, transform);
 
             DrawLine(target, origin - Vector3.UnitX * size, origin + Vector3.UnitX * size, viewProjection, 255, 120, 120, true);
             DrawLine(target, origin - Vector3.UnitY * size, origin + Vector3.UnitY * size, viewProjection, 120, 255, 120, true);

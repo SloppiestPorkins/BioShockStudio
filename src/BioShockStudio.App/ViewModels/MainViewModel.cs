@@ -41,6 +41,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly TexturePreviewService _textures;
     private readonly ExtractionService _extraction;
     private readonly MeshPreviewService _preview;
+    private readonly AssetContextService _context;
 
     private CancellationTokenSource? _work;
     private CancellationTokenSource? _detailsWork;
@@ -109,6 +110,7 @@ public partial class MainViewModel : ViewModelBase
         _textures = new TexturePreviewService(_catalog);
         _extraction = new ExtractionService(_catalog);
         _preview = new MeshPreviewService(_catalog);
+        _context = new AssetContextService(_catalog);
 
         string? found = _installation.Detect();
         if (found is not null) _ = UseInstallAsync(found);

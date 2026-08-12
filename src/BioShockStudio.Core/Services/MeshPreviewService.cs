@@ -82,6 +82,72 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         return new PreviewSubject(model, names, problem);
     }
 
+    /// <summary>
+    /// Loads an attachment named by a socket — a first-person weapon — as its own model.
+    /// </summary>
+    /// <remarks>
+    /// It stays a separate model. The host's socket-bone transform is applied when it is drawn, so
+    /// the two skeletons are never merged.
+    /// </remarks>
+    public PreviewSubject LoadAttachment(AttachmentCandidate candidate, CancellationToken cancellation = default)
+    {
+        using var package = BioShockPackage.Open(catalog.PackageFile(candidate.Package));
+        cancellation.ThrowIfCancellationRequested();
+
+        var meshExport = package.Exports
+            .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
+                        && string.Equals(AssetContextResolver.TopLevelGroup(package, e), candidate.Group,
+                            StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+
+        SkeletalMeshGeometry? geometry = null;
+        IReadOnlyList<MeshSocket> sockets = [];
+        PreviewImage? texture = null;
+        string? problem = null;
+
+        if (meshExport is null)
+        {
+            problem = $"No mesh was found in '{candidate.Group}'.";
+        }
+        else
+        {
+            byte[] payload = package.ReadExportData(meshExport);
+            geometry = SkeletalMeshReader.ReadGeometry(payload);
+            sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+            texture = LoadDiffuse(package, meshExport);
+            if (geometry is null) problem = $"'{candidate.MeshObject}' uses a geometry layout this tool does not read yet.";
+        }
+
+        AnimationPackage? animations = null;
+        var wrapper = FindAnimationPackage(package, candidate.Group);
+        if (wrapper is not null)
+        {
+            try { animations = AnimationPackage.Load(package, wrapper); }
+            catch (Exception ex) { problem ??= $"Its animations could not be read: {ex.Message}"; }
+        }
+
+        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture);
+        var names = animations is null ? [] : animations.Animations.Select(a => a.Name).Distinct().Order().ToList();
+
+        return new PreviewSubject(model, names, problem);
+    }
+
+    /// <summary>Decodes an attachment's animation, which lives in its own package.</summary>
+    public PreviewAnimation? LoadAttachmentAnimation(AttachmentCandidate candidate, string animationName)
+    {
+        using var package = BioShockPackage.Open(catalog.PackageFile(candidate.Package));
+
+        var wrapper = FindAnimationPackage(package, candidate.Group);
+        if (wrapper is null) return null;
+
+        var animations = AnimationPackage.Load(package, wrapper);
+        var animation = animations.Find(animationName);
+        if (animation is null) return null;
+
+        return new PreviewAnimation(
+            animation.Name, animations.Decode(animation), animation.FrameCount, animation.FrameDuration);
+    }
+
     /// <summary>Decodes one animation for playback, or null when it is not in this asset's package.</summary>
     public PreviewAnimation? LoadAnimation(CatalogEntry entry, string animationName)
     {

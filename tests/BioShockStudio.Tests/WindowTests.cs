@@ -116,6 +116,21 @@ public sealed class WindowTests
             Thread.Sleep(50);
         }
 
+        // Attach the pistol so the snapshot shows the two-rig first-person set.
+        for (int i = 0; i < 300 && model.Attachments.Count == 0; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(50);
+        }
+        model.SelectedAttachment = model.Attachments.FirstOrDefault(a => a == "Pistol")
+                                   ?? model.Attachments.FirstOrDefault();
+
+        for (int i = 0; i < 200; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(30);
+        }
+
         model.Frame = model.LastFrame / 2;
         for (int i = 0; i < 60; i++)
         {

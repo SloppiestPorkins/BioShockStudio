@@ -116,14 +116,30 @@ frame fills the view.
 
 A mesh whose geometry variant is unsupported still draws its skeleton, with the reason shown.
 
+## Context: a first-person set is two rigs
+
+`AssetContextService` resolves what hangs off a host's sockets, and the viewport draws it there.
+
+The rule is evidence-driven. A hands mesh declares a socket named after a weapon (`Pistol`) bound to
+a bone (`R_Grip`); a group named for that socket (`WP_Pistol`) exists in `ShockGame.U`. That much is
+only a naming match, so it is reported `Likely`. It is promoted to `Confirmed` **only when the
+candidate's own skeleton is rooted at the bone the socket names** — which for the pistol it is
+(`R_grip`, casing differing as it does throughout this format). The UI shows that sentence verbatim
+under the picker, so the claim can be checked rather than taken.
+
+The rigs are never merged. The attachment is a separate model drawn with the host's socket-bone
+transform, and it plays its own animation in sync — the pistol's `FastReload` against the hands'
+`FastReloadPistol`. That pairing is `HEURISTIC` (longest shared name prefix, short matches
+rejected); what is actually proven is that their frame counts match exactly.
+
 ## Not built yet
 - **Asset relationship tree.** The details panel lists relationships per section; there is no graph
   view yet.
 - **Bone picking.** The renderer takes a `SelectedBone` and highlights it, but nothing in the UI
   selects one yet, and bone names are not drawn.
-- **Context-aware preview** — hands plus weapon, character plus companion. `AssetContextResolver`
-  establishes group ownership; what a first-person set needs is proven for the pistol and is not yet
-  generalised.
+- **Companion context** — character plus Little Sister. The hands carry `Gatherer` notifies and
+  sockets, but whether any object reference points at a Little Sister asset is still `UNKNOWN`, so
+  nothing is drawn for it.
 - **UE5 export status in the UI.** The FBX option writes files that are validated by round trip
   through Blender. Nothing has been imported into Unreal, so the UI does not offer a "UE5" export —
   offering one would claim a verification that does not exist.
