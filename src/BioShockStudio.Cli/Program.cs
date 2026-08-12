@@ -31,6 +31,7 @@ try
         "skeleton" => Skeleton(root, args),
         "animations" => Animations(root, args),
         "export-blender" => ExportBlender(root, args),
+        "meshes" => Meshes(root, args),
         _ => Usage(),
     };
 }
@@ -52,6 +53,7 @@ static int Usage()
           skeleton <package> <object>   Show the skeleton of an AnimationPackageWrapper.
           animations <package> <object> [owner]
                                         List decoded animations, optionally for one weapon.
+          meshes <package>              Report which SkeletalMeshes decode to geometry.
           export-blender <package> <object> <out-dir> [owner]
                                         Write scene JSON for the Blender importer.
 
@@ -250,6 +252,48 @@ static int Animations(string root, string[] args)
 
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
+    return 0;
+}
+
+static int Meshes(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: meshes <package>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var meshes = package.Exports.Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh).ToList();
+
+    int decoded = 0, sockets = 0;
+    long vertices = 0, triangles = 0;
+
+    foreach (var export in meshes.OrderByDescending(e => e.SerialSize))
+    {
+        byte[] payload = export.SerialSize > 0 ? package.ReadExportData(export) : [];
+        SkeletalMeshGeometry? geometry = null;
+        int socketCount = 0;
+
+        if (payload.Length >= 128)
+        {
+            try { geometry = SkeletalMeshReader.ReadGeometry(payload); } catch { /* reported below */ }
+            try { socketCount = SkeletalMeshReader.ReadSockets(payload, package.Names).Count; } catch { /* ditto */ }
+        }
+
+        if (geometry is not null)
+        {
+            decoded++;
+            vertices += geometry.Vertices.Count;
+            triangles += geometry.TriangleCount;
+        }
+        if (socketCount > 0) sockets++;
+
+        Console.WriteLine(geometry is null
+            ? $"  --    {export.ObjectName,-36} {export.SerialSize,10}  no geometry"
+            : $"  ok    {export.ObjectName,-36} {export.SerialSize,10}  {geometry.Vertices.Count,7} verts " +
+              $"{geometry.TriangleCount,7} tris  bones={geometry.BoneMap.Count,-4} sockets={socketCount}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"{decoded}/{meshes.Count} SkeletalMeshes decoded to geometry " +
+                      $"({vertices} vertices, {triangles} triangles); {sockets} declare sockets.");
     return 0;
 }
 

@@ -265,35 +265,47 @@ public static class SkeletalMeshReader
             int afterIndices = (int)indexEnd + 4;
 
             int vertexCursor = afterIndices;
-            int skinnedCount;
-            try { skinnedCount = ReadCompactIndex(payload, ref vertexCursor); }
+            int firstCount;
+            try { firstCount = ReadCompactIndex(payload, ref vertexCursor); }
             catch { continue; }
-            if (skinnedCount <= 0) continue;
+            if (firstCount <= 0) continue;
 
-            long skinnedEnd = (long)vertexCursor + skinnedCount * (long)SkinnedVertexStride;
-            if (skinnedEnd > payload.Length) continue;
-            if (!LooksLikeVertices(payload, vertexCursor, skinnedCount, SkinnedVertexStride)) continue;
+            // The first vertex block is skinned on character meshes and rigid on simple props, so
+            // the stride is identified by validating the records rather than assumed.
+            int skinnedCount = 0, skinnedOffset = vertexCursor;
+            int rigidCount = 0, rigidOffset = vertexCursor;
+            long blockEnd;
 
-            int skinnedOffset = vertexCursor;
-
-            int rigidCursor = (int)skinnedEnd;
-            int rigidCount = 0;
-            int rigidOffset = rigidCursor;
-            if (rigidCursor < payload.Length - 8)
+            if (Fits(payload, vertexCursor, firstCount, SkinnedVertexStride))
             {
-                int probe = rigidCursor;
-                try
+                skinnedCount = firstCount;
+                skinnedOffset = vertexCursor;
+                blockEnd = (long)vertexCursor + firstCount * (long)SkinnedVertexStride;
+
+                // A rigid block may follow the skinned one.
+                int probe = (int)blockEnd;
+                if (probe < payload.Length - 8)
                 {
-                    int candidate = ReadCompactIndex(payload, ref probe);
-                    long rigidEnd = (long)probe + candidate * (long)RigidVertexStride;
-                    if (candidate > 0 && rigidEnd <= payload.Length &&
-                        LooksLikeVertices(payload, probe, candidate, RigidVertexStride))
+                    try
                     {
-                        rigidCount = candidate;
-                        rigidOffset = probe;
+                        int candidate = ReadCompactIndex(payload, ref probe);
+                        if (candidate > 0 && Fits(payload, probe, candidate, RigidVertexStride))
+                        {
+                            rigidCount = candidate;
+                            rigidOffset = probe;
+                        }
                     }
+                    catch { /* no rigid block */ }
                 }
-                catch { /* no rigid block */ }
+            }
+            else if (Fits(payload, vertexCursor, firstCount, RigidVertexStride))
+            {
+                rigidCount = firstCount;
+                rigidOffset = vertexCursor;
+            }
+            else
+            {
+                continue;
             }
 
             // The index buffer must address exactly the vertices that follow it.
@@ -349,6 +361,12 @@ public static class SkeletalMeshReader
         }
 
         return false;
+    }
+
+    private static bool Fits(ReadOnlySpan<byte> payload, int offset, int count, int stride)
+    {
+        long end = (long)offset + count * (long)stride;
+        return end <= payload.Length && LooksLikeVertices(payload, offset, count, stride);
     }
 
     private static bool LooksLikeVertices(ReadOnlySpan<byte> payload, int offset, int count, int stride)
