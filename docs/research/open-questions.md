@@ -29,9 +29,12 @@ all third-person character animations decode with zero failures.
 962 instances, nothing decoded yet. This is now the largest remaining gap: the animation pipeline is
 complete end to end, but there is no mesh to attach it to.
 
-**How to close it:** start with the smallest `SkeletalMesh` rather than `NEWPlayerHands`, and
+Reconnaissance is recorded in [skeletalmesh.md](skeletalmesh.md): the payload opens with a shared
+2K header and what reads as an `FBoxSphereBounds`.
+
+**How to close it:** start with `FireSpread_Mesh` (4,170 bytes) rather than `NEWPlayerHands`, and
 cross-check vertex and bone counts against UEViewer where it succeeds. The skeleton is already
-decoded, so the skin-weight bone indices have something to validate against.
+decoded, so skin-weight bone indices have something to validate against.
 
 ## 5. `HkMeshProxy` — high value
 
@@ -52,8 +55,9 @@ name.
 
 ## 7. The 34-byte Unreal prefix on `AnimationPackageWrapper`
 
-`CONFIRMED_BYTES` that it is 34 bytes for all three wrappers tested. Contents `UNKNOWN`. Preserved,
-not skipped by a hardcoded constant — detection is by magic search.
+`CONFIRMED_BYTES` that it is 34 bytes for all three wrappers tested. The first 18 bytes are a header
+shared with `SkeletalMesh` payloads (see [skeletalmesh.md](skeletalmesh.md)); the remaining 16 are
+`UNKNOWN`. Preserved, not skipped by a hardcoded constant — detection is by magic search.
 
 ## 8. Export record `Unknown32` and `TrailingUnknown32`
 
