@@ -109,14 +109,14 @@
                 <DataGrid ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedAsset}"
                           IsReadOnly="True" GridLinesVisibility="Horizontal" CanUserSortColumns="True">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="240" />
-                        <DataGridTextColumn Header="Kind" Binding="{Binding Category}" Width="120" />
-                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="*" />
-                        <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="130" />
-                        <!-- A DataGrid column is not in the visual tree, so it cannot see the window's
-                             DataContext to follow research mode. The Unreal class is shown in the
-                             details panel under Format detail instead. -->
-                        <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="150" />
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="190" />
+                        <DataGridTextColumn Header="Kind" Binding="{Binding Category}" Width="95" />
+                        <!-- Details carries what the asset actually is — a texture's format and size,
+                             a shader's type and how many maps it binds — so it gets the room. The
+                             group and the Unreal class are in the details panel; repeating them here
+                             squeezed this column to nothing. -->
+                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="*" MinWidth="150" />
+                        <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="100" />
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>

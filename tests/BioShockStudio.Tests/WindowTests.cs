@@ -95,6 +95,17 @@ public sealed class WindowTests
             Thread.Sleep(50);
         }
 
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_UI_TEXTURES") is not null)
+        {
+            model.SelectedCategory = model.Categories.First(c => c.Category == AssetCategory.Textures);
+            model.Search = "Hand_";
+            for (int i = 0; i < 60; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(20); }
+            model.SelectedAsset = model.Assets.FirstOrDefault(a => a.Name == "Hand_DIFF") ?? model.Assets.FirstOrDefault();
+            for (int i = 0; i < 120; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); }
+            window.CaptureRenderedFrame()?.Save(target);
+            return;
+        }
+
         // Select something so the snapshot exercises the details panel rather than the empty state.
         model.SelectedAsset = model.Assets.FirstOrDefault(a => a.Category == AssetCategory.FirstPerson)
                               ?? model.Assets.FirstOrDefault();

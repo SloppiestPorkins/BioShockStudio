@@ -29,6 +29,40 @@ command line from disagreeing about what an asset is.
 | `TexturePreviewService` | Decodes a texture for display, using the extractor's own decoder. |
 | `ExtractionService` | Runs extraction jobs with progress, cancellation and per-asset failures. |
 
+## One row per asset
+
+`CONFIRMED`. Every map embeds its own copy of what it uses, so the raw catalogue is about five times
+larger than the set of distinct assets:
+
+| Category | Rows | Distinct |
+|---|---|---|
+| Everything | 71,106 | **14,378** |
+| Textures | 30,997 | 7,342 |
+| Animations | 16,025 | 1,695 |
+| Materials | 13,532 | 2,670 |
+| Static meshes | 8,700 | 2,362 |
+| Skeletal meshes | 972 | 161 |
+| First person | 20 | 1 |
+
+`NEWPlayerHands` is in all twenty maps. Browsing twenty identical rows is not useful, so entries are
+collapsed on identity — category, class, group and name.
+
+The copies are **not always byte-identical**; payload sizes differ slightly between maps
+(777,639 against 777,632). The largest is kept as the one to read from, and the others are recorded
+rather than discarded, so filtering by package still finds an asset in any map that carries it.
+
+## Textures and materials say what they are
+
+A row reading "4.2 MB" tells nobody whether a texture is the diffuse they want. Texture rows carry
+their real format and dimensions, and material rows their shader class and how many maps they bind —
+plus `partial` when the shader's property walk stopped early.
+
+Both are cheap: `TextureReader.ReadHeader` reads the first few kilobytes of a payload rather than
+the mip chain, and a shader is a few hundred bytes in total.
+
+This runs **after** the collapse. Doing it during cataloguing meant reading 44,000 payloads to
+describe 10,000 assets and cost four times as much for the same answer — 12 seconds against 4.
+
 ## Why the catalogue is fast
 
 `AssetCatalogService` **decodes no payloads**. It reads package tables and the group chain only —

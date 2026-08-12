@@ -35,8 +35,23 @@ public sealed record CatalogEntry
     public required AssetCategory Category { get; init; }
     public required string Name { get; init; }
 
-    /// <summary>Package file name without extension.</summary>
+    /// <summary>
+    /// The package this asset is read from — the copy with the largest payload when the game ships
+    /// it in several.
+    /// </summary>
     public required string Package { get; init; }
+
+    /// <summary>
+    /// Every package that carries this asset, canonical one included.
+    /// </summary>
+    /// <remarks>
+    /// The maps embed their own copy of everything they use, so a shared asset appears many times:
+    /// <c>NEWPlayerHands</c> is in all twenty. They are collapsed to one row, and this is what the
+    /// row was collapsed from.
+    /// </remarks>
+    public IReadOnlyList<string> Packages { get; init; } = [];
+
+    public int PackageCount => Math.Max(1, Packages.Count);
 
     /// <summary>The game's own grouping — the top-level <c>Package</c> object this belongs to.</summary>
     public required string Group { get; init; }
@@ -141,6 +156,7 @@ public sealed class AssetCatalogService
             _entries.Clear();
             _failures.Clear();
             _packageFiles.Clear();
+            var collected = new List<CatalogEntry>();
 
             var files = GameLocator.EnumeratePackages(gameRoot).ToList();
             string? weapons = GameLocator.WeaponPackage(gameRoot);
@@ -152,13 +168,13 @@ public sealed class AssetCatalogService
 
                 string file = files[i];
                 string name = Path.GetFileNameWithoutExtension(file);
-                progress?.Report(new CatalogProgress(i, files.Count, name, _entries.Count));
+                progress?.Report(new CatalogProgress(i, files.Count, name, collected.Count));
 
                 try
                 {
                     _packageFiles[name] = file;
                     using var package = BioShockPackage.Open(file);
-                    _entries.AddRange(Catalogue(package, name));
+                    collected.AddRange(Catalogue(package, name));
                 }
                 catch (Exception ex)
                 {
@@ -167,8 +183,68 @@ public sealed class AssetCatalogService
                 }
             }
 
+            _entries.AddRange(Collapse(collected));
+
+            progress?.Report(new CatalogProgress(files.Count, files.Count, "describing textures and materials", _entries.Count));
+            Enrich(_entries, PackageFile, cancellation);
+
             progress?.Report(new CatalogProgress(files.Count, files.Count, string.Empty, _entries.Count));
         }, cancellation);
+    }
+
+    /// <summary>
+    /// Collapses the same asset appearing in several packages into one row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every map embeds its own copy of what it uses, so the raw catalogue is roughly five times
+    /// larger than the set of distinct assets — 71,106 rows for 14,378 things. Browsing twenty
+    /// identical <c>NEWPlayerHands</c> is not useful, and neither is a Textures list of 30,997 when
+    /// there are 7,342 textures.
+    /// </para>
+    /// <para>
+    /// The copies are not always byte-identical — payload sizes differ slightly between maps — so
+    /// the largest is kept as the one to read from, and the rest are recorded rather than discarded
+    /// so the package filter still finds the asset in any map that carries it.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<CatalogEntry> Collapse(IEnumerable<CatalogEntry> entries) =>
+        entries
+            .GroupBy(e => (e.Category, e.ClassName, e.Group, e.Name), IdentityComparer.Instance)
+            .Select(group =>
+            {
+                var canonical = group.MaxBy(e => e.SerialSize)!;
+                var packages = group
+                    .Select(e => e.Package)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return canonical with
+                {
+                    Packages = packages,
+                    Detail = packages.Count > 1
+                        ? $"{canonical.Detail} · in {packages.Count} packages"
+                        : canonical.Detail,
+                };
+            });
+
+    /// <summary>Identity of an asset across packages: what it is, where it sits, and its name.</summary>
+    private sealed class IdentityComparer : IEqualityComparer<(AssetCategory, string, string, string)>
+    {
+        public static readonly IdentityComparer Instance = new();
+
+        public bool Equals((AssetCategory, string, string, string) a, (AssetCategory, string, string, string) b) =>
+            a.Item1 == b.Item1
+            && string.Equals(a.Item2, b.Item2, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.Item3, b.Item3, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.Item4, b.Item4, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((AssetCategory, string, string, string) value) => HashCode.Combine(
+            value.Item1,
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.Item2),
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.Item3),
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.Item4));
     }
 
     /// <summary>
@@ -246,7 +322,7 @@ public sealed class AssetCatalogService
                 ClassName = className,
                 ExportIndex = export.Index,
                 SerialSize = export.SerialSize,
-                Detail = Describe(category, group, export.SerialSize, animatedGroups),
+                Detail = Summarise(category, group, export.SerialSize, animatedGroups),
                 OwnerGroup = owner,
             });
         }
@@ -267,21 +343,92 @@ public sealed class AssetCatalogService
             : AssetCategory.Props;
     }
 
-    private static string Describe(
+    /// <summary>
+    /// The cheap row summary, from the export table alone. Textures and materials are described
+    /// properly later, once duplicates have been collapsed.
+    /// </summary>
+    private static string Summarise(
         AssetCategory category, string group, int size, IReadOnlyDictionary<string, CharacterEntry> animated)
     {
-        string where = group.Length == 0 ? string.Empty : $"in {group}";
+        if (category == AssetCategory.Animations && animated.TryGetValue(group, out var owner))
+            return $"on {owner.Group}";
 
-        return category switch
+        string where = group.Length == 0 ? string.Empty : $"in {group}";
+        return $"{Kilobytes(size)} {where}".Trim();
+    }
+
+    /// <summary>
+    /// Replaces the byte count on texture and material rows with what they actually are.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// "4.2 MB" tells nobody whether a texture is the diffuse they want. A texture's format and
+    /// dimensions live in the first few kilobytes of its payload and a shader is a few hundred bytes
+    /// in total, so neither costs a mip chain to read.
+    /// </para>
+    /// <para>
+    /// This runs <b>after</b> the collapse, not during cataloguing. Enriching every row first meant
+    /// reading 44,000 payloads to describe 10,000 assets, and cost four times as much for the same
+    /// answer.
+    /// </para>
+    /// </remarks>
+    private static void Enrich(List<CatalogEntry> entries, Func<string, string> packageFile, CancellationToken cancellation)
+    {
+        var wanted = entries
+            .Select((entry, index) => (entry, index))
+            .Where(pair => pair.entry.Category is AssetCategory.Textures or AssetCategory.Materials)
+            .GroupBy(pair => pair.entry.Package, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var byPackage in wanted)
         {
-            // Size is the only fact available without reading the payload, and it is a fair proxy
-            // for whether a mesh or texture is substantial.
-            AssetCategory.Textures => $"{Kilobytes(size)} {where}".Trim(),
-            AssetCategory.Animations => animated.TryGetValue(group, out var owner)
-                ? $"on {owner.Group}"
-                : where,
-            _ => $"{Kilobytes(size)} {where}".Trim(),
+            cancellation.ThrowIfCancellationRequested();
+
+            BioShockPackage package;
+            try { package = BioShockPackage.Open(packageFile(byPackage.Key)); }
+            catch (Exception ex) when (ex is IOException or InvalidDataException) { continue; }
+
+            using (package)
+            {
+                foreach (var (entry, index) in byPackage)
+                {
+                    if (entry.ExportIndex < 0 || entry.ExportIndex >= package.Exports.Count) continue;
+                    var export = package.Exports[entry.ExportIndex];
+
+                    string? detail = entry.Category == AssetCategory.Textures
+                        ? DescribeTexture(package, export)
+                        : DescribeMaterial(package, export);
+
+                    if (detail is null) continue;
+
+                    string suffix = entry.PackageCount > 1 ? $" · in {entry.PackageCount} packages" : string.Empty;
+                    entries[index] = entry with { Detail = detail + suffix };
+                }
+            }
+        }
+    }
+
+    private static string? DescribeTexture(BioShockPackage package, ObjectExport export)
+    {
+        var header = TextureReader.ReadHeader(package, export);
+        return header is null
+            ? "format not understood"
+            : $"{header.Value.Width} × {header.Value.Height} · {header.Value.Format}";
+    }
+
+    private static string? DescribeMaterial(BioShockPackage package, ObjectExport export)
+    {
+        var material = MaterialReader.Read(package, export);
+        if (material is null) return "could not be read";
+
+        string maps = material.Textures.Count switch
+        {
+            0 => "no textures",
+            1 => "1 texture",
+            var n => $"{n} textures",
         };
+
+        // A shader whose property walk stopped early is only partly known, and says so.
+        return material.ClassName + " · " + maps + (material.Truncated ? " · partial" : string.Empty);
     }
 
     private static string Kilobytes(int bytes) => bytes >= 1024 * 1024
@@ -309,8 +456,9 @@ public sealed class AssetCatalogService
         foreach (var entry in _entries)
         {
             if (category is not null && entry.Category != category) continue;
-            if (package is not null && !string.Equals(entry.Package, package, StringComparison.OrdinalIgnoreCase))
-                continue;
+            // A collapsed row belongs to every package that carries it, not only the one it is read
+            // from, or filtering by map would hide assets that map genuinely contains.
+            if (package is not null && !InPackage(entry, package)) continue;
             if (hasQuery && !Matches(entry, term)) continue;
 
             results.Add(entry);
@@ -320,10 +468,14 @@ public sealed class AssetCatalogService
         return results;
     }
 
+    private static bool InPackage(CatalogEntry entry, string package) =>
+        string.Equals(entry.Package, package, StringComparison.OrdinalIgnoreCase)
+        || entry.Packages.Contains(package, StringComparer.OrdinalIgnoreCase);
+
     private static bool Matches(CatalogEntry entry, string term) =>
         entry.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
         || entry.Group.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || entry.Package.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || entry.Packages.Any(p => p.Contains(term, StringComparison.OrdinalIgnoreCase))
         || entry.ClassName.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>How many entries each category holds, for the browser's tree.</summary>

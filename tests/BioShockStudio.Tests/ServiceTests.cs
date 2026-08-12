@@ -103,6 +103,48 @@ public sealed class ServiceTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public async Task Catalogue_CollapsesTheSameAssetAcrossPackages()
+    {
+        var catalog = new AssetCatalogService();
+        await catalog.BuildAsync(game.RequireRoot);
+
+        // Every map embeds its own copy of what it uses. The hands are in all twenty, and browsing
+        // twenty identical rows is not useful.
+        var hands = catalog.Search("NEWPlayerHands", AssetCategory.FirstPerson);
+        var row = Assert.Single(hands);
+        Assert.True(row.PackageCount > 1, "the hands appear in more than one package");
+        Assert.Contains("0-Lighthouse", row.Packages);
+        Assert.Contains($"in {row.PackageCount} packages", row.Detail);
+
+        // Nothing may appear twice under the same identity.
+        var duplicates = catalog.Entries
+            .GroupBy(e => $"{e.Category}|{e.ClassName}|{e.Group}|{e.Name}", StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .ToList();
+        Assert.Empty(duplicates);
+
+        // A collapsed row still belongs to every package that carries it, so filtering by map must
+        // not hide an asset that map genuinely contains.
+        var inChallenge = catalog.Search("NEWPlayerHands", AssetCategory.FirstPerson, "ChallengeRoomCombat");
+        Assert.Single(inChallenge);
+    }
+
+    [RequiresGameFact]
+    public async Task Catalogue_DescribesTexturesAndMaterialsByWhatTheyAre()
+    {
+        var catalog = new AssetCatalogService();
+        await catalog.BuildAsync(game.RequireRoot);
+
+        // A byte count tells nobody whether a texture is the one they want.
+        var texture = catalog.Search("Hand_DIFF", AssetCategory.Textures).First();
+        Assert.Matches(@"\d+ × \d+ · \w+", texture.Detail);
+
+        var material = catalog.Search("NEWplayerHandsRimShader", AssetCategory.Materials).First();
+        Assert.Contains("FacingShader", material.Detail);
+        Assert.Contains("textures", material.Detail);
+    }
+
+    [RequiresGameFact]
     public async Task Catalogue_SearchesAcrossNamePackageAndGroup()
     {
         var catalog = new AssetCatalogService();

@@ -54,6 +54,49 @@ public static class TextureReader
 {
     public const string ClassName = "Texture";
 
+    /// <summary>Format and dimensions, without locating or decoding the mip chain.</summary>
+    /// <remarks>
+    /// The property list sits at the front of the payload, so this reads a couple of kilobytes
+    /// rather than the whole export. That matters at catalogue scale: the shipped textures total
+    /// gigabytes, and listing them should not read any of it.
+    /// </remarks>
+    public static (BioShockTextureFormat Format, int Width, int Height)? ReadHeader(
+        BioShockPackage package, ObjectExport export)
+    {
+        if (export.SerialSize < 64) return null;
+
+        var buffer = new byte[Math.Min(HeaderProbeSize, export.SerialSize)];
+        using (var stream = package.OpenExportStream(export))
+        {
+            int read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+            if (read < 64) return null;
+        }
+
+        List<UnrealProperty> properties;
+        try { properties = UnrealPropertyReader.Read(buffer, package.Names, out _); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        var format = properties.FirstOrDefault(p => p.Name == "Format");
+        var uSize = properties.FirstOrDefault(p => p.Name == "USize");
+        var vSize = properties.FirstOrDefault(p => p.Name == "VSize");
+        if (format is null || uSize is null || vSize is null) return null;
+
+        var textureFormat = (BioShockTextureFormat)format.AsByte();
+        if (!Enum.IsDefined(textureFormat)) return null;
+
+        int width = uSize.AsInt();
+        int height = vSize.AsInt();
+        if (width <= 0 || height <= 0 || width > 8192 || height > 8192) return null;
+
+        return (textureFormat, width, height);
+    }
+
+    /// <summary>How much of a texture payload the header probe reads.</summary>
+    private const int HeaderProbeSize = 4096;
+
     public static BioShockTexture? Read(BioShockPackage package, ObjectExport export)
     {
         byte[] payload = package.ReadExportData(export);

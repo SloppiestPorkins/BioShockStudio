@@ -1,6 +1,6 @@
 # Handoff
 
-130/130 tests pass against the installed game.
+132/132 tests pass against the installed game.
 
 ```bash
 dotnet build && dotnet test
@@ -27,7 +27,7 @@ No game data is in the repo.
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Application services | Installation, catalogue, details, texture preview, extraction. Tested without a window. |
-| GUI | Avalonia: game discovery and validation, browse 71,106 assets by category, search, asset details, texture preview, 3D preview with animation playback, extraction queue with progress and cancellation. |
+| GUI | Avalonia: game discovery and validation, browse 14,378 distinct assets by category, search, asset details, texture preview, 3D preview with animation playback, extraction queue with progress and cancellation. |
 | 3D preview | Software rasteriser in `Core/Rendering`: skinned mesh, textures, skeleton and socket overlays, orbit camera, animation transport. Verified by rendering and asserting on pixels. |
 | Asset context | The weapon a hands socket names is resolved, placed on its socket bone and played in sync. `Confirmed` only when the attachment's skeleton root matches the socket bone. |
 
@@ -66,7 +66,7 @@ Architecture, categories and what the window does and does not do: `docs/GUI.md`
 
 The rule that matters: the view model holds no parsing. Everything it shows comes from
 `Core/Services`, which is why those are tested without a window and why the browser and the CLI
-cannot drift apart. The catalogue decodes no payloads — 71,106 assets across 22 packages in seconds
+cannot drift apart. The catalogue decodes no payloads — 14,378 distinct assets across 22 packages in seconds
 — and skeletons, textures and materials are resolved only when something is selected.
 
 `WindowTests` renders the real window headlessly with Skia, so every binding resolves during the
