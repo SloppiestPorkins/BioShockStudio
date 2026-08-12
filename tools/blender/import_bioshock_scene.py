@@ -106,6 +106,42 @@ def build_armature(scene):
     return armature, globals_
 
 
+def build_sockets(armature, scene):
+    """Create an empty per socket, parented to the bone the game attaches it to.
+
+    Sockets are what a weapon or effect actually hangs off, so they need to follow the animated
+    bone rather than sit at a fixed point in the scene.
+    """
+    created = []
+    bone_names = {bone["name"] for bone in scene["bones"]}
+
+    for socket in scene.get("sockets", []):
+        # Bone names are matched case-insensitively: the mesh writes "R_Grip" where the skeleton
+        # writes "R_grip".
+        target = next((n for n in bone_names if n.lower() == socket["boneName"].lower()), None)
+        if target is None:
+            print(f"bioshock: socket {socket['name']} references unknown bone {socket['boneName']}")
+            continue
+
+        empty = bpy.data.objects.new(f"SOCKET_{socket['name']}", None)
+        empty.empty_display_type = "ARROWS"
+        empty.empty_display_size = 0.05
+        bpy.context.collection.objects.link(empty)
+
+        empty.parent = armature
+        empty.parent_type = "BONE"
+        empty.parent_bone = target
+        # Bone parenting places children at the bone tail; cancel that so the socket sits on the head.
+        empty.matrix_parent_inverse = Matrix.Translation(
+            (0.0, -armature.data.bones[target].length, 0.0))
+
+        empty["bioshock_socket"] = socket["name"]
+        empty["bioshock_socket_bone"] = socket["boneName"]
+        created.append(empty)
+
+    return created
+
+
 def build_action(armature, scene, animation, globals_):
     bones = scene["bones"]
     action = bpy.data.actions.new(f"{animation['owner']}_{animation['name']}")
@@ -166,6 +202,7 @@ def main():
 
     clear_scene()
     armature, globals_ = build_armature(scene)
+    sockets = build_sockets(armature, scene)
 
     for animation in scene["animations"]:
         build_action(armature, scene, animation, globals_)
@@ -180,7 +217,7 @@ def main():
 
     print(f"bioshock: wrote {output_path}")
     print(f"bioshock: {len(scene['bones'])} bones, {len(scene['animations'])} actions, "
-          f"{len(scene['failures'])} undecoded")
+          f"{len(sockets)} sockets, {len(scene['failures'])} undecoded")
 
 
 if __name__ == "__main__":

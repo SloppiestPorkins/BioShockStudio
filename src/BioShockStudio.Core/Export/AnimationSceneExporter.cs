@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Mesh;
 
 namespace BioShockStudio.Core.Export;
 
@@ -29,7 +30,10 @@ public static class AnimationSceneExporter
     /// </summary>
     private static readonly string[] SocketBoneNames = ["R_grip", "IKbindLhandDummy"];
 
-    public static AnimationScene Build(AnimationPackage package, string? ownerFilter = null)
+    public static AnimationScene Build(
+        AnimationPackage package,
+        string? ownerFilter = null,
+        IReadOnlyList<MeshSocket>? sockets = null)
     {
         var skeleton = package.Skeleton;
 
@@ -90,6 +94,9 @@ public static class AnimationSceneExporter
             Bones = bones,
             Animations = animations,
             Failures = failures,
+            Sockets = (sockets ?? [])
+                .Select(s => new SceneSocket { Name = s.Name, BoneName = s.BoneName })
+                .ToList(),
         };
     }
 
@@ -111,6 +118,16 @@ public sealed record AnimationScene
     public required IReadOnlyList<SceneBone> Bones { get; init; }
     public required IReadOnlyList<SceneAnimation> Animations { get; init; }
     public required IReadOnlyList<SceneFailure> Failures { get; init; }
+
+    /// <summary>Attachment points declared by the companion SkeletalMesh, if one was resolved.</summary>
+    public required IReadOnlyList<SceneSocket> Sockets { get; init; }
+}
+
+/// <summary>A named attachment point and the bone it hangs off.</summary>
+public sealed record SceneSocket
+{
+    public required string Name { get; init; }
+    public required string BoneName { get; init; }
 }
 
 public sealed record SceneBone

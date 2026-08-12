@@ -3,6 +3,7 @@ using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Havok.Detection;
 using BioShockStudio.Core.Havok.Packfile;
+using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 
 if (args.Length == 0)
@@ -184,6 +185,26 @@ static AnimationPackage LoadAnimationPackage(string root, string packageName, st
     return AnimationPackage.Load(package, export);
 }
 
+/// <summary>
+/// Finds the SkeletalMesh that goes with an AnimationPackageWrapper. The wrappers are named
+/// UAPW_&lt;MeshName&gt;, which is a convention rather than a reference, so a miss is reported as
+/// "no sockets" rather than treated as an error.
+/// </summary>
+static IReadOnlyList<MeshSocket> ResolveSockets(string root, string packageName, string wrapperName)
+{
+    string meshName = wrapperName.StartsWith("UAPW_", StringComparison.OrdinalIgnoreCase)
+        ? wrapperName["UAPW_".Length..]
+        : wrapperName;
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, packageName));
+    var export = package.Exports
+        .Where(e => string.Equals(e.ObjectName, meshName, StringComparison.OrdinalIgnoreCase)
+                    && package.GetClassName(e) == AssetClasses.SkeletalMesh)
+        .MaxBy(e => e.SerialSize);
+
+    return export is null ? [] : SkeletalMeshReader.ReadSockets(package.ReadExportData(export), package.Names);
+}
+
 static int Skeleton(string root, string[] args)
 {
     if (args.Length < 3) { Console.Error.WriteLine("usage: skeleton <package> <object>"); return 1; }
@@ -241,7 +262,10 @@ static int ExportBlender(string root, string[] args)
     Directory.CreateDirectory(outputDirectory);
 
     var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
-    var scene = AnimationSceneExporter.Build(animationPackage, owner);
+    var sockets = ResolveSockets(root, args[1], args[2]);
+    if (sockets.Count > 0) Console.WriteLine($"resolved {sockets.Count} sockets from the companion SkeletalMesh");
+
+    var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets);
 
     string suffix = owner is null ? string.Empty : "_" + owner;
     string scenePath = Path.Combine(outputDirectory, $"{animationPackage.ObjectName}{suffix}.json");

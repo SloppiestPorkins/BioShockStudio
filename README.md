@@ -24,7 +24,8 @@ exports today is a skeleton and its animations, not a skinned character.
 | `hkaAnimationBinding` | Complete, from Havok's own track-to-bone array. |
 | Spline decompression | Complete. 130/130 animations decode, zero failures. |
 | Blender export | Complete for skeleton + actions + sockets. |
-| `SkeletalMesh` payload | **Not started** — the largest remaining gap. |
+| `SkeletalMesh` header + sockets | Complete. 19 sockets on the hands mesh, all weapons on `R_Grip`. |
+| `SkeletalMesh` geometry | Vertex format decoded; **bone table unknown**, so no skinned export yet. |
 | FBX / UE5 export | Not started. |
 | GUI, viewport preview | Not started. |
 
@@ -104,9 +105,12 @@ dotnet run --project src/BioShockStudio.Cli -- export-blender 0-Lighthouse UAPW_
 blender --background --python tools/blender/import_bioshock_scene.py -- artifacts/UAPW_NEWPlayerHands_Pistol.json artifacts/UAPW_NEWPlayerHands_Pistol.blend
 ```
 
-The result, verified in Blender 5.1: a 47-bone armature with a single root, ten actions, the
-`R_grip` and `IKbindLhandDummy` sockets flagged, game bone indices preserved as custom properties,
-and 46 of 47 bones rigid under animation.
+The result, verified in Blender 5.1: a 47-bone armature with a single root, ten actions, 19 socket
+empties parented to their bones, game bone indices preserved as custom properties, and 46 of 47
+bones rigid under animation. The `Pistol` socket sits exactly on `R_grip` and travels 31 cm through
+the reload.
+
+There is no mesh yet — see [skeletalmesh.md](docs/research/skeletalmesh.md).
 
 ## Layout
 
@@ -118,6 +122,7 @@ src/BioShockStudio.Core/
 ├── Skeleton/     internal skeleton representation
 ├── Animation/    internal animation, tracks and binding
 ├── Export/       Blender scene JSON
+├── Mesh/         SkeletalMesh header and sockets
 ├── Assets/       whole-game export index, AnimationPackage
 └── Game/         install detection
 src/BioShockStudio.Cli/

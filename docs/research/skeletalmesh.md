@@ -1,63 +1,110 @@
 # SkeletalMesh
 
-**Status:** not implemented. This document records the reconnaissance done so far so the work starts
-from evidence rather than from scratch.
+**Implementation:** `src/BioShockStudio.Core/Mesh/SkeletalMeshReader.cs`
+**Tests:** `tests/BioShockStudio.Tests/SkeletalMeshTests.cs`
+**Status:** header and sockets implemented; geometry decoded but not yet exported; bone table unknown.
 
 962 `SkeletalMesh` exports ship across the 21 packages, 46 of them in `0-Lighthouse.bsm`.
 
-## Candidate first targets
+## Payload header
 
-`CONFIRMED_BYTES`. Smallest instances in `0-Lighthouse.bsm`, which are the right place to start
-rather than the 777 KB hands mesh:
+`CONFIRMED_BYTES`, verified across every `SkeletalMesh` in `0-Lighthouse.bsm`.
 
-| Object | Payload |
+```
++0   23 bytes    header; its first 18 are shared with AnimationPackageWrapper payloads
++23  FBox        bounds min (float3), bounds max (float3)
++47  byte        bounds valid flag
++48  FSphere     centre (float3), radius (float)
++64  9 bytes     fixed tag block: int32 4, int32 5, byte 1
++73  FCompactIndex
+     float3      scale
+     float3      origin
+     int3        rotation
+     float, float, int32
+     zero padding
+```
+
+The shared 18-byte prefix narrows the previously unexplained gap ahead of the Havok magic in an
+`AnimationPackageWrapper` from 34 bytes to 16.
+
+For `NEWPlayerHands` the bounds are `(-16, -67.9, -64)` to `(120, 67.9, 23.33)`, which contains
+every decoded vertex position and is in the same centimetre space as the skeleton.
+
+## Socket table
+
+`CONFIRMED_BYTES`. Two parallel `FCompactIndex`-counted `FName` arrays: socket names, then the bone
+each socket attaches to.
+
+`NEWPlayerHands` declares 19 sockets:
+
+| Socket | Bone |
 |---|---|
-| `FireSpread_Mesh` | 4,170 |
-| `PlayerCameraAnim` | 4,318 |
-| `GrenadeFuse_Mesh` | 6,504 |
-| `IcePileOp` | 7,479 |
-| `NEWPlayerHands` | 777,635 |
+| `Wrench`, `Pistol`, `Launcher`, `Crossbow`, `TommyGun`, `FireballSocket`, `IrritantBall`, `butt`, `WrenchRibbonSocket`, `PlayerGathererGun` | `R_Grip` |
+| `Chem`, `FirePlasmid`, `IceShards`, `ParasiteSocket` | `Bip01_L_Hand` |
+| `PustuleBirth`, `bip01_headnub` | `bip01_head` |
+| `GatherSave` | `Bip01_R_Hand` |
+| `GathererAttach` | `Bip01_Spine` |
+| `CSphoto` | `IKbindLhandDummy` |
 
-## Shared 2K payload header
+`ProtectorRosie` (Big Daddy) declares `RivetGunSocket`, `SmokeStack`, `SteamLeakA/B/C`, `eyes` and
+`HeadGear`, so the table is not specific to the first-person mesh.
 
-`CONFIRMED_BYTES`. `SkeletalMesh` and `AnimationPackageWrapper` payloads begin with the same
-18-byte prefix:
+**Every weapon socket resolves to `R_Grip`**, a bone the hand skeleton also carries. That closes the
+weapon-attachment half of the first-person requirement: the pistol hangs off `R_Grip`, which the
+animations drive.
+
+Note the case difference — the mesh writes `R_Grip`, the skeleton writes `R_grip` — so bone lookup
+must be case-insensitive.
+
+The socket-table offset is currently found by skipping the zero padding after the header's fixed
+fields. That is a weak locator, so the reader validates the result and returns **nothing** rather
+than emitting `None` entries when the table does not check out. A regression test asserts that no
+mesh ever yields a garbage socket.
+
+## Vertex format
+
+`CONFIRMED_BYTES` for the record layout; the containing arrays are not yet parsed.
+
+Skinned vertices are 64 bytes:
 
 ```
-04 00 00 00  03 00 00 00  04 00 00 00  00 22  cd cd cd cd
++0   float3            position
++12  float3            tangent      (unit)
++24  float3            binormal     (unit)
++36  float3            normal       (unit)
++48  float, float      u, v
++56  4 x (uint8 bone, uint8 weight)  interleaved influences, weights summing to 255
 ```
 
-The `cd cd cd cd` filler is characteristic of uninitialised MSVC debug heap memory, which suggests a
-serialised struct with padding rather than a meaningful field. This partly answers the question of
-what sits ahead of the Havok magic in an `AnimationPackageWrapper`: the first 18 bytes are this
-shared header, leaving 16 bytes still `UNKNOWN` before the packfile begins at offset 34.
+Rigid vertices are 57 bytes: the same through the UVs, then a single `uint8` bone index and no
+weights. `FireSpread_Mesh` uses this form.
 
-## Bounds
+Evidence: scanning `NEWPlayerHands` for records whose tangent, binormal and normal are all unit
+length **and** whose four weights sum to exactly 255 yields 6,629 vertices in 42 contiguous runs,
+the largest being 3,469 vertices. Positions land inside the declared bounds and the UVs occupy a
+sensible 0..1 range.
 
-`LIKELY`. Immediately after the shared header, `NEWPlayerHands` reads as a bounding volume:
+Index buffers are `uint16` and sit immediately before their vertex block — confirmed on
+`FireSpread_Mesh`, whose 36 indices form the expected `0,1,2 / 2,3,0` quad pattern over 24 vertices.
 
-```
-min   (-16.000, -67.902, -64.000)
-max   (120.000,  67.902,  23.330)
-flag  0x01
-radius 42.83
-```
+## What blocks a skinned export
 
-That is a plausible `FBoxSphereBounds` for a first-person arms mesh in the same centimetre space as
-the skeleton, whose root sits at x = 14.4. Not yet parsed in code, and not relied upon.
+`UNKNOWN`: **the mesh bone table.** Vertex bone indices are mesh-local (0..37 in the hands mesh) and
+do **not** index the Havok skeleton directly. Tested geometrically: mapping mesh index *n* to
+skeleton bone *n* gives a mean vertex-to-dominant-bone distance of 55.6 units, which is *worse* than
+random permutations (43–50). So a bone table or bone map exists and has not been found.
 
-## What is not known
+It is not an `FName` array of bone names in the package name table: only 27 bone-like names exist
+there against 47 skeleton bones, and no run of them appears in the payload.
 
-Everything past the bounds: vertex buffers, index buffers, LOD chunking, material sections, bone
-maps, skin weights, and the link from the mesh to its skeleton. `HkMeshProxy` (8,961 instances) is
-the most promising candidate for that last link and has not been examined.
+Until that table is decoded, exporting the geometry would produce a mesh skinned to the wrong bones,
+which is worse than exporting no mesh at all. The armature and animations export correctly today.
 
-## Validation plan
+## Next steps
 
-Per the project's testing rule, none of this becomes a parser without byte evidence:
-
-1. Start with `FireSpread_Mesh`, the smallest instance.
-2. Cross-check vertex and bone counts against UEViewer where it succeeds on the same asset.
-3. Validate skin-weight bone indices against the already-decoded skeleton — indices must land inside
-   the bone array and weights must sum to 1.
-4. Validate bounds against the vertex positions actually decoded.
+1. Find the bone table or per-chunk bone map. Likely candidates: a `uint16` bone-map array adjacent
+   to each vertex chunk, or `HkMeshProxy` (8,961 instances), whose name suggests it bridges the
+   Unreal mesh and the Havok skeleton.
+2. Parse the LOD/section container so vertex and index blocks are located structurally rather than
+   by scanning for geometric invariants.
+3. Then: skinned mesh export to Blender, and FBX for UE5.
