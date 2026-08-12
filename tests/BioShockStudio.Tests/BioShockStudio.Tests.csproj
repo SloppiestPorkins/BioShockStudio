@@ -14,6 +14,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+
+    <!-- Renders the real window offscreen so the layout can be checked without a display, and
+         without ever capturing the user's screen. -->
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Skia" Version="11.2.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BioShockStudio.Core\BioShockStudio.Core.csproj" />
+    <ProjectReference Include="..\..\src\BioShockStudio.App\BioShockStudio.App.csproj" />
   </ItemGroup>
 
 </Project>
