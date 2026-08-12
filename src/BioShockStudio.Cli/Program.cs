@@ -34,6 +34,7 @@ try
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
         "animation" => AnimationInspect(root, args),
+        "export-firstperson" => ExportFirstPerson(root, args),
         _ => Usage(),
     };
 }
@@ -452,6 +453,104 @@ static int ExportBlender(string root, string[] args)
     Console.WriteLine($"  blender --background --python \"{Path.GetFullPath(script)}\" -- \"{scenePath}\" \"{blendPath}\"");
     return 0;
 }
+
+/// <summary>
+/// Builds a complete first-person setup: the player hands, the weapon that attaches to them, and
+/// both animation sets.
+/// <para>
+/// The relationship comes from the data. The hands mesh declares a socket named after the weapon
+/// (<c>Pistol</c>) bound to <c>R_Grip</c>; the weapon's own skeleton, in ShockGame.U, is rooted at a
+/// bone of the same name; and the weapon's animations are frame-identical to the hands' matching
+/// animations.
+/// </para>
+/// </summary>
+static int ExportFirstPerson(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-firstperson <weapon> <out-dir>");
+        return 1;
+    }
+
+    string weapon = args[1];
+    string outputDirectory = args[2];
+    Directory.CreateDirectory(outputDirectory);
+
+    string weaponPackagePath = GameLocator.WeaponPackage(root)
+        ?? throw new FileNotFoundException("ShockGame.U not found; it holds the first-person weapon viewmodels.");
+
+    var hands = LoadAnimationPackage(root, "0-Lighthouse", "UAPW_NEWPlayerHands");
+    var (sockets, geometry) = ResolveMesh(root, "0-Lighthouse", "UAPW_NEWPlayerHands");
+    var handEvents = ResolveEvents(root, "0-Lighthouse", hands);
+    var scene = AnimationSceneExporter.Build(hands, weapon, sockets, geometry, handEvents);
+
+    var socket = sockets.FirstOrDefault(s => string.Equals(s.Name, weapon, StringComparison.OrdinalIgnoreCase));
+    if (socket is null)
+    {
+        Console.Error.WriteLine($"The hands declare no socket named '{weapon}'. Available: " +
+                                string.Join(", ", sockets.Select(s => s.Name)));
+        return 1;
+    }
+
+    Console.WriteLine($"hands:  {scene.Bones.Count} bones, {scene.Animations.Count} '{weapon}' animations, " +
+                      $"{scene.Sockets.Count} sockets");
+    Console.WriteLine($"socket: '{socket.Name}' attaches to bone '{socket.BoneName}'");
+
+    using var weaponPackage = BioShockPackage.Open(weaponPackagePath);
+    string group = "WP_" + weapon;
+
+    var weaponWrapper = weaponPackage.Exports
+        .Where(e => IsInGroup(weaponPackage, e, group)
+                    && weaponPackage.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
+        .MaxBy(e => e.SerialSize);
+
+    var weaponMeshExport = weaponPackage.Exports
+        .Where(e => IsInGroup(weaponPackage, e, group)
+                    && weaponPackage.GetClassName(e) == AssetClasses.SkeletalMesh)
+        .MaxBy(e => e.SerialSize);
+
+    if (weaponWrapper is null || weaponMeshExport is null)
+    {
+        Console.Error.WriteLine($"No animated weapon found in group '{group}' of ShockGame.U.");
+        return 1;
+    }
+
+    var weaponAnimations = AnimationPackage.Load(weaponPackage, weaponWrapper);
+    byte[] weaponPayload = weaponPackage.ReadExportData(weaponMeshExport);
+    var weaponGeometry = SkeletalMeshReader.ReadGeometry(weaponPayload);
+    var weaponSockets = SkeletalMeshReader.ReadSockets(weaponPayload, weaponPackage.Names);
+    var weaponScene = AnimationSceneExporter.Build(weaponAnimations, null, weaponSockets, weaponGeometry);
+
+    Console.WriteLine($"weapon: {weaponMeshExport.ObjectName}, {weaponScene.Bones.Count} bones " +
+                      $"(root '{weaponAnimations.Skeleton.Bones[0].Name}'), " +
+                      $"{weaponScene.Animations.Count} animations, {weaponGeometry?.Vertices.Count ?? 0} vertices");
+
+    scene = scene with
+    {
+        Attachments =
+        [
+            new SceneAttachment
+            {
+                SocketName = socket.Name,
+                SocketBone = socket.BoneName,
+                Scene = weaponScene,
+            },
+        ],
+    };
+
+    string scenePath = Path.Combine(outputDirectory, $"{weapon}_FirstPerson.json");
+    AnimationSceneExporter.WriteJson(scene, scenePath);
+    Console.WriteLine($"wrote {scenePath}");
+
+    string blendPath = Path.Combine(outputDirectory, $"{weapon}_FirstPerson.blend");
+    string script = Path.GetFullPath(Path.Combine("tools", "blender", "import_bioshock_scene.py"));
+    Console.WriteLine("To build the .blend, run:");
+    Console.WriteLine($"  blender --background --python \"{script}\" -- \"{scenePath}\" \"{blendPath}\"");
+    return 0;
+}
+
+static bool IsInGroup(BioShockPackage package, ObjectExport export, string group) =>
+    string.Equals(AssetContextResolver.TopLevelGroup(package, export), group, StringComparison.OrdinalIgnoreCase);
 
 static string ResolvePackage(string root, string name)
 {

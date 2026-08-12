@@ -90,3 +90,68 @@ attaches at `R_Grip`; the mesh it attaches has not been located.
 
 Relationships carry `Confirmed`, `Likely` or `Heuristic` plus the evidence that produced them.
 Only outer-chain ownership is currently emitted, and it is `Confirmed`.
+
+## Weapon viewmodels live in ShockGame.U (CONFIRMED)
+
+The first-person weapon meshes are **not** in the map packages. They are in
+`Build/Final/BakedScripts/pc/ShockGame.U`, a 92 MB Unreal package in the same format as the maps —
+it parses byte-exact with the same reader (11,647 exports).
+
+The map `WP_*` groups contain only ammo and pickup meshes. Taking the union of `WP_Pistol` across
+all 21 maps yields `Ammo_Pickup_JHP` and its textures, and nothing else. The catalog
+(`Maps/Catalog.bdc`, which indexes the bulk texture chunks) references `WP_Pistol_Spec` and
+`WP_Pistol_Attachments_Norm` under the `WP_Pistol` group, which is what showed the viewmodel had to
+exist somewhere else.
+
+`ShockGame.U` holds nine weapon groups:
+
+| Group | Mesh | Animation package |
+|---|---|---|
+| `WP_Pistol` | `WP_PistolMesh` | `UAPW_WP_Pistol` |
+| `WP_Shotgun` | `WP_ShotgunMesh` | `UAPW_WP_Shotgun` |
+| `WP_TommyGun` | `TommyGunMESH` | — |
+| `WP_Crossbow` | `WP_CrossbowMesh` | — |
+| `WP_ChemicalThrower` | `WP_ChemicalThrowerMesh` | `UAPW_WP_ChemicalThrower` |
+| `WP_GrenadeLauncher` | `WP_GrenadeLauncherMesh` | — |
+| `WP_Wrench` | `WP_WrenchMesh` | — |
+| `WP_PlasmidEquip` | `PlasmidEquipMESH` | `UAPW_WP_PlasmidEquip` |
+| `WP_FragGrenade` | — | — |
+
+Plus per-weapon upgrade meshes (`PI_UpgradeA`, `SG_UpgradeA`, `TG_upgradeA/B`, `XB_UpgradeA`,
+`CT_UpgradeA/B`) and the viewmodel textures (`Pistol_DIFF` 5.6 MB, `Pistol_NORM` 2.8 MB).
+
+## The weapon is not a static prop (CONFIRMED)
+
+`UAPW_WP_Pistol` carries a skeleton and animations of its own:
+
+```
+R_grip
+└── pistol_body
+    ├── hammer
+    ├── trigger
+    └── barrel
+        ├── over
+        └── DrumParent
+            └── drum
+```
+
+`WP_PistolMesh` is 3,736 vertices skinned to those 8 bones.
+
+Two facts make the attachment relationship explicit rather than inferred:
+
+1. **The weapon's root bone is the hands' socket.** The hands mesh declares a socket named `Pistol`
+   bound to bone `R_Grip`; the pistol's own skeleton is rooted at `R_grip`. (Casing differs, as it
+   does elsewhere in this format.)
+2. **The animations are frame-identical.** `FastReload` is 55 frames / 1.80 s and `FireSingle` is
+   8 frames / 0.23 s — exactly matching the hands' `FastReloadPistol` and `FireSinglePistol`.
+
+So a first-person animation genuinely is a two-rig performance: the hands animate the arms, the
+weapon animates its own moving parts, and the two are played together at the socket. Merging them
+into one skeleton would destroy that structure, so the exporter keeps them separate and parents the
+weapon rig to the socket bone.
+
+Decoding `FastReload` shows the mechanism: the `barrel` bone hinges roughly 105° open at the
+midpoint and returns to the closed pose — BioShock's pistol is a top-break revolver, not a
+swing-cylinder one. The `drum` bone does not rotate.
+
+`bioshock-tool export-firstperson Pistol <out>` assembles the whole thing.

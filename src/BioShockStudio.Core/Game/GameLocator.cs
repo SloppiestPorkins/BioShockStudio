@@ -33,6 +33,33 @@ public static partial class GameLocator
     public static string MapsDirectory(string gameRoot) =>
         Path.Combine(gameRoot, "ContentBaked", "pc", "Maps");
 
+    /// <summary>
+    /// The directory holding the baked script packages. These are Unreal packages too, and they are
+    /// where the first-person weapon viewmodels live — not in the map packages.
+    /// </summary>
+    public static string ScriptPackageDirectory(string gameRoot) =>
+        Path.Combine(gameRoot, "Build", "Final", "BakedScripts", "pc");
+
+    /// <summary>Script packages, largest first. <c>ShockGame.U</c> holds the weapon viewmodels.</summary>
+    public static IEnumerable<string> EnumerateScriptPackages(string gameRoot)
+    {
+        string directory = ScriptPackageDirectory(gameRoot);
+        if (!Directory.Exists(directory)) yield break;
+
+        foreach (string file in Directory.EnumerateFiles(directory, "*.U")
+                     .OrderByDescending(f => new FileInfo(f).Length))
+        {
+            yield return file;
+        }
+    }
+
+    /// <summary>The package holding first-person weapon viewmodels, if present.</summary>
+    public static string? WeaponPackage(string gameRoot)
+    {
+        string candidate = Path.Combine(ScriptPackageDirectory(gameRoot), "ShockGame.U");
+        return File.Exists(candidate) ? candidate : null;
+    }
+
     /// <summary>The directory holding the bulk content chunks.</summary>
     public static string BulkContentDirectory(string gameRoot) =>
         Path.Combine(gameRoot, "ContentBaked", "pc", "BulkContent");

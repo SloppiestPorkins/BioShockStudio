@@ -176,6 +176,24 @@ public sealed record AnimationScene
 
     /// <summary>Skinned geometry, when a companion SkeletalMesh was resolved and decoded.</summary>
     public SceneMesh? Mesh { get; init; }
+
+    /// <summary>
+    /// Assets that attach to one of this scene's sockets and carry their own skeleton, mesh and
+    /// animations — a first-person weapon, for instance.
+    /// </summary>
+    public IReadOnlyList<SceneAttachment> Attachments { get; init; } = [];
+}
+
+/// <summary>A complete asset parented to a socket of its host.</summary>
+public sealed record SceneAttachment
+{
+    /// <summary>Socket on the host skeleton, e.g. <c>Pistol</c>.</summary>
+    public required string SocketName { get; init; }
+
+    /// <summary>Bone the socket hangs off, e.g. <c>R_Grip</c>.</summary>
+    public required string SocketBone { get; init; }
+
+    public required AnimationScene Scene { get; init; }
 }
 
 /// <summary>Skinned geometry in flat arrays, ready for Blender's foreach_set fast paths.</summary>

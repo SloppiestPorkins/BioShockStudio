@@ -231,7 +231,9 @@ def build_action(armature, scene, animation, globals_):
     bones = scene["bones"]
     # Blender's own rest hierarchy, which is what the pose basis is measured against.
     rest_globals = [armature.data.bones[b["name"]].matrix_local for b in bones]
-    action = bpy.data.actions.new(f"{animation['owner']}_{animation['name']}")
+    action = bpy.data.actions.new(f"{armature.name}_{animation['owner']}_{animation['name']}"
+                                 if armature.name.endswith("_Rig")
+                                 else f"{animation['owner']}_{animation['name']}")
     action.use_fake_user = True
 
     # Original timing is carried as metadata rather than resampled: authored rates vary per
@@ -290,6 +292,42 @@ def build_action(armature, scene, animation, globals_):
     return action
 
 
+def build_attachment(host_armature, attachment):
+    """Build an attached asset — a weapon — as its own rig parented to the host's socket bone.
+
+    The weapon is not merged into the host skeleton. It has its own skeleton (the pistol's is rooted
+    at R_grip and drives the hammer, trigger, barrel and drum) and its own animations, which run in
+    sync with the hand animations. Merging them would destroy that structure.
+    """
+    scene = attachment["scene"]
+    bone_names = {b.name for b in host_armature.data.bones}
+    target = next((n for n in bone_names if n.lower() == attachment["socketBone"].lower()), None)
+    if target is None:
+        print(f"bioshock: attachment {attachment['socketName']} references unknown bone {attachment['socketBone']}")
+        return None
+
+    armature, globals_ = build_armature(scene)
+    armature.name = f"{attachment['socketName']}_Rig"
+    build_mesh(armature, scene)
+
+    for animation in scene["animations"]:
+        build_action(armature, scene, animation, globals_)
+
+    armature.parent = host_armature
+    armature.parent_type = "BONE"
+    armature.parent_bone = target
+    # Bone parenting places children at the bone tail; cancel that so the weapon sits on the socket.
+    armature.matrix_parent_inverse = Matrix.Translation(
+        (0.0, -host_armature.data.bones[target].length, 0.0))
+
+    armature["bioshock_socket"] = attachment["socketName"]
+    armature["bioshock_socket_bone"] = attachment["socketBone"]
+
+    print(f"bioshock: attached {attachment['socketName']} "
+          f"({len(scene['bones'])} bones, {len(scene['animations'])} actions) to {target}")
+    return armature
+
+
 def main():
     scene_path, output_path = parse_args()
     with open(scene_path, "r", encoding="utf-8") as handle:
@@ -302,6 +340,9 @@ def main():
 
     for animation in scene["animations"]:
         build_action(armature, scene, animation, globals_)
+
+    for attachment in scene.get("attachments", []):
+        build_attachment(armature, attachment)
 
     if scene["animations"]:
         longest = max(scene["animations"], key=lambda a: a["frameCount"])
