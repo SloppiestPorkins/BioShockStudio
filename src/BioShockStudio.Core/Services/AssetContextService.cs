@@ -76,8 +76,7 @@ public sealed class AssetContextService(AssetCatalogService catalog)
 
             foreach (var socket in sockets)
             {
-                string expected = WeaponGroupPrefix + socket.Name;
-                if (!groups.TryGetValue(expected, out var candidate)) continue;
+                if (BestGroupFor(socket.Name, groups) is not { } candidate) continue;
 
                 var (confidence, evidence) = Assess(package, candidate, socket);
 
@@ -95,6 +94,48 @@ public sealed class AssetContextService(AssetCatalogService catalog)
     }
 
     private readonly record struct GroupAssets(string Group, string Mesh, string Wrapper);
+
+    /// <summary>
+    /// Finds the weapon group a socket names.
+    /// </summary>
+    /// <remarks>
+    /// The game does not spell its sockets and its groups the same way. <c>Pistol</c> and
+    /// <c>TommyGun</c> match <c>WP_Pistol</c> and <c>WP_TommyGun</c> exactly, but the hands' socket
+    /// <c>Chem</c> belongs to <c>WP_ChemicalThrower</c> and <c>Launcher</c> to
+    /// <c>WP_GrenadeLauncher</c>. Requiring an exact match found the pistol and left most of the
+    /// arsenal looking unsupported when it was only unnamed.
+    /// </remarks>
+    private static GroupAssets? BestGroupFor(string socket, IReadOnlyDictionary<string, GroupAssets> groups)
+    {
+        string wanted = Normalise(socket);
+        if (wanted.Length < 4) return null;
+
+        GroupAssets? best = null;
+        int bestRank = int.MaxValue;
+
+        foreach (var (group, assets) in groups)
+        {
+            string name = Normalise(group.StartsWith(WeaponGroupPrefix, StringComparison.OrdinalIgnoreCase)
+                ? group[WeaponGroupPrefix.Length..]
+                : group);
+
+            // Exact beats a prefix beats a substring, so Launcher takes GrenadeLauncher rather than
+            // whichever group happened to be enumerated first.
+            int rank = name == wanted ? 0
+                : name.StartsWith(wanted, StringComparison.Ordinal) ? 1
+                : name.EndsWith(wanted, StringComparison.Ordinal) ? 2
+                : name.Contains(wanted, StringComparison.Ordinal) ? 3
+                : wanted.Contains(name, StringComparison.Ordinal) && name.Length >= 4 ? 4
+                : int.MaxValue;
+
+            if (rank < bestRank) (best, bestRank) = (assets, rank);
+        }
+
+        return bestRank == int.MaxValue ? null : best;
+    }
+
+    private static string Normalise(string value) =>
+        new(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
 
     private static Dictionary<string, GroupAssets> GroupsWithSkeletons(BioShockPackage package)
     {

@@ -64,6 +64,29 @@ public sealed class ContextTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Attachments_FindWeaponsWhoseGroupIsNotSpeltLikeTheSocket()
+    {
+        var attachments = new AssetContextService(Catalog()).Attachments(Hands());
+        var bySocket = attachments.ToDictionary(a => a.Socket, StringComparer.OrdinalIgnoreCase);
+
+        // The game does not spell its sockets and its groups the same way. Requiring an exact match
+        // found the pistol and left most of the arsenal looking unsupported when it was only unnamed.
+        Assert.Equal("WP_ChemicalThrower", bySocket["Chem"].Group);
+        Assert.Equal("WP_GrenadeLauncher", bySocket["Launcher"].Group);
+
+        // The ones that do line up must not be broken by the looser rule.
+        Assert.Equal("WP_Pistol", bySocket["Pistol"].Group);
+        Assert.Equal("WP_TommyGun", bySocket["TommyGun"].Group);
+        Assert.Equal("WP_Crossbow", bySocket["Crossbow"].Group);
+
+        // UNKNOWN: the Wrench socket resolves to nothing. WP_Wrench carries no SkeletalMesh in
+        // ShockGame.U, so the wrench viewmodel is either a static mesh or lives elsewhere.
+        Assert.DoesNotContain("Wrench", bySocket.Keys);
+
+        Assert.True(attachments.Count >= 5, $"only {attachments.Count} weapons resolved");
+    }
+
+    [RequiresGameFact]
     public void Counterpart_PairsTheWeaponAnimationWithTheHandAnimation()
     {
         string[] weaponAnimations = ["FastReload", "FireSingle"];
