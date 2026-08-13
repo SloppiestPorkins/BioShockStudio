@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -67,6 +67,52 @@ public partial class MainViewModel
     public ObservableCollection<string> PreviewMeshes { get; } = [];
     public ObservableCollection<string> Attachments { get; } = [];
     public ObservableCollection<string> PreviewAnimations { get; } = [];
+
+    /// <summary>Animation set names, with an "All sets" entry first.</summary>
+    public ObservableCollection<string> AnimationSets { get; } = [];
+
+    [ObservableProperty] private string? _selectedAnimationSet;
+    [ObservableProperty] private bool _hasAnimationSets;
+
+    /// <summary>Every animation of the current asset, with the set it belongs to.</summary>
+    private IReadOnlyList<AnimationSetEntry> _animationSets = [];
+
+    /// <summary>Shown when one set is chosen, so it is clear how much is being hidden.</summary>
+    [ObservableProperty] private string _animationSetSummary = "";
+
+    public const string AllAnimationSets = "All sets";
+
+    partial void OnSelectedAnimationSetChanged(string? value) => ApplyAnimationSetFilter();
+
+    /// <summary>
+    /// Rebuilds the animation list for the chosen set.
+    /// </summary>
+    /// <remarks>
+    /// A character can carry hundreds of animations across a dozen behaviour sets, and the sets are
+    /// the game's own grouping rather than one this tool invents — they come from the Havok root
+    /// table's owner column.
+    /// </remarks>
+    private void ApplyAnimationSetFilter()
+    {
+        string? keep = SelectedAnimation;
+
+        PreviewAnimations.Clear();
+        bool all = SelectedAnimationSet is null or AllAnimationSets;
+
+        foreach (var entry in _animationSets)
+        {
+            if (all || string.Equals(entry.Owner, SelectedAnimationSet, StringComparison.Ordinal))
+                PreviewAnimations.Add(entry.Name);
+        }
+
+        AnimationSetSummary = all
+            ? $"{_animationSets.Count} animations in {_animationSets.Select(a => a.Owner).Distinct().Count()} sets"
+            : $"{PreviewAnimations.Count} of {_animationSets.Count} animations";
+
+        // Keep the current selection when it survives the filter, so switching sets to look around
+        // does not stop playback of something already chosen.
+        if (keep is not null && PreviewAnimations.Contains(keep)) SelectedAnimation = keep;
+    }
     public ObservableCollection<double> PlaybackSpeeds { get; } = [0.25, 0.5, 1.0, 2.0];
 
     partial void OnShowTexturesChanged(bool value) => RequestRender();
@@ -126,6 +172,11 @@ public partial class MainViewModel
         HasViewport = false;
         ViewportProblem = null;
         PreviewAnimations.Clear();
+        _animationSets = [];
+        AnimationSets.Clear();
+        SelectedAnimationSet = null;
+        HasAnimationSets = false;
+        AnimationSetSummary = "";
         Attachments.Clear();
         _switchingMesh = true;
         PreviewMeshes.Clear();
@@ -172,7 +223,18 @@ public partial class MainViewModel
             _switchingMesh = false;
             HasMeshVariants = subject.Meshes.Count > 1;
 
-            foreach (string name in subject.Animations) PreviewAnimations.Add(name);
+            _animationSets = subject.AnimationSets;
+
+            var owners = _animationSets.Select(a => a.Owner).Distinct(StringComparer.Ordinal).ToList();
+            HasAnimationSets = owners.Count > 1;
+            if (HasAnimationSets)
+            {
+                AnimationSets.Add(AllAnimationSets);
+                foreach (string owner in owners) AnimationSets.Add(owner);
+            }
+
+            SelectedAnimationSet = AllAnimationSets;
+            ApplyAnimationSetFilter();
             RequestRender();
 
             // What attaches to this asset is a cross-package search, so it runs after the model is

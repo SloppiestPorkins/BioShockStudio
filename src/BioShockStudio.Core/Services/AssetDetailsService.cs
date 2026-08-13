@@ -121,13 +121,24 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
                 var owners = animations.Owners.ToList();
                 if (owners.Count > 1) fields.Add(new DetailField("Animation sets", string.Join(", ", owners)));
 
-                sections.Add(new DetailSection("Animations", animations.Animations
-                    .OrderBy(a => a.Owner).ThenBy(a => a.Name)
-                    .Select(a => new RelatedAsset(
-                        a.Name,
-                        $"{a.Duration:0.00}s · {a.FrameCount} frames · {a.FrameRate:0.##} fps",
-                        AssetCategory.Animations))
-                    .ToList()));
+                // One section per set when there is more than one. AggressorBabyJane has 488
+                // animations across ten sets; a single list of that length hides its own structure.
+                var sets = animations.Animations
+                    .GroupBy(a => a.Owner, StringComparer.Ordinal)
+                    .OrderByDescending(g => g.Count())
+                    .ToList();
+
+                foreach (var set in sets)
+                {
+                    string title = sets.Count > 1 ? $"Animations — {set.Key} ({set.Count()})" : "Animations";
+                    sections.Add(new DetailSection(title, set
+                        .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(a => new RelatedAsset(
+                            a.Name,
+                            $"{a.Duration:0.00}s · {a.FrameCount} frames · {a.FrameRate:0.##} fps",
+                            AssetCategory.Animations))
+                        .ToList()));
+                }
 
                 if (animations.Failures.Count > 0)
                 {

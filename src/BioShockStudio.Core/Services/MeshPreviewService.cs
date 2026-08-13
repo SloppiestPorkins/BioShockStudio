@@ -15,6 +15,13 @@ public sealed record PreviewAnimation(string Name, DecodedAnimation Decoded, int
     public float FrameRate => FrameDuration > 0f ? 1f / FrameDuration : 0f;
 }
 
+/// <summary>One animation and the set it belongs to.</summary>
+/// <param name="Owner">
+/// The set name Havok's own root table gives it — <c>Melee</c>, <c>Pistol</c>, <c>Ceiling</c>. These
+/// are behaviour and loadout sets, not mesh variants: any of a group's meshes can play any of them.
+/// </param>
+public readonly record struct AnimationSetEntry(string Name, string Owner);
+
 /// <summary>Everything the preview needs for one asset.</summary>
 /// <param name="Meshes">
 /// Every skeletal mesh in this asset's group, largest first.
@@ -32,6 +39,16 @@ public sealed record PreviewSubject(
     string? SelectedMesh = null)
 {
     public IReadOnlyList<string> Meshes { get; init; } = Meshes ?? [];
+
+    /// <summary>
+    /// Every animation with the set it belongs to, in the same order as <see cref="Animations"/>.
+    /// </summary>
+    /// <remarks>
+    /// <c>AggressorBabyJane</c> carries 488 animations across ten sets — <c>Melee</c> (105),
+    /// <c>Ceiling</c> (99), <c>Pistol</c> (93), <c>smg</c> (91), <c>Assassin</c> (27) and five
+    /// smaller scripted ones. A flat list of 488 names is not usable.
+    /// </remarks>
+    public IReadOnlyList<AnimationSetEntry> AnimationSets { get; init; } = [];
 }
 
 /// <summary>
@@ -113,9 +130,12 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
 
-        var names = animations is null
+        var ordered = animations is null
             ? []
-            : animations.Animations.OrderBy(a => a.Owner).ThenBy(a => a.Name).Select(a => a.Name).ToList();
+            : animations.Animations.OrderBy(a => a.Owner).ThenBy(a => a.Name).ToList();
+
+        var names = ordered.Select(a => a.Name).ToList();
+        var sets = ordered.Select(a => new AnimationSetEntry(a.Name, a.Owner)).ToList();
 
         if (!model.HasGeometry && model.Bones.Count == 0)
             problem ??= "There is nothing here that can be drawn.";
@@ -123,7 +143,10 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         return new PreviewSubject(
             model, names, problem,
             siblings.Select(e => e.ObjectName).ToList(),
-            meshExport?.ObjectName);
+            meshExport?.ObjectName)
+        {
+            AnimationSets = sets,
+        };
     }
 
     /// <summary>

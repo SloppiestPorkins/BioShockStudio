@@ -188,6 +188,16 @@
 
                             <!-- animation transport -->
                             <StackPanel Spacing="6" IsVisible="{Binding PreviewAnimations.Count}">
+                                <ComboBox ItemsSource="{Binding AnimationSets}"
+                                          SelectedItem="{Binding SelectedAnimationSet}"
+                                          HorizontalAlignment="Stretch"
+                                          IsVisible="{Binding HasAnimationSets}"
+                                          ToolTip.Tip="Animation sets, as the game groups them" />
+
+                                <TextBlock Text="{Binding AnimationSetSummary}"
+                                           Opacity="0.7" FontSize="11"
+                                           IsVisible="{Binding HasAnimationSets}" />
+
                                 <ComboBox ItemsSource="{Binding PreviewAnimations}"
                                           SelectedItem="{Binding SelectedAnimation}"
                                           HorizontalAlignment="Stretch"

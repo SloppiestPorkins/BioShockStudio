@@ -225,3 +225,33 @@ garbage.
 
 `SourcePath` preserves the authoring path — the hands' diffuse came from
 `..\..\..\Art\Source\Weapons\1stPersonHands...`.
+
+
+## Animation sets are loadouts, not mesh variants (CONFIRMED)
+
+A character's animations carry an owner in the Havok root table, and that owner is the game's own
+grouping. `AggressorBabyJane` in `7-Science` has 488 animations across ten of them:
+
+| Set | Count | Name prefix |
+|---|---|---|
+| `Melee` | 105 | `ME_` |
+| `Ceiling` | 99 | `CR_` |
+| `Pistol` | 93 | `PI_` |
+| `smg` | 91 | `SMG_` |
+| `Assassin` | 27 | `AS_` |
+| `Default` | 23 | — |
+| `GenericAnims` | 23 | — |
+| `SCRIPTED_Medical` | 14 | `CS_` |
+| `SCRIPTED_Science` | 8 | `Atlas_` |
+| `SCRIPTED_subbay` | 5 | — |
+
+The name prefixes corroborate the owner column rather than being its source; the reader uses the
+table.
+
+The same group carries **five meshes** — `Agg_Doctor_Mesh`, `Agg_Toasty_Mesh`, `CorpseMale`,
+`Agg_Waders_Mesh`, `Agg_Rosebud_Mesh` — all on the one `Bip01` skeleton.
+
+**Nothing in the data ties a mesh to a set.** The sets are behaviour and weapon loadouts; the meshes
+are outfits, and any of them can play any set. So the tool offers the two independently — a mesh
+picker and a set filter — rather than inventing a pairing. Claiming `Agg_Doctor_Mesh` "is the Melee
+one" would be exactly the sort of plausible invention these notes exist to prevent.

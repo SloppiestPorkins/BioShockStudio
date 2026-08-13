@@ -217,7 +217,15 @@ public sealed class ServiceTests(GameFixture game)
 
         Assert.Null(details.Problem);
         Assert.Contains(details.Fields, f => f.Label == "Skeleton" && f.Value.Contains("47 bones"));
-        Assert.Contains(details.Sections, s => s.Title == "Animations" && s.Items.Count == 130);
+        // The hands' 130 animations arrive in the game's own sets — Default, Pistol, Crossbow and
+        // the rest — so they are listed one section per set rather than as one flat list.
+        var animationSections = details.Sections
+            .Where(s => s.Title.StartsWith("Animations", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(animationSections.Count > 1, "the hands carry more than one animation set");
+        Assert.Equal(130, animationSections.Sum(s => s.Items.Count));
+        Assert.Contains(animationSections, s => s.Title.Contains("Pistol", StringComparison.Ordinal));
         Assert.Contains(details.Sections, s => s.Title == "Sockets" && s.Items.Any(i => i.Name == "Pistol"));
 
         // The hands' shader is a FacingShader, so its slots must be reported as they are.
