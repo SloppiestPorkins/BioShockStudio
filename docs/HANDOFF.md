@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**176/176 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 20 commits
+**184/184 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 23 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -40,7 +40,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `AnimationPackageRoot` | Decoded — the class UEViewer reports as unknown. |
 | `hkaSkeleton`, `hkaAnimationBinding` | Complete, original bone indices preserved. |
 | `hkaSplineCompressedAnimation` | Complete. 130/130 hands animations decode. |
-| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **~40% of meshes decode to geometry.** |
+| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **954/972 exports decode (98.1%)** — the 18 that do not are all doors. |
 | `StaticMesh` | Geometry, UV streams, indices. **All 8,668 shipped exports decode.** |
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
@@ -50,6 +50,8 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Unreal import | **Never attempted.** See §6.4. |
 | Attachments | All three socket kinds resolve: weapon rigs, static props in the host's own group, and `*Socket`-suffixed names. |
+| Weapon viewmodels | All ten in `ShockGame.U` decode and draw, textured. |
+| Animation sets | A character's animations carry the game's own set — Melee, Pistol, Ceiling — and the UI filters by it. |
 | Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
 
 ## 3. Architecture
@@ -104,6 +106,11 @@ Each of these produced a plausible, wrong result before it was understood.
   load `NewProtectorBouncer`'s rig alongside it, because the preview resolves animations by group.
   Nothing was numerically wrong and the viewport implied a binding that does not exist. The prop is
   now shown alone until it can be placed on its socket.
+- **A skinned block with a count of zero is an empty block, not an absent one.** A weapon's vertices
+  are all rigidly bound, so it writes `0` for the skinned count and the rigid block follows.
+  Rejecting that zero is what kept every weapon viewmodel undrawable — 38.1% of skeletal meshes
+  decoded, now 98.1% — while their sockets, skeletons, animations and materials all resolved, so
+  nothing looked broken except the empty viewport.
 - **A `SkeletalMesh`'s property list is empty.** Its material reference is in the binary payload,
   after a tag block whose position varies between meshes (64 in `NEWPlayerHands`, 54 in
   `WP_PistolMesh`), so the block is found by search.
