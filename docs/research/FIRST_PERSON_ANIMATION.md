@@ -1,0 +1,102 @@
+# First-person animation — the hand-side blocker
+
+**Implementation:** `src/BioShockStudio.Core/Assets/AnimationPackage.cs`, `Core/Coordinates/GameBasis.cs`
+**Tests:** `tests/BioShockStudio.Tests/FirstPersonHandTests.cs`
+**Status:** **OPEN — this is the Phase 1 blocker.**
+
+The first-person rig's **bind pose is correct** and **every animation puts the hands on the wrong
+sides**. The right hand ends up left of the left hand.
+
+## 1. How "which side" is decided
+
+`CONFIRMED`. Earlier attempts at this question were all fooled — by a rolled camera, by a rig whose
+local axes are not world axes, by bone names. The measurement now used is naming-free, view-free and
+basis-free, and is built from the skeleton itself:
+
+```
+up      = spine -> neck
+forward = shoulders -> hands          (orthogonalised against up)
+left    = up x forward                (right-handed frame: forward, left, up)
+```
+
+A hand's side is the sign of its offset from the shoulders along `left`.
+
+**Calibrated** against `ProtectorRosie`, whose left/right is independently proven from world anatomy
+(feet near Z=0, toes ahead of ankles in X, `Bip01_L_*` at +Y after conversion). The method agrees.
+
+## 2. The measurement
+
+`CONFIRMED_BYTES`.
+
+| | L_Hand | R_Hand | |
+|---|---|---|---|
+| First-person **bind pose** | **+25.95** | **−25.95** | correct |
+| `FidgetCrossbow`, every frame | −15.6 | +15.6 | **swapped** |
+| `EmptyFidgetCrossbow`, `EquipCrossbow`, `FireCrossbow`, `ReloadCrossbow`, the fidget accents | −11 to −16 | +11 to +16 | **swapped** |
+| `ProtectorRosie`, 6 animations × 3 frames | +16 to +62 | — | correct throughout |
+
+Rosie shows one transient negative frame at the end of `MG_AggToIdle`, which is an arm crossing
+during a transition and is what a real crossed arm looks like. The first-person rig is swapped at
+**every frame of every animation**, at a near-constant magnitude. That difference is what says the
+method is sound and the fault is specific to the first-person animation path.
+
+## 3. What this is NOT
+
+Each ruled out by measurement, so that no future session repeats them:
+
+- **Not a mirror, and not a bone-name swap.** Hand *chirality* — computed from each hand's own
+  finger bones, and therefore independent of names — says `Bip01_L_Hand` is geometrically a left
+  hand (+0.406) and `Bip01_R_Hand` a right hand (−0.406). Calibrated on Rosie, whose proven left
+  hand measures +0.201. The geometry is not reflected and the names are not swapped.
+- **Not the basis conversion.** The bind pose, which goes through exactly the same conversion, is
+  correct.
+- **Not the binding.** `TransformTrackToBoneIndex` is the identity, 0–46.
+- **Not retargeting or additive blending.** `originalSkeleton` is empty and `blendHint` is 0.
+- **Not channel misalignment.** No block in the entire game leaves its block unconsumed.
+- **Not the socket or the weapon.** The weapon is parented under `Bip01_R_Hand` and follows it
+  wherever it goes, so it can never disagree with the right hand — and equally can never be used as
+  evidence that the right hand is correct.
+
+## 4. The tempting fix, and why it is rejected
+
+`REJECTED — do not do this.`
+
+Applying the basis conversion **once more** to the decoded animation flips the sides back and makes
+every animation measure correct. It is wrong:
+
+The animation's fallback channels — the ones a track omits, which fall back to the bound bone's
+reference pose — come out **exactly equal to the skeleton's bind translations**
+(`Bip01_L_UpperArm` bind `(18.73, −25.12, −87.68)` against animated `(19.14, −25.12, −87.68)`; the Y
+and Z match to the bit). That proves the decoded animation and the skeleton are **already in the
+same basis**. Converting the animation again would put them in *different* bases, and the sides
+would only look right by coincidence.
+
+This is exactly the "make the screenshot look right" fix the project forbids. It is recorded here so
+the next session recognises it as a dead end rather than rediscovering it as a breakthrough.
+
+## 5. Where to look next
+
+`HYPOTHESIS`. The animation and the skeleton are in the same basis, the binding is the identity, and
+the bind pose is right — so the swap has to come from how the animated locals compose, not from what
+basis they are in. Unexplained facts that a correct explanation must account for:
+
+- In the first-person **bind pose**, the clavicles separate along **Z** (`L − R = +17.31 Z`) while
+  the hands separate along **Y** (`L − R = +51.89 Y`). One symmetric rig cannot mirror about two
+  different planes. On Rosie, both separate along Y, consistently.
+- The derived `left` axis for the first-person rig comes out along Y, which makes the clavicle
+  separation nearly parallel to `forward` — anatomically the clavicle line should be the lateral
+  axis, not the forward one.
+- `Bip01_L_UpperArm` sits **93 cm** from its clavicle. For a viewmodel rig that is not obviously
+  wrong, but it is not obviously right either, and it is the same joint whose local translation is
+  one of only four in the whole rig that the animation actually drives.
+
+Together these suggest the first-person rig's clavicle/upper-arm chain does not mean what a Biped
+chain normally means, and that the animation drives it in a way the straight parent-child
+composition does not reproduce. That is the thread to pull.
+
+## 6. Reproducing the measurement
+
+`FirstPersonHandTests` holds all three cases: the Rosie calibration and the first-person bind pose
+both pass; `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` is **skipped with a reason** rather
+than deleted or weakened, so the blocker stays visible in the suite. Remove the `Skip` to see it
+fail.

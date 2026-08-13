@@ -78,7 +78,7 @@ public sealed class SocketOrientationTests(GameFixture game)
                 float tipToBody = Vector3.Distance(worldFar, hostCentre);
                 float socketToBody = Vector3.Distance(origin, hostCentre);
 
-                Log($"  {attachment.Socket,-22} bone {attachment.SocketBone,-22} prop {prop.Vertices.Count,6} verts");
+                Log($"  {attachment.Socket,-14} -> mesh {attachment.MeshObject,-24} bone {attachment.SocketBone,-22} {prop.Vertices.Count,6} verts");
                 Log($"      prop extent {Fmt(extent)}  long axis {LongAxis(extent)}");
                 Log($"      socket at {Fmt(origin)}  ({socketToBody:0.#} from body centre)");
                 Log($"      prop centre {centreToBody:0.#} from body centre, far tip {tipToBody:0.#}  " +
@@ -89,6 +89,52 @@ public sealed class SocketOrientationTests(GameFixture game)
                 Log($"      buried: {Buried(prop, transform, host):P0} of its vertices are inside the host's hull" +
                     $"   |   with the socket's 180 deg removed: {Buried(prop, Unflip(transform), host):P0}");
             }
+        }
+    }
+
+    /// <summary>What follows the socket table — looking for the per-socket transform.</summary>
+    [RequiresGameFact]
+    public void Print_WhatFollowsTheSocketTable()
+    {
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is null) return;
+
+        using var package = Core.Packages.BioShockPackage.Open(
+            Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+
+        var entry = AssetCatalogService.Catalogue(package, "1-Medical")
+            .Where(e => e.Group == "NewProtectorBouncer" && e.ClassName == "SkeletalMesh")
+            .MaxBy(e => e.SerialSize)!;
+
+        var export = package.Exports
+            .Where(e => e.ObjectName == entry.Name && package.GetClassName(e) == "SkeletalMesh")
+            .MaxBy(e => e.SerialSize)!;
+        Log($"mesh export: {export.ObjectName}");
+
+        byte[] payload = package.ReadExportData(export);
+        var sockets = Core.Mesh.SkeletalMeshReader.ReadSockets(payload, package.Names);
+        var (start, end, count) = Core.Mesh.SkeletalMeshReader.DescribeSocketTable(payload, package.Names);
+
+        Log($"NewProtectorBouncer: payload {payload.Length} bytes, socket table {start}..{end} ({count} sockets)");
+        foreach (var s in sockets) Log($"    {s.Name} -> {s.BoneName}");
+
+        // If a per-socket transform is stored, it follows the two name arrays: for N sockets that
+        // would be N * (3 floats location + 3 ints rotation) = N * 24 bytes.
+        Log($"    expecting {count * 24} bytes if each socket carries an FVector + FRotator");
+        Log($"    next 160 bytes: {Convert.ToHexString(payload.AsSpan(end, Math.Min(160, payload.Length - end)))}");
+
+        // Read them as floats and as UE 16-bit angles so the shape is visible either way.
+        for (int i = 0; i < Math.Min(count, 4); i++)
+        {
+            int at = end + i * 24;
+            if (at + 24 > payload.Length) break;
+            float fx = BitConverter.ToSingle(payload, at);
+            float fy = BitConverter.ToSingle(payload, at + 4);
+            float fz = BitConverter.ToSingle(payload, at + 8);
+            int p = BitConverter.ToInt32(payload, at + 12);
+            int y = BitConverter.ToInt32(payload, at + 16);
+            int r = BitConverter.ToInt32(payload, at + 20);
+            Log($"    [{i}] loc=({fx,10:0.##},{fy,10:0.##},{fz,10:0.##})  rot=({p},{y},{r})  " +
+                $"= ({p * 360.0 / 65536:0.#},{y * 360.0 / 65536:0.#},{r * 360.0 / 65536:0.#}) deg");
         }
     }
 

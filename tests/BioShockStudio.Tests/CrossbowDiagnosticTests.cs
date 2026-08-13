@@ -79,8 +79,9 @@ public sealed class CrossbowDiagnosticTests(GameFixture game)
                     var eye = hostPose[RootBone(host)].Translation;
                     var look = WeaponCentre(weapon, hostPose[bone]);
                     var back = eye - look;
-                    float distance = back.Length();
-                    var dir = back / MathF.Max(distance, 1e-4f);
+                    // Stand well behind the eye point, or the camera sits inside the forearm.
+                    float distance = back.Length() * 3.5f;
+                    var dir = Vector3.Normalize(back);
                     camera = new PreviewCamera
                     {
                         Target = look,

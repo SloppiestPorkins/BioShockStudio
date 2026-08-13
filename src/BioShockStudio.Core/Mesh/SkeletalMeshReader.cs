@@ -118,6 +118,31 @@ public static class SkeletalMeshReader
         }
     }
 
+    /// <summary>
+    /// Where the socket table starts and ends, for looking at what follows it.
+    /// <para>
+    /// An Unreal socket carries a relative location and rotation as well as a bone; this reader only
+    /// takes the two name arrays. Whether the transforms are stored here is <c>UNKNOWN</c>, and this
+    /// exists so the bytes after the table can be inspected without re-deriving the walk.
+    /// </para>
+    /// </summary>
+    public static (int Start, int End, int Count) DescribeSocketTable(
+        ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names)
+    {
+        int offset = SocketTableOffset(payload);
+        int start = offset;
+
+        int socketCount = ReadCompactIndex(payload, ref offset);
+        if (socketCount is <= 0 or > 256) return (start, start, 0);
+
+        for (int i = 0; i < socketCount; i++) ReadFName(payload, ref offset, names);
+
+        int boneCount = ReadCompactIndex(payload, ref offset);
+        for (int i = 0; i < boneCount; i++) ReadFName(payload, ref offset, names);
+
+        return (start, offset, socketCount);
+    }
+
     private static (Vector3 Scale, Vector3 Origin) ReadScaleAndOrigin(ReadOnlySpan<byte> payload)
     {
         int offset = CompactIndexOffset;

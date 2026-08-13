@@ -1,6 +1,20 @@
 ﻿# Handoff
 
-**229/229 tests pass against the installed game.**
+> **Read this first.** It is the project's institutional memory. If a discovery exists only in a
+> chat, it does not exist.
+
+## Current state
+
+| | |
+|---|---|
+| **Phase** | **PHASE 1 — animation + mesh extraction. NOT COMPLETE.** |
+| **Blocker** | First-person animations put the hands on the wrong sides. Bind pose is correct; every animation is swapped. |
+| **Blocker detail** | `docs/research/FIRST_PERSON_ANIMATION.md` |
+| **Tests** | 233 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
+| **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
+| **Do not start** | Phase 2 (level extraction) until the blocker is fixed and Phase 1 is frozen |
+
+**233 tests pass against the installed game, 1 skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -222,7 +236,35 @@ front on the desktop, not the window you meant — this went wrong once and caug
 
 ## 6. What to do next, in priority order
 
-### 6.0 The left hand does not touch the weapon — blocks Phase 1
+### 6.0 THE PHASE 1 BLOCKER — first-person hands are on the wrong sides
+
+**Full detail: `docs/research/FIRST_PERSON_ANIMATION.md`. Read it before touching anything.**
+
+The first-person **bind pose is correct**; **every animation swaps the hands**. Measured with a
+naming-free, view-free body frame (`up = spine→neck`, `forward = shoulders→hands`,
+`left = up × forward`), calibrated against `ProtectorRosie` whose left/right is proven from world
+anatomy:
+
+| | L_Hand | R_Hand |
+|---|---|---|
+| FP bind pose | **+25.95** correct | **−25.95** correct |
+| Every FP animation, every frame | −11 to −16 **swapped** | +11 to +16 **swapped** |
+| Rosie, 6 animations | correct throughout | — |
+
+Ruled out by measurement: mirroring (hand *chirality* proves `L_Hand` is geometrically a left hand),
+bone-name swap, the basis conversion (the bind pose uses it and is right), the binding (identity
+0–46), retargeting (`originalSkeleton` empty), additive blending (`blendHint` 0), channel
+misalignment (0 blocks unconsumed game-wide), and the weapon/socket (the weapon hangs under
+`Bip01_R_Hand`, so it can never disagree with the right hand — and is therefore never evidence).
+
+**Do not "fix" it by converting the animation again.** It flips the sides back and it is wrong: the
+animation's fallback channels already equal the skeleton's bind translations exactly, proving both
+are already in the same basis.
+
+Regression tests live in `tests/BioShockStudio.Tests/FirstPersonHandTests.cs`; the animation case is
+`Skip`ped with a reason so the blocker stays visible without turning the suite red.
+
+### 6.0b The left hand does not touch the weapon — same blocker, probably
 
 **Confirmed against the game.** On the first-person rig the left hand sits 25–70 cm from the weapon
 in every idle, fidget and fire animation, on every weapon; only reloads bring it in. The right hand
@@ -367,6 +409,46 @@ texture mip array header field, the 16 unexplained bytes before the Havok magic 
 `AnimationPackageWrapper`, the two `Unknown32` fields in every export record, and whether any object
 reference — as opposed to a socket or notify — points from a Big Daddy at a Little Sister asset.
 
+## 8b. Decision log
+
+**One authoritative basis conversion.** `C = diag(1,−1,1)` applied at four decode boundaries.
+*Evidence:* static meshes, skeletal meshes, skeletons and animations were all mirrored; the game's
+basis is left-handed and every consumer is right-handed. *Alternative:* per-asset or per-weapon
+mirroring. *Rejected because* it creates inconsistent coordinate spaces and hides the root cause.
+*Consequence:* every reader converts once, and nothing downstream may convert again.
+
+**Winding is not reversed.** *Evidence:* the game is front-face clockwise (100% of triangles across
+three meshes); a cross product transforms by `−C` while a normal transforms by `+C`, so the
+reflection alone restores agreement. *Alternative:* reverse the index buffer too. *Rejected because*
+it undoes exactly that and puts the geometry back the wrong way.
+
+**Attachment animations pair on duration, not frame count.** *Evidence:* a weapon rig is authored
+sparsely — 0.70 s is 2 frames at 1.43 fps on one rig and 22 at 30 on the other. *Alternative:* exact
+frame-count match. *Rejected because* it silently discarded the weapon's motion from the crossbow
+reload, the launcher's `FireLast`/`Equip` and every zoomed fire. *Consequence:* one rule in
+`Core/Animation/AnimationPairing.cs`, shared by the preview and the FBX manifest.
+
+**`LockTranslation` is never applied.** *Evidence:* set on 66.6% of bones; 59,889 tracks drive a
+translation on a bone carrying it, including the first-person root 89.8 cm from its reference pose.
+*Rejected because* honouring it would pin every rig to its bind root. It is a `hkaSkeletonMapper`
+retargeting hint, preserved and unused.
+
+## 8c. Failed approaches — do not repeat these
+
+- **Reversing triangle winding after the reflection.** Wrong; the reflection already does it.
+- **Converting the decoded animation a second time to fix the hand sides.** Flips the sides back and
+  is wrong — the animation's fallback channels already match the skeleton's bind translations
+  exactly, so both are already in the same basis.
+- **Treating `IKbindLhandDummy` as the left hand's IK goal.** It rides with the weapon and is
+  authored per weapon class, but sits 93–108 cm from a 73.3 cm arm. Out of reach.
+- **Using the right hand's position as evidence that the right arm is correct.** The weapon is
+  parented under `Bip01_R_Hand`; it follows the right hand wherever it goes and always measures
+  ~5.8 cm from it. It proves nothing.
+- **Judging hand sides from a render.** The first-person rig's local axes are not world axes, so the
+  preview camera's roll makes screen left/right meaningless. Use the body-frame measurement.
+- **Fitting an axis-aligned rotation at the arm chain root.** Several improve the numbers; none is
+  principled. The best is an arbitrary permutation.
+
 ## 9. Reading order for a new session
 
 1. This file.
@@ -377,3 +459,29 @@ reference — as opposed to a socket or notify — points from a Big Daddy at a 
 5. `docs/GUI.md` — if touching the application.
 6. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
    `materials.md`, `fbx.md`, `context.md`, `binding.md`, `havok-compression.md`.
+
+---
+
+# NEXT CLAUDE SESSION
+
+1. Read this file, then `docs/research/FIRST_PERSON_ANIMATION.md`, then
+   `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
+2. `dotnet build && dotnet test` — expect **233 passed, 0 failed, 1 skipped**. The skip is the
+   Phase 1 blocker and is deliberate.
+3. Confirm the blocker still reproduces:
+   `dotnet test --filter FullyQualifiedName~FirstPersonHandTests`
+   The Rosie calibration and the FP bind pose must pass. Remove the `Skip` on
+   `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` to watch it fail.
+4. **Work the blocker.** The bind pose is right and every animation is wrong, so the fault is in how
+   animated locals compose, not in what basis they are in. The unexplained facts a correct
+   explanation must account for are listed in §5 of `FIRST_PERSON_ANIMATION.md` — chiefly that the
+   first-person clavicles separate along Z while the hands separate along Y, which no single
+   symmetric rig can do, and that `Bip01_L_UpperArm` sits 93 cm from its clavicle.
+5. Do **not** convert the animation a second time. See §8c.
+6. Re-run the audit when the blocker is fixed:
+   `dotnet run -c Release --project src/BioShockStudio.Cli -- audit-animations out.csv`
+   and compare against the numbers in "Current state" above. Explain any change; never silently
+   replace them.
+7. Then validate the `.blend` path (not just FBX), the GUI workflow, and rebuild the app.
+8. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
+   `src/BioShockStudio.Core/Level/` — read it before writing anything new.
