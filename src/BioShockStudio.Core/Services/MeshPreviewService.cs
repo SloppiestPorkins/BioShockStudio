@@ -20,7 +20,7 @@ public sealed record PreviewAnimation(string Name, DecodedAnimation Decoded, int
 /// The set name Havok's own root table gives it — <c>Melee</c>, <c>Pistol</c>, <c>Ceiling</c>. These
 /// are behaviour and loadout sets, not mesh variants: any of a group's meshes can play any of them.
 /// </param>
-public readonly record struct AnimationSetEntry(string Name, string Owner);
+public readonly record struct AnimationSetEntry(string Name, string Owner, int FrameCount);
 
 /// <summary>Everything the preview needs for one asset.</summary>
 /// <param name="Meshes">
@@ -135,7 +135,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             : animations.Animations.OrderBy(a => a.Owner).ThenBy(a => a.Name).ToList();
 
         var names = ordered.Select(a => a.Name).ToList();
-        var sets = ordered.Select(a => new AnimationSetEntry(a.Name, a.Owner)).ToList();
+        var sets = ordered.Select(a => new AnimationSetEntry(a.Name, a.Owner, a.FrameCount)).ToList();
 
         if (!model.HasGeometry && model.Bones.Count == 0)
             problem ??= "There is nothing here that can be drawn.";
@@ -233,9 +233,24 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         }
 
         var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
-        var names = animations is null ? [] : animations.Animations.Select(a => a.Name).Distinct().Order().ToList();
 
-        return new PreviewSubject(model, names, problem, [candidate.MeshObject], candidate.MeshObject);
+        var ordered = animations is null
+            ? []
+            : animations.Animations
+                .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        return new PreviewSubject(
+            model,
+            ordered.Select(a => a.Name).ToList(),
+            problem,
+            [candidate.MeshObject],
+            candidate.MeshObject)
+        {
+            AnimationSets = ordered.Select(a => new AnimationSetEntry(a.Name, a.Owner, a.FrameCount)).ToList(),
+        };
     }
 
     /// <summary>Decodes an attachment's animation, which lives in its own package.</summary>

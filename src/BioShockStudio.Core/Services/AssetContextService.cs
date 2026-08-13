@@ -354,6 +354,32 @@ public sealed class AssetContextService(AssetCatalogService catalog)
     /// in the data names the partner, so the longest shared prefix is used and short matches are
     /// rejected rather than guessed at.
     /// </remarks>
+    /// <summary>
+    /// The attachment animation that plays with a host animation, matching on length first.
+    /// </summary>
+    /// <remarks>
+    /// A first-person animation is one performance on two rigs, so the partner has exactly as many
+    /// frames. That is the evidence; the name is only a tie-break among candidates that already
+    /// agree on length.
+    /// <para>
+    /// Name alone gets it wrong. The hands' <c>FireLauncher</c> shares six characters with the
+    /// weapon's <c>FireLast</c> and only four with its <c>Fire</c>, so the longest-prefix rule
+    /// picks the two-frame <c>FireLast</c> over the forty-four-frame <c>Fire</c> that actually
+    /// belongs to it — and the weapon then sits in its rest pose while the hands perform, which
+    /// looks exactly like a broken attachment.
+    /// </para>
+    /// </remarks>
+    public static string? Counterpart(
+        string hostAnimation, int hostFrameCount, IReadOnlyList<AnimationSetEntry> candidates)
+    {
+        var sameLength = candidates
+            .Where(c => c.FrameCount == hostFrameCount)
+            .Select(c => c.Name)
+            .ToList();
+
+        return sameLength.Count == 0 ? null : Counterpart(hostAnimation, sameLength);
+    }
+
     public static string? Counterpart(string hostAnimation, IReadOnlyList<string> candidates)
     {
         string? best = null;
