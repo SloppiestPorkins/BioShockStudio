@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**222/222 tests pass against the installed game.**
+**229/229 tests pass against the installed game.**
 
 ```bash
 dotnet build && dotnet test
@@ -110,15 +110,28 @@ Each of these produced a plausible, wrong result before it was understood.
 - **Animation channels fall back to the bound bone's reference pose**, not identity — binding must
   be resolved *before* decoding.
 - **A first-person animation is a two-rig performance.** The hands' `Pistol` socket names bone
-  `R_Grip`; the weapon's skeleton is rooted at `R_grip`; their animations are frame-identical. Do
-  not merge the skeletons.
+  `R_Grip`; the weapon's skeleton is rooted at `R_grip`; their animations are the same performance —
+  same *duration*, not necessarily the same frame count (see below). Do not merge the skeletons.
 - **Playing one weapon's animation set with another weapon attached looks exactly like a broken
   attachment.** The launcher passes through the forearm and neither hand is on the grip — and
   nothing is wrong with the attachment at all; the hands are posed for a gun that is not there. The
   attachment picker now switches the animation set with it.
-- **Pair attachment animations by frame count, not by name.** The name match is a heuristic and it
-  paired the hands' 44-frame `FireLauncher` with the weapon's 2-frame `FireLast`. Two rigs playing
-  one performance have exactly the same number of frames; anything else is a different take.
+- **Pair attachment animations by DURATION, not by frame count.** ~~Two rigs playing one performance
+  have exactly the same number of frames.~~ **That claim was wrong** and the shipped data disproves
+  it: a weapon rig is often authored sparsely, so the launcher's 0.70s `FireLast` is 2 frames at
+  1.43 fps against the hands' 22 frames at 30, and its `Equip` is 2 frames against 8. Requiring
+  equal frame counts silently dropped the weapon's motion from the crossbow reload (93 against 91),
+  the launcher's `FireLast` and `Equip`, and every zoomed fire — which looks exactly like a broken
+  attachment. The rule is now duration within 15%, in `Core/Animation/AnimationPairing.cs`, used by
+  both the preview and the FBX manifest so they cannot disagree. The pairing the old guard existed
+  to reject, `FireLauncher` against `FireLast`, is 51% apart; every correct pairing is within 10%.
+  The attachment is also sampled by **normalised time**, since the two rigs no longer agree on frame
+  count.
+- **`LockTranslation` must not be applied when sampling.** It is set on 66.6% of the game's bones,
+  and 59,889 tracks drive a translation on a bone carrying it — including `Bip01_Spine`, the
+  first-person root, 89.8 cm from its reference pose. Honouring it as "ignore the animated
+  translation" would pin every rig to its bind root. It is a `hkaSkeletonMapper` retargeting hint;
+  it is preserved, unused, and documented where it is declared.
 - **FBX has no quaternion channel for a node's rotation.** Every rotation converts to Euler, order
   `Rz · Ry · Rx` on column vectors. A wrong order animates plausibly and wrongly.
 - **One FBX declares one frame rate**, and the shipped animations do not share one — 30.00, 29.94
@@ -208,6 +221,26 @@ a recognisable object means the geometry chain landed somewhere plausible and wr
 front on the desktop, not the window you meant — this went wrong once and caught the user's browser.
 
 ## 6. What to do next, in priority order
+
+### 6.0 The left hand does not touch the weapon — blocks Phase 1
+
+**Confirmed against the game.** On the first-person rig the left hand sits 25–70 cm from the weapon
+in every idle, fidget and fire animation, on every weapon; only reloads bring it in. The right hand
+measures a constant 5.8 cm and that proves nothing — the weapon is parented to `R_Grip` under
+`Bip01_R_Hand`, so it follows the right hand wherever it goes and the right arm could be equally
+wrong.
+
+`docs/QUALITY.md` has the full measurement table and the elimination list — the basis conversion,
+binding, retargeting, additive blending, the attachment transform, scale, block boundaries,
+hemisphere alignment, bone stretching, the bind pose, `IKbindLhandDummy` as an IK goal, and any
+clean rotation fix at the chain root are all ruled out with numbers.
+
+The best remaining thread: in the bind pose the clavicles mirror about Z=0 while everything from the
+upper arm down mirrors about Y=0. One symmetric rig cannot do both. It may be ordinary Max Biped
+convention, or it may be the fault.
+
+**Do not fit a correction.** Several axis-aligned rotations improve the distance and none is
+principled; the best is an arbitrary permutation at 8.4 cm against the right hand's 5.8.
 
 ### 6.1 Where a `StaticMesh` names its material — highest value
 

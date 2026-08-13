@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using BioShockStudio.Core.Rendering;
+using BioShockStudio.Core.Animation;
 using BioShockStudio.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -415,11 +416,16 @@ public partial class MainViewModel
         var loaded = await Task.Run(() => _preview.LoadAttachmentAnimation(candidate, paired));
         if (loaded is null) return;
 
-        // The name match is a heuristic; the frame counts are the evidence. A first-person animation
-        // is one performance played on two rigs, so the partner has exactly as many frames. Posing a
-        // 2-frame weapon animation against a 44-frame hands animation was pairing FireLauncher with
-        // FireLast and moving the weapon on its own.
-        if (_animation is not null && loaded.FrameCount != _animation.FrameCount) return;
+        // The name match is a heuristic; the timing is the evidence. Two rigs playing one
+        // performance share a DURATION — not a frame count. A weapon rig is often authored sparsely:
+        // the launcher's FireLast is 0.70s in 2 frames at 1.43 fps against the hands' 0.70s in 22
+        // frames at 30, and its Equip is 0.23s in 2 frames against 8. Requiring equal frame counts
+        // silently dropped the weapon's motion from the crossbow reload (93 against 91), the
+        // launcher's FireLast and Equip, and every zoomed fire.
+        //
+        // The pairing this guard exists to reject — the hands' 1.43s FireLauncher against the
+        // weapon's 0.70s FireLast — is 51% apart, while every correct pairing is within 10%.
+        if (_animation is not null && !AnimationPairing.PlaysTogether(_animation.Duration, loaded.Duration)) return;
 
         _attachmentAnimation = loaded;
     }
@@ -648,9 +654,16 @@ public partial class MainViewModel
                     if (attachmentModel is not null && socketBone >= 0)
                     {
                         var transform = pose is null ? model.Bones[socketBone].RestGlobal : pose[socketBone];
+
+                        // The two rigs agree on duration, not on frame count, so the attachment is
+                        // sampled by normalised time. Posing it at the host's own frame index reads
+                        // a 2-frame weapon animation off the end of its own track.
                         var attachmentPose = attachmentAnimation is null
                             ? null
-                            : attachmentModel.Pose(attachmentAnimation.Decoded, frame);
+                            : attachmentModel.Pose(
+                                attachmentAnimation.Decoded,
+                                AnimationPairing.AttachmentFrame(
+                                    animation?.FrameCount ?? 1, attachmentAnimation.FrameCount, frame));
                         instances.Add(new PreviewInstance(attachmentModel, attachmentPose, transform));
                     }
 

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using BioShockStudio.Core.Export.Fbx;
+using BioShockStudio.Core.Animation;
 
 namespace BioShockStudio.Core.Export;
 
@@ -66,7 +67,12 @@ public static class FbxExporter
                 scene,
                 // The weapon's animations are named without the weapon suffix the hands use, so the
                 // same pairing heuristic that fills the manifest picks the preview's counterpart.
-                previewAnimation is null ? null : Counterpart(previewAnimation, attachment.Scene)));
+                previewAnimation is null
+                    ? null
+                    : Counterpart(
+                        previewAnimation,
+                        scene.Animations.FirstOrDefault(a => a.Name == previewAnimation)?.Duration ?? 0f,
+                        attachment.Scene)));
         }
 
         var manifest = new FbxManifest
@@ -116,7 +122,7 @@ public static class FbxExporter
                 FrameCount = animation.FrameCount,
                 FrameRate = animation.FrameDuration > 0f ? 1f / animation.FrameDuration : 0f,
                 Duration = animation.Duration,
-                PairedWith = host is null ? null : Counterpart(animation.Name, host),
+                PairedWith = host is null ? null : Counterpart(animation.Name, animation.Duration, host),
                 Notifies = animation.Events
                     .Select(e => new FbxNotify { Time = e.Time, Name = e.Name, NotifyClass = e.NotifyClass })
                     .ToList(),
@@ -154,28 +160,12 @@ public static class FbxExporter
     /// against the hands' <c>FastReloadPistol</c>.
     /// </summary>
     /// <remarks>
-    /// A heuristic, and labelled as one: the pairing that is actually load-bearing is proven by the
-    /// frame counts matching exactly, but nothing in the data names the partner, so the longest
-    /// shared prefix is used and short matches are rejected rather than guessed at.
+    /// The rule itself lives in <see cref="AnimationPairing"/>, so the manifest and the preview
+    /// cannot disagree about what pairs with what.
     /// </remarks>
-    private static string? Counterpart(string name, AnimationScene host)
-    {
-        string? best = null;
-        int bestScore = 0;
-
-        foreach (var candidate in host.Animations)
-        {
-            int score = 0;
-            while (score < name.Length && score < candidate.Name.Length
-                   && char.ToLowerInvariant(name[score]) == char.ToLowerInvariant(candidate.Name[score]))
-            {
-                score++;
-            }
-            if (score > bestScore) (best, bestScore) = (candidate.Name, score);
-        }
-
-        return bestScore >= 4 ? best : null;
-    }
+    private static string? Counterpart(string name, float duration, AnimationScene host) =>
+        AnimationPairing.Counterpart(
+            name, duration, host.Animations.Select(a => (a.Name, a.Duration)));
 
     /// <summary>Prefix the game puts on an animation package wrapper object.</summary>
     private const string WrapperPrefix = "UAPW_";

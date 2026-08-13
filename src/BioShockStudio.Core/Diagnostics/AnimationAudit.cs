@@ -1,5 +1,7 @@
 using System.Numerics;
 using BioShockStudio.Core.Animation;
+using BioShockStudio.Core.Havok.Animation;
+using BioShockStudio.Core.Havok.Animation.SplineCompression;
 using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Packages;
@@ -49,6 +51,37 @@ public sealed record AnimationAuditRow
 
     public required int EventCount { get; init; }
 
+    /// <summary>
+    /// Largest number of bytes any of the animation's blocks left unread, or -1 if a block threw.
+    /// <para>
+    /// A block is padded to 16 bytes, so a correct walk ends within 15 bytes of its length. More
+    /// slack than that means the walk lost alignment inside a channel, and every track after that
+    /// point in the block is being read from the wrong offset — which yields confident, wrong
+    /// rotations rather than an error. This is the check that distinguishes "decoded" from
+    /// "decoded correctly".
+    /// </para>
+    /// </summary>
+    public int WorstBlockSlack { get; init; }
+
+    /// <summary>Whether every block's walk ended where a complete one would.</summary>
+    public bool BlocksLookComplete { get; init; }
+
+    /// <summary>
+    /// Largest distance any bone travels between two consecutive frames, in centimetres.
+    /// <para>
+    /// Animation is continuous; a bone that jumps a long way in one frame is a decode fault, not a
+    /// performance. Reported rather than judged, because a genuinely snappy animation can be large
+    /// and only the distribution says where the line is.
+    /// </para>
+    /// </summary>
+    public float WorstFrameStep { get; init; }
+
+    public string WorstFrameStepBone { get; init; } = string.Empty;
+    public int WorstFrameStepFrame { get; init; }
+
+    /// <summary>The same jump as a multiple of the animation's own mean step — a scale-free measure.</summary>
+    public float WorstFrameStepRatio { get; init; }
+
     public bool IsExportable => Status is AnimationStatus.Playable or AnimationStatus.Partial;
 }
 
@@ -71,6 +104,12 @@ public sealed record AnimationAuditReport
     public int WithEvents => Rows.Count(r => r.EventCount > 0);
     public int TotalEvents => Rows.Sum(r => r.EventCount);
     public int UnboundTracks => Rows.Sum(r => r.TrackCount - r.BoundTrackCount);
+
+    /// <summary>Animations whose block walk did not consume the block.</summary>
+    public int IncompleteBlocks => Rows.Count(r => !r.BlocksLookComplete);
+
+    /// <summary>Animations carrying a bone jump of at least <paramref name="centimetres"/> in one frame.</summary>
+    public int Discontinuous(float centimetres) => Rows.Count(r => r.WorstFrameStep >= centimetres);
 }
 
 /// <summary>
@@ -236,10 +275,21 @@ public static class AnimationAudit
 
             string problem = WhyNotPlayable(decoded, animation, bound);
 
+            var (slack, complete) = BlockWalk(animationPackage, animation);
+            var jump = WorstJump(animationPackage.Skeleton, decoded);
+
             yield return Row(animation.Owner, animation.Name,
                 problem.Length == 0 ? AnimationStatus.Playable : AnimationStatus.Partial,
                 problem, compression, decoded.FrameCount, animation.FrameRate,
-                animation.Binding.TrackCount, bound, animation.Duration);
+                animation.Binding.TrackCount, bound, animation.Duration) with
+            {
+                WorstBlockSlack = slack,
+                BlocksLookComplete = complete,
+                WorstFrameStep = jump.Distance,
+                WorstFrameStepBone = jump.Bone,
+                WorstFrameStepFrame = jump.Frame,
+                WorstFrameStepRatio = jump.Ratio,
+            };
         }
     }
 
@@ -293,6 +343,124 @@ public static class AnimationAudit
 
     private static bool IsFinite(Vector3 v) =>
         float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+    /// <summary>
+    /// Walks the animation's blocks and reports the worst slack. See
+    /// <see cref="AnimationAuditRow.WorstBlockSlack"/> for why this is the check that separates
+    /// "decoded" from "decoded correctly".
+    /// </summary>
+    private static (int Slack, bool Complete) BlockWalk(AnimationPackage package, BioShockAnimation animation)
+    {
+        try
+        {
+            var section = package.Packfile.ResolvedSections[animation.SectionIndex];
+            var header = HkaSplineCompressedAnimationReader.Read(section, animation.Offset);
+            if (header.DataOffset is null) return (-1, false);
+
+            var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
+
+            // The walk must see the same reference-pose fallback the real decode does, or it will
+            // consume a different number of bytes than the decode did and measure nothing.
+            var referencePose = new ReferenceTransform[header.TransformTrackCount];
+            for (int track = 0; track < referencePose.Length; track++)
+            {
+                int bone = animation.Binding.BoneForTrack(track);
+                referencePose[track] = bone >= 0 && bone < package.Skeleton.BoneCount
+                    ? Coordinates.GameBasis.ToGameBasis(new ReferenceTransform(
+                        package.Skeleton.Bones[bone].LocalTranslation,
+                        package.Skeleton.Bones[bone].LocalRotation,
+                        package.Skeleton.Bones[bone].LocalScale))
+                    : ReferenceTransform.Identity;
+            }
+
+            var blocks = SplineDecompressor.DescribeBlocks(
+                data, header.BlockOffsets, header.TransformTrackCount, referencePose);
+
+            int worst = 0;
+            bool complete = true;
+            foreach (var block in blocks)
+            {
+                if (!block.LooksComplete) complete = false;
+                if (block.Consumed < 0) return (-1, false);
+                if (block.Slack > worst) worst = block.Slack;
+            }
+
+            return (worst, complete);
+        }
+        catch
+        {
+            return (-1, false);
+        }
+    }
+
+    /// <summary>
+    /// The largest distance any bone moves between consecutive frames, with the mean step alongside
+    /// it so the jump can be read as a ratio rather than an absolute the scale of the rig decides.
+    /// </summary>
+    private static (float Distance, string Bone, int Frame, float Ratio) WorstJump(
+        Skeleton.BioShockSkeleton skeleton, DecodedAnimation animation)
+    {
+        int boneCount = skeleton.BoneCount;
+        if (boneCount == 0 || animation.FrameCount < 2) return (0f, string.Empty, 0, 0f);
+
+        var byBone = new DecodedTrack?[boneCount];
+        foreach (var track in animation.Tracks)
+            if (track.TargetBoneIndex >= 0 && track.TargetBoneIndex < boneCount)
+                byBone[track.TargetBoneIndex] = track;
+
+        var previous = new Vector3[boneCount];
+        var current = new Vector3[boneCount];
+        var globals = new Matrix4x4[boneCount];
+
+        float worst = 0f, total = 0f;
+        int steps = 0, worstBone = -1, worstFrame = 0;
+
+        for (int frame = 0; frame < animation.FrameCount; frame++)
+        {
+            for (int b = 0; b < boneCount; b++)
+            {
+                var bone = skeleton.Bones[b];
+                var track = byBone[b];
+
+                var translation = track is not null && frame < track.Translations.Length
+                    ? track.Translations[frame] : bone.LocalTranslation;
+                var rotation = track is not null && frame < track.Rotations.Length
+                    ? track.Rotations[frame] : bone.LocalRotation;
+                var scale = track is not null && frame < track.Scales.Length
+                    ? track.Scales[frame] : bone.LocalScale;
+
+                var local = Matrix4x4.CreateScale(scale)
+                            * Matrix4x4.CreateFromQuaternion(rotation)
+                            * Matrix4x4.CreateTranslation(translation);
+
+                // Havok stores skeletons parent-first, so one forward pass composes the chain.
+                globals[b] = bone.ParentIndex >= 0 && bone.ParentIndex < b
+                    ? local * globals[bone.ParentIndex]
+                    : local;
+
+                current[b] = globals[b].Translation;
+            }
+
+            if (frame > 0)
+            {
+                for (int b = 0; b < boneCount; b++)
+                {
+                    float distance = Vector3.Distance(current[b], previous[b]);
+                    total += distance;
+                    steps++;
+                    if (distance > worst) (worst, worstBone, worstFrame) = (distance, b, frame);
+                }
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        float mean = steps > 0 ? total / steps : 0f;
+        return (worst,
+                worstBone >= 0 ? skeleton.Bones[worstBone].Name : string.Empty,
+                worstFrame,
+                mean > 1e-6f ? worst / mean : 0f);
+    }
 
     /// <summary>Every shipped package that can hold animation: the maps and the script packages.</summary>
     private static IEnumerable<string> EnumerateAllPackages(string gameRoot)

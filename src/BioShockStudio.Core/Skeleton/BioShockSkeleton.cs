@@ -20,7 +20,23 @@ public sealed record BioShockBone
     public required Quaternion LocalRotation { get; init; }
     public required Vector3 LocalScale { get; init; }
 
-    /// <summary>Havok's per-bone translation lock flag.</summary>
+    /// <summary>
+    /// Havok's per-bone translation lock flag, preserved as read.
+    /// <para>
+    /// <b>It is deliberately not applied when sampling, and it must not be.</b> Read as "ignore this
+    /// bone's animated translation" it would be catastrophic: the flag is set on 6,230 of the game's
+    /// 9,356 bones (66.6%), and 59,889 tracks across the 16,031 shipped animations drive a
+    /// translation on a bone that carries it — including <c>Bip01_Spine</c>, the first-person rig's
+    /// root, whose animated translation is 89.8 cm from its reference pose. Honouring it would pin
+    /// every rig to its bind root and destroy root motion.
+    /// </para>
+    /// <para>
+    /// <c>LIKELY</c>: in Havok this is a hint for <c>hkaSkeletonMapper</c> — whether a bone's
+    /// translation is carried across when retargeting between skeletons — and has no part in
+    /// sampling an animation onto its own skeleton. It is kept because the project does not discard
+    /// fields it has read, not because anything consumes it.
+    /// </para>
+    /// </summary>
     public required bool LockTranslation { get; init; }
 
     public bool IsRoot => ParentIndex < 0;

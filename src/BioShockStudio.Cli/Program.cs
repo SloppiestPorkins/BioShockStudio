@@ -454,6 +454,21 @@ static int AuditAnimations(string root, string[] args)
     Console.WriteLine($"tracks bound to no bone  {report.UnboundTracks}");
     Console.WriteLine($"animations with events   {report.WithEvents} ({report.TotalEvents} events)");
 
+    // Decoding without throwing is not the same as decoding correctly. These two checks are what
+    // separate the two: a block walk that does not consume its block has lost alignment, and a bone
+    // that teleports between consecutive frames is a decode fault rather than a performance.
+    Console.WriteLine($"\nblock walks that left the block unconsumed  {report.IncompleteBlocks}");
+    foreach (float threshold in new[] { 10f, 25f, 50f, 100f })
+        Console.WriteLine($"  animations with a bone jumping >= {threshold,3:0} cm in one frame  {report.Discontinuous(threshold)}");
+
+    var worst = report.Rows.OrderByDescending(r => r.WorstFrameStep).Take(15).ToList();
+    Console.WriteLine("\nlargest single-frame bone jumps:");
+    foreach (var r in worst)
+    {
+        Console.WriteLine($"  {r.WorstFrameStep,8:0.0} cm ({r.WorstFrameStepRatio,5:0.0}x mean)  " +
+                          $"{r.Wrapper}/{r.Name} frame {r.WorstFrameStepFrame} bone {r.WorstFrameStepBone}");
+    }
+
     if (report.PackageFailures.Count > 0)
     {
         Console.WriteLine($"\n{report.PackageFailures.Count} animation packages would not load:");
@@ -481,12 +496,14 @@ static int AuditAnimations(string root, string[] args)
     if (csvPath is not null)
     {
         using var writer = new StreamWriter(csvPath);
-        writer.WriteLine("package,wrapper,owner,name,status,compression,skeleton,bones,frames,fps,tracks,boundTracks,events,reason");
+        writer.WriteLine("package,wrapper,owner,name,status,compression,skeleton,bones,frames,fps,tracks,boundTracks,events,blockSlack,blocksComplete,worstStep,worstStepRatio,worstStepBone,worstStepFrame,reason");
         foreach (var r in report.Rows)
         {
             writer.WriteLine($"{Csv(r.Package)},{Csv(r.Wrapper)},{Csv(r.Owner)},{Csv(r.Name)},{r.Status}," +
                              $"{Csv(r.Compression)},{Csv(r.SkeletonName)},{r.BoneCount},{r.FrameCount}," +
-                             $"{r.FrameRate:0.00},{r.TrackCount},{r.BoundTrackCount},{r.EventCount},{Csv(r.Reason)}");
+                             $"{r.FrameRate:0.00},{r.TrackCount},{r.BoundTrackCount},{r.EventCount}," +
+                             $"{r.WorstBlockSlack},{r.BlocksLookComplete},{r.WorstFrameStep:0.00},{r.WorstFrameStepRatio:0.0}," +
+                             $"{Csv(r.WorstFrameStepBone)},{r.WorstFrameStepFrame},{Csv(r.Reason)}");
         }
         Console.WriteLine($"\nwrote {csvPath}");
     }
