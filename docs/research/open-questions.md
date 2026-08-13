@@ -31,12 +31,25 @@ all third-person character animations decode with zero failures.
 
 `UNKNOWN` remains: roughly 40% of `SkeletalMesh` exports decode to geometry. The failures are effect
 and prop meshes and four weapon viewmodels — `TommyGunMESH`, `WP_GrenadeLauncherMesh`,
-`PlasmidEquipMESH` and `WP_CrossbowMesh` — which are likely a stride or container variant. The same
-four also fail to resolve a material, which is consistent with one cause rather than two.
+`PlasmidEquipMESH` and `WP_CrossbowMesh` — which are likely a stride or container variant.
+
+This entry previously claimed the same four failed to resolve a material too, "consistent with one
+cause rather than two". **That was wrong.** The material failure was the counted material array
+being read as a fixed `byte 1`, and fixing it did nothing for the geometry. The two are unrelated.
 
 **How to close it:** compare the byte range between the tag block and the bone map on a mesh that
 decodes and one that does not; the reader locates the geometry chain by search, so a failure means
 no candidate satisfied every constraint at once, not that a constraint was violated late.
+
+## 4b. ~~`StaticMesh` geometry~~ — CLOSED
+
+`CONFIRMED_BYTES`. A shorter chain than the skinned one: a single 48-byte vertex block with no UVs
+inline, then one or more separate UV streams, then the index buffer. No bone map, no skin weights.
+All 8,668 shipped exports decode, and every decoded position falls inside the mesh's own declared
+bounding box. See [staticmesh.md](staticmesh.md).
+
+`UNKNOWN` remains: the trailing block on every mesh (almost certainly the kDOP collision tree), and
+which triangles belong to which material when a mesh has more than one.
 
 ## 5. ~~`HkMeshProxy`~~ — CLOSED, and the guess was wrong
 

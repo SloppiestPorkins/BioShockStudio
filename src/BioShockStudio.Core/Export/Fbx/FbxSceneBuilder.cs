@@ -239,7 +239,9 @@ public static class FbxSceneBuilder
             Connect(geometryId, modelId);
             Connect(modelId, 0);
 
-            BuildSkin(mesh, geometryId, name);
+            // A static mesh has no skeleton, so it gets no skin deformer at all rather than an empty
+            // one an importer would have to interpret.
+            if (scene.Bones.Count > 0) BuildSkin(mesh, geometryId, name);
             if (scene.Material is not null) BuildMaterial(scene.Material, modelId);
             return modelId;
         }

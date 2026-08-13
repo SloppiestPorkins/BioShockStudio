@@ -51,7 +51,7 @@ public sealed class PreviewModel
     /// is still worth drawing as bones. Neither case is treated as an error.
     /// </remarks>
     public static PreviewModel Build(
-        SkeletalMeshGeometry? geometry,
+        MeshGeometry? geometry,
         BioShockSkeleton? skeleton,
         IReadOnlyList<MeshSocket>? sockets = null,
         PreviewImage? texture = null,

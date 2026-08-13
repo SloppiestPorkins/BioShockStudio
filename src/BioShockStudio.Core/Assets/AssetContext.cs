@@ -62,6 +62,10 @@ public sealed class AssetContext
 
     public IEnumerable<ObjectExport> OfClass(BioShockPackage package, string className) =>
         Members.Where(e => package.GetClassName(e) == className);
+
+    /// <summary>Members whose class satisfies a predicate — for the two mesh classes together.</summary>
+    public IEnumerable<ObjectExport> WhereClass(BioShockPackage package, Func<string, bool> predicate) =>
+        Members.Where(e => predicate(package.GetClassName(e)));
 }
 
 /// <summary>

@@ -172,7 +172,7 @@ public static class SkeletalMeshReader
     /// which makes a false positive implausible.
     /// </para>
     /// </summary>
-    public static SkeletalMeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload)
+    public static MeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload)
     {
         if (!TryLocateGeometry(payload, out var layout)) return null;
 
@@ -218,7 +218,7 @@ public static class SkeletalMeshReader
             vertices.Add(ReadVertexCore(payload, o, influences));
         }
 
-        return new SkeletalMeshGeometry
+        return new MeshGeometry
         {
             Vertices = vertices,
             Indices = indices,

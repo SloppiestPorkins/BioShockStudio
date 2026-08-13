@@ -20,7 +20,8 @@ Every claim in these documents carries a confidence label:
 | [havok.md](havok.md) | Havok 2012.2.0-r1 packfile container as BioShock uses it. |
 | [havok-compression.md](havok-compression.md) | Spline compression and quantised quaternions. |
 | [binding.md](binding.md) | Track-to-bone binding, and why it must precede decoding. |
-| [skeletalmesh.md](skeletalmesh.md) | Mesh reconnaissance — not yet implemented. |
+| [skeletalmesh.md](skeletalmesh.md) | Skinned mesh — header, sockets, bone map, geometry, weights. |
+| [staticmesh.md](staticmesh.md) | Static mesh — the props that hang off sockets. |
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
 | [firstperson.md](firstperson.md) | First-person hands, weapons and the pistol target case. |
 | [fbx.md](fbx.md) | The FBX the exporter writes, and what it cannot carry. |

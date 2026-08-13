@@ -1,6 +1,6 @@
 # Handoff
 
-**140/140 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 16 commits
+**160/160 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 17 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -41,7 +41,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `hkaSkeleton`, `hkaAnimationBinding` | Complete, original bone indices preserved. |
 | `hkaSplineCompressedAnimation` | Complete. 130/130 hands animations decode. |
 | `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **~40% of meshes decode to geometry.** |
-| `StaticMesh` | **Not read at all.** See §6.1. |
+| `StaticMesh` | Geometry, UV streams, indices. **All 8,668 shipped exports decode.** |
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
 | Textures | DXT1/3/5, RGBA8 → PNG + DDS. 1054/1062 in 0-Lighthouse. |
@@ -91,6 +91,17 @@ Each of these produced a plausible, wrong result before it was understood.
   `Rz · Ry · Rx` on column vectors. A wrong order animates plausibly and wrongly.
 - **One FBX declares one frame rate**, and the shipped animations do not share one — 30.00, 29.94
   and 27.02 all occur within the pistol set — so each animation gets its own file.
+- **A `StaticMesh` vertex has no UV in it.** 48 bytes of position and tangent basis, and the UVs
+  follow in separate full-length streams. Writing the reader by analogy with the skeletal record —
+  where the UV sits at +48 — puts the next vertex's position where the UVs should be.
+- **Any one of a static vertex's three basis vectors may be degenerate.** `Turret_Cover` ships a null
+  tangent with a good normal, `LS_Hat` the reverse. Requiring all three to be unit length, as the
+  skeletal reader does, silently drops 33 of 610 meshes in one package. Requiring one of three
+  decodes all 8,668.
+- **A static mesh must not be drawn next to its group's skeleton.** Selecting `ConeDrill` used to
+  load `NewProtectorBouncer`'s rig alongside it, because the preview resolves animations by group.
+  Nothing was numerically wrong and the viewport implied a binding that does not exist. The prop is
+  now shown alone until it can be placed on its socket.
 - **A `SkeletalMesh`'s property list is empty.** Its material reference is in the binary payload,
   after a tag block whose position varies between meshes (64 in `NEWPlayerHands`, 54 in
   `WP_PistolMesh`), so the block is found by search.
@@ -136,17 +147,27 @@ Pictures of the window and the viewport, rendered offscreen:
 BIOSHOCK_UI_SNAPSHOT=/tmp/ui.png dotnet test --filter FullyQualifiedName~WindowTests
 BIOSHOCK_RENDER_SNAPSHOT=/tmp/r.png dotnet test --filter FullyQualifiedName~RenderingTests
 BIOSHOCK_CONTEXT_SNAPSHOT=/tmp/c.png dotnet test --filter FullyQualifiedName~ContextTests
+BIOSHOCK_STATIC_SNAPSHOT=/tmp/s.png dotnet test --filter FullyQualifiedName~Static_Snapshot
 ```
+
+The last writes one image per static mesh (`/tmp/s_ConeDrill.png` and so on). The drill should be a
+conical auger and the kerosene pickup a canister with a valve wheel and a cage; anything that is not
+a recognisable object means the geometry chain landed somewhere plausible and wrong.
 
 **Do not screen-capture the running application to check it.** The capture follows whatever is in
 front on the desktop, not the window you meant — this went wrong once and caught the user's browser.
 
 ## 6. What to do next, in priority order
 
-### 6.1 A `StaticMesh` geometry reader — highest value
+### 6.1 Socket attachment for static meshes — the other half of the drill
 
-This one reader unblocks the most assets. `docs/research/context.md` records that sockets point at
-three different kinds of thing, and this is the second:
+`StaticMeshReader` now decodes every shipped static mesh (§2), so the drill, its cage, the backpack,
+the wig, the photo, the wallet and the wrench all have vertices. They can be browsed, previewed and
+exported. **What they still cannot do is attach.**
+
+`docs/research/context.md` records that sockets point at three different kinds of thing.
+`AssetContextService.Attachments` only resolves the first — a `WP_`-prefixed weapon group with its
+own skeletal mesh and animation package. The Bouncer's is the second kind:
 
 ```
 NewProtectorBouncer sockets   Drill -> SocketDrillROTATION
@@ -155,16 +176,18 @@ NewProtectorBouncer sockets   Drill -> SocketDrillROTATION
 NewProtectorBouncer group     ConeDrill, ConeDrillCage, ConeDrillBackpack   (all StaticMesh)
 ```
 
-Three sockets, three static meshes in the host's own group, names mapping one to one. The same shape
-gives Baby Jane her wig and the hands their photo and wallet. `WP_WrenchMesh` is a `StaticMesh` too —
-the wrench has no moving parts, so it ships as a static prop rather than a rig.
+Three sockets, three static meshes in the host's **own** group, names mapping one to one — no `WP_`
+prefix and no second skeleton involved. `GroupsWithSkeletons` filters those out before matching ever
+runs, so the candidates are never even considered.
 
-**The relationship is already established in the data. What is missing is vertices.**
-`SkeletalMeshReader.ReadGeometry` returns nothing for `ConeDrill`, as it does for `WP_WrenchMesh`.
+**How to start:** `AssetContextService.GroupsWithSkeletons` at line 140 and `BestGroupFor` at 108.
+A static attachment needs no wrapper and no skeleton of its own — just the host's socket-bone
+transform applied to a boneless mesh, which `PreviewModel` already supports. Note that the socket
+names here (`Drill`, `DrillCage`, `backpack`) match the mesh names (`ConeDrill`, `ConeDrillCage`,
+`ConeDrillBackpack`) as suffix and prefix, not exactly — the same normalisation `BestGroupFor`
+already does.
 
-**How to start:** dump `ConeDrill`'s payload beside `WP_PistolMesh`'s. The skeletal container is a
-chain of `FCompactIndex`-counted arrays (bone map, indices, then vertex blocks); a static mesh has no
-bone map or skin weights, so expect a shorter chain and a smaller vertex stride.
+Do the suffix strip in §6.3 at the same time; both are the same function.
 
 ### 6.2 The skeletal geometry variant
 
@@ -239,7 +262,8 @@ These are the project's, and they are why its claims have held up.
 ## 8. Open unknowns
 
 `docs/research/open-questions.md`, in priority order. The load-bearing ones: what Unreal does with
-this export, the `StaticMesh` container, the skeletal geometry variant, the `MaskMaterial` size, the
+this export, the static mesh's trailing collision block, the skeletal geometry variant, the
+per-material triangle sections a multi-material static mesh must have, the `MaskMaterial` size, the
 texture mip array header field, the 16 unexplained bytes before the Havok magic in an
 `AnimationPackageWrapper`, the two `Unknown32` fields in every export record, and whether any object
 reference — as opposed to a socket or notify — points from a Big Daddy at a Little Sister asset.
@@ -249,5 +273,5 @@ reference — as opposed to a socket or notify — points from a Big Daddy at a 
 1. This file.
 2. `docs/research/README.md` — the index and the confidence labels.
 3. `docs/GUI.md` — if touching the application.
-4. The research note for whatever you are about to work on: `skeletalmesh.md`, `materials.md`,
-   `fbx.md`, `context.md`, `binding.md`, `havok-compression.md`.
+4. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
+   `materials.md`, `fbx.md`, `context.md`, `binding.md`, `havok-compression.md`.

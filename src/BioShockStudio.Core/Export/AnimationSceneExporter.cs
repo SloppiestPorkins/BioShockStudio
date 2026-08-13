@@ -30,11 +30,38 @@ public static class AnimationSceneExporter
     /// </summary>
     private static readonly string[] SocketBoneNames = ["R_grip", "IKbindLhandDummy"];
 
+    /// <summary>
+    /// Builds a scene for a mesh that has no skeleton — a <c>StaticMesh</c> prop.
+    /// </summary>
+    /// <remarks>
+    /// The same <see cref="AnimationScene"/>, with no bones, no animations and no sockets. Nothing
+    /// downstream needs a special case: the writers already loop over the bone list, so an empty one
+    /// simply yields a mesh. The alternative — inventing a single root bone so the file looks like
+    /// the skinned ones — would put a joint in the export that the game does not have.
+    /// </remarks>
+    public static AnimationScene BuildStatic(
+        string packageName,
+        string objectName,
+        MeshGeometry geometry,
+        SceneMaterial? material = null) =>
+        new()
+        {
+            SourcePackage = packageName,
+            SourceObject = objectName,
+            SkeletonName = string.Empty,
+            Bones = [],
+            Animations = [],
+            Failures = [],
+            Sockets = [],
+            Mesh = BuildMesh(geometry),
+            Material = material,
+        };
+
     public static AnimationScene Build(
         AnimationPackage package,
         string? ownerFilter = null,
         IReadOnlyList<MeshSocket>? sockets = null,
-        SkeletalMeshGeometry? geometry = null,
+        MeshGeometry? geometry = null,
         IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>>? events = null,
         SceneMaterial? material = null)
     {
@@ -110,7 +137,7 @@ public static class AnimationSceneExporter
         };
     }
 
-    private static SceneMesh BuildMesh(SkeletalMeshGeometry geometry)
+    private static SceneMesh BuildMesh(MeshGeometry geometry)
     {
         var positions = new float[geometry.Vertices.Count * 3];
         var normals = new float[geometry.Vertices.Count * 3];

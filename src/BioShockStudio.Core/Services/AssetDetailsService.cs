@@ -98,8 +98,13 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
                         && package.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
             .MaxBy(e => e.SerialSize);
 
-        var meshExports = context.OfClass(package, AssetClasses.SkeletalMesh).ToList();
-        var meshExport = meshExports.MaxBy(e => e.SerialSize);
+        // Both mesh classes: a character group holds its skeletal body and the static props its
+        // sockets name, and the details panel should account for all of them.
+        var meshExports = context.WhereClass(package, MeshGeometryReader.IsMeshClass).ToList();
+        var meshExport = meshExports
+            .OrderByDescending(e => package.GetClassName(e) == AssetClasses.SkeletalMesh)
+            .ThenByDescending(e => e.SerialSize)
+            .FirstOrDefault();
 
         string? problem = null;
 
@@ -137,12 +142,23 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         if (meshExport is not null)
         {
             byte[] payload = package.ReadExportData(meshExport);
-            var geometry = SkeletalMeshReader.ReadGeometry(payload);
-            var sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+            string className = package.GetClassName(meshExport);
+            var geometry = MeshGeometryReader.Read(className, payload);
+            var sockets = className == AssetClasses.SkeletalMesh
+                ? SkeletalMeshReader.ReadSockets(payload, package.Names)
+                : [];
 
             fields.Add(new DetailField("Mesh", geometry is null
                 ? $"{meshExport.ObjectName} — geometry format not supported"
-                : $"{meshExport.ObjectName} · {geometry.Vertices.Count:N0} vertices · {geometry.TriangleCount:N0} triangles"));
+                : $"{meshExport.ObjectName} · {geometry.Vertices.Count:N0} vertices · {geometry.TriangleCount:N0} triangles"
+                  + (geometry.IsSkinned ? string.Empty : " · static, no skeleton")));
+
+            // Saying what is left behind, rather than exporting one set and implying there was one.
+            if (geometry is { ExtraUvStreamCount: > 0 })
+            {
+                research.Add(new DetailField("Extra UV streams",
+                    $"{geometry.ExtraUvStreamCount} not carried into the export"));
+            }
 
             if (sockets.Count > 0)
             {
@@ -159,7 +175,9 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         {
             sections.Add(new DetailSection("Meshes", meshExports
                 .OrderByDescending(e => e.SerialSize)
-                .Select(e => new RelatedAsset(e.ObjectName, Size(e.SerialSize), AssetCategory.SkeletalMeshes))
+                .Select(e => package.GetClassName(e) == AssetClasses.StaticMesh
+                    ? new RelatedAsset(e.ObjectName, $"{Size(e.SerialSize)} · static", AssetCategory.StaticMeshes)
+                    : new RelatedAsset(e.ObjectName, Size(e.SerialSize), AssetCategory.SkeletalMeshes))
                 .ToList()));
         }
 
@@ -286,23 +304,27 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         var sections = new List<DetailSection>();
         string? problem = null;
 
-        var geometry = entry.Category == AssetCategory.SkeletalMeshes
-            ? SkeletalMeshReader.ReadGeometry(payload)
-            : null;
+        var geometry = MeshGeometryReader.Read(entry.ClassName, payload);
 
         if (geometry is not null)
         {
             fields.Add(new DetailField("Vertices", $"{geometry.Vertices.Count:N0}"));
             fields.Add(new DetailField("Triangles", $"{geometry.TriangleCount:N0}"));
-            fields.Add(new DetailField("Bones used", geometry.BoneMap.Count.ToString()));
+            fields.Add(new DetailField("Bones used",
+                geometry.IsSkinned ? geometry.BoneMap.Count.ToString() : "none — static mesh"));
+            if (geometry.ExtraUvStreamCount > 0)
+                fields.Add(new DetailField("Extra UV streams", geometry.ExtraUvStreamCount.ToString()));
         }
-        else if (entry.Category == AssetCategory.SkeletalMeshes)
+        else if (MeshGeometryReader.IsMeshClass(entry.ClassName))
         {
+            string note = entry.ClassName == AssetClasses.StaticMesh ? "staticmesh" : "skeletalmesh";
             problem = "This mesh uses a geometry layout this tool does not read yet, so it has no "
-                      + "vertices to show or export. See docs/research/skeletalmesh.md.";
+                      + $"vertices to show or export. See docs/research/{note}.md.";
         }
 
-        var sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+        var sockets = entry.ClassName == AssetClasses.SkeletalMesh
+            ? SkeletalMeshReader.ReadSockets(payload, package.Names)
+            : [];
         if (sockets.Count > 0)
         {
             sections.Add(new DetailSection("Sockets",

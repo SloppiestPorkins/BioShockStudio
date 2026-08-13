@@ -58,9 +58,14 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         var siblings = MeshesInGroup(package, entry.Group);
         var meshExport = FindMesh(package, entry, meshName, siblings);
-        var wrapper = FindAnimationPackage(package, entry.Group);
+        bool isStatic = meshExport is not null && package.GetClassName(meshExport) == AssetClasses.StaticMesh;
 
-        SkeletalMeshGeometry? geometry = null;
+        // A static mesh is not bound to the group's skeleton — it is a prop that hangs off a socket
+        // on it. Drawing the two together in one space would imply a binding the data does not
+        // state, so the prop is shown on its own.
+        var wrapper = isStatic ? null : FindAnimationPackage(package, entry.Group);
+
+        MeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
         PreviewImage? texture = null;
         PreviewImage? normalMap = null;
@@ -70,8 +75,12 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         if (meshExport is not null)
         {
             byte[] payload = package.ReadExportData(meshExport);
-            geometry = SkeletalMeshReader.ReadGeometry(payload);
-            sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+            string className = package.GetClassName(meshExport);
+            geometry = MeshGeometryReader.Read(className, payload);
+
+            // Only a skeletal mesh carries a socket table; a static one is what hangs off a socket.
+            if (className == AssetClasses.SkeletalMesh)
+                sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
 
             if (geometry is null)
             {
@@ -110,10 +119,16 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             meshExport?.ObjectName);
     }
 
-    /// <summary>Every skeletal mesh in a group, largest first, without duplicate names.</summary>
+    /// <summary>
+    /// Every mesh in a group, largest first, without duplicate names.
+    /// </summary>
+    /// <remarks>
+    /// Both classes, because a group is often both: <c>NewProtectorBouncer</c> is a skeletal body
+    /// plus the three static meshes its sockets name — the drill, its cage and the backpack.
+    /// </remarks>
     private static List<ObjectExport> MeshesInGroup(BioShockPackage package, string group) =>
         package.Exports
-            .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
+            .Where(e => MeshGeometryReader.IsMeshClass(package.GetClassName(e))
                         && e.SerialSize > 0
                         && string.Equals(AssetContextResolver.TopLevelGroup(package, e), group,
                             StringComparison.OrdinalIgnoreCase))
@@ -135,12 +150,12 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         cancellation.ThrowIfCancellationRequested();
 
         var meshExport = package.Exports
-            .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
+            .Where(e => MeshGeometryReader.IsMeshClass(package.GetClassName(e))
                         && string.Equals(AssetContextResolver.TopLevelGroup(package, e), candidate.Group,
                             StringComparison.OrdinalIgnoreCase))
             .MaxBy(e => e.SerialSize);
 
-        SkeletalMeshGeometry? geometry = null;
+        MeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
         PreviewImage? texture = null;
         PreviewImage? normalMap = null;
@@ -154,8 +169,10 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         else
         {
             byte[] payload = package.ReadExportData(meshExport);
-            geometry = SkeletalMeshReader.ReadGeometry(payload);
-            sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+            string className = package.GetClassName(meshExport);
+            geometry = MeshGeometryReader.Read(className, payload);
+            if (className == AssetClasses.SkeletalMesh)
+                sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
             (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
             if (geometry is null) problem = $"'{candidate.MeshObject}' uses a geometry layout this tool does not read yet.";
         }

@@ -17,7 +17,7 @@ public sealed class SkeletalMeshGeometryTests(GameFixture game)
         return package.ReadExportData(export);
     }
 
-    private SkeletalMeshGeometry Hands() =>
+    private MeshGeometry Hands() =>
         SkeletalMeshReader.ReadGeometry(Payload("NEWPlayerHands"))!;
 
     [RequiresGameFact]

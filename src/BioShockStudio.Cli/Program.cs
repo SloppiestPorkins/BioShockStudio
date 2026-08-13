@@ -329,7 +329,7 @@ static AnimationPackage LoadAnimationPackage(string root, string packageName, st
 /// UAPW_&lt;MeshName&gt;, which is a convention rather than a reference, so a miss is reported as
 /// "no sockets" rather than treated as an error.
 /// </summary>
-static (IReadOnlyList<MeshSocket> Sockets, SkeletalMeshGeometry? Geometry, SceneMaterial? Material) ResolveMesh(
+static (IReadOnlyList<MeshSocket> Sockets, MeshGeometry? Geometry, SceneMaterial? Material) ResolveMesh(
     string root, string packageName, string wrapperName, string? outputDirectory = null)
 {
     string meshName = wrapperName.StartsWith("UAPW_", StringComparison.OrdinalIgnoreCase)
@@ -648,7 +648,7 @@ static int Meshes(string root, string[] args)
     foreach (var export in meshes.OrderByDescending(e => e.SerialSize))
     {
         byte[] payload = export.SerialSize > 0 ? package.ReadExportData(export) : [];
-        SkeletalMeshGeometry? geometry = null;
+        MeshGeometry? geometry = null;
         int socketCount = 0;
 
         if (payload.Length >= 128)

@@ -277,8 +277,15 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             .Where(e => package.GetClassName(e) == AssetClasses.AnimationPackageWrapper
                         && string.Equals(AssetContextResolver.TopLevelGroup(package, e), entry.Group,
                             StringComparison.OrdinalIgnoreCase))
-            .MaxBy(e => e.SerialSize)
-            ?? throw new InvalidDataException(
+            .MaxBy(e => e.SerialSize);
+
+        // A static mesh is complete on its own: it has no skeleton to export against, and demanding
+        // one turned every prop into a failure that read like a parsing problem.
+        if (entry.ClassName == AssetClasses.StaticMesh)
+            return ExtractStaticMesh(package, entry, options, directory);
+
+        if (wrapper is null)
+            throw new InvalidDataException(
                 $"'{entry.Group}' has no animation package, so there is no skeleton to export against.");
 
         var animations = AnimationPackage.Load(package, wrapper);
@@ -291,7 +298,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             .MaxBy(e => e.SerialSize);
 
         IReadOnlyList<MeshSocket> sockets = [];
-        SkeletalMeshGeometry? geometry = null;
+        MeshGeometry? geometry = null;
         SceneMaterial? material = null;
 
         Directory.CreateDirectory(directory);
@@ -322,6 +329,36 @@ public sealed class ExtractionService(AssetCatalogService catalog)
 
         if (options.Formats.HasFlag(ExportFormats.SceneJson))
             AnimationSceneExporter.WriteJson(scene, Path.Combine(directory, Sanitise(entry.Group) + ".json"));
+
+        if (options.Formats.HasFlag(ExportFormats.Fbx))
+            FbxExporter.Write(scene, directory);
+
+        return directory;
+    }
+
+    /// <summary>
+    /// Extracts a single static mesh: geometry and material, no skeleton and no animations.
+    /// </summary>
+    private static string? ExtractStaticMesh(
+        BioShockPackage package, CatalogEntry entry, ExtractionOptions options, string directory)
+    {
+        var export = package.Exports
+            .Where(e => e.ObjectName == entry.ObjectName
+                        && package.GetClassName(e) == AssetClasses.StaticMesh)
+            .MaxBy(e => e.SerialSize)
+            ?? throw new InvalidDataException($"'{entry.ObjectName}' is not in this package.");
+
+        var geometry = StaticMeshReader.ReadGeometry(package.ReadExportData(export))
+            ?? throw new InvalidDataException(
+                $"'{entry.ObjectName}' uses a static-mesh layout this tool does not read yet. "
+                + "See docs/research/staticmesh.md.");
+
+        Directory.CreateDirectory(directory);
+        var material = MaterialExporter.Resolve(package, export, directory);
+        var scene = AnimationSceneExporter.BuildStatic(entry.Package, export.ObjectName, geometry, material);
+
+        if (options.Formats.HasFlag(ExportFormats.SceneJson))
+            AnimationSceneExporter.WriteJson(scene, Path.Combine(directory, Sanitise(export.ObjectName) + ".json"));
 
         if (options.Formats.HasFlag(ExportFormats.Fbx))
             FbxExporter.Write(scene, directory);
