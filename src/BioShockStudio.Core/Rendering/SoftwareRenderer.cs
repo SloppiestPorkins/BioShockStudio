@@ -498,21 +498,66 @@ public static class SoftwareRenderer
         return (r, g, b);
     }
 
+    /// <summary>
+    /// Bilinear texture sample, wrapping at the edges. The game's V runs top-down, the same flip the
+    /// exporters apply.
+    /// </summary>
+    /// <remarks>
+    /// Nearest-neighbour was what made every surface look blocky up close, whatever the mesh was
+    /// doing — the tell was texels visible as squares on a model only a few hundred triangles big.
+    /// Four taps per pixel is a real cost in a software rasteriser and it is the single largest
+    /// difference to how the preview reads.
+    /// </remarks>
     private static (byte R, byte G, byte B, byte A) SampleRgba(PreviewImage texture, Vector2 uv)
     {
-        // The game's V runs top-down, the same flip the exporters apply.
-        int x = (int)(Wrap(uv.X) * (texture.Width - 1));
-        int y = (int)(Wrap(uv.Y) * (texture.Height - 1));
-        int offset = (y * texture.Width + x) * 4;
+        int w = texture.Width, h = texture.Height;
+        if (w <= 0 || h <= 0) return (190, 190, 190, 255);
 
-        if (offset < 0 || offset + 3 >= texture.Rgba.Length) return (190, 190, 190, 255);
-        return (texture.Rgba[offset], texture.Rgba[offset + 1], texture.Rgba[offset + 2], texture.Rgba[offset + 3]);
+        // Half-texel offset so a sample at the centre of a texel returns it exactly.
+        float fx = Wrap(uv.X) * w - 0.5f;
+        float fy = Wrap(uv.Y) * h - 0.5f;
+
+        int x0 = (int)MathF.Floor(fx), y0 = (int)MathF.Floor(fy);
+        float tx = fx - x0, ty = fy - y0;
+
+        int x1 = Mod(x0 + 1, w), y1 = Mod(y0 + 1, h);
+        x0 = Mod(x0, w);
+        y0 = Mod(y0, h);
+
+        var (r00, g00, b00, a00) = Texel(texture, x0, y0);
+        var (r10, g10, b10, a10) = Texel(texture, x1, y0);
+        var (r01, g01, b01, a01) = Texel(texture, x0, y1);
+        var (r11, g11, b11, a11) = Texel(texture, x1, y1);
+
+        return (
+            Mix(r00, r10, r01, r11), Mix(g00, g10, g01, g11),
+            Mix(b00, b10, b01, b11), Mix(a00, a10, a01, a11));
+
+        byte Mix(byte v00, byte v10, byte v01, byte v11)
+        {
+            float top = v00 + (v10 - v00) * tx;
+            float bottom = v01 + (v11 - v01) * tx;
+            return (byte)Math.Clamp(top + (bottom - top) * ty, 0f, 255f);
+        }
+
+        static int Mod(int value, int size)
+        {
+            int result = value % size;
+            return result < 0 ? result + size : result;
+        }
 
         static float Wrap(float value)
         {
             value -= MathF.Floor(value);
             return value < 0f ? value + 1f : value;
         }
+    }
+
+    private static (byte R, byte G, byte B, byte A) Texel(PreviewImage texture, int x, int y)
+    {
+        int offset = (y * texture.Width + x) * 4;
+        if (offset < 0 || offset + 3 >= texture.Rgba.Length) return (190, 190, 190, 255);
+        return (texture.Rgba[offset], texture.Rgba[offset + 1], texture.Rgba[offset + 2], texture.Rgba[offset + 3]);
     }
 
     // ------------------------------------------------------------------ matrices

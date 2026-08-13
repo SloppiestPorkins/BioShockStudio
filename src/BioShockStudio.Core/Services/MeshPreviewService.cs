@@ -318,6 +318,12 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             LoadTexture(package, material.SpecularTexture));
     }
 
+    /// <summary>
+    /// Largest mip edge the preview will decode. Above this the memory stops being worth it; the
+    /// game ships nothing larger.
+    /// </summary>
+    private const int MaximumPreviewTexture = 2048;
+
     private static PreviewImage? LoadTexture(BioShockPackage package, string? name)
     {
         if (name is null) return null;
@@ -336,11 +342,12 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         if (texture is null || texture.Mips.Count == 0) return null;
 
-        // A 512-square mip is ample for a viewport and keeps the whole model's texture in cache.
+        // The full-resolution mip. A 512-square cap was cheap and visibly soft: the shipped art is
+        // mostly 1024 and 2048, and throwing three quarters of it away before drawing showed.
         int index = 0;
         for (int i = 0; i < texture.Mips.Count; i++)
         {
-            if (Math.Max(texture.Mips[i].Width, texture.Mips[i].Height) <= 512) { index = i; break; }
+            if (Math.Max(texture.Mips[i].Width, texture.Mips[i].Height) <= MaximumPreviewTexture) { index = i; break; }
             index = i;
         }
 

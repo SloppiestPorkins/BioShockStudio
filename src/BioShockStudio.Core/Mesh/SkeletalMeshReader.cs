@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Numerics;
 using BioShockStudio.Core.Packages;
 
@@ -278,6 +278,7 @@ public static class SkeletalMeshReader
     private static bool TryLocateGeometry(ReadOnlySpan<byte> payload, out GeometryLayout layout)
     {
         layout = default;
+        bool found = false;
 
         for (int at = 0; at < payload.Length - 16; at++)
         {
@@ -366,13 +367,25 @@ public static class SkeletalMeshReader
             // The bone map is the array immediately preceding the index count.
             if (!TryReadBoneMapEndingAt(payload, at, out int boneMapOffset, out int boneMapCount)) continue;
 
-            layout = new GeometryLayout(
-                boneMapOffset, boneMapCount, indexOffset, indexCount,
-                skinnedOffset, skinnedCount, rigidOffset, rigidCount);
-            return true;
+            // A payload holds several levels of detail. Keep looking and take the densest, rather
+            // than the first one encountered — which is whichever the file happens to store first.
+            if (!found || pool > layout.SkinnedCount + layout.RigidCount)
+            {
+                layout = new GeometryLayout(
+                    boneMapOffset, boneMapCount, indexOffset, indexCount,
+                    skinnedOffset, skinnedCount, rigidOffset, rigidCount);
+                found = true;
+            }
+
+            // Resume past this chain rather than re-scanning inside it, so the whole payload costs
+            // one pass instead of one per byte.
+            int chainEnd = Math.Max(
+                skinnedOffset + skinnedCount * SkinnedVertexStride,
+                rigidOffset + rigidCount * RigidVertexStride);
+            at = Math.Max(at, chainEnd - 1);
         }
 
-        return false;
+        return found;
     }
 
     private static bool TryReadBoneMapEndingAt(ReadOnlySpan<byte> payload, int end, out int offset, out int count)

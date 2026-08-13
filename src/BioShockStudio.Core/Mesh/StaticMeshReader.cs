@@ -99,6 +99,7 @@ public static class StaticMeshReader
     private static bool TryLocateGeometry(ReadOnlySpan<byte> payload, out GeometryLayout layout)
     {
         layout = default;
+        bool found = false;
 
         for (int at = 0; at < payload.Length - 16; at++)
         {
@@ -156,12 +157,22 @@ public static class StaticMeshReader
 
             if (!WithinDeclaredBounds(payload, at, vertexOffset, vertexCount)) continue;
 
-            layout = new GeometryLayout(
-                at, vertexOffset, vertexCount, uvOffset, streamCount, indexOffset, indexCount);
-            return true;
+            // A payload holds several levels of detail. Keep looking and take the densest, rather
+            // than the first one encountered — which is whichever the file happens to store first,
+            // and is often the crude one.
+            if (!found || vertexCount > layout.VertexCount)
+            {
+                layout = new GeometryLayout(
+                    at, vertexOffset, vertexCount, uvOffset, streamCount, indexOffset, indexCount);
+                found = true;
+            }
+
+            // Resume past this chain rather than re-scanning inside it, so the whole payload costs
+            // one pass instead of one per byte.
+            at = indexOffset + indexCount * 2 - 1;
         }
 
-        return false;
+        return found;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Materials;
@@ -150,6 +151,10 @@ public static class MaterialReader
     public static IReadOnlyList<PackageIndex> ReadMeshMaterialReferences(
         ReadOnlySpan<byte> payload, BioShockPackage package)
     {
+        // A StaticMesh says it outright, in a property. Only a SkeletalMesh, whose property list is
+        // empty, needs the tag-block search below.
+        if (ReadMaterialsProperty(payload, package) is { Count: > 0 } declared) return declared;
+
         int limit = Math.Min(TagBlockSearchLimit, payload.Length - TagBlock.Length);
 
         for (int at = 0; at < limit; at++)
@@ -180,6 +185,158 @@ public static class MaterialReader
         }
 
         return [];
+    }
+
+    /// <summary>
+    /// Reads a <c>StaticMesh</c>'s <c>Materials</c> property. Empty when there is no such property,
+    /// which is every <c>SkeletalMesh</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>CONFIRMED_BYTES.</b> <c>Materials</c> is an array of <c>FStaticMeshMaterial</c>, and each
+    /// element is itself a property list — the game names its own fields:
+    /// <code>
+    /// FCompactIndex count
+    /// per element:
+    ///   EnableCollision   Bool     value carried in the info byte's array bit, no payload
+    ///   Material          Object   FCompactIndex reference to a Shader or FacingShader
+    ///   None                       terminator
+    /// </code>
+    /// <para>
+    /// The array's declared size is **one byte short of its content**, so the last element's
+    /// terminator is cut off. That is the same off-by-one <c>MaskMaterial</c> shows, and this is the
+    /// second independent case of it: both contain a nested property carrying an explicit size byte.
+    /// The walk therefore treats running out of bytes as the end of an element rather than an error.
+    /// </para>
+    /// <para>
+    /// This is what took textured meshes from 7% of the game to most of it. The previous search
+    /// looked for the skeletal tag block <c>4, 5, 1</c>, and a static mesh's is <c>4, 8, 1</c> with
+    /// no reference after it, so it found nothing and 2,354 meshes drew flat grey.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<PackageIndex> ReadMaterialsProperty(
+        ReadOnlySpan<byte> payload, BioShockPackage package)
+    {
+        List<UnrealProperty> properties;
+        try { properties = UnrealPropertyReader.Read(payload, package.Names, out _, out _); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+        {
+            return [];
+        }
+
+        var array = properties.FirstOrDefault(p =>
+            p.Name == "Materials" && p.Type == UnrealPropertyType.Array);
+        if (array is null) return [];
+
+        var value = (ReadOnlySpan<byte>)array.Value;
+        int offset = 0;
+
+        int count;
+        try { count = ReadCompactIndex(value, ref offset); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+        {
+            return [];
+        }
+
+        if (count is <= 0 or > MaximumMaterials) return [];
+
+        var result = new List<PackageIndex>(count);
+
+        for (int i = 0; i < count && offset < value.Length; i++)
+        {
+            if (!TryReadMaterialElement(value, ref offset, package, out var reference)) break;
+            if (reference.Value != 0) result.Add(reference);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Walks one <c>FStaticMeshMaterial</c> element and returns the reference its <c>Material</c>
+    /// field holds.
+    /// </summary>
+    private static bool TryReadMaterialElement(
+        ReadOnlySpan<byte> value, ref int offset, BioShockPackage package, out PackageIndex reference)
+    {
+        reference = default;
+        bool found = false;
+
+        // Bounded: a misread element must not spin.
+        for (int guard = 0; guard < 16; guard++)
+        {
+            if (offset >= value.Length) return found;
+
+            int nameIndex;
+            try { nameIndex = ReadCompactIndex(value, ref offset); }
+            catch { return found; }
+
+            // The trailing terminator is cut short by the size being one byte under, so an element
+            // that ends there has still been read completely.
+            if (offset + 4 > value.Length) return found;
+            offset += 4; // FName number
+
+            if (nameIndex < 0 || nameIndex >= package.Names.Count) return found;
+            if (package.Names[nameIndex].Name == "None") return found;
+
+            if (offset >= value.Length) return found;
+            byte info = value[offset++];
+            var type = (UnrealPropertyType)(info & 0x0F);
+            int sizeEncoding = (info >> 4) & 0x07;
+            bool isArray = (info & 0x80) != 0;
+
+            if (type == UnrealPropertyType.Struct)
+            {
+                try { ReadCompactIndex(value, ref offset); } catch { return found; }
+                if (offset + 4 > value.Length) return found;
+                offset += 4;
+            }
+
+            int size;
+            try
+            {
+                size = sizeEncoding switch
+                {
+                    0 => 1,
+                    1 => 2,
+                    2 => 4,
+                    3 => 12,
+                    4 => 16,
+                    5 => value[offset++],
+                    6 => BinaryPrimitives.ReadUInt16LittleEndian(Advance(value, ref offset, 2)),
+                    _ => BinaryPrimitives.ReadInt32LittleEndian(Advance(value, ref offset, 4)),
+                };
+            }
+            catch { return found; }
+
+            // A Bool carries its value in the array bit and has no payload.
+            if (isArray && type != UnrealPropertyType.Bool)
+            {
+                try { ReadCompactIndex(value, ref offset); } catch { return found; }
+            }
+
+            if (size < 0 || offset + size > value.Length) return found;
+
+            if (!found && type == UnrealPropertyType.Object && package.Names[nameIndex].Name == "Material")
+            {
+                int cursor = offset;
+                try
+                {
+                    reference = new PackageIndex(ReadCompactIndex(value, ref cursor));
+                    found = true;
+                }
+                catch { /* leave it unread rather than guessing */ }
+            }
+
+            offset += size;
+        }
+
+        return found;
+    }
+
+    private static ReadOnlySpan<byte> Advance(ReadOnlySpan<byte> value, ref int offset, int count)
+    {
+        var slice = value[offset..];
+        offset += count;
+        return slice;
     }
 
     /// <summary>The material a mesh export uses, or null when it does not resolve to one in this package.</summary>

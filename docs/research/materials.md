@@ -163,7 +163,42 @@ property on the Blender material, so what was dropped is visible.
 struct beyond the fact that it can name a texture. All are carried through, none are interpreted.
 
 
-## A StaticMesh names its material differently (UNKNOWN)
+## A StaticMesh names its material in a property (CONFIRMED_BYTES)
+
+**Closed.** The section below records how it looked before it was decoded; the answer is here.
+
+`Materials` is an array of `FStaticMeshMaterial`, and each element is itself a property list. The
+game names its own fields, so nothing had to be guessed:
+
+```
+Materials   Array, size 23 on ConeDrill
+  FCompactIndex count                     1
+  per element, a property list:
+    EnableCollision  Bool     value in the info byte's array bit, no payload
+    Material         Object   FCompactIndex -> Shader or FacingShader
+    None                      terminator
+```
+
+For `ConeDrill` the `Material` reference is 10571, which is `ConeDrillRimShader`, a `FacingShader`.
+
+**The array's declared size is one byte short of its content**, so the final terminator is cut off.
+That is the same off-by-one `MaskMaterial` shows below, and this is a second independent case of it:
+both contain a nested property carrying an explicit size byte. The walk therefore treats running out
+of bytes as the end of an element rather than as an error.
+
+Two things had made this look harder than it was:
+
+- The property walk reports `truncated` on every static mesh, because the outer list's terminator is
+  a **numbered** `None`. That is not misalignment here — the walk is exact, and the header follows
+  immediately after it.
+- Reading an `FCompactIndex` at a fixed offset inside the value resolves to a material on 71.3% of
+  meshes, which is close enough to look like a field and is really the rate at which a fixed offset
+  lands on the `Material` property. Parsing the element properly resolves it on **87%** of the
+  meshes in `1-Medical`, and the rest are meshes with no material at all.
+
+This took textured meshes from **7% of the game to most of it**.
+
+## How it looked before (kept for the record)
 
 `ReadMeshMaterialReferences` finds a mesh's material by searching for the tag block
 `int32 4, int32 5, byte 1` and reading the counted array after it. **A `StaticMesh` does not have

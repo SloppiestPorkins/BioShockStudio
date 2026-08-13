@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Mesh;
@@ -226,5 +226,48 @@ public sealed class StaticMeshGeometryTests(GameFixture game)
         Assert.Null(MeshGeometryReader.Read("Texture2D", payload));
         Assert.True(MeshGeometryReader.IsMeshClass(AssetClasses.StaticMesh));
         Assert.False(MeshGeometryReader.IsMeshClass("Texture2D"));
+    }
+
+    [RequiresGameFact]
+    public void StaticMeshesResolveTheirMaterial()
+    {
+        using var package = BioShockPackage.Open(MedicalPackage);
+
+        int total = 0, resolved = 0, textured = 0;
+
+        foreach (var export in package.Exports.Where(e =>
+                     package.GetClassName(e) == AssetClasses.StaticMesh && e.SerialSize > 0))
+        {
+            total++;
+            var material = Core.Materials.MaterialReader.ReadForMesh(package, export);
+            if (material is null) continue;
+
+            resolved++;
+            if (material.DiffuseTexture is not null) textured++;
+        }
+
+        // A static mesh names its material in its own Materials property, as an array of
+        // FStaticMeshMaterial. Before that was read, the tag-block search found nothing on any of
+        // them and the whole world drew flat grey.
+        Assert.True(resolved > total * 0.8, $"only {resolved} of {total} resolved a material");
+        Assert.True(textured > total * 0.8, $"only {textured} of {total} resolved a diffuse texture");
+    }
+
+    [RequiresGameFact]
+    public void TheDrillNamesItsOwnShader()
+    {
+        using var package = BioShockPackage.Open(MedicalPackage);
+        var drill = package.Exports
+            .Where(e => e.ObjectName == "ConeDrill" && package.GetClassName(e) == AssetClasses.StaticMesh)
+            .MaxBy(e => e.SerialSize)!;
+
+        var references = Core.Materials.MaterialReader.ReadMeshMaterialReferences(
+            package.ReadExportData(drill), package);
+
+        Assert.Single(references);
+
+        var material = Core.Materials.MaterialReader.ReadForMesh(package, drill)!;
+        Assert.Equal("ConeDrillRimShader", material.Name);
+        Assert.NotNull(material.DiffuseTexture);
     }
 }
