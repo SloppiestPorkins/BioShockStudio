@@ -15,6 +15,7 @@ Every claim in these documents carries a confidence label:
 
 | Document | Covers |
 |---|---|
+| [ANIMATION_COORDINATE_SYSTEM.md](ANIMATION_COORDINATE_SYSTEM.md) | The game's basis, the studio's, and the one reflection between them. Read before touching any transform. |
 | [remastered.md](remastered.md) | Install layout, file types, what shipped where. |
 | [packages.md](packages.md) | The `.bsm` package format — header, names, imports, exports. |
 | [havok.md](havok.md) | Havok 2012.2.0-r1 packfile container as BioShock uses it. |

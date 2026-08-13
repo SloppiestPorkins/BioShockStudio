@@ -1,3 +1,4 @@
+using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Havok.Objects;
 using BioShockStudio.Core.Skeleton;
 
@@ -74,12 +75,15 @@ public static class HkaSkeletonReader
             };
         }
 
-        return new BioShockSkeleton
+        // The reference pose above is Havok's, in the game's basis. Converting here means every
+        // consumer of a BioShockSkeleton — preview, FBX, Blender, binding — sees one basis. See
+        // Coordinates/GameBasis.
+        return GameBasis.Convert(new BioShockSkeleton
         {
             Name = name,
             Bones = result,
             SourceSection = section.Tag,
             SourceOffset = objectOffset,
-        };
+        });
     }
 }

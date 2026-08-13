@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using BioShockStudio.Core.Coordinates;
 
 namespace BioShockStudio.Core.Mesh;
 
@@ -69,7 +70,10 @@ public static class StaticMeshReader
         for (int i = 0; i < indices.Length; i++)
             indices[i] = BinaryPrimitives.ReadUInt16LittleEndian(payload[(layout.IndexOffset + i * 2)..]);
 
-        return new MeshGeometry
+        // Everything above reads the game's own bytes in the game's own basis. This is the boundary
+        // where that becomes the studio's internal representation, so the basis conversion happens
+        // here and nowhere downstream. See Coordinates/GameBasis.
+        return GameBasis.Convert(new MeshGeometry
         {
             Vertices = vertices,
             Indices = indices,
@@ -77,7 +81,7 @@ public static class StaticMeshReader
             SkinnedVertexCount = 0,
             RigidVertexCount = 0,
             ExtraUvStreamCount = layout.StreamCount - 1,
-        };
+        });
     }
 
     private readonly record struct GeometryLayout(

@@ -2,3 +2,8 @@ bin/
 obj/
 *.user
 /artifacts/
+
+# Nyko's Bioshock1REMSDK, kept alongside as an independent reverse-engineering reference. It is
+# someone else's project under its own licence, and 137 MB of it, so it is read here and not vendored.
+/Bioshock1REMSDK-WIP--main/
+/Bioshock1REMSDK-WIP--main.zip

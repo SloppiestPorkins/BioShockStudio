@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Numerics;
+using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Mesh;
@@ -218,14 +219,16 @@ public static class SkeletalMeshReader
             vertices.Add(ReadVertexCore(payload, o, influences));
         }
 
-        return new MeshGeometry
+        // As in StaticMeshReader: the raw decode ends here, and the basis conversion is applied once
+        // at this boundary. See Coordinates/GameBasis.
+        return GameBasis.Convert(new MeshGeometry
         {
             Vertices = vertices,
             Indices = indices,
             BoneMap = boneMap,
             SkinnedVertexCount = layout.SkinnedCount,
             RigidVertexCount = layout.RigidCount,
-        };
+        });
     }
 
     private static MeshVertex ReadVertexCore(ReadOnlySpan<byte> payload, int offset, IReadOnlyList<SkinInfluence> influences) =>

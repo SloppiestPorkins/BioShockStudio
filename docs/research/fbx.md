@@ -52,10 +52,22 @@ file would force a resample and quietly change the timing of two of them. Each f
 | | Value | Why |
 |---|---|---|
 | Units | centimetres, unscaled | The game authors in centimetres and so does Unreal. `UnitScaleFactor` is 1. |
-| Axes | Z up, -Y front, X right | The game's own basis. `UpAxis` 2, `FrontAxis` 1 with sign -1, `CoordAxis` 0. |
+| Axes | Z up, -Y front, X right | `UpAxis` 2, `FrontAxis` 1 with sign -1, `CoordAxis` 0. **This is the studio's basis, not the game's** — the two differ by a reflection, applied at decode time. See [ANIMATION_COORDINATE_SYSTEM.md](ANIMATION_COORDINATE_SYSTEM.md). |
 | Node transform | `Lcl Translation`, `Lcl Rotation`, `Lcl Scaling` | All pivots and pre/post rotations left at zero, so the node transform is exactly T·R·S. |
 | Inherit type | 0 (`eInheritRrSs`) | A child's world transform is the plain product of the chain, matching how the scene JSON composes. |
 | Rotation order | 0 (`eEulerXYZ`) | The only order written. |
+
+### Correction: the axis declaration was right for the wrong reason
+
+This table used to describe the axes as "the game's own basis", and that claim was **wrong**. The
+game's basis is left-handed and the declared triple is right-handed, so what the exporter was really
+doing was writing left-handed numbers under a right-handed declaration, which mirrored every asset
+this project has ever produced. Blender's importer turns that declaration into the identity, so
+nothing in the round trip could ever detect it — which is why the FBX validation passed throughout.
+
+Nothing here had to change to fix it. The data now reaching the exporter has been through the basis
+conversion, so the declaration finally describes it truthfully. See
+[ANIMATION_COORDINATE_SYSTEM.md](ANIMATION_COORDINATE_SYSTEM.md).
 
 ### The Euler conversion is the load-bearing part
 

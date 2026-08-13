@@ -1,4 +1,5 @@
 using BioShockStudio.Core.Animation;
+using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Havok.Animation;
 using BioShockStudio.Core.Havok.Animation.SplineCompression;
 using BioShockStudio.Core.Havok.Detection;
@@ -76,11 +77,14 @@ public sealed class AnimationPackage
         for (int track = 0; track < referencePose.Length; track++)
         {
             int bone = animation.Binding.BoneForTrack(track);
+            // The skeleton is already in the studio's basis, but the spline data about to be decoded
+            // is not, and the two are interleaved channel by channel. So the fallback goes back to
+            // the game's basis here and the whole decoded result is converted once, below.
             referencePose[track] = bone >= 0 && bone < Skeleton.BoneCount
-                ? new ReferenceTransform(
+                ? GameBasis.ToGameBasis(new ReferenceTransform(
                     Skeleton.Bones[bone].LocalTranslation,
                     Skeleton.Bones[bone].LocalRotation,
-                    Skeleton.Bones[bone].LocalScale)
+                    Skeleton.Bones[bone].LocalScale))
                 : ReferenceTransform.Identity;
         }
 
@@ -92,7 +96,9 @@ public sealed class AnimationPackage
         foreach (var track in decoded.Tracks)
             track.TargetBoneIndex = animation.Binding.BoneForTrack(track.OriginalTrackIndex);
 
-        return decoded;
+        // One conversion, over the whole animation, into the same basis the skeleton is already in.
+        // There is deliberately no animation-specific adjustment here. See Coordinates/GameBasis.
+        return GameBasis.Convert(decoded);
     }
 
     /// <summary>Loads an <c>AnimationPackageWrapper</c> export.</summary>

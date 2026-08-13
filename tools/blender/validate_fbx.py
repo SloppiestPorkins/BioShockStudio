@@ -253,17 +253,30 @@ def check_animation(fbx_directory, scene, animation, bones, rig_name):
     return worst <= POSE_TOLERANCE, (worst, worst_where)
 
 
+def same_rig(a, b):
+    """Whether two names refer to the same rig.
+
+    An FBX is named after the asset and a scene after the AnimationPackageWrapper that holds it, so
+    'NEWPlayerHands' and 'UAPW_NEWPlayerHands' are the same thing. Comparing them literally is what
+    made this script stop finding its rig.
+    """
+    strip = lambda n: n[len("UAPW_"):] if n.startswith("UAPW_") else n
+    return strip(a) == strip(b)
+
+
 def main():
     scene_path, fbx_directory, rig_name = parse_args()
     scene = json.load(open(scene_path, encoding="utf-8"))
 
     manifest_path = os.path.join(fbx_directory, "ue5_manifest.json")
     manifest = json.load(open(manifest_path, encoding="utf-8"))
-    rig = next((r for r in manifest["rigs"] if r["name"] == (rig_name or scene["sourceObject"])), manifest["rigs"][0])
+    wanted = rig_name or scene["sourceObject"]
+    rig = next((r for r in manifest["rigs"] if same_rig(r["name"], wanted)), manifest["rigs"][0])
 
     # An attached rig — a first-person weapon — is a scene in its own right nested in the host's.
-    if rig["name"] != scene["sourceObject"]:
-        scene = next(a["scene"] for a in scene["attachments"] if a["scene"]["sourceObject"] == rig["name"])
+    if not same_rig(rig["name"], scene["sourceObject"]):
+        scene = next(a["scene"] for a in scene["attachments"]
+                     if same_rig(rig["name"], a["scene"]["sourceObject"]))
 
     bones = scene["bones"]
     globals_ = global_matrices(bones)
