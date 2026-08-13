@@ -36,6 +36,31 @@ public partial class MainViewModel
     private bool _rendering;
     private bool _renderQueued;
 
+    /// <summary>When the last camera move or playback frame happened.</summary>
+    private DateTime _lastInteraction = DateTime.MinValue;
+
+    /// <summary>
+    /// How long after the last interaction the viewport keeps drawing at reduced size.
+    /// </summary>
+    private static readonly TimeSpan InteractionSettle = TimeSpan.FromMilliseconds(220);
+
+    /// <summary>
+    /// Fraction of the full render size used while the camera is moving or an animation is playing.
+    /// </summary>
+    /// <remarks>
+    /// The rasteriser is on the CPU and its cost is per pixel, so full size — physical pixels with
+    /// supersampling on top — is roughly 940,000 of them for a panel this size. That is fine to
+    /// look at and too slow to drag. Dropping to six tenths is a little over a third of the pixels
+    /// and the difference is invisible while something is moving; the full-size frame follows a
+    /// fifth of a second after you stop.
+    /// </remarks>
+    private const double InteractiveScale = 0.6;
+
+    private bool Interacting => DateTime.UtcNow - _lastInteraction < InteractionSettle;
+
+    /// <summary>Marks the viewport as being interacted with, so the next frames draw smaller.</summary>
+    private void NoteInteraction() => _lastInteraction = DateTime.UtcNow;
+
     [ObservableProperty] private Bitmap? _viewport;
     [ObservableProperty] private bool _hasViewport;
     [ObservableProperty] private bool _isPreviewLoading;
@@ -124,7 +149,7 @@ public partial class MainViewModel
     partial void OnShowShadingChanged(bool value) => RequestRender();
     partial void OnShowSkeletonChanged(bool value) => RequestRender();
     partial void OnShowSocketsChanged(bool value) => RequestRender();
-    partial void OnFrameChanged(int value) => RequestRender();
+    partial void OnFrameChanged(int value) { NoteInteraction(); RequestRender(); }
     partial void OnViewportWidthChanged(int value) => RequestRender();
     partial void OnViewportHeightChanged(int value) => RequestRender();
     partial void OnPlaybackSpeedChanged(double value) => RestartPlaybackTimer();
@@ -453,6 +478,7 @@ public partial class MainViewModel
     public void OrbitCamera(double deltaX, double deltaY)
     {
         _camera = _camera.Orbit((float)(-deltaX * 0.01), (float)(deltaY * 0.01));
+        NoteInteraction();
         RequestRender();
     }
 
@@ -460,6 +486,7 @@ public partial class MainViewModel
     public void ZoomCamera(double delta)
     {
         _camera = _camera.Zoom((float)Math.Pow(0.88, delta));
+        NoteInteraction();
         RequestRender();
     }
 
@@ -480,6 +507,7 @@ public partial class MainViewModel
         {
             Target = _camera.Target + right * (float)(-deltaX * scale) + up * (float)(deltaY * scale),
         };
+        NoteInteraction();
         RequestRender();
     }
 
@@ -581,6 +609,7 @@ public partial class MainViewModel
         if (model is null) return;
 
         _rendering = true;
+        bool reduced = false;
         try
         {
             do
@@ -600,8 +629,12 @@ public partial class MainViewModel
 
                 var animation = _animation;
                 int frame = Frame;
-                int width = Math.Max(64, ViewportWidth);
-                int height = Math.Max(64, ViewportHeight);
+                // While something is moving, draw fewer pixels. The frame after it settles is
+                // full size, and RequestRender's queue-one-more means that frame always happens.
+                bool interacting = Interacting;
+                double scale = interacting ? InteractiveScale : 1.0;
+                int width = Math.Max(64, (int)(ViewportWidth * scale));
+                int height = Math.Max(64, (int)(ViewportHeight * scale));
 
                 var attachmentModel = _attachmentModel;
                 var attachmentAnimation = _attachmentAnimation;
@@ -626,6 +659,7 @@ public partial class MainViewModel
 
                 if (!ReferenceEquals(model, _previewModel)) return;
                 Viewport = ToBitmap(image);
+                reduced = interacting;
             }
             while (_renderQueued);
         }
@@ -637,5 +671,16 @@ public partial class MainViewModel
         {
             _rendering = false;
         }
+
+        // The last frame of a drag is a reduced one, and nothing else is coming to replace it —
+        // so draw once more after the interaction has settled. Without this the viewport stays
+        // soft until the next time it is touched.
+        if (reduced) _ = RedrawWhenSettledAsync();
+    }
+
+    private async Task RedrawWhenSettledAsync()
+    {
+        await Task.Delay(InteractionSettle).ConfigureAwait(true);
+        if (!Interacting) RequestRender();
     }
 }

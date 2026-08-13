@@ -316,4 +316,57 @@ public sealed class RenderingTests(GameFixture game)
         Core.Textures.PngWriter.Write(target, image.Rgba, image.Width, image.Height);
         Assert.True(File.Exists(target));
     }
+
+    [RequiresGameFact]
+    public void DrawingIsDeterministicAcrossRuns()
+    {
+        var (service, entry) = Hands();
+        var model = service.Load(entry).Model;
+        var camera = PreviewCamera.Frame(model);
+        var options = new RenderOptions();
+
+        // The rasteriser splits the frame into horizontal bands and draws them in parallel. Bands
+        // own their rows outright, so nothing should race — and a race would show as a frame that
+        // differs from one run to the next.
+        var first = SoftwareRenderer.Render(model, camera, options, 480, 360);
+
+        for (int i = 0; i < 4; i++)
+        {
+            var again = SoftwareRenderer.Render(model, camera, options, 480, 360);
+            Assert.Equal(first.Rgba, again.Rgba);
+        }
+    }
+
+    [RequiresGameFact]
+    public void BandBoundariesLeaveNoSeam()
+    {
+        var (service, entry) = Hands();
+        var model = service.Load(entry).Model;
+        var camera = PreviewCamera.Frame(model);
+        var options = new RenderOptions();
+
+        // A band that clipped a triangle wrongly would leave an empty row where two bands meet.
+        // Render tall enough that several boundaries fall across the model, then look for a row
+        // that is background while the rows either side are not.
+        var image = SoftwareRenderer.Render(model, camera, options, 480, 480);
+
+        for (int y = 1; y < image.Height - 1; y++)
+        {
+            if (RowCoverage(image, y) != 0) continue;
+            if (RowCoverage(image, y - 1) > 20 && RowCoverage(image, y + 1) > 20)
+                Assert.Fail($"row {y} is empty between two covered rows — a band boundary dropped it");
+        }
+    }
+
+    private static int RowCoverage(PreviewImage image, int y, byte background = 32)
+    {
+        int drawn = 0;
+        for (int x = 0; x < image.Width; x++)
+        {
+            int i = (y * image.Width + x) * 4;
+            if (image.Rgba[i] != background || image.Rgba[i + 1] != background || image.Rgba[i + 2] != background)
+                drawn++;
+        }
+        return drawn;
+    }
 }

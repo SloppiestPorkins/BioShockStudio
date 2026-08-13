@@ -1,4 +1,4 @@
-# The application
+﻿# The application
 
 **Projects:** `src/BioShockStudio.App` (Avalonia 11), `src/BioShockStudio.Core/Services`
 **Tests:** `tests/BioShockStudio.Tests/ServiceTests.cs`, `WindowTests.cs`
@@ -203,3 +203,35 @@ rejected); what is actually proven is that their frame counts match exactly.
 - **UE5 export status in the UI.** The FBX option writes files that are validated by round trip
   through Blender. Nothing has been imported into Unreal, so the UI does not offer a "UE5" export —
   offering one would claim a verification that does not exist.
+
+
+## Viewport performance
+
+The rasteriser is on the CPU, so its cost is per pixel and the viewport is drawn at physical pixels
+with supersampling on top — roughly 940,000 of them for a 452-point panel on a 150% display. Three
+things keep that interactive.
+
+**Drawing is parallel, split by scanline band.** Each worker owns a contiguous run of rows outright,
+so its colour and depth writes cannot race another's. Splitting by triangle instead would have two
+workers fighting over the same depth value. Triangles are projected once, then bucketed into the
+bands they reach, so a band only visits what it can draw.
+
+Two tests guard it: one renders the same frame five times and asserts the pixels are identical — a
+race shows up as a frame that differs run to run — and one looks for an empty row between two
+covered rows, which is what a band that clipped a triangle wrongly would leave.
+
+**While something is moving, fewer pixels.** A camera drag or a playing animation marks the viewport
+as interacting and the next frames draw at six tenths of full size, a little over a third of the
+pixels. A fifth of a second after the last interaction, one more frame is drawn at full size. The
+difference is invisible while something is moving and the still frame is sharp.
+
+**Preview textures cap at 1024 square.** The art is mostly 2048 once the bulk store is read, which
+is more texels than a viewport this size can show, at four times the memory and a cache miss per
+sample. Extraction is unaffected — it writes every mip the texture has.
+
+Measured on the first-person hands, 8,726 triangles with diffuse, normal and specular maps:
+
+| | Before | After |
+|---|---|---|
+| Full size, 1085px | 25.8 fps | ~47 fps |
+| Interactive size, 651px | — | ~130 fps |

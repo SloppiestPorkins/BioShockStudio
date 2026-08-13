@@ -319,10 +319,11 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
     }
 
     /// <summary>
-    /// Largest mip edge the preview will decode. Above this the memory stops being worth it; the
-    /// game ships nothing larger.
+    /// Largest mip edge the preview will decode. Not a quality ceiling on the tool — the extractor
+    /// writes the whole chain — but the point past which a viewport cannot show the difference and
+    /// the renderer pays for it on every sample.
     /// </summary>
-    private const int MaximumPreviewTexture = 2048;
+    private const int MaximumPreviewTexture = 1024;
 
     private PreviewImage? LoadTexture(BioShockPackage package, string? name)
     {
@@ -342,8 +343,10 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         if (texture is null || texture.Mips.Count == 0) return null;
 
-        // The full-resolution mip. A 512-square cap was cheap and visibly soft: the shipped art is
-        // mostly 1024 and 2048, and throwing three quarters of it away before drawing showed.
+        // A 512-square cap was cheap and visibly soft — the shipped art is mostly 1024 and 2048 —
+        // and the full 2048 is more texels than a viewport this size can show, at four times the
+        // memory and a cache miss per sample. 1024 is the point where more stops being visible.
+        // Extraction is unaffected: it writes every mip the texture has.
         int index = 0;
         for (int i = 0; i < texture.Mips.Count; i++)
         {

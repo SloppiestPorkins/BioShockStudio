@@ -210,24 +210,68 @@ public static class SoftwareRenderer
             ? SortedTriangles(model, positions, camera.Eye)
             : null;
 
+        // Project once rather than once per band.
+        int triangleCount = model.Indices.Count / 3;
+        var projected = new (Projected A, Projected B, Projected C, int IA, int IB, int IC, bool Ok)[triangleCount];
+
+        for (int t = 0; t < triangleCount; t++)
+        {
+            int i = t * 3;
+            int ia = model.Indices[i], ib = model.Indices[i + 1], ic = model.Indices[i + 2];
+            if (ia >= positions.Length || ib >= positions.Length || ic >= positions.Length) continue;
+
+            if (Project(positions[ia], viewProjection, target, out var pa)
+                && Project(positions[ib], viewProjection, target, out var pb)
+                && Project(positions[ic], viewProjection, target, out var pc))
+            {
+                projected[t] = (pa, pb, pc, ia, ib, ic, true);
+            }
+        }
+
+        // Drawing is split into horizontal bands, one per worker. A band owns its rows outright, so
+        // its depth writes cannot race another's — which is why the split is by scanline and not by
+        // triangle. The whole model is walked per band, but the bounding-box reject is a handful of
+        // comparisons and the per-pixel work is what actually costs.
+        int bands = Math.Clamp(Environment.ProcessorCount, 1, 16);
+        int rowsPerBand = Math.Max(1, (target.Height + bands - 1) / bands);
+
+        // Each band gets only the triangles that reach it. Walking the whole model per band costs
+        // more in bounding-box setup than the parallelism buys back — on the hands that is 8,726
+        // triangles times sixteen bands for the sake of the few hundred each band actually draws.
+        var buckets = new List<int>[bands];
+        for (int i = 0; i < bands; i++) buckets[i] = [];
+
+        for (int t = 0; t < triangleCount; t++)
+        {
+            int index = order is null ? t : order[t];
+            var (pa, pb, pc, _, _, _, ok) = projected[index];
+            if (!ok) continue;
+
+            int top = (int)MathF.Floor(Math.Min(pa.Y, Math.Min(pb.Y, pc.Y)));
+            int bottom = (int)MathF.Ceiling(Math.Max(pa.Y, Math.Max(pb.Y, pc.Y)));
+            if (bottom < 0 || top > target.Height - 1) continue;
+
+            int firstBand = Math.Clamp(top / rowsPerBand, 0, bands - 1);
+            int lastBand = Math.Clamp(bottom / rowsPerBand, 0, bands - 1);
+
+            // Order matters in the blended pass, and appending in sorted order preserves it.
+            for (int band = firstBand; band <= lastBand; band++) buckets[band].Add(index);
+        }
+
         for (int pass = 0; pass < (hasAlpha ? 2 : 1); pass++)
         {
             bool blendPass = pass == 1;
-            int triangleCount = model.Indices.Count / 3;
 
-            for (int t = 0; t < triangleCount; t++)
+            Parallel.For(0, bands, band =>
             {
-                int i = (order is null ? t : order[t]) * 3;
+            int firstRow = band * rowsPerBand;
+            int lastRow = Math.Min(target.Height - 1, firstRow + rowsPerBand - 1);
+            if (firstRow > lastRow) return;
 
-                int a = model.Indices[i], b = model.Indices[i + 1], c = model.Indices[i + 2];
-                if (a >= positions.Length || b >= positions.Length || c >= positions.Length) continue;
-
-                if (!Project(positions[a], viewProjection, target, out var pa) ||
-                    !Project(positions[b], viewProjection, target, out var pb) ||
-                    !Project(positions[c], viewProjection, target, out var pc))
-                {
-                    continue;
-                }
+            foreach (int index in buckets[band])
+            {
+                var (pa, pb, pc, a, b, c, ok) = projected[index];
+                if (!ok) continue;
 
                 RasteriseTriangle(target, pa, pb, pc, (bary, depth, x, y) =>
                 {
@@ -288,8 +332,9 @@ public static class SoftwareRenderer
                         target.Blend(x, y, Clamp(red), Clamp(green), Clamp(blue), alpha / 255f);
                     else
                         target.Plot(x, y, depth, Clamp(red), Clamp(green), Clamp(blue));
-                });
+                }, firstRow, lastRow);
             }
+            });
         }
     }
 
@@ -407,15 +452,28 @@ public static class SoftwareRenderer
     }
 
     private static void RasteriseTriangle(
-        RenderTarget target, Projected a, Projected b, Projected c, Action<Vector3, float, int, int> shade)
+        RenderTarget target, Projected a, Projected b, Projected c, Action<Vector3, float, int, int> shade) =>
+        RasteriseTriangle(target, a, b, c, shade, 0, target.Height - 1);
+
+    /// <summary>
+    /// Rasterises a triangle, clipped to a band of scanlines.
+    /// </summary>
+    /// <remarks>
+    /// The band is what makes drawing parallel safe. A thread that owns rows <c>[firstRow, lastRow]</c>
+    /// is the only writer of those pixels and of their depth, so no triangle can race another —
+    /// splitting by triangle instead would have two threads fighting over the same depth value.
+    /// </remarks>
+    private static void RasteriseTriangle(
+        RenderTarget target, Projected a, Projected b, Projected c, Action<Vector3, float, int, int> shade,
+        int firstRow, int lastRow)
     {
         float area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
         if (MathF.Abs(area) < 1e-6f) return;
 
         int minX = Math.Max(0, (int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))));
         int maxX = Math.Min(target.Width - 1, (int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))));
-        int minY = Math.Max(0, (int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))));
-        int maxY = Math.Min(target.Height - 1, (int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))));
+        int minY = Math.Max(firstRow, (int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))));
+        int maxY = Math.Min(lastRow, (int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))));
 
         for (int y = minY; y <= maxY; y++)
         {
