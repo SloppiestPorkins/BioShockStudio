@@ -168,19 +168,27 @@ front on the desktop, not the window you meant — this went wrong once and caug
 
 ## 6. What to do next, in priority order
 
-### 6.1 Attachment placement under animation
+### 6.1 Where a `StaticMesh` names its material — highest value
 
-Static props now resolve and draw (§2). What is **not** yet done is placing them while an animation
-plays: the preview applies the socket bone's *rest* transform, so a prop stays where the bind pose
-put it while the host moves.
+Of 630 meshes that draw in `1-Medical`, only **22 resolve a diffuse texture**. The Bouncer's body is
+textured; its drill, cage and backpack draw flat grey, and so does most of the world.
 
-The first-person set already solves the equivalent problem for a skeletal attachment — see
-`ContextTests.Render_ContextSnapshot`, which poses host and weapon together at frame 27 — so the
-work is to feed the host's posed bone matrix to a static prop's `PreviewInstance` rather than
-`RestGlobal`, and to carry the same into the FBX as a parent constraint.
+`MaterialReader.ReadMeshMaterialReferences` finds a mesh's material by searching for the tag block
+`int32 4, int32 5, byte 1`. **A static mesh does not have that tag block** — its equivalent is
+`int32 4, int32 8, int32 1`, and no material reference follows it. Unlike a skeletal mesh, whose
+property list is empty, a static mesh has a real one holding `Materials`, and that walk currently
+ends `truncated`, on a numbered `None`.
 
-Placement itself is verified: on the hands, `CS_butt` lands at the left fingertips and `CS_photo` at
-the right hand, with no offset beyond the socket bone's global transform.
+`docs/research/materials.md` has the byte evidence, including a candidate reading of `ConeDrill`'s
+`Materials` value that resolves to `ConeDrillRimShader`, a `FacingShader` — right class, right name.
+It is recorded as suggestive and **nothing has been changed on the strength of it**, because the
+surrounding bytes are identical across three different meshes, which means the walk is misaligned
+and that offset is probably an artefact.
+
+**How to start:** hand-decode a static mesh's property list from offset 8 and find where alignment is
+lost. It may be the same cause as §6.5.
+
+This also gates transparency: a mesh with no material has no texture, so it has no alpha either.
 
 ### 6.2 The skeletal geometry variant
 
@@ -224,7 +232,18 @@ declared size is one byte short of its content. Byte evidence for both the worki
 case is in `docs/research/materials.md`. The reader stops cleanly and flags the material `Truncated`
 rather than inventing properties.
 
-### 6.6 Smaller things
+### 6.6 Attachment placement under animation
+
+Static props resolve and draw, but on the socket bone's *rest* transform, so a prop stays where the
+bind pose put it while the host moves. The first-person set already solves this for a skeletal
+attachment — see `ContextTests.Render_ContextSnapshot`, which poses host and weapon together at
+frame 27 — so the work is feeding the host's posed bone matrix to a static prop's `PreviewInstance`
+instead of `RestGlobal`, and carrying the same into the FBX as a parent constraint.
+
+Placement itself is verified: on the hands, `CS_butt` lands at the left fingertips and `CS_photo` at
+the right hand, with no offset beyond the socket bone's global transform.
+
+### 6.7 Smaller things
 
 - **Bone picking.** `RenderOptions.SelectedBone` highlights a bone; nothing in the UI selects one,
   and bone names are not drawn.
