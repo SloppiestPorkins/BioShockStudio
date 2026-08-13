@@ -1,5 +1,6 @@
-using BioShockStudio.Core.Game;
+﻿using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
 using Xunit;
 
@@ -200,5 +201,39 @@ public sealed class BulkTextureTests(GameFixture game)
         // The bulk store is an addition, not a dependency: an install without it reads as before.
         Assert.Equal(a.Mips.Count, b.Mips.Count);
         Assert.Equal(a.Width, b.Width);
+    }
+
+    [RequiresGameFact]
+    public void ExtractionWritesTheFullResolutionTexture()
+    {
+        var catalog = new AssetCatalogService();
+        catalog.RegisterInstall(game.RequireRoot);
+
+        using var package = BioShockPackage.Open(MedicalPackage);
+        var mesh = package.Exports
+            .Where(e => e.ObjectName == "Ammo_Pickup_Kerosene" && package.GetClassName(e) == "StaticMesh")
+            .MaxBy(e => e.SerialSize)!;
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-bulk-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            // The extractor takes the bulk store too, or every PNG it wrote would be a 64-square
+            // thumbnail of art that is really 2048.
+            var material = Core.Export.MaterialExporter.Resolve(package, mesh, directory, catalog.Bulk);
+            Assert.NotNull(material);
+
+            var written = Directory.GetFiles(directory, "*.png", SearchOption.AllDirectories);
+            Assert.NotEmpty(written);
+
+            // A 2048-square DXT1 PNG is far larger than a 64-square one; this is the cheap proof
+            // that full-resolution data reached the file rather than the tail.
+            Assert.Contains(written, f => new FileInfo(f).Length > 200_000);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { /* best effort */ }
+        }
     }
 }

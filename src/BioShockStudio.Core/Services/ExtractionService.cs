@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Assets;
+﻿using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
@@ -187,7 +187,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
         return perAsset ? Path.Combine(root, Sanitise(entry.Group)) : root;
     }
 
-    private static string? ExtractTexture(
+    private string? ExtractTexture(
         BioShockPackage package, CatalogEntry entry, ExtractionOptions options, string directory)
     {
         if ((options.Formats & (ExportFormats.Png | ExportFormats.Dds)) == 0) return null;
@@ -197,7 +197,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             .MaxBy(e => e.SerialSize)
             ?? throw new FileNotFoundException($"'{entry.ObjectName}' is not in {entry.Package}.");
 
-        var texture = TextureReader.Read(package, export)
+        var texture = TextureReader.Read(package, export, catalog.Bulk)
             ?? throw new InvalidDataException("This texture's format is not understood.");
 
         Directory.CreateDirectory(directory);
@@ -219,7 +219,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
         return directory;
     }
 
-    private static string? ExtractMaterialTextures(
+    private string? ExtractMaterialTextures(
         BioShockPackage package, CatalogEntry entry, ExtractionOptions options, string directory)
     {
         if ((options.Formats & ExportFormats.Png) == 0) return null;
@@ -242,7 +242,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
                 .MaxBy(e => e.SerialSize);
             if (textureExport is null) continue;
 
-            var texture = TextureReader.Read(package, textureExport);
+            var texture = TextureReader.Read(package, textureExport, catalog.Bulk);
             if (texture is null || texture.Mips.Count == 0) continue;
 
             var top = texture.Mips[0];
@@ -264,7 +264,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
     /// alone — an animation without its skeleton is a list of numbers, and a skinned mesh without
     /// its bones has nothing to deform it.
     /// </remarks>
-    private static string? ExtractGroup(
+    private string? ExtractGroup(
         BioShockPackage package,
         CatalogEntry entry,
         ExtractionOptions options,
@@ -308,7 +308,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             byte[] payload = package.ReadExportData(meshExport);
             sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
             geometry = SkeletalMeshReader.ReadGeometry(payload);
-            material = MaterialExporter.Resolve(package, meshExport, directory);
+            material = MaterialExporter.Resolve(package, meshExport, directory, catalog.Bulk);
         }
 
         var events = new Dictionary<string, IReadOnlyList<AnimationEvent>>(StringComparer.Ordinal);
@@ -339,7 +339,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
     /// <summary>
     /// Extracts a single static mesh: geometry and material, no skeleton and no animations.
     /// </summary>
-    private static string? ExtractStaticMesh(
+    private string? ExtractStaticMesh(
         BioShockPackage package, CatalogEntry entry, ExtractionOptions options, string directory)
     {
         var export = package.Exports
@@ -354,7 +354,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
                 + "See docs/research/staticmesh.md.");
 
         Directory.CreateDirectory(directory);
-        var material = MaterialExporter.Resolve(package, export, directory);
+        var material = MaterialExporter.Resolve(package, export, directory, catalog.Bulk);
         var scene = AnimationSceneExporter.BuildStatic(entry.Package, export.ObjectName, geometry, material);
 
         if (options.Formats.HasFlag(ExportFormats.SceneJson))

@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Materials;
+﻿using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
 
@@ -21,7 +21,8 @@ public static class MaterialExporter
     /// substituted: the slot is simply absent from the result, so a missing map is visible as a
     /// missing map instead of a black image.
     /// </remarks>
-    public static SceneMaterial? Resolve(BioShockPackage package, ObjectExport meshExport, string outputDirectory)
+    public static SceneMaterial? Resolve(
+        BioShockPackage package, ObjectExport meshExport, string outputDirectory, BulkTextureCatalog? bulk = null)
     {
         var material = MaterialReader.ReadForMesh(package, meshExport);
         if (material is null) return null;
@@ -39,7 +40,7 @@ public static class MaterialExporter
                 continue;
             }
 
-            string? file = WriteTexture(package, texture, outputDirectory);
+            string? file = WriteTexture(package, texture, outputDirectory, bulk);
             if (file is null) continue;
 
             written[texture.TextureName] = file;
@@ -77,13 +78,14 @@ public static class MaterialExporter
         return null;
     }
 
-    private static string? WriteTexture(BioShockPackage package, MaterialTexture texture, string outputDirectory)
+    private static string? WriteTexture(
+        BioShockPackage package, MaterialTexture texture, string outputDirectory, BulkTextureCatalog? bulk)
     {
         var export = Resolve(package, texture);
         if (export is null) return null;
 
         BioShockTexture? decoded;
-        try { decoded = TextureReader.Read(package, export); }
+        try { decoded = TextureReader.Read(package, export, bulk); }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
         {
             return null;
