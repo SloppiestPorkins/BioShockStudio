@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**184/184 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 23 commits
+**186/186 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 25 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -285,6 +285,20 @@ These are the project's, and they are why its claims have held up.
    later evidence — `HkMeshProxy` being a material link, and the geometry/material failures sharing
    a cause. Both corrections are recorded where the wrong claim was.
 
+## 7b. Where the project actually stands
+
+`docs/QUALITY.md` is a sweep of all 9,672 mesh exports and all 16,025 animations:
+
+| | Total | Good |
+|---|---|---|
+| Meshes decoded | 9,672 | **9,654 (99.8%)** |
+| Animations decoded | 16,025 | **16,025 (100%)** |
+| Meshes with a diffuse texture | 9,672 | **680 (7.0%)** |
+
+Geometry and animation are essentially done. **Materials are the one large gap**, and §6.1 is its
+cause. That file also records which of the audit's checks fired on correct data, so the next person
+does not chase them.
+
 ## 8. Open unknowns
 
 `docs/research/open-questions.md`, in priority order. The load-bearing ones: what Unreal does with
@@ -298,6 +312,7 @@ reference — as opposed to a socket or notify — points from a Big Daddy at a 
 
 1. This file.
 2. `docs/research/README.md` — the index and the confidence labels.
-3. `docs/GUI.md` — if touching the application.
-4. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
+3. `docs/QUALITY.md` — what is measurably still wrong, and what only looks wrong.
+4. `docs/GUI.md` — if touching the application.
+5. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
    `materials.md`, `fbx.md`, `context.md`, `binding.md`, `havok-compression.md`.
