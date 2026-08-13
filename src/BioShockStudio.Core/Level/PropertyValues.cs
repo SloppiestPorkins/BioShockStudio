@@ -1,0 +1,104 @@
+using System.Buffers.Binary;
+using System.Numerics;
+using BioShockStudio.Core.Packages;
+
+namespace BioShockStudio.Core.Level;
+
+/// <summary>
+/// Decodes the value bytes of an <see cref="UnrealProperty"/>.
+/// <para>
+/// The property reader deliberately keeps values as bytes, because what a value means depends on
+/// the property's type and, for structs, on its struct name. These helpers do that reading in one
+/// place so no caller has to know that an <c>Object</c> value is an <c>FCompactIndex</c> and a
+/// <c>Name</c> value is an index plus a number.
+/// </para>
+/// </summary>
+public static class PropertyValues
+{
+    /// <summary>An <c>Object</c> or <c>Class</c> property's reference, or null when it will not decode.</summary>
+    public static PackageIndex? AsReference(UnrealProperty property)
+    {
+        int offset = 0;
+        try { return new PackageIndex(ReadCompactIndex(property.Value, ref offset)); }
+        catch { return null; }
+    }
+
+    /// <summary>A <c>Name</c> property's text, resolved against the package's name table.</summary>
+    public static string? AsName(UnrealProperty property, BioShockPackage package)
+    {
+        int offset = 0;
+        int index;
+        try { index = ReadCompactIndex(property.Value, ref offset); }
+        catch { return null; }
+        if (index < 0 || index >= package.Names.Count || offset + 4 > property.Value.Length) return null;
+        int number = BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(offset));
+        string name = package.Names[index].Name;
+        return number == 0 ? name : name + (number - 1);
+    }
+
+    /// <summary>A twelve-byte <c>Vector</c> struct.</summary>
+    public static Vector3? AsVector(UnrealProperty property)
+    {
+        if (property.Value.Length < 12) return null;
+        return new Vector3(
+            BinaryPrimitives.ReadSingleLittleEndian(property.Value),
+            BinaryPrimitives.ReadSingleLittleEndian(property.Value.AsSpan(4)),
+            BinaryPrimitives.ReadSingleLittleEndian(property.Value.AsSpan(8)));
+    }
+
+    /// <summary>A twelve-byte <c>Rotator</c> struct: three int32 angles in Unreal's 65,536-per-turn units.</summary>
+    public static UnrealRotator? AsRotator(UnrealProperty property)
+    {
+        if (property.Value.Length < 12) return null;
+        return new UnrealRotator(
+            BinaryPrimitives.ReadInt32LittleEndian(property.Value),
+            BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(4)),
+            BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(8)));
+    }
+
+    /// <summary>
+    /// The elements of an array of object references: an <c>FCompactIndex</c> count followed by that
+    /// many <c>FCompactIndex</c> references. Returns what it could read rather than throwing, so a
+    /// list whose element type is something else yields nothing instead of nonsense.
+    /// </summary>
+    public static IReadOnlyList<PackageIndex> AsReferenceArray(UnrealProperty property)
+    {
+        var result = new List<PackageIndex>();
+        int offset = 0;
+        int count;
+        try { count = ReadCompactIndex(property.Value, ref offset); }
+        catch { return result; }
+        if (count <= 0 || count > property.Value.Length) return result;
+
+        for (int i = 0; i < count; i++)
+        {
+            int value;
+            try { value = ReadCompactIndex(property.Value, ref offset); }
+            catch { break; }
+            result.Add(new PackageIndex(value));
+        }
+        return result;
+    }
+
+    internal static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
+    {
+        byte b = data[offset++];
+        bool negative = (b & 0x80) != 0;
+        int value = b & 0x3F;
+
+        if ((b & 0x40) != 0)
+        {
+            int shift = 6;
+            while (true)
+            {
+                byte c = data[offset++];
+                value |= (c & 0x7F) << shift;
+                shift += 7;
+                if ((c & 0x80) == 0) break;
+                if (shift > 31) throw new InvalidDataException("FCompactIndex overflow.");
+            }
+        }
+
+        return negative ? -value : value;
+    }
+}
