@@ -334,6 +334,8 @@ public partial class MainViewModel
                 }
             }
 
+            SelectAnimationSetForAttachment(candidate);
+
             await PairAttachmentAnimationAsync(subject.Animations);
             RequestRender();
         }
@@ -341,6 +343,34 @@ public partial class MainViewModel
         {
             ViewportProblem = ex.Message;
         }
+    }
+
+    /// <summary>
+    /// Switches the host's animation list to the set that belongs to the chosen attachment.
+    /// </summary>
+    /// <remarks>
+    /// Playing the Pistol set while the grenade launcher is attached poses the hands for a gun that
+    /// is not there — the launcher passes through the forearm and neither hand is on the grip. It
+    /// reads as a broken attachment, and it is really a mismatched animation, so the two are now
+    /// tied together.
+    /// <para>
+    /// A current selection inside the new set is kept; one from another weapon's set is dropped,
+    /// because it is the thing that was drawing wrongly.
+    /// </para>
+    /// </remarks>
+    private void SelectAnimationSetForAttachment(AttachmentCandidate candidate)
+    {
+        if (!HasAnimationSets) return;
+
+        var owners = _animationSets.Select(a => a.Owner).Distinct(StringComparer.Ordinal).ToList();
+        string? set = AssetContextService.AnimationSetFor(candidate, owners);
+        if (set is null || !AnimationSets.Contains(set)) return;
+
+        bool selectionBelongs = SelectedAnimation is not null
+            && _animationSets.Any(a => a.Name == SelectedAnimation && a.Owner == set);
+
+        if (!selectionBelongs) SelectedAnimation = null;
+        SelectedAnimationSet = set;
     }
 
     /// <summary>Finds and loads the attachment animation that goes with the host's current one.</summary>
@@ -353,7 +383,16 @@ public partial class MainViewModel
         if (paired is null) return;
 
         var candidate = _attachment;
-        _attachmentAnimation = await Task.Run(() => _preview.LoadAttachmentAnimation(candidate, paired));
+        var loaded = await Task.Run(() => _preview.LoadAttachmentAnimation(candidate, paired));
+        if (loaded is null) return;
+
+        // The name match is a heuristic; the frame counts are the evidence. A first-person animation
+        // is one performance played on two rigs, so the partner has exactly as many frames. Posing a
+        // 2-frame weapon animation against a 44-frame hands animation was pairing FireLauncher with
+        // FireLast and moving the weapon on its own.
+        if (_animation is not null && loaded.FrameCount != _animation.FrameCount) return;
+
+        _attachmentAnimation = loaded;
     }
 
     private async Task LoadAnimationAsync(string? name)

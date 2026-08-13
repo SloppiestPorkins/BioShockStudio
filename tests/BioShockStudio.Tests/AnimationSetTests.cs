@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Game;
+﻿using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Services;
 using Xunit;
@@ -106,5 +106,63 @@ public sealed class AnimationSetTests(GameFixture game)
 
         Assert.Equal(130, subject.AnimationSets.Count);
         Assert.Contains("Pistol", subject.AnimationSets.Select(a => a.Owner));
+    }
+
+    [RequiresGameFact]
+    public void EveryWeaponResolvesToTheHandsAnimationSetForIt()
+    {
+        var catalog = new AssetCatalogService();
+        catalog.RegisterInstall(game.RequireRoot);
+
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+        var hands = AssetCatalogService.Catalogue(package, "0-Lighthouse")
+            .Single(e => e.Name == "NEWPlayerHands" && e.Category == AssetCategory.FirstPerson);
+
+        var preview = new MeshPreviewService(catalog);
+        var subject = preview.Load(hands);
+        var sets = subject.AnimationSets.Select(a => a.Owner).Distinct().ToList();
+
+        var expected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Pistol"] = "Pistol",
+            ["Launcher"] = "GrenadeLauncher",
+            ["Crossbow"] = "Crossbow",
+            ["Chem"] = "ChemicalThrower",
+            ["TommyGun"] = "TommyGun",
+        };
+
+        var attachments = new AssetContextService(catalog).Attachments(hands);
+
+        foreach (var attachment in attachments)
+        {
+            if (!expected.TryGetValue(attachment.Socket, out string? want)) continue;
+
+            string? set = AssetContextService.AnimationSetFor(attachment, sets);
+
+            // Playing one weapon's animations while another is attached poses the hands for a gun
+            // that is not there, which looks exactly like a broken attachment.
+            Assert.Equal(want, set);
+        }
+    }
+
+    [RequiresGameFact]
+    public void AnimationSetForFallsBackToTheSocketName()
+    {
+        var sets = new[] { "Default", "GrenadeLauncher", "Pistol" };
+
+        // Group first: WP_GrenadeLauncher names the set exactly.
+        var byGroup = new AttachmentCandidate(
+            "Launcher", "R_Grip", "ShockGame", "WP_GrenadeLauncher", "m", "w", "Confirmed", "e");
+        Assert.Equal("GrenadeLauncher", AssetContextService.AnimationSetFor(byGroup, sets));
+
+        // Socket second, when the group says nothing useful.
+        var bySocket = new AttachmentCandidate(
+            "Pistol", "R_Grip", "ShockGame", "Weapons", "m", "w", "Confirmed", "e");
+        Assert.Equal("Pistol", AssetContextService.AnimationSetFor(bySocket, sets));
+
+        // And nothing rather than a wrong guess.
+        var unknown = new AttachmentCandidate(
+            "zz", "R_Grip", "ShockGame", "zz", "m", "w", "Confirmed", "e");
+        Assert.Null(AssetContextService.AnimationSetFor(unknown, sets));
     }
 }

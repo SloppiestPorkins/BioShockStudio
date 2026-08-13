@@ -317,6 +317,35 @@ public sealed class AssetContextService(AssetCatalogService catalog)
     }
 
     /// <summary>
+    /// The host animation set that belongs to an attachment.
+    /// </summary>
+    /// <remarks>
+    /// The hands carry 130 animations in sets named after the weapons — <c>Pistol</c>,
+    /// <c>GrenadeLauncher</c>, <c>Crossbow</c>, <c>ChemicalThrower</c> — and playing one weapon's
+    /// set while another is attached poses the hands for a gun that is not there. It looks exactly
+    /// like a broken attachment: the launcher passes through the forearm and neither hand is on it.
+    /// <para>
+    /// Matched on the attachment's group first, since <c>WP_GrenadeLauncher</c> names the set
+    /// exactly, and on the socket name second — the socket is <c>Launcher</c> where the set is
+    /// <c>GrenadeLauncher</c>.
+    /// </para>
+    /// </remarks>
+    public static string? AnimationSetFor(AttachmentCandidate attachment, IReadOnlyList<string> sets)
+    {
+        if (sets.Count == 0) return null;
+
+        string group = attachment.Group.StartsWith(WeaponGroupPrefix, StringComparison.OrdinalIgnoreCase)
+            ? attachment.Group[WeaponGroupPrefix.Length..]
+            : attachment.Group;
+
+        var (byGroup, groupRank) = BestByName(Normalise(group), sets, s => s);
+        if (groupRank != NoMatch) return byGroup;
+
+        var (bySocket, socketRank) = BestByName(NormaliseSocket(attachment.Socket), sets, s => s);
+        return socketRank == NoMatch ? null : bySocket;
+    }
+
+    /// <summary>
     /// Names the attachment animation that plays with a host animation.
     /// </summary>
     /// <remarks>

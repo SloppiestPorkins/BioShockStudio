@@ -91,6 +91,13 @@ Each of these produced a plausible, wrong result before it was understood.
 - **A first-person animation is a two-rig performance.** The hands' `Pistol` socket names bone
   `R_Grip`; the weapon's skeleton is rooted at `R_grip`; their animations are frame-identical. Do
   not merge the skeletons.
+- **Playing one weapon's animation set with another weapon attached looks exactly like a broken
+  attachment.** The launcher passes through the forearm and neither hand is on the grip — and
+  nothing is wrong with the attachment at all; the hands are posed for a gun that is not there. The
+  attachment picker now switches the animation set with it.
+- **Pair attachment animations by frame count, not by name.** The name match is a heuristic and it
+  paired the hands' 44-frame `FireLauncher` with the weapon's 2-frame `FireLast`. Two rigs playing
+  one performance have exactly the same number of frames; anything else is a different take.
 - **FBX has no quaternion channel for a node's rotation.** Every rotation converts to Euler, order
   `Rz · Ry · Rx` on column vectors. A wrong order animates plausibly and wrongly.
 - **One FBX declares one frame rate**, and the shipped animations do not share one — 30.00, 29.94
