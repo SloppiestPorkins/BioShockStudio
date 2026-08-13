@@ -134,10 +134,17 @@ been imported into Unreal Engine 5 and `tools/ue5/import_bioshock.py` has never 
 would be settled by one import: whether Unreal takes the `SOCKET_*` null nodes as sockets or as
 bones, and whether the notify API in that script exists under the name it uses.
 
-## 13. Bulk content (`.blk`)
+## 13. ~~Bulk content (`.blk`)~~ — CLOSED
 
-~8 GB across 201 chunks, referenced via `CachedBulkDataSize`. Almost certainly the high-resolution
-textures. Not on the critical path for animation.
+`CONFIRMED_BYTES`. It is the high-resolution textures, and it was on the critical path after all:
+most of the game's art ships with its top mips stripped out, so the packages carry chains topping
+out at 64 square. `Catalog.bdc` indexes the 201 chunks by texture name, and every one of its 5,777
+entries has a 32,768-aligned offset and a size that is an exact mip-chain sum. Recovered mips are
+verified against the level the package kept — typical agreement 1-2%. See
+[bulkcontent.md](bulkcontent.md).
+
+`UNKNOWN` remains: the 23-byte header, and the nine textures per package whose size does not
+decompose against their declared dimensions.
 
 ## 14. ~~Third-person packages lack per-weapon sections~~ — CLOSED
 

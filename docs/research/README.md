@@ -1,4 +1,4 @@
-# Research notes
+﻿# Research notes
 
 Every claim in these documents carries a confidence label:
 
@@ -25,6 +25,7 @@ Every claim in these documents carries a confidence label:
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
 | [firstperson.md](firstperson.md) | First-person hands, weapons and the pistol target case. |
 | [fbx.md](fbx.md) | The FBX the exporter writes, and what it cannot carry. |
+| [bulkcontent.md](bulkcontent.md) | The 8 GB of stripped texture mips, and the catalogue into them. |
 | [materials.md](materials.md) | `Shader` objects, and how a mesh names the one it uses. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |

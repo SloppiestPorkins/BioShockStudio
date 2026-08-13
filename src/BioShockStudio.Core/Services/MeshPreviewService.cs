@@ -306,7 +306,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
     /// nothing. A mesh with no resolvable material simply draws in flat grey; a material that binds
     /// only some of the three gets only those.
     /// </remarks>
-    private static (PreviewImage? Diffuse, PreviewImage? Normal, PreviewImage? Specular) LoadMaps(
+    private (PreviewImage? Diffuse, PreviewImage? Normal, PreviewImage? Specular) LoadMaps(
         BioShockPackage package, ObjectExport meshExport)
     {
         var material = MaterialReader.ReadForMesh(package, meshExport);
@@ -324,7 +324,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
     /// </summary>
     private const int MaximumPreviewTexture = 2048;
 
-    private static PreviewImage? LoadTexture(BioShockPackage package, string? name)
+    private PreviewImage? LoadTexture(BioShockPackage package, string? name)
     {
         if (name is null) return null;
 
@@ -334,7 +334,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         if (export is null) return null;
 
         BioShockTexture? texture;
-        try { texture = TextureReader.Read(package, export); }
+        try { texture = TextureReader.Read(package, export, catalog.Bulk); }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
         {
             return null;

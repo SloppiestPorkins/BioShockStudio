@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Packages;
+﻿using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
 
 namespace BioShockStudio.Core.Services;
@@ -107,7 +107,7 @@ public sealed class TexturePreviewService(AssetCatalogService catalog)
         return texture.Mips.Count - 1;
     }
 
-    private static BioShockTexture? Read(BioShockPackage package, CatalogEntry entry)
+    private BioShockTexture? Read(BioShockPackage package, CatalogEntry entry)
     {
         var export = entry.ExportIndex >= 0 && entry.ExportIndex < package.Exports.Count
             ? package.Exports[entry.ExportIndex]
@@ -117,7 +117,7 @@ public sealed class TexturePreviewService(AssetCatalogService catalog)
 
         if (export is null) return null;
 
-        try { return TextureReader.Read(package, export); }
+        try { return TextureReader.Read(package, export, catalog.Bulk); }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
         {
             return null;

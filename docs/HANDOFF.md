@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**188/188 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 27 commits
+**196/196 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 29 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -45,6 +45,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
 | Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
+| Bulk content | The 8 GB of stripped mips is indexed and read: 1,530 of 1,539 stripped textures in `1-Medical` come back at full size. |
 | Transparency | The viewport cuts out holes and blends translucent surfaces, from the texture's own alpha. |
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
@@ -118,6 +119,12 @@ Each of these produced a plausible, wrong result before it was understood.
   Rejecting that zero is what kept every weapon viewmodel undrawable — 38.1% of skeletal meshes
   decoded, now 98.1% — while their sockets, skeletons, animations and materials all resolved, so
   nothing looked broken except the empty viewport.
+- **Most textures are not in the packages.** They ship stripped, with the top mips in
+  `BulkContent`, so a texture that says `USize 2048` carries a chain topping out at 64 — 1,639 of
+  ~1,937 in one package. Nothing inside a package reveals this except `HasBeenStripped`, so the
+  tool drew the bottom of the chain for most of the game and looked merely blurry.
+- **`StrippedNumMips` is not reliable.** Deriving the recovered chain from it gets 542 of 1,539
+  textures; deriving it from the blob size — the run of levels that sums to it exactly — gets 1,530.
 - **A `SkeletalMesh`'s property list is empty.** Its material reference is in the binary payload,
   after a tag block whose position varies between meshes (64 in `NEWPlayerHands`, 54 in
   `WP_PistolMesh`), so the block is found by search.

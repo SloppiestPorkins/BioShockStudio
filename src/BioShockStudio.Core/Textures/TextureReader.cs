@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Textures;
@@ -35,6 +35,20 @@ public sealed record BioShockTexture
 
     /// <summary>Original authoring path, e.g. a <c>.tga</c> under the art tree. May be empty.</summary>
     public required string SourcePath { get; init; }
+
+    /// <summary>
+    /// The size the texture declares, which is not the size the package carries: most are shipped
+    /// with their top levels stripped into the bulk store.
+    /// </summary>
+    public int DeclaredWidth { get; init; }
+
+    public int DeclaredHeight { get; init; }
+
+    /// <summary>How many top levels were stripped out.</summary>
+    public int StrippedMipCount { get; init; }
+
+    /// <summary>True when the mips present reach the size the texture declares.</summary>
+    public bool IsComplete => DeclaredWidth == 0 || Width >= DeclaredWidth;
 
     public bool HasAlpha => Format is BioShockTextureFormat.Dxt3 or BioShockTextureFormat.Dxt5 or BioShockTextureFormat.Rgba8;
 }
@@ -97,7 +111,16 @@ public static class TextureReader
     /// <summary>How much of a texture payload the header probe reads.</summary>
     private const int HeaderProbeSize = 4096;
 
-    public static BioShockTexture? Read(BioShockPackage package, ObjectExport export)
+    /// <summary>
+    /// Reads a texture, restoring its stripped mips from the bulk store when one is supplied.
+    /// </summary>
+    /// <param name="bulk">
+    /// The bulk catalogue, or null to read only what the package carries — which for most textures
+    /// is the bottom of the chain, 64 square or less.
+    /// </param>
+    /// <param name="group">The asset group, used to disambiguate a name that appears in several.</param>
+    public static BioShockTexture? Read(
+        BioShockPackage package, ObjectExport export, BulkTextureCatalog? bulk = null, string? group = null)
     {
         byte[] payload = package.ReadExportData(export);
         if (payload.Length < 64) return null;
@@ -119,6 +142,15 @@ public static class TextureReader
         var mips = ReadMips(payload, textureFormat);
         if (mips.Count == 0) return null;
 
+        // Most textures ship with their top levels removed and kept in the bulk store, so what the
+        // package holds is the tail of the chain. Put the rest back when it can be found.
+        int stripped = properties.FirstOrDefault(p => p.Name == "StrippedNumMips")?.AsByte() ?? 0;
+        if (stripped > 0 && bulk is not null)
+        {
+            var recovered = RecoverStrippedMips(bulk, export.ObjectName, group, textureFormat, width, height, mips[0].Width);
+            if (recovered.Count > 0) mips.InsertRange(0, recovered);
+        }
+
         return new BioShockTexture
         {
             Name = export.ObjectName,
@@ -127,7 +159,100 @@ public static class TextureReader
             Height = mips[0].Height,
             Mips = mips,
             SourcePath = ReadSourcePath(properties),
+            DeclaredWidth = width,
+            DeclaredHeight = height,
+            StrippedMipCount = stripped,
         };
+    }
+
+    /// <summary>
+    /// Splits a bulk blob into the mip levels it holds, largest first.
+    /// </summary>
+    /// <remarks>
+    /// The blob is the stripped levels concatenated, and the catalogue's size is their exact sum, so
+    /// the split is arithmetic rather than a search. It is only accepted when it consumes the blob
+    /// to the byte and lands on the size the package's own top mip already is — which is what makes
+    /// this the right texture's data and not a plausible offset into eight gigabytes.
+    /// </remarks>
+    private static List<TextureMip> RecoverStrippedMips(
+        BulkTextureCatalog bulk,
+        string textureName,
+        string? group,
+        BioShockTextureFormat format,
+        int declaredWidth,
+        int declaredHeight,
+        int packageTopWidth)
+    {
+        var entry = bulk.Find(textureName, group);
+        if (entry is null) return [];
+
+        // The blob's size is the sum of the levels it holds, exactly — so rather than trusting
+        // StrippedNumMips, find the run of levels that adds up to it. The count in the property is
+        // right on most textures and wrong on about two thirds, and the arithmetic is not.
+        var sizes = FindChain(format, declaredWidth, declaredHeight, entry.Size);
+        if (sizes.Count == 0) return [];
+
+        // It has to stop exactly where the package's own chain starts, or it is not this texture's
+        // missing head — the seam is the whole point.
+        if (sizes[^1].Width != packageTopWidth * 2) return [];
+
+        byte[]? blob = bulk.Read(entry);
+        if (blob is null || blob.Length != entry.Size) return [];
+
+        var mips = new List<TextureMip>(sizes.Count);
+        int offset = 0;
+
+        foreach (var (width, height) in sizes)
+        {
+            int size = DataSize(format, width, height);
+            mips.Add(new TextureMip
+            {
+                Width = width,
+                Height = height,
+                Data = blob.AsSpan(offset, size).ToArray(),
+            });
+            offset += size;
+        }
+
+        return mips;
+    }
+
+    /// <summary>
+    /// The run of mip levels, largest first, whose sizes add up to exactly <paramref name="total"/>.
+    /// </summary>
+    /// <remarks>
+    /// Starts at the declared size and walks down, and if that does not add up, starts a level lower
+    /// and tries again — some textures store fewer levels than their dimensions would suggest.
+    /// Returns nothing rather than a near miss: a chain that does not add up exactly is not the
+    /// chain, and reading it would put one texture's bytes into another's mip.
+    /// </remarks>
+    private static List<(int Width, int Height)> FindChain(
+        BioShockTextureFormat format, int declaredWidth, int declaredHeight, int total)
+    {
+        int width = declaredWidth, height = declaredHeight;
+
+        while (width >= 1 && height >= 1)
+        {
+            var levels = new List<(int Width, int Height)>();
+            long sum = 0;
+            int w = width, h = height;
+
+            while (w >= 1 && h >= 1 && sum < total)
+            {
+                levels.Add((w, h));
+                sum += DataSize(format, w, h);
+                if (sum == total) return levels;
+                w = Math.Max(1, w / 2);
+                h = Math.Max(1, h / 2);
+                if (w == 1 && h == 1 && sum < total) break;
+            }
+
+            width = Math.Max(1, width / 2);
+            height = Math.Max(1, height / 2);
+            if (width == 1 && height == 1) break;
+        }
+
+        return [];
     }
 
     /// <summary>Bytes needed for one mip at the given size.</summary>

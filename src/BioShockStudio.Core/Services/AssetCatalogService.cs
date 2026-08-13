@@ -125,6 +125,12 @@ public sealed class AssetCatalogService
             : throw new FileNotFoundException($"Package '{packageName}' is not in the catalog.");
 
     /// <summary>
+    /// The index into the bulk store, which holds the mips the packages had stripped out. Null when
+    /// the install has no <c>BulkContent</c> beside it.
+    /// </summary>
+    public BulkTextureCatalog? Bulk { get; private set; }
+
+    /// <summary>
     /// Records where an install's packages are without reading any of them.
     /// </summary>
     /// <remarks>
@@ -133,6 +139,10 @@ public sealed class AssetCatalogService
     /// </remarks>
     public IReadOnlyList<string> RegisterInstall(string gameRoot)
     {
+        // Loading the bulk index is half a megabyte and one parse, and without it most textures
+        // read as their 64-square tail.
+        Bulk ??= BulkTextureCatalog.Load(gameRoot);
+
         foreach (string file in GameLocator.EnumeratePackages(gameRoot))
             _packageFiles[Path.GetFileNameWithoutExtension(file)] = file;
 
