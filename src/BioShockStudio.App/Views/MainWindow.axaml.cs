@@ -133,13 +133,45 @@ public partial class MainWindow : Window
             e.Handled = true;
         };
 
-        // Render at the size the viewport actually is, so the image is not scaled up and blurred.
-        host.SizeChanged += (_, e) =>
-        {
-            if (DataContext is not MainViewModel model) return;
-            model.ViewportWidth = (int)e.NewSize.Width;
-            model.ViewportHeight = (int)e.NewSize.Height;
-        };
+        // Render at the viewport's size in *physical pixels*, not in device-independent ones.
+        //
+        // A control's size is reported in DIPs, so on a display at 150% scaling a 452x360 panel is
+        // really 678x540 pixels. Rendering 452x360 and letting the Image stretch it up was an
+        // upscale of half again, which is what made every texture look soft however much detail was
+        // in it — the mesh and the 2048-square mip were fine, the picture of them was not.
+        host.SizeChanged += (_, e) => Resize(host, e.NewSize.Width, e.NewSize.Height);
+
+        // Scaling can change after layout — moving the window to another monitor does it — and the
+        // size will not change with it, so the render size has to be recomputed here too.
+        host.AttachedToVisualTree += (_, _) => Resize(host, host.Bounds.Width, host.Bounds.Height);
+    }
+
+    /// <summary>
+    /// Supersampling factor on top of the display scaling. The image is drawn into a container the
+    /// size of the viewport, so anything larger is downsampled on the way in, which is free
+    /// anti-aliasing — and this renderer has none of its own, so every silhouette was a staircase.
+    /// </summary>
+    private const double Supersample = 1.6;
+
+    /// <summary>
+    /// Longest edge to render. Beyond this the software rasteriser stops keeping up with an orbit
+    /// drag, and the return on a preview is small.
+    /// </summary>
+    private const int MaximumViewportEdge = 1800;
+
+    private void Resize(Control host, double width, double height)
+    {
+        if (DataContext is not MainViewModel model || width <= 0 || height <= 0) return;
+
+        double scaling = TopLevel.GetTopLevel(host)?.RenderScaling ?? 1.0;
+        if (scaling <= 0) scaling = 1.0;
+
+        double factor = scaling * Supersample;
+        double longest = Math.Max(width, height) * factor;
+        if (longest > MaximumViewportEdge) factor *= MaximumViewportEdge / longest;
+
+        model.ViewportWidth = (int)(width * factor);
+        model.ViewportHeight = (int)(height * factor);
     }
 
     private async Task<string?> PickFolderAsync(string title)
