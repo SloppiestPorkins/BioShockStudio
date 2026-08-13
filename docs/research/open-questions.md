@@ -29,17 +29,28 @@ all third-person character animations decode with zero failures.
 `CONFIRMED_BYTES` for the header, socket table, bone map, index buffer and both vertex blocks. See
 [skeletalmesh.md](skeletalmesh.md).
 
-`UNKNOWN` remains: roughly 40% of `SkeletalMesh` exports decode to geometry. The failures are effect
-and prop meshes and four weapon viewmodels — `TommyGunMESH`, `WP_GrenadeLauncherMesh`,
-`PlasmidEquipMESH` and `WP_CrossbowMesh` — which are likely a stride or container variant.
+**954 of 972 exports (98.1%) now decode.** The blocker was a skinned block with a count of zero: a
+weapon's vertices are all rigidly bound, so it writes an empty skinned block and the rigid block
+follows, and the reader read that zero as "no block here". See [skeletalmesh.md](skeletalmesh.md).
 
-This entry previously claimed the same four failed to resolve a material too, "consistent with one
-cause rather than two". **That was wrong.** The material failure was the counted material array
-being read as a fixed `byte 1`, and fixing it did nothing for the geometry. The two are unrelated.
+This entry previously said roughly 40% decoded and blamed a stride or container variant, and
+claimed the same meshes failed to resolve a material too, "consistent with one cause rather than
+two". **Both were wrong.** The stride was the ordinary 57-byte rigid one all along, and the material
+failure was the counted material array being read as a fixed `byte 1`.
 
-**How to close it:** compare the byte range between the tag block and the bone map on a mesh that
-decodes and one that does not; the reader locates the geometry chain by search, so a failure means
-no candidate satisfied every constraint at once, not that a constraint was violated late.
+`UNKNOWN` remains: 18 exports still fail, all doors — `LowRentDoor_Mesh`,
+`Sliding512SingleDoorMesh`, `Atlas_labs_doorAnim`, `GathererDoorAnimMesh`.
+
+## 4c. Per-triangle material sections
+
+`UNKNOWN`. A mesh may name several materials — `WP_CrossbowMesh` names two — and which triangles use
+which is not decoded, so only the first is applied and part of the mesh is textured wrongly. The
+preview and the details panel report this rather than showing it silently.
+
+**How to close it:** the obvious encoding is a table of (firstIndex, triangleCount) pairs tiling the
+index buffer, and scanning every offset at 16- and 32-bit width finds no such table, so it is stored
+another way. Note there is more than one LOD per payload, so a section table may belong to a
+per-LOD header rather than sitting near the chain.
 
 ## 4b. ~~`StaticMesh` geometry~~ — CLOSED
 

@@ -247,6 +247,34 @@ public static class SkeletalMeshReader
         int SkinnedOffset, int SkinnedCount,
         int RigidOffset, int RigidCount);
 
+    /// <summary>Where each part of the geometry chain was found, for research and diagnostics.</summary>
+    public readonly record struct GeometryExtent(
+        int BoneMapOffset, int BoneMapCount,
+        int IndexOffset, int IndexCount,
+        int SkinnedOffset, int SkinnedCount,
+        int RigidOffset, int RigidCount,
+        int End);
+
+    /// <summary>
+    /// Reports where the geometry chain sits in a payload without decoding it, so the bytes on
+    /// either side can be examined. Null when the chain is not found.
+    /// </summary>
+    public static GeometryExtent? DescribeGeometry(ReadOnlySpan<byte> payload)
+    {
+        if (!TryLocateGeometry(payload, out var layout)) return null;
+
+        int end = layout.RigidCount > 0
+            ? layout.RigidOffset + layout.RigidCount * RigidVertexStride
+            : layout.SkinnedOffset + layout.SkinnedCount * SkinnedVertexStride;
+
+        return new GeometryExtent(
+            layout.BoneMapOffset, layout.BoneMapCount,
+            layout.IndexOffset, layout.IndexCount,
+            layout.SkinnedOffset, layout.SkinnedCount,
+            layout.RigidOffset, layout.RigidCount,
+            end);
+    }
+
     private static bool TryLocateGeometry(ReadOnlySpan<byte> payload, out GeometryLayout layout)
     {
         layout = default;
@@ -270,22 +298,20 @@ public static class SkeletalMeshReader
             int firstCount;
             try { firstCount = ReadCompactIndex(payload, ref vertexCursor); }
             catch { continue; }
-            if (firstCount <= 0) continue;
+            if (firstCount < 0) continue;
 
             // The first vertex block is skinned on character meshes and rigid on simple props, so
             // the stride is identified by validating the records rather than assumed.
             int skinnedCount = 0, skinnedOffset = vertexCursor;
             int rigidCount = 0, rigidOffset = vertexCursor;
-            long blockEnd;
 
-            if (Fits(payload, vertexCursor, firstCount, SkinnedVertexStride))
+            if (firstCount > 0 && Fits(payload, vertexCursor, firstCount, SkinnedVertexStride))
             {
                 skinnedCount = firstCount;
                 skinnedOffset = vertexCursor;
-                blockEnd = (long)vertexCursor + firstCount * (long)SkinnedVertexStride;
 
                 // A rigid block may follow the skinned one.
-                int probe = (int)blockEnd;
+                int probe = vertexCursor + firstCount * SkinnedVertexStride;
                 if (probe < payload.Length - 8)
                 {
                     try
@@ -300,10 +326,27 @@ public static class SkeletalMeshReader
                     catch { /* no rigid block */ }
                 }
             }
-            else if (Fits(payload, vertexCursor, firstCount, RigidVertexStride))
+            else if (firstCount > 0 && Fits(payload, vertexCursor, firstCount, RigidVertexStride))
             {
                 rigidCount = firstCount;
                 rigidOffset = vertexCursor;
+            }
+            else if (firstCount == 0)
+            {
+                // A skinned count of zero is not an absent block, it is an empty one: the rigid
+                // count follows immediately. The weapon viewmodels are built this way — every vertex
+                // of WP_GrenadeLauncherMesh is bound rigidly to one bone, because a gun's parts are
+                // hinged rather than deformed. Rejecting the zero is what left them undrawable while
+                // their sockets, skeletons, animations and materials all resolved.
+                int probe = vertexCursor;
+                int candidate;
+                try { candidate = ReadCompactIndex(payload, ref probe); }
+                catch { continue; }
+
+                if (candidate <= 0 || !Fits(payload, probe, candidate, RigidVertexStride)) continue;
+
+                rigidCount = candidate;
+                rigidOffset = probe;
             }
             else
             {
@@ -371,6 +414,16 @@ public static class SkeletalMeshReader
         return end <= payload.Length && LooksLikeVertices(payload, offset, count, stride);
     }
 
+    /// <summary>
+    /// Whether a run of records looks like vertices: each carries a tangent basis at +12/+24/+36.
+    /// </summary>
+    /// <remarks>
+    /// Any one of the three may be degenerate on a given vertex, so a record only has to carry one
+    /// unit vector among them — the same tolerance <see cref="StaticMeshReader"/> needs, and for the
+    /// same reason. Demanding all three is what kept the weapon viewmodels from decoding:
+    /// <c>WP_GrenadeLauncherMesh</c> has 11,721 vertices at the ordinary 57-byte rigid stride, and
+    /// the run was being broken by the handful with a null tangent.
+    /// </remarks>
     private static bool LooksLikeVertices(ReadOnlySpan<byte> payload, int offset, int count, int stride)
     {
         int sampled = 0;
@@ -380,7 +433,7 @@ public static class SkeletalMeshReader
         {
             int o = offset + v * stride;
             if (o + stride > payload.Length) return false;
-            if (!IsUnit(payload, o + 12) || !IsUnit(payload, o + 24) || !IsUnit(payload, o + 36)) return false;
+            if (!IsUnit(payload, o + 12) && !IsUnit(payload, o + 24) && !IsUnit(payload, o + 36)) return false;
             sampled++;
         }
 

@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Assets;
+﻿using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
@@ -169,6 +169,17 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
 
             var material = MaterialReader.ReadForMesh(package, meshExport);
             if (material is not null) sections.Add(MaterialSection(material));
+
+            // A mesh can name more than one material, and which triangles use the second is not yet
+            // known — so only the first is applied and the panel says so rather than showing a
+            // confidently wrong surface.
+            var allMaterials = MaterialReader.ReadMeshMaterialReferences(payload, package);
+            if (allMaterials.Count > 1)
+            {
+                problem ??= $"This mesh declares {allMaterials.Count} materials. Only the first is applied, "
+                            + "because which triangles use which is not yet decoded, so parts of it are "
+                            + "textured wrongly. See docs/research/materials.md.";
+            }
         }
 
         if (meshExports.Count > 1)

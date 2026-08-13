@@ -1,4 +1,4 @@
-# SkeletalMesh
+﻿# SkeletalMesh
 
 **Implementation:** `src/BioShockStudio.Core/Mesh/SkeletalMeshReader.cs`
 **Tests:** `tests/BioShockStudio.Tests/SkeletalMeshTests.cs`
@@ -146,9 +146,47 @@ was actually caught; the regression test now asserts the median edge directly.
 `NEWPlayerHands` decodes to 4,852 vertices, 8,726 triangles, 38 vertex groups, UVs and per-vertex
 skin weights summing to 1. Exported to Blender it deforms correctly under the pistol animations.
 
+## An empty skinned block (CONFIRMED_BYTES)
+
+A weapon's parts are hinged, not deformed, so **every vertex is bound rigidly to one bone**. Those
+meshes still write the skinned block — with a count of zero — and the rigid block follows it:
+
+```
+FCompactIndex 0          skinned count, an empty block rather than an absent one
+FCompactIndex rigidCount
+rigidCount x 57 bytes
+```
+
+The reader treated a count of zero as "no vertex block here" and gave up, which is why the weapon
+viewmodels resolved their sockets, skeletons, animations and materials and then drew nothing.
+Accepting the zero took `SkeletalMesh` decoding from **370 of 972 exports (38.1%) to 954 (98.1%)**,
+and `ShockGame.U` from 5 of 10 to all 10.
+
+`WP_GrenadeLauncherMesh` decodes to 5,386 rigid vertices, `TommyGunMESH` to 4,985,
+`WP_CrossbowMesh` to 10,151 and `WP_ChemicalThrowerMesh` to 7,936. All render as recognisable,
+textured weapons.
+
+The 18 exports that still fail are all doors — `LowRentDoor_Mesh`, `Sliding512SingleDoorMesh`,
+`Atlas_labs_doorAnim` and `GathererDoorAnimMesh`, four distinct meshes across the packages.
+
+## More than one LOD per payload (LIKELY)
+
+`WP_CrossbowMesh`'s payload is 1,405,352 bytes and the geometry chain ends at 655,675, leaving
+749,677 bytes. The 12-byte pattern `int32 4, int32 3, int32 2` appears both just before the first
+bone map and again just after the chain ends, which reads as a second copy of the same structure —
+almost certainly a further LOD. The reader takes the first chain it finds, which is the highest
+detail one.
+
 ## Still unknown
 
-- LODs. The two vertex blocks are one LOD; whether further LODs follow has not been checked.
+- **Per-triangle material sections.** Three of `ShockGame.U`'s ten meshes name two materials —
+  `WP_CrossbowMesh` uses `Crossbow_Shader` and `group_02_mat`, `TommyGunMESH` uses
+  `tommygun2_diffuse` and `ammostandard_diffuse_shader`, `PlasmidEquipMESH` two of its own. Which
+  triangles use which is not decoded, so only the first is applied and part of the mesh is textured
+  wrongly. Searching the payload for a table of (firstIndex, triangleCount) pairs that tiles the
+  index buffer finds nothing at either 16- or 32-bit width, so the sections are stored some other
+  way. **The preview and the details panel now say so** rather than showing it silently.
+- LODs. See above: there is more than one, and only the first is read.
 - The declared bounds cover the animated range rather than the bind pose, so they are not a hull of
   the rest-pose geometry.
 - Whether other meshes use additional vertex strides. The reader validates each block's tangent,

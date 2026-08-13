@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Rendering;
 using BioShockStudio.Core.Services;
@@ -157,21 +157,31 @@ public sealed class ContextTests(GameFixture game)
     }
 
     [RequiresGameFact]
-    public void Attachment_SaysWhenItCannotBeDrawn()
+    public void EveryWeaponTheHandsNameDrawsAndAnimates()
     {
         var catalog = Catalog();
-        var tommy = new AssetContextService(catalog).Attachments(Hands()).Single(a => a.Socket == "TommyGun");
+        var preview = new MeshPreviewService(catalog);
+        var attachments = new AssetContextService(catalog).Attachments(Hands())
+            .Where(a => !a.IsStatic)
+            .ToList();
 
-        var subject = new MeshPreviewService(catalog).LoadAttachment(tommy);
+        Assert.NotEmpty(attachments);
 
-        // The socket resolves and the skeleton loads, but TommyGunMESH uses a geometry layout this
-        // tool does not read. Silence would look like the weapon simply not attaching.
-        Assert.False(subject.Model.HasGeometry);
-        Assert.NotNull(subject.Problem);
-        Assert.Contains("does not read yet", subject.Problem, StringComparison.OrdinalIgnoreCase);
+        // Every one of them used to load its skeleton and animations and then draw nothing, because
+        // a weapon's vertices are all rigidly bound and the reader rejected the empty skinned block
+        // that says so.
+        foreach (var attachment in attachments)
+        {
+            var subject = preview.LoadAttachment(attachment);
 
-        // The rig is still there, so the animation is still worth playing.
-        Assert.NotEmpty(subject.Model.Bones);
+            Assert.True(subject.Model.HasGeometry, $"{attachment.MeshObject} produced no geometry");
+            Assert.NotEmpty(subject.Model.Bones);
+
+            // The only thing left to report is that a two-material mesh is textured from the first
+            // of them. Nothing should still be saying it cannot be drawn.
+            if (subject.Problem is not null)
+                Assert.Contains("materials", subject.Problem, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>Renders the whole first-person set so a human can look at it.</summary>

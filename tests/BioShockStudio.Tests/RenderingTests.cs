@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Packages;
+﻿using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Rendering;
 using BioShockStudio.Core.Services;
 using Xunit;
@@ -270,9 +270,12 @@ public sealed class RenderingTests(GameFixture game)
         var catalog = new AssetCatalogService();
         catalog.RegisterInstall(game.RequireRoot);
 
-        using var package = BioShockPackage.Open(game.WeaponPackage);
-        var entry = AssetCatalogService.Catalogue(package, "ShockGame")
-            .First(e => e.Category == AssetCategory.SkeletalMeshes && e.Name == "TommyGunMESH");
+        // The doors are the last unreadable variant: 18 exports across the shipped packages, four
+        // distinct meshes. Everything else now decodes.
+        using var package = BioShockPackage.Open(
+            Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+        var entry = AssetCatalogService.Catalogue(package, "1-Medical")
+            .First(e => e.Category == AssetCategory.SkeletalMeshes && e.Name == "LowRentDoor_Mesh");
 
         var subject = new MeshPreviewService(catalog).Load(entry);
 
@@ -280,11 +283,14 @@ public sealed class RenderingTests(GameFixture game)
         Assert.False(subject.Model.HasGeometry);
         Assert.NotNull(subject.Problem);
 
-        if (subject.Model.Bones.Count > 0)
+        if (subject.Model.Bones.Count > 1)
         {
             var image = SoftwareRenderer.Render(
                 subject.Model, PreviewCamera.Frame(subject.Model), new RenderOptions(), Width, Height);
-            Assert.True(Coverage(image) > 0.001, "the skeleton should still be drawn");
+
+            // A door's rig is a handful of bones, so this is a few short lines rather than a
+            // silhouette — the threshold is "anything at all", not a fraction of the view.
+            Assert.True(Coverage(image) > 0, "the skeleton should still be drawn");
         }
     }
 

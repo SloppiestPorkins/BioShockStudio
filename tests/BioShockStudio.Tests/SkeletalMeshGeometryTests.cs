@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 using Xunit;
@@ -166,5 +166,71 @@ public sealed class SkeletalMeshGeometryTests(GameFixture game)
 
         // Real UVs vary; a constant set would mean the field is being misread.
         Assert.True(geometry.Vertices.Select(v => v.Uv).Distinct().Count() > 1000);
+    }
+
+    [RequiresGameFact]
+    public void EveryWeaponViewmodelDecodes()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+
+        var failed = new List<string>();
+        int total = 0;
+
+        foreach (var export in package.Exports.Where(e =>
+                     package.GetClassName(e) == "SkeletalMesh" && e.SerialSize > 0))
+        {
+            total++;
+            if (SkeletalMeshReader.ReadGeometry(package.ReadExportData(export)) is null)
+                failed.Add(export.ObjectName);
+        }
+
+        Assert.True(total > 0);
+        Assert.Empty(failed);
+    }
+
+    [RequiresGameFact]
+    public void AWeaponsVerticesAreAllRigidlyBound()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        var launcher = package.Exports
+            .Where(e => e.ObjectName == "WP_GrenadeLauncherMesh" && package.GetClassName(e) == "SkeletalMesh")
+            .MaxBy(e => e.SerialSize)!;
+
+        var geometry = SkeletalMeshReader.ReadGeometry(package.ReadExportData(launcher))!;
+
+        // A gun's parts are hinged, not deformed, so every vertex is bound to exactly one bone and
+        // the skinned block is present but empty. The reader used to read that zero as "no vertex
+        // block here" and give up, which is why the launcher loaded its skeleton, its animations and
+        // its material and then drew nothing at all.
+        Assert.Equal(0, geometry.SkinnedVertexCount);
+        Assert.Equal(5386, geometry.RigidVertexCount);
+        Assert.Equal(5386, geometry.Vertices.Count);
+        Assert.All(geometry.Vertices, v => Assert.Single(v.Influences));
+        Assert.All(geometry.Vertices, v => Assert.Equal(1f, v.Influences[0].Weight, 3));
+
+        // And it is still a real mesh addressed by a whole index buffer.
+        Assert.Equal(geometry.Vertices.Count - 1, geometry.Indices.Max());
+        Assert.Equal(0, geometry.Indices.Count % 3);
+    }
+
+    [RequiresGameFact]
+    public void NearlyEveryShippedSkeletalMeshDecodes()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+
+        var failed = new List<string>();
+        int total = 0;
+
+        foreach (var export in package.Exports.Where(e =>
+                     package.GetClassName(e) == "SkeletalMesh" && e.SerialSize > 0))
+        {
+            total++;
+            if (SkeletalMeshReader.ReadGeometry(package.ReadExportData(export)) is null)
+                failed.Add(export.ObjectName);
+        }
+
+        // 0-Lighthouse went from 18 of 46 to all 46 when the empty skinned block was accepted.
+        Assert.Equal(46, total);
+        Assert.Empty(failed);
     }
 }

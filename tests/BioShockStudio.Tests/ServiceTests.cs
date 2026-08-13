@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Packages;
+﻿using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Services;
 using Xunit;
 
@@ -230,11 +230,13 @@ public sealed class ServiceTests(GameFixture game)
     public void Details_SayWhenAMeshCannotBeReadRatherThanShowingNothing()
     {
         var catalog = Catalog();
-        using var package = BioShockPackage.Open(game.WeaponPackage);
-        var entries = AssetCatalogService.Catalogue(package, "ShockGame");
+        using var package = BioShockPackage.Open(
+            Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+        var entries = AssetCatalogService.Catalogue(package, "1-Medical");
 
+        // The doors are the last unreadable skeletal variant; the weapon viewmodels all read now.
         var broken = entries.FirstOrDefault(e =>
-            e.Category == AssetCategory.SkeletalMeshes && e.Name == "TommyGunMESH");
+            e.Category == AssetCategory.SkeletalMeshes && e.Name == "LowRentDoor_Mesh");
         Assert.NotNull(broken);
 
         var details = new AssetDetailsService(catalog).Describe(broken);

@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Animation;
+﻿using BioShockStudio.Core.Animation;
 using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
@@ -89,6 +89,13 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             }
 
             (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
+
+            int materials = MaterialReader.ReadMeshMaterialReferences(payload, package).Count;
+            if (materials > 1)
+            {
+                problem ??= $"This mesh uses {materials} materials and only the first is applied, so "
+                            + "some of it is textured wrongly. Which triangles use which is not yet decoded.";
+            }
         }
         else
         {
@@ -182,6 +189,13 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
                 sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
             (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
             if (geometry is null) problem = $"'{candidate.MeshObject}' uses a geometry layout this tool does not read yet.";
+
+            int materials = MaterialReader.ReadMeshMaterialReferences(payload, package).Count;
+            if (materials > 1)
+            {
+                problem ??= $"'{candidate.MeshObject}' uses {materials} materials and only the first is "
+                            + "applied, so some of it is textured wrongly.";
+            }
         }
 
         AnimationPackage? animations = null;
