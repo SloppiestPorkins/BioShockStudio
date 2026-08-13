@@ -1,4 +1,4 @@
-# Asset context and relationships
+﻿# Asset context and relationships
 
 **Implementation:** `src/BioShockStudio.Core/Assets/AssetContext.cs`, `AnimationMetadata.cs`
 **Tests:** `tests/BioShockStudio.Tests/AssetContextTests.cs`
@@ -94,14 +94,24 @@ Three sockets, three static meshes in the same group, names mapping one to one. 
 appears on `AggressorBabyJane` (`Wig` -> `Wig_BJ_ShortHair`) and on the hands (`CSphoto` ->
 `CS_photo`, plus `Player_Wallet`).
 
-`UNKNOWN`: nothing here can be drawn or exported yet, because **no `StaticMesh` geometry reader
-exists**. `SkeletalMeshReader.ReadGeometry` returns nothing for `ConeDrill` as it does for
-`WP_WrenchMesh`. The relationship is established; the vertices are not.
+Resolved and drawn. `AssetContextService.StaticAttachments` matches a socket name against the
+static meshes in the host's own group, best match first, and no prop is offered for two sockets —
+`Drill` claims `ConeDrill` before `DrillCage` can, though it matches both.
+
+Reported as `Likely`, never `Confirmed`: a static prop has no skeleton of its own, so the root-bone
+test that proves the first-person case cannot be applied to it. What is claimed is exactly what was
+observed — a name match inside a group the game itself declares.
+
+**Placement is verified on the hands**, where the answer is unambiguous: `CS_butt` lands at the left
+fingertips and `CS_photo` at the right hand. The prop's vertices are in its own local space and the
+socket bone's global rest transform places them, with no extra offset needed. The Bouncer's props sit
+largely inside its silhouette in the rest pose, which is consistent but not by itself evidence.
 
 **3. A skeletal weapon in a `WP_` group named differently from the socket.** `ProtectorRosie`
 declares `RivetGunSocket -> Dummy_GunParent` and carries no static meshes; her weapon is the separate
-group `WP_AI_RivetGun`. The current name matcher does not strip the `Socket` suffix, so it misses
-this.
+group `WP_AI_RivetGun`. Resolved: the matcher now strips a trailing `Socket` before comparing, so
+`RivetGunSocket` reaches `WP_AI_RivetGun`. The stripped name still has to clear the four-character
+floor, so a socket named merely `Socket` matches nothing.
 
 Turrets and bots are the same third kind: `SecurityBot` declares `MGweapon -> MGattach` and
 `Weapon -> sec_bot` with nothing in its own group.

@@ -149,11 +149,18 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         using var package = BioShockPackage.Open(catalog.PackageFile(candidate.Package));
         cancellation.ThrowIfCancellationRequested();
 
-        var meshExport = package.Exports
+        // A static attachment shares its group with its host, so the largest mesh in that group is
+        // the host's own body. The candidate names the one that was actually matched.
+        var inGroup = package.Exports
             .Where(e => MeshGeometryReader.IsMeshClass(package.GetClassName(e))
                         && string.Equals(AssetContextResolver.TopLevelGroup(package, e), candidate.Group,
                             StringComparison.OrdinalIgnoreCase))
-            .MaxBy(e => e.SerialSize);
+            .ToList();
+
+        var meshExport = inGroup
+            .Where(e => string.Equals(e.ObjectName, candidate.MeshObject, StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize)
+            ?? inGroup.MaxBy(e => e.SerialSize);
 
         MeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
@@ -178,7 +185,10 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         }
 
         AnimationPackage? animations = null;
-        var wrapper = FindAnimationPackage(package, candidate.Group);
+
+        // A static prop shares its host's group, so looking up "the group's animation package" would
+        // hand it the host's skeleton and imply it were skinned to it. It has none of its own.
+        var wrapper = candidate.IsStatic ? null : FindAnimationPackage(package, candidate.Group);
         if (wrapper is not null)
         {
             try { animations = AnimationPackage.Load(package, wrapper); }

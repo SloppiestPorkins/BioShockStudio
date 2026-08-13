@@ -1,6 +1,6 @@
-# Handoff
+﻿# Handoff
 
-**160/160 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 17 commits
+**167/167 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 18 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -48,6 +48,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Unreal import | **Never attempted.** See §6.4. |
+| Attachments | All three socket kinds resolve: weapon rigs, static props in the host's own group, and `*Socket`-suffixed names. |
 | Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
 
 ## 3. Architecture
@@ -159,35 +160,19 @@ front on the desktop, not the window you meant — this went wrong once and caug
 
 ## 6. What to do next, in priority order
 
-### 6.1 Socket attachment for static meshes — the other half of the drill
+### 6.1 Attachment placement under animation
 
-`StaticMeshReader` now decodes every shipped static mesh (§2), so the drill, its cage, the backpack,
-the wig, the photo, the wallet and the wrench all have vertices. They can be browsed, previewed and
-exported. **What they still cannot do is attach.**
+Static props now resolve and draw (§2). What is **not** yet done is placing them while an animation
+plays: the preview applies the socket bone's *rest* transform, so a prop stays where the bind pose
+put it while the host moves.
 
-`docs/research/context.md` records that sockets point at three different kinds of thing.
-`AssetContextService.Attachments` only resolves the first — a `WP_`-prefixed weapon group with its
-own skeletal mesh and animation package. The Bouncer's is the second kind:
+The first-person set already solves the equivalent problem for a skeletal attachment — see
+`ContextTests.Render_ContextSnapshot`, which poses host and weapon together at frame 27 — so the
+work is to feed the host's posed bone matrix to a static prop's `PreviewInstance` rather than
+`RestGlobal`, and to carry the same into the FBX as a parent constraint.
 
-```
-NewProtectorBouncer sockets   Drill -> SocketDrillROTATION
-                              DrillCage -> SocketDrillBase
-                              backpack -> SocketBackpack
-NewProtectorBouncer group     ConeDrill, ConeDrillCage, ConeDrillBackpack   (all StaticMesh)
-```
-
-Three sockets, three static meshes in the host's **own** group, names mapping one to one — no `WP_`
-prefix and no second skeleton involved. `GroupsWithSkeletons` filters those out before matching ever
-runs, so the candidates are never even considered.
-
-**How to start:** `AssetContextService.GroupsWithSkeletons` at line 140 and `BestGroupFor` at 108.
-A static attachment needs no wrapper and no skeleton of its own — just the host's socket-bone
-transform applied to a boneless mesh, which `PreviewModel` already supports. Note that the socket
-names here (`Drill`, `DrillCage`, `backpack`) match the mesh names (`ConeDrill`, `ConeDrillCage`,
-`ConeDrillBackpack`) as suffix and prefix, not exactly — the same normalisation `BestGroupFor`
-already does.
-
-Do the suffix strip in §6.3 at the same time; both are the same function.
+Placement itself is verified: on the hands, `CS_butt` lands at the left fingertips and `CS_photo` at
+the right hand, with no offset beyond the socket bone's global transform.
 
 ### 6.2 The skeletal geometry variant
 
@@ -203,12 +188,12 @@ than a different offset — an extra UV set or a compressed format.
 Note that the earlier claim that these failed geometry *and* materials "for one shared cause" was
 **wrong**. The materials were the counted array; the geometry is unrelated.
 
-### 6.3 Socket matching, kind three — a small win
+### 6.3 Socket matching, kind three — done
 
-`ProtectorRosie` declares `RivetGunSocket -> Dummy_GunParent` and her weapon is the separate group
-`WP_AI_RivetGun`. `SecurityBot` and the turrets are the same shape. `AssetContextService.BestGroupFor`
-does not strip the `Socket` suffix before matching, so it misses them. Stripping it should light up
-the rivet gun and the bot weapons immediately.
+`BestGroupFor` now strips a trailing `Socket` before matching, so `ProtectorRosie`'s
+`RivetGunSocket` reaches `WP_AI_RivetGun`; `SecurityBot` and the turrets are the same shape. The
+hands' attachments are unaffected — the pistol is still `Confirmed` by the root-bone test, which
+outranks anything matched by name alone.
 
 ### 6.4 Verify the Unreal import
 

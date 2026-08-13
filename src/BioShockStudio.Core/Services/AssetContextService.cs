@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Assets;
+﻿using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 
@@ -20,7 +20,15 @@ public sealed record AttachmentCandidate(
     string MeshObject,
     string AnimationPackageObject,
     string Confidence,
-    string Evidence);
+    string Evidence)
+{
+    /// <summary>
+    /// True when the attachment is a static prop rather than a rig of its own — the Bouncer's drill
+    /// rather than the first-person pistol. It has no skeleton and no animations, so it is placed on
+    /// the host's socket bone and moves with it.
+    /// </summary>
+    public bool IsStatic { get; init; }
+}
 
 /// <summary>
 /// Works out what belongs with what: which asset attaches to which socket, and on what evidence.
@@ -65,6 +73,10 @@ public sealed class AssetContextService(AssetCatalogService catalog)
 
         if (sockets.Count == 0) return results;
 
+        // Kind two first: static props living in the host's own group. These need no second skeleton
+        // and no second package, so they are resolved before the weapon sweep below.
+        results.AddRange(StaticAttachments(host, sockets));
+
         // Weapon viewmodels are not in the map packages; they are in the script package.
         foreach (string packageName in catalog.Packages)
         {
@@ -88,9 +100,66 @@ public sealed class AssetContextService(AssetCatalogService catalog)
 
         return results
             .GroupBy(r => r.Socket, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.OrderBy(r => r.Confidence == "Confirmed" ? 0 : 1).First())
+            .Select(g => g.OrderBy(Rank).First())
             .OrderBy(r => r.Socket, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // A stated relationship beats a prop found in the host's own group, which in turn beats a
+        // name that merely resembles a weapon group in some other package.
+        static int Rank(AttachmentCandidate c) => c.Confidence == "Confirmed" ? 0 : c.IsStatic ? 1 : 2;
+    }
+
+    /// <summary>
+    /// Static props a host's sockets name, found in the host's own group.
+    /// </summary>
+    /// <remarks>
+    /// The second of the three kinds of thing a socket points at. <c>NewProtectorBouncer</c> declares
+    /// <c>Drill</c>, <c>DrillCage</c> and <c>backpack</c>, and its own group holds <c>ConeDrill</c>,
+    /// <c>ConeDrillCage</c> and <c>ConeDrillBackpack</c> — three static meshes, no second skeleton and
+    /// no weapon group involved. The relationship is a name match within a group the game itself
+    /// declares, so it is reported as <c>Likely</c>: strong, but not the explicit statement a
+    /// skeleton rooted at the socket bone gives.
+    /// </remarks>
+    private IReadOnlyList<AttachmentCandidate> StaticAttachments(
+        CatalogEntry host, IReadOnlyList<MeshSocket> sockets)
+    {
+        using var package = BioShockPackage.Open(catalog.PackageFile(host.Package));
+
+        var props = package.Exports
+            .Where(e => package.GetClassName(e) == AssetClasses.StaticMesh
+                        && e.SerialSize > 0
+                        && string.Equals(AssetContextResolver.TopLevelGroup(package, e), host.Group,
+                            StringComparison.OrdinalIgnoreCase))
+            .GroupBy(e => e.ObjectName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.MaxBy(e => e.SerialSize)!)
+            .ToList();
+
+        if (props.Count == 0) return [];
+
+        var results = new List<AttachmentCandidate>();
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Best match first, so 'Drill' claims ConeDrill before 'DrillCage' can, and no prop is
+        // offered for two different sockets.
+        foreach (var (socket, prop, rank) in sockets
+                     .Select(s => (Socket: s, Match: BestByName(NormaliseSocket(s.Name), props, e => e.ObjectName)))
+                     .Where(x => x.Match.Rank != NoMatch)
+                     .Select(x => (x.Socket, Prop: x.Match.Value!, x.Match.Rank))
+                     .OrderBy(x => x.Rank))
+        {
+            if (!taken.Add(prop.ObjectName)) continue;
+
+            results.Add(new AttachmentCandidate(
+                socket.Name, socket.BoneName, host.Package, host.Group,
+                prop.ObjectName, string.Empty, "Likely",
+                $"'{prop.ObjectName}' is a static mesh in the host's own group '{host.Group}', and its "
+                + $"name matches the '{socket.Name}' socket, which sits on bone '{socket.BoneName}'")
+            {
+                IsStatic = true,
+            });
+        }
+
+        return results;
     }
 
     private readonly record struct GroupAssets(string Group, string Mesh, string Wrapper);
@@ -107,35 +176,76 @@ public sealed class AssetContextService(AssetCatalogService catalog)
     /// </remarks>
     private static GroupAssets? BestGroupFor(string socket, IReadOnlyDictionary<string, GroupAssets> groups)
     {
-        string wanted = Normalise(socket);
-        if (wanted.Length < 4) return null;
+        var (value, rank) = BestByName(
+            NormaliseSocket(socket),
+            groups.Values,
+            assets => assets.Group.StartsWith(WeaponGroupPrefix, StringComparison.OrdinalIgnoreCase)
+                ? assets.Group[WeaponGroupPrefix.Length..]
+                : assets.Group);
 
-        GroupAssets? best = null;
-        int bestRank = int.MaxValue;
+        // GroupAssets is a struct, so "no match" has to be read off the rank — a default value is
+        // not null and would sail straight into Assess.
+        return rank == NoMatch ? null : value;
+    }
 
-        foreach (var (group, assets) in groups)
+    /// <summary>Rank returned when nothing matched at all.</summary>
+    private const int NoMatch = int.MaxValue;
+
+    /// <summary>
+    /// Picks the candidate whose name best matches <paramref name="wanted"/>, already normalised.
+    /// </summary>
+    /// <remarks>
+    /// Exact beats a prefix beats a suffix beats a substring, so <c>Launcher</c> takes
+    /// <c>GrenadeLauncher</c> rather than whichever candidate happened to be enumerated first, and
+    /// <c>Drill</c> takes <c>ConeDrill</c> rather than <c>ConeDrillCage</c>.
+    /// </remarks>
+    private static (T? Value, int Rank) BestByName<T>(string wanted, IEnumerable<T> candidates, Func<T, string> nameOf)
+    {
+        if (wanted.Length < 4) return (default, NoMatch);
+
+        T? best = default;
+        int bestRank = NoMatch;
+
+        foreach (var candidate in candidates)
         {
-            string name = Normalise(group.StartsWith(WeaponGroupPrefix, StringComparison.OrdinalIgnoreCase)
-                ? group[WeaponGroupPrefix.Length..]
-                : group);
+            string name = Normalise(nameOf(candidate));
 
-            // Exact beats a prefix beats a substring, so Launcher takes GrenadeLauncher rather than
-            // whichever group happened to be enumerated first.
             int rank = name == wanted ? 0
                 : name.StartsWith(wanted, StringComparison.Ordinal) ? 1
                 : name.EndsWith(wanted, StringComparison.Ordinal) ? 2
                 : name.Contains(wanted, StringComparison.Ordinal) ? 3
                 : wanted.Contains(name, StringComparison.Ordinal) && name.Length >= 4 ? 4
-                : int.MaxValue;
+                : NoMatch;
 
-            if (rank < bestRank) (best, bestRank) = (assets, rank);
+            if (rank < bestRank) (best, bestRank) = (candidate, rank);
         }
 
-        return bestRank == int.MaxValue ? null : best;
+        return bestRank == NoMatch ? (default, NoMatch) : (best, bestRank);
     }
 
     private static string Normalise(string value) =>
         new(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
+    /// <summary>Socket suffix the game appends on some hosts but never on the asset itself.</summary>
+    private const string SocketNameSuffix = "socket";
+
+    /// <summary>
+    /// Normalises a socket name, dropping a trailing <c>Socket</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>ProtectorRosie</c> declares <c>RivetGunSocket</c> and her weapon is the group
+    /// <c>WP_AI_RivetGun</c>; <c>SecurityBot</c> and the turrets are the same shape. Leaving the
+    /// suffix on made those look unsupported when they were only spelled differently. The stripped
+    /// name still has to clear the four-character floor, so a socket named merely <c>Socket</c>
+    /// matches nothing.
+    /// </remarks>
+    private static string NormaliseSocket(string socket)
+    {
+        string name = Normalise(socket);
+        return name.Length > SocketNameSuffix.Length && name.EndsWith(SocketNameSuffix, StringComparison.Ordinal)
+            ? name[..^SocketNameSuffix.Length]
+            : name;
+    }
 
     private static Dictionary<string, GroupAssets> GroupsWithSkeletons(BioShockPackage package)
     {
