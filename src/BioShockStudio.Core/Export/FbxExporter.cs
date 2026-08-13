@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using BioShockStudio.Core.Export.Fbx;
 
@@ -89,7 +89,7 @@ public static class FbxExporter
         AnimationScene? host,
         string? previewAnimation)
     {
-        string stem = Sanitise(scene.SourceObject);
+        string stem = Sanitise(AssetName(scene.SourceObject));
         string meshFile = stem + ".fbx";
         FbxWriter.Write(
             Path.Combine(outputDirectory, meshFile),
@@ -135,7 +135,8 @@ public static class FbxExporter
 
         return new FbxRig
         {
-            Name = scene.SourceObject,
+            Name = AssetName(scene.SourceObject),
+            SourceObject = scene.SourceObject,
             Preview = preview,
             Skeleton = scene.SkeletonName,
             Mesh = meshFile,
@@ -176,6 +177,23 @@ public static class FbxExporter
         return bestScore >= 4 ? best : null;
     }
 
+    /// <summary>Prefix the game puts on an animation package wrapper object.</summary>
+    private const string WrapperPrefix = "UAPW_";
+
+    /// <summary>
+    /// The asset's name, without the internal prefix its animation package carries.
+    /// </summary>
+    /// <remarks>
+    /// A scene is built from the wrapper export, so its object name is <c>UAPW_NEWPlayerHands</c>
+    /// and every file and folder was being named after it. The prefix is the game's bookkeeping, not
+    /// part of what the asset is called, and it has no business in an export someone else opens. The
+    /// wrapper's real name is still recorded in the manifest as <c>sourceObject</c>.
+    /// </remarks>
+    private static string AssetName(string sourceObject) =>
+        sourceObject.StartsWith(WrapperPrefix, StringComparison.OrdinalIgnoreCase)
+            ? sourceObject[WrapperPrefix.Length..]
+            : sourceObject;
+
     private static string Sanitise(string name) => string.Concat(name.Split(Path.GetInvalidFileNameChars()));
 }
 
@@ -195,7 +213,12 @@ public sealed record FbxManifest
 
 public sealed record FbxRig
 {
+    /// <summary>What the asset is called, without the animation package's internal prefix.</summary>
     public required string Name { get; init; }
+
+    /// <summary>The export this was built from, prefix and all, so it can be traced back.</summary>
+    public string? SourceObject { get; init; }
+
     public required string Skeleton { get; init; }
 
     /// <summary>Path, relative to the manifest, of the skinned mesh and skeleton.</summary>

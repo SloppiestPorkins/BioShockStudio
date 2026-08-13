@@ -1,4 +1,4 @@
-# FBX export
+﻿# FBX export
 
 **Implementation:** `src/BioShockStudio.Core/Export/Fbx/`, `src/BioShockStudio.Core/Export/FbxExporter.cs`
 **Tests:** `tests/BioShockStudio.Tests/FbxExportTests.cs`, `tools/blender/validate_fbx.py`
@@ -158,3 +158,23 @@ hand, positioned and oriented at the grip.
 written from the documented API and has never been run; no editor was available. It is marked as
 such at the top of the file. Any claim about Unreal in this repository is a claim about what the
 files declare, not about what Unreal does with them.
+
+
+## Naming
+
+Files and folders are named after the **asset**, not after the export the scene was built from.
+
+A rig's scene comes from the animation package wrapper, whose object name carries the game's
+internal `UAPW_` prefix — so the whole output tree used to be named `UAPW_NEWPlayerHands.fbx`,
+`UAPW_NEWPlayerHands_Animations/` and so on. The prefix is bookkeeping, not part of what the asset
+is called, and it has no business in an export someone else opens. The wrapper's real name is kept
+in the manifest as each rig's `sourceObject`, so nothing is lost.
+
+```
+NEWPlayerHands.fbx
+NEWPlayerHands_Animations/   one file per animation, each with its own frame rate
+Textures/                    PNGs the material binds
+ue5_manifest.json            notifies, sockets, attachment pairing — what FBX cannot carry
+```
+
+A static mesh exports the same way, minus the animation folder and the skeleton.

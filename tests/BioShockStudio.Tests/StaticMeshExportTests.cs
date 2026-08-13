@@ -1,5 +1,6 @@
-using BioShockStudio.Core.Assets;
+﻿using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Export;
+using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Export.Fbx;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Mesh;
@@ -97,5 +98,66 @@ public sealed class StaticMeshExportTests(GameFixture game)
         // The writer scales into the export's units; what matters here is that nothing was dropped
         // or reordered on the way out.
         Assert.All(vertices, v => Assert.True(double.IsFinite(v)));
+    }
+
+    [RequiresGameFact]
+    public void AStaticMeshExportsItsMaterialAndTextures()
+    {
+        string file = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+        using var package = BioShockPackage.Open(file);
+
+        var export = package.Exports
+            .Where(e => e.ObjectName == "ConeDrill" && package.GetClassName(e) == AssetClasses.StaticMesh)
+            .MaxBy(e => e.SerialSize)!;
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-static-export-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var geometry = StaticMeshReader.ReadGeometry(package.ReadExportData(export))!;
+            var material = MaterialExporter.Resolve(package, export, directory);
+
+            // Static meshes used to export with no material at all, because the reference was looked
+            // for in the skeletal tag block rather than in the Materials property.
+            Assert.NotNull(material);
+
+            var scene = AnimationSceneExporter.BuildStatic("1-Medical", export.ObjectName, geometry, material);
+            Assert.NotNull(scene.Material);
+
+            FbxExporter.Write(scene, directory);
+
+            Assert.True(File.Exists(Path.Combine(directory, "ConeDrill.fbx")));
+            Assert.NotEmpty(Directory.GetFiles(directory, "*.png", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { /* best effort */ }
+        }
+    }
+
+    [RequiresGameFact]
+    public void ExportNamesDropTheAnimationPackagePrefix()
+    {
+        var scene = DrillScene();
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-name-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            // A rig's scene is built from the wrapper export, whose name carries the game's internal
+            // UAPW_ prefix. Files someone else opens should be named after the asset.
+            var prefixed = scene with { SourceObject = "UAPW_ConeDrill" };
+            var manifest = FbxExporter.Write(prefixed, directory);
+
+            Assert.Equal("ConeDrill", manifest.Rigs[0].Name);
+            Assert.Equal("UAPW_ConeDrill", manifest.Rigs[0].SourceObject);
+            Assert.Equal("ConeDrill.fbx", manifest.Rigs[0].Mesh);
+            Assert.True(File.Exists(Path.Combine(directory, "ConeDrill.fbx")));
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { /* best effort */ }
+        }
     }
 }
