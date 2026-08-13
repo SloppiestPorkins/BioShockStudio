@@ -1,7 +1,6 @@
 ﻿# Handoff
 
-**196/196 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 29 commits
-ahead of `master`, tree clean.
+**222/222 tests pass against the installed game.**
 
 ```bash
 dotnet build && dotnet test
@@ -53,6 +52,8 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Attachments | All three socket kinds resolve: weapon rigs, static props in the host's own group, and `*Socket`-suffixed names. |
 | Weapon viewmodels | All ten in `ShockGame.U` decode and draw, textured. |
 | Animation sets | A character's animations carry the game's own set — Melee, Pistol, Ceiling — and the UI filters by it. |
+| Coordinate system | One reflection, `C = diag(1,-1,1)`, applied at four decode boundaries. Left-handed game basis → right-handed internal basis. Meshes, skeletons and animations are no longer mirrored. |
+| Whole-game animation audit | `audit-animations` — 16,031 animations, **100% playable**, 0 failures, 0 unbound tracks, 47,560 events. |
 | Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
 
 ## 3. Architecture
@@ -77,6 +78,25 @@ data, the service should tell it.
 ## 4. Landmines — things that cost real time to find
 
 Each of these produced a plausible, wrong result before it was understood.
+
+- **Every asset this project produced was mirrored, for two years of commits, because there was no
+  coordinate conversion at all.** BioShock's basis is left-handed (+X forward, +Y right, +Z up);
+  every consumer — the preview rasteriser, FBX as Blender reads it, Blender, glTF — is right-handed.
+  No rotation can bridge those, and both the FBX axis declaration and Blender's importer conversion
+  are rotations, so nothing in the round trip could detect it. Every numeric validation passed the
+  whole time; they were faithfully carrying mirrored data. Fixed by one reflection,
+  `C = diag(1,-1,1)`, applied at four decode boundaries and nowhere else.
+  **`docs/research/ANIMATION_COORDINATE_SYSTEM.md` is required reading before touching any transform.**
+- **The reflection fixes the triangle winding on its own — do not also reverse the indices.** The
+  game is front-face clockwise (100% of triangles, three meshes). A cross product transforms by `-C`
+  and a normal by `+C`, so the reflection negates their agreement and the result is
+  counter-clockwise, as FBX and Blender want. Reversing the winding on top of it puts the geometry
+  back the wrong way. This was implemented the intuitive way first and the tests caught it.
+- **The animation reference-pose fallback is where a double conversion hides.** Omitted channels
+  fall back to the bound bone's reference pose, which comes from the already-converted skeleton
+  while the compressed data has not been converted yet. `AnimationPackage.Decode` takes the fallback
+  back to the game's basis before decoding so the whole result can be converted once. Get this wrong
+  and bones sit on the wrong side *only* when their motion happens to be missing a channel.
 
 - **Blender rest matrices must be set via `EditBone.matrix`.** Building bones from head/tail lets
   Blender pick its own roll, so the rest basis differs from the game's by up to a full axis flip and
@@ -317,8 +337,10 @@ reference — as opposed to a socket or notify — points from a Big Daddy at a 
 ## 9. Reading order for a new session
 
 1. This file.
-2. `docs/research/README.md` — the index and the confidence labels.
-3. `docs/QUALITY.md` — what is measurably still wrong, and what only looks wrong.
-4. `docs/GUI.md` — if touching the application.
-5. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
+2. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy. Nothing else makes sense
+   without it, and every transform in the codebase depends on it.
+3. `docs/research/README.md` — the index and the confidence labels.
+4. `docs/QUALITY.md` — what is measurably still wrong, and what only looks wrong.
+5. `docs/GUI.md` — if touching the application.
+6. The research note for whatever you are about to work on: `skeletalmesh.md`, `staticmesh.md`,
    `materials.md`, `fbx.md`, `context.md`, `binding.md`, `havok-compression.md`.

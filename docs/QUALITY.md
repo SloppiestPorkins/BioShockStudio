@@ -1,7 +1,16 @@
 ﻿# Quality pass
 
 A sweep of every mesh and every animation the game ships, looking for anything that does not come
-out right. Run with the `Audit` probe against the installed game.
+out right.
+
+The animation half is now a committed, repeatable command rather than a one-off probe:
+
+```bash
+dotnet run -c Release --project src/BioShockStudio.Cli -- audit-animations out.csv
+```
+
+`src/BioShockStudio.Core/Diagnostics/AnimationAudit.cs`, tested by
+`tests/BioShockStudio.Tests/AnimationAuditTests.cs`. The mesh half is still the older probe.
 
 **Scope:** 21 map packages plus `ShockGame.U` — 9,672 mesh exports and 16,025 animations across 880
 animation packages.
@@ -22,6 +31,37 @@ that is recorded rather than the check being quietly dropped.
 Geometry and animation are essentially complete, and materials have gone from 7.0% to 73.9% —
 a `StaticMesh` names its material in its own `Materials` property, which is now read. See
 [research/materials.md](research/materials.md).
+
+## Animation audit — whole game
+
+`CONFIRMED_BYTES`, from the command above, after the basis conversion landed.
+
+| | |
+|---|---|
+| Packages swept | 33 (21 maps, plus `Entry`, `ShockGame.U` and the other script packages) |
+| Packages holding animation | 23 |
+| `AnimationPackageWrapper` exports | 883 |
+| Distinct skeletons | 399 (58 distinct names) |
+| **Animations** | **16,031** |
+| **Playable** | **16,031 (100%)** |
+| Partial / Unsupported / Failed | 0 / 0 / 0 |
+| Wrappers that would not load | 0 |
+| Tracks binding to no bone | 0 |
+| Animations carrying events | 11,503, with 47,560 events total |
+
+"Playable" is not a judgement about how the motion looks. It means: the wrapper loaded, the binding
+resolved every track onto a bone that exists on the skeleton, the compressed data decoded, every
+track is sampled over every frame, every translation and scale key is finite, and every rotation key
+is unit length to within 0.01.
+
+Two things worth stating plainly, because both look like gaps and neither is:
+
+- **`Unsupported` is 0 because every animation the game ships is spline-compressed.** There is no
+  second compression form waiting to be implemented. Range across the sweep: 2 to 6,001 frames, 1 to
+  131 transform tracks.
+- **A sweep that reports 100% proves nothing unless its checks can fail.** `AnimationAuditTests`
+  feeds each check its own breakage — zero frames, zero tracks, an unbound track, a truncated track,
+  a NaN translation, an infinite scale, a non-unit quaternion — and asserts each one is caught.
 
 ## What is actually wrong
 

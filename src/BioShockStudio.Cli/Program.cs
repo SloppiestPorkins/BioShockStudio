@@ -1,4 +1,5 @@
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Diagnostics;
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Havok.Detection;
@@ -43,6 +44,7 @@ try
         "export-textures" => ExportTextures(root, args),
         "animation" => AnimationInspect(root, args),
         "export-firstperson" => ExportFirstPerson(root, args),
+        "audit-animations" => AuditAnimations(root, args),
         _ => Usage(),
     };
 }
@@ -80,6 +82,7 @@ static int Usage()
           export-fbx <package> <object> <out-dir> [owner]
                                         Write FBX (mesh, skeleton, one file per animation) plus a
                                         manifest for the Unreal importer.
+          audit-animations [out.csv]    Decode every animation in the game and report coverage.
           export-firstperson <weapon> <out-dir> [--fbx] [--preview=<animation>]
                                         Assemble the hands, the weapon and both animation sets.
                                         --preview also writes a mesh-plus-animation file to look at.
@@ -418,6 +421,82 @@ static int Animations(string root, string[] args)
     Console.WriteLine($"\n{selected.Count} shown, {animationPackage.Animations.Count} decoded, " +
                       $"{animationPackage.Failures.Count} unsupported.");
     return 0;
+}
+
+/// <summary>
+/// Decodes every animation the game ships and reports the coverage. Writes a CSV of every row when
+/// given a path, so a regression can be diffed rather than argued about.
+/// </summary>
+static int AuditAnimations(string root, string[] args)
+{
+    string? csvPath = args.Length > 1 ? args[1] : null;
+
+    Console.WriteLine("auditing every animation in every shipped package. this takes a few minutes.\n");
+    var report = AnimationAudit.Run(root, message => Console.Error.WriteLine($"  {message}"));
+
+    Console.WriteLine($"\npackages          {report.PackageCount}");
+    Console.WriteLine($"animation packages {report.WrapperCount}");
+    Console.WriteLine($"skeletons         {report.SkeletonCount}");
+    Console.WriteLine($"animations        {report.Total}\n");
+
+    foreach (var status in new[]
+             {
+                 AnimationStatus.Playable, AnimationStatus.Partial,
+                 AnimationStatus.Unsupported, AnimationStatus.Failed,
+             })
+    {
+        int count = report.Count(status);
+        double share = report.Total == 0 ? 0 : 100.0 * count / report.Total;
+        Console.WriteLine($"  {status,-12} {count,6}  {share,5:0.0}%");
+    }
+
+    Console.WriteLine($"\nexportable        {report.Decoded} ({(report.Total == 0 ? 0 : 100.0 * report.Decoded / report.Total):0.0}%)");
+    Console.WriteLine($"tracks bound to no bone  {report.UnboundTracks}");
+    Console.WriteLine($"animations with events   {report.WithEvents} ({report.TotalEvents} events)");
+
+    if (report.PackageFailures.Count > 0)
+    {
+        Console.WriteLine($"\n{report.PackageFailures.Count} animation packages would not load:");
+        foreach (var (package, wrapper, reason) in report.PackageFailures.Take(20))
+            Console.WriteLine($"  {package}/{wrapper}: {reason}");
+        if (report.PackageFailures.Count > 20)
+            Console.WriteLine($"  ... and {report.PackageFailures.Count - 20} more");
+    }
+
+    // Group the problems by reason: one cause usually accounts for many rows, and the count is what
+    // says whether it is worth chasing.
+    var problems = report.Rows
+        .Where(r => r.Status is not AnimationStatus.Playable)
+        .GroupBy(r => r.Reason)
+        .OrderByDescending(g => g.Count())
+        .ToList();
+
+    if (problems.Count > 0)
+    {
+        Console.WriteLine($"\nwhy the rest are not playable, by cause:");
+        foreach (var group in problems.Take(25))
+            Console.WriteLine($"  {group.Count(),6}  {group.Key}");
+    }
+
+    if (csvPath is not null)
+    {
+        using var writer = new StreamWriter(csvPath);
+        writer.WriteLine("package,wrapper,owner,name,status,compression,skeleton,bones,frames,fps,tracks,boundTracks,events,reason");
+        foreach (var r in report.Rows)
+        {
+            writer.WriteLine($"{Csv(r.Package)},{Csv(r.Wrapper)},{Csv(r.Owner)},{Csv(r.Name)},{r.Status}," +
+                             $"{Csv(r.Compression)},{Csv(r.SkeletonName)},{r.BoneCount},{r.FrameCount}," +
+                             $"{r.FrameRate:0.00},{r.TrackCount},{r.BoundTrackCount},{r.EventCount},{Csv(r.Reason)}");
+        }
+        Console.WriteLine($"\nwrote {csvPath}");
+    }
+
+    return 0;
+
+    static string Csv(string value) =>
+        value.Contains(',') || value.Contains('"')
+            ? '"' + value.Replace("\"", "\"\"") + '"'
+            : value;
 }
 
 static int Textures(string root, string[] args)
