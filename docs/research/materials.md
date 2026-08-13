@@ -1,4 +1,4 @@
-# Materials
+﻿# Materials
 
 **Implementation:** `src/BioShockStudio.Core/Materials/MaterialReader.cs`, `Export/MaterialExporter.cs`
 **Tests:** `tests/BioShockStudio.Tests/MaterialTests.cs`
@@ -161,3 +161,44 @@ property on the Blender material, so what was dropped is visible.
 
 `UNKNOWN`: `OutputBlending` (blend mode), `MaterialVisualType`, and the internals of the `MaskMaterial`
 struct beyond the fact that it can name a texture. All are carried through, none are interpreted.
+
+
+## A StaticMesh names its material differently (UNKNOWN)
+
+`ReadMeshMaterialReferences` finds a mesh's material by searching for the tag block
+`int32 4, int32 5, byte 1` and reading the counted array after it. **A `StaticMesh` does not have
+that tag block.** Its equivalent is `int32 4, int32 8, int32 1` — the second field appears to
+distinguish the two containers — and no material reference follows it.
+
+The consequence is measurable and large: of 630 meshes that draw in `1-Medical`, only **22 resolve a
+diffuse texture**. The Bouncer's body is textured; its drill, cage and backpack draw flat grey.
+
+Unlike a `SkeletalMesh`, whose property list is empty, a `StaticMesh` has a real one holding
+`Materials`. That is where the answer should be, and the walk currently ends `truncated` — on a
+numbered `None` — so what it returns for that property is not trustworthy.
+
+The 23 bytes it currently yields for `ConeDrill`:
+
+```
+01 58 02 00 00 00 00 d3 00 36 00 00 00 00 55 03 4b a5 01 00 00 00 00
+                                              ^^^^^^^^
+```
+
+`Plane`, in the same package, yields the same bytes except for those three:
+
+```
+01 58 02 00 00 00 00 d3 00 36 00 00 00 00 55 03 67 c8 01 00 00 00 00
+```
+
+Read as an `FCompactIndex`, `4b a5 01` is 10571, which is export `ConeDrillRimShader`, a
+`FacingShader` — the right class, and a name that matches the mesh. `67 c8 01` is 12839.
+
+**This is suggestive, not established.** The surrounding bytes being identical across meshes means
+the walk is almost certainly misaligned and this value spans more than one property, so the position
+of that index within it is an artefact rather than a field offset. Nothing has been changed on the
+strength of it.
+
+**How to close it:** hand-decode the property list of a `StaticMesh` from offset 8 and find where
+the walk loses alignment — the same failure mode as the `MaskMaterial` size above, and possibly the
+same cause. Until then static meshes export and draw without materials, and say so rather than
+guessing.

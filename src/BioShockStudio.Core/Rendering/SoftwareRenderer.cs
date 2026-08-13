@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using BioShockStudio.Core.Services;
 
 namespace BioShockStudio.Core.Rendering;
@@ -65,6 +65,17 @@ public sealed record RenderOptions
     /// geometry alone, which is what you want when checking a skinning problem.
     /// </remarks>
     public bool Shaded { get; init; } = true;
+
+    /// <summary>
+    /// Honour the diffuse texture's alpha: cut out the holes, blend the translucent parts.
+    /// </summary>
+    /// <remarks>
+    /// Turning it off draws every surface solid, which is the old behaviour and is occasionally
+    /// what you want — a glass pane you cannot see is hard to tell from a glass pane that failed to
+    /// load. A texture with no alpha takes the same path either way.
+    /// </remarks>
+    public bool Transparency { get; init; } = true;
+
     public bool Wireframe { get; init; }
     public bool ShowSkeleton { get; init; }
     public bool ShowSockets { get; init; }
@@ -188,65 +199,132 @@ public static class SoftwareRenderer
         var normalMap = options.Shaded && options.Textured ? model.NormalMap : null;
         var specularMap = options.Shaded && options.Textured ? model.SpecularMap : null;
 
-        for (int i = 0; i + 2 < model.Indices.Count; i += 3)
+        // Alpha is taken from the diffuse texture rather than from the material's blend mode, whose
+        // values are still UNKNOWN — see docs/research/materials.md. A texture whose alpha is 255
+        // everywhere takes exactly the path it always did, so nothing opaque can change.
+        bool hasAlpha = texture is not null && options.Transparency && texture.HasTransparency;
+
+        // Opaque first, then the translucent surfaces back to front over the top. Without the sort a
+        // window drawn before what is behind it hides it.
+        var order = hasAlpha
+            ? SortedTriangles(model, positions, camera.Eye)
+            : null;
+
+        for (int pass = 0; pass < (hasAlpha ? 2 : 1); pass++)
         {
-            int a = model.Indices[i], b = model.Indices[i + 1], c = model.Indices[i + 2];
+            bool blendPass = pass == 1;
+            int triangleCount = model.Indices.Count / 3;
+
+            for (int t = 0; t < triangleCount; t++)
+            {
+                int i = (order is null ? t : order[t]) * 3;
+
+                int a = model.Indices[i], b = model.Indices[i + 1], c = model.Indices[i + 2];
+                if (a >= positions.Length || b >= positions.Length || c >= positions.Length) continue;
+
+                if (!Project(positions[a], viewProjection, target, out var pa) ||
+                    !Project(positions[b], viewProjection, target, out var pb) ||
+                    !Project(positions[c], viewProjection, target, out var pc))
+                {
+                    continue;
+                }
+
+                RasteriseTriangle(target, pa, pb, pc, (bary, depth, x, y) =>
+                {
+                    var uv = model.Vertices[a].Uv * bary.X
+                             + model.Vertices[b].Uv * bary.Y
+                             + model.Vertices[c].Uv * bary.Z;
+
+                    byte r, g, bl, alpha;
+                    if (texture is not null) (r, g, bl, alpha) = SampleRgba(texture, uv);
+                    else { r = g = bl = 190; alpha = 255; }
+
+                    if (hasAlpha)
+                    {
+                        // Fully transparent texels are holes, not faint surfaces: a grating, a
+                        // chain-link fence, a hair card. Drawing them at all fills the gaps in.
+                        if (alpha < CutoutThreshold) return;
+
+                        // Each fragment goes in exactly one pass, so nothing is drawn twice.
+                        bool solid = alpha >= OpaqueThreshold;
+                        if (solid == blendPass) return;
+                    }
+
+                    var normal = Vector3.Normalize(
+                        normals[a] * bary.X + normals[b] * bary.Y + normals[c] * bary.Z);
+                    var point = positions[a] * bary.X + positions[b] * bary.Y + positions[c] * bary.Z;
+
+                    // The shipped tangent basis, interpolated, so the normal map is applied in the
+                    // space it was authored in rather than one derived here.
+                    if (normalMap is not null && tangents is not null && binormals is not null)
+                    {
+                        var tangent = tangents[a] * bary.X + tangents[b] * bary.Y + tangents[c] * bary.Z;
+                        var binormal = binormals[a] * bary.X + binormals[b] * bary.Y + binormals[c] * bary.Z;
+                        normal = ApplyNormalMap(normalMap, uv, normal, tangent, binormal);
+                    }
+
+                    // A headlamp: the light sits at the camera, so nothing is ever unlit and the
+                    // shape reads from any angle without a lighting rig to set up.
+                    var toEye = Vector3.Normalize(eye - point);
+                    float lambert = MathF.Abs(Vector3.Dot(normal, toEye));
+                    float shade = 0.18f + 0.82f * lambert;
+
+                    float red = r * shade;
+                    float green = g * shade;
+                    float blue = bl * shade;
+
+                    if (specularMap is not null)
+                    {
+                        // Blinn-Phong against the headlamp, so the light and the eye coincide and
+                        // the half vector is the view direction.
+                        float highlight = MathF.Pow(MathF.Max(0f, Vector3.Dot(normal, toEye)), 24f);
+                        var (sr, sg, sb) = Sample(specularMap, uv);
+                        red += sr * highlight;
+                        green += sg * highlight;
+                        blue += sb * highlight;
+                    }
+
+                    if (blendPass)
+                        target.Blend(x, y, Clamp(red), Clamp(green), Clamp(blue), alpha / 255f);
+                    else
+                        target.Plot(x, y, depth, Clamp(red), Clamp(green), Clamp(blue));
+                });
+            }
+        }
+    }
+
+    /// <summary>Below this, a texel is a hole rather than a faint surface.</summary>
+    private const byte CutoutThreshold = 8;
+
+    /// <summary>At or above this, a texel is treated as solid and written with depth.</summary>
+    private const byte OpaqueThreshold = 250;
+
+    /// <summary>
+    /// Triangle indices ordered back to front from the eye, by centroid distance.
+    /// </summary>
+    /// <remarks>
+    /// Per triangle rather than per pixel, so two translucent surfaces that intersect will still
+    /// resolve wrongly along the intersection. That is the standard limitation of sorted blending
+    /// and it is not worth an order-independent scheme for a preview.
+    /// </remarks>
+    private static int[] SortedTriangles(PreviewModel model, Vector3[] positions, Vector3 eye)
+    {
+        int count = model.Indices.Count / 3;
+        var order = new int[count];
+        var distance = new float[count];
+
+        for (int t = 0; t < count; t++)
+        {
+            order[t] = t;
+            int a = model.Indices[t * 3], b = model.Indices[t * 3 + 1], c = model.Indices[t * 3 + 2];
             if (a >= positions.Length || b >= positions.Length || c >= positions.Length) continue;
 
-            if (!Project(positions[a], viewProjection, target, out var pa) ||
-                !Project(positions[b], viewProjection, target, out var pb) ||
-                !Project(positions[c], viewProjection, target, out var pc))
-            {
-                continue;
-            }
-
-            RasteriseTriangle(target, pa, pb, pc, (bary, depth, x, y) =>
-            {
-                var normal = Vector3.Normalize(
-                    normals[a] * bary.X + normals[b] * bary.Y + normals[c] * bary.Z);
-                var point = positions[a] * bary.X + positions[b] * bary.Y + positions[c] * bary.Z;
-
-                var uv = model.Vertices[a].Uv * bary.X
-                         + model.Vertices[b].Uv * bary.Y
-                         + model.Vertices[c].Uv * bary.Z;
-
-                // The shipped tangent basis, interpolated, so the normal map is applied in the space
-                // it was authored in rather than one derived here.
-                if (normalMap is not null && tangents is not null && binormals is not null)
-                {
-                    var tangent = tangents[a] * bary.X + tangents[b] * bary.Y + tangents[c] * bary.Z;
-                    var binormal = binormals[a] * bary.X + binormals[b] * bary.Y + binormals[c] * bary.Z;
-                    normal = ApplyNormalMap(normalMap, uv, normal, tangent, binormal);
-                }
-
-                // A headlamp: the light sits at the camera, so nothing is ever unlit and the shape
-                // reads from any angle without a lighting rig to set up.
-                var toEye = Vector3.Normalize(eye - point);
-                float lambert = MathF.Abs(Vector3.Dot(normal, toEye));
-                float shade = 0.18f + 0.82f * lambert;
-
-                byte r, g, bl;
-                if (texture is not null) (r, g, bl) = Sample(texture, uv);
-                else r = g = bl = 190;
-
-                float red = r * shade;
-                float green = g * shade;
-                float blue = bl * shade;
-
-                if (specularMap is not null)
-                {
-                    // Blinn-Phong against the headlamp, so the light and the eye coincide and the
-                    // half vector is the view direction.
-                    float highlight = MathF.Pow(MathF.Max(0f, Vector3.Dot(normal, toEye)), 24f);
-                    var (sr, sg, sb) = Sample(specularMap, uv);
-                    red += sr * highlight;
-                    green += sg * highlight;
-                    blue += sb * highlight;
-                }
-
-                target.Plot(x, y, depth, Clamp(red), Clamp(green), Clamp(blue));
-            });
+            var centroid = (positions[a] + positions[b] + positions[c]) / 3f;
+            distance[t] = -(centroid - eye).LengthSquared();
         }
+
+        Array.Sort(distance, order);
+        return order;
     }
 
     private static void DrawWireframe(
@@ -416,13 +494,19 @@ public static class SoftwareRenderer
 
     private static (byte R, byte G, byte B) Sample(PreviewImage texture, Vector2 uv)
     {
+        var (r, g, b, _) = SampleRgba(texture, uv);
+        return (r, g, b);
+    }
+
+    private static (byte R, byte G, byte B, byte A) SampleRgba(PreviewImage texture, Vector2 uv)
+    {
         // The game's V runs top-down, the same flip the exporters apply.
         int x = (int)(Wrap(uv.X) * (texture.Width - 1));
         int y = (int)(Wrap(uv.Y) * (texture.Height - 1));
         int offset = (y * texture.Width + x) * 4;
 
-        if (offset < 0 || offset + 2 >= texture.Rgba.Length) return (190, 190, 190);
-        return (texture.Rgba[offset], texture.Rgba[offset + 1], texture.Rgba[offset + 2]);
+        if (offset < 0 || offset + 3 >= texture.Rgba.Length) return (190, 190, 190, 255);
+        return (texture.Rgba[offset], texture.Rgba[offset + 1], texture.Rgba[offset + 2], texture.Rgba[offset + 3]);
 
         static float Wrap(float value)
         {
@@ -505,6 +589,26 @@ public static class SoftwareRenderer
             Colour[index * 4] = r;
             Colour[index * 4 + 1] = g;
             Colour[index * 4 + 2] = b;
+            Colour[index * 4 + 3] = 255;
+        }
+
+        /// <summary>
+        /// Source-over blend of a translucent fragment, without writing depth.
+        /// </summary>
+        /// <remarks>
+        /// Leaving depth alone is what lets a second translucent surface behind this one still draw.
+        /// It also means the result depends on draw order, which is why the translucent pass is
+        /// sorted back to front.
+        /// </remarks>
+        public void Blend(int x, int y, byte r, byte g, byte b, float alpha)
+        {
+            if (x < 0 || y < 0 || x >= Width || y >= Height) return;
+            int index = y * Width + x;
+            float inverse = 1f - alpha;
+
+            Colour[index * 4] = (byte)(r * alpha + Colour[index * 4] * inverse);
+            Colour[index * 4 + 1] = (byte)(g * alpha + Colour[index * 4 + 1] * inverse);
+            Colour[index * 4 + 2] = (byte)(b * alpha + Colour[index * 4 + 2] * inverse);
             Colour[index * 4 + 3] = 255;
         }
     }

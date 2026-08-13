@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**167/167 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 18 commits
+**176/176 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 20 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -44,7 +44,8 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `StaticMesh` | Geometry, UV streams, indices. **All 8,668 shipped exports decode.** |
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
-| Textures | DXT1/3/5, RGBA8 → PNG + DDS. 1054/1062 in 0-Lighthouse. |
+| Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
+| Transparency | The viewport cuts out holes and blends translucent surfaces, from the texture's own alpha. |
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Unreal import | **Never attempted.** See §6.4. |
@@ -114,6 +115,12 @@ Each of these produced a plausible, wrong result before it was understood.
   of distinct assets (71,106 rows for 14,378 things) unless collapsed.
 - Names differ in case between the Havok tables and the Unreal objects (`R_Grip` / `R_grip`).
 - Object names are not unique within a package; resolve by class as well.
+- **A long animation is not just a longer short one.** Two spline-sampling faults were invisible on
+  the hands, whose animations fit in a single block, and folded Ryan's chest into his legs on a
+  2,613-frame speech. Test something with ten blocks in it.
+- **Measure animation on the bones the mesh actually uses.** `Ryan` has 131 bones and 98 are skinned;
+  `Dummy02` and `putterPLACEHOLDER` carry his golf club, move freely, and dominate every statistic
+  taken over all bones. They are never drawn.
 - **Render everything.** Numeric validation has passed while the result was visibly wrong, more than
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
@@ -149,6 +156,7 @@ BIOSHOCK_UI_SNAPSHOT=/tmp/ui.png dotnet test --filter FullyQualifiedName~WindowT
 BIOSHOCK_RENDER_SNAPSHOT=/tmp/r.png dotnet test --filter FullyQualifiedName~RenderingTests
 BIOSHOCK_CONTEXT_SNAPSHOT=/tmp/c.png dotnet test --filter FullyQualifiedName~ContextTests
 BIOSHOCK_STATIC_SNAPSHOT=/tmp/s.png dotnet test --filter FullyQualifiedName~Static_Snapshot
+BIOSHOCK_BOUNCER_SNAPSHOT=/tmp/b.png dotnet test --filter FullyQualifiedName~Bouncer_Snapshot
 ```
 
 The last writes one image per static mesh (`/tmp/s_ConeDrill.png` and so on). The drill should be a

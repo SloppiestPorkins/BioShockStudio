@@ -1,4 +1,4 @@
-# Open questions
+﻿# Open questions
 
 Priority order, driven by the pistol definition of done. Each entry names the evidence that would
 close it, so none of them get closed by guessing.
@@ -95,10 +95,26 @@ The byte evidence for both the working and the failing case is in [materials.md]
 the declared size is actually counting. The one-byte difference lines up exactly with the inner
 `Object` property's explicit size byte, which is suggestive and not sufficient.
 
+## 10b. A `StaticMesh`'s material reference
+
+`UNKNOWN`, and it is why only 22 of 630 drawable meshes in `1-Medical` resolve a diffuse texture.
+The tag-block search that works for a `SkeletalMesh` does not apply: a static mesh's tag block is
+`int32 4, int32 8, int32 1` and carries no material reference after it. Its `Materials` array
+property is the right place to look, and the property walk currently ends truncated there. Byte
+evidence, including a candidate reading that resolves to the right class and name, is in
+[materials.md](materials.md).
+
 ## 11. `OutputBlending` and `MaterialVisualType`
 
 `UNKNOWN`. A blend mode and a shader-variant selector, both single bytes on `Shader` objects, both
-carried through the exporter uninterpreted. Nothing yet depends on either.
+carried through the exporter uninterpreted.
+
+`OutputBlending` is absent on 687 of `1-Medical`'s 819 materials and is 1, 2 or 3 on the rest
+(57, 61 and 14). That distribution invites reading it as Unreal's `EBlendMode` — masked, translucent,
+additive — but correlating each value against the alpha actually present in that material's diffuse
+texture does not support it: materials with no blend value are the ones most likely to have graded
+alpha. **So the renderer does not use it.** Transparency is driven by the texture's observed alpha
+instead, which is a fact rather than an interpretation.
 
 ## 12. Unreal import
 

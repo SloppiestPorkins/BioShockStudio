@@ -6,14 +6,32 @@ namespace BioShockStudio.Core.Services;
 /// <summary>A decoded image, ready for a UI to display. Straight RGBA, eight bits per channel.</summary>
 public sealed record PreviewImage(int Width, int Height, byte[] Rgba)
 {
-    /// <summary>True when any pixel is not fully opaque, so the UI knows to show transparency.</summary>
+    private bool? _hasTransparency;
+
+    /// <summary>
+    /// True when any pixel is not fully opaque, so the UI knows to show transparency and the
+    /// renderer knows to run a blended pass.
+    /// </summary>
+    /// <remarks>
+    /// Cached: this is asked once per mesh per frame and scanning a 512-square texture on every
+    /// call showed up as a visible cost in the viewport.
+    /// </remarks>
     public bool HasTransparency
     {
         get
         {
+            if (_hasTransparency is { } known) return known;
+
+            bool found = false;
             for (int i = 3; i < Rgba.Length; i += 4)
-                if (Rgba[i] != 255) return true;
-            return false;
+            {
+                if (Rgba[i] == 255) continue;
+                found = true;
+                break;
+            }
+
+            _hasTransparency = found;
+            return found;
         }
     }
 }
