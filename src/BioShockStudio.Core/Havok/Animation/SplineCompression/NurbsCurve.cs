@@ -1,4 +1,4 @@
-namespace BioShockStudio.Core.Havok.Animation.SplineCompression;
+﻿namespace BioShockStudio.Core.Havok.Animation.SplineCompression;
 
 /// <summary>
 /// The NURBS basis Havok uses for spline-compressed tracks: a byte knot vector and a control-point
@@ -23,20 +23,49 @@ public sealed class NurbsBasis
         _knots = knots;
     }
 
+    /// <summary>Largest knot value, i.e. the last frame this curve describes.</summary>
+    public int MaxKnot
+    {
+        get
+        {
+            int max = 0;
+            foreach (byte k in _knots) if (k > max) max = k;
+            return max;
+        }
+    }
+
     /// <summary>Knot vector length for a given item count and degree.</summary>
     public static int KnotCount(int numItems, int degree) => numItems + degree + 2;
 
-    /// <summary>Locates the knot span containing <paramref name="t"/>.</summary>
+    /// <summary>
+    /// Locates the knot span containing <paramref name="t"/>.
+    /// </summary>
+    /// <remarks>
+    /// Piegl &amp; Tiller A2.1, with <c>n = ControlPointCount - 1</c> and a knot vector of
+    /// <c>n + Degree + 2</c> entries, so the curve's domain is <c>[knots[Degree], knots[n + 1]]</c>.
+    /// <para>
+    /// Both bounds matter and both were wrong. The clamp compared against <c>knots[n]</c> and
+    /// returned span <c>n - 1</c>, and the search ran to <c>n</c> rather than <c>n + 1</c> — so the
+    /// last knot span was never selected and every sample inside it was evaluated against the
+    /// span below, extrapolating a basis outside its own interval. The error grew towards the end of
+    /// each block and jumped at the boundary into the next, which on a long animation collapses a
+    /// skeleton: <c>Ryan_Speech_B</c> moved a bone 1,159 units between two adjacent frames on a
+    /// skeleton 130 units tall.
+    /// </para>
+    /// </remarks>
     public int FindSpan(float t)
     {
-        int last = ControlPointCount - 1;
-        if (t >= _knots[last]) return last - 1 < Degree ? Degree : last - 1;
+        int n = ControlPointCount - 1;
+        if (n <= Degree) return Degree;
+
+        if (t >= _knots[n + 1]) return n;
+        if (t <= _knots[Degree]) return Degree;
 
         int low = Degree;
-        int high = last;
+        int high = n + 1;
         int mid = (low + high) / 2;
 
-        // Standard binary search over the knot vector; bounded so malformed knots cannot spin.
+        // Bounded so a malformed knot vector cannot spin.
         for (int guard = 0; guard < 64; guard++)
         {
             if (t >= _knots[mid] && t < _knots[mid + 1]) return mid;
@@ -45,6 +74,7 @@ public sealed class NurbsBasis
             if (next == mid) return mid;
             mid = next;
         }
+
         return mid;
     }
 

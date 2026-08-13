@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Numerics;
 using BioShockStudio.Core.Animation;
 
@@ -83,22 +83,35 @@ public static class SplineDecompressor
             scales[t] = new Vector3[frameCount];
         }
 
+        // Consecutive blocks share a frame: the last frame a block covers is the first frame of the
+        // next one, so a block of maxFramesPerBlock frames advances the animation by one less than
+        // that. Advancing by the full count instead drifts the sample one frame further into the
+        // curve per block — invisible in the first few, and by block nine it is sampling nine frames
+        // early, which on Ryan's speech collapsed his chest into his legs.
+        int framesPerBlock = Math.Max(1, maxFramesPerBlock - 1);
+
+        TrackChannels[]? channels = null;
+        int loadedBlock = -1;
+
         for (int frame = 0; frame < frameCount; frame++)
         {
-            int blockIndex = maxFramesPerBlock > 0 ? frame / maxFramesPerBlock : 0;
+            int blockIndex = frame / framesPerBlock;
             if (blockIndex >= blockOffsets.Count) blockIndex = blockOffsets.Count - 1;
 
-            float localFrame = frame - blockIndex * (long)maxFramesPerBlock;
+            float localFrame = frame - blockIndex * (long)framesPerBlock;
 
-            int start = (int)blockOffsets[blockIndex];
-            int end = blockIndex + 1 < blockOffsets.Count ? (int)blockOffsets[blockIndex + 1] : data.Length;
-            var block = data[start..end];
-
-            var channels = ReadBlock(block, transformTrackCount, referencePose);
+            // Blocks are parsed once each rather than once per frame.
+            if (blockIndex != loadedBlock)
+            {
+                int start = (int)blockOffsets[blockIndex];
+                int end = blockIndex + 1 < blockOffsets.Count ? (int)blockOffsets[blockIndex + 1] : data.Length;
+                channels = ReadBlock(data[start..end], transformTrackCount, referencePose);
+                loadedBlock = blockIndex;
+            }
 
             for (int t = 0; t < transformTrackCount; t++)
             {
-                translations[t][frame] = SampleVector(channels[t].Translation, localFrame);
+                translations[t][frame] = SampleVector(channels![t].Translation, localFrame);
                 rotations[t][frame] = SampleRotation(channels[t].Rotation, localFrame);
                 scales[t][frame] = SampleVector(channels[t].Scale, localFrame);
             }
@@ -119,10 +132,86 @@ public static class SplineDecompressor
         return new DecodedAnimation { FrameCount = frameCount, Tracks = tracks };
     }
 
+    /// <summary>How much of a block the parse actually consumed.</summary>
+    /// <remarks>
+    /// A block is padded to 16 bytes, so a correct walk ends within 15 bytes of the block's length.
+    /// Ending anywhere else means the walk lost alignment inside a channel and every track after
+    /// that point in the block is being read from the wrong offset — which produces confident,
+    /// wrong animation rather than an error.
+    /// </remarks>
+    public readonly record struct BlockConsumption(int Index, int Length, int Consumed)
+    {
+        public int Slack => Length - Consumed;
+
+        public bool LooksComplete => Slack is >= 0 and < 16;
+
+        /// <summary>Largest knot value in the block, i.e. the last frame its splines describe.</summary>
+        public int MaxKnot { get; init; }
+
+        /// <summary>Largest control-point count of any channel in the block.</summary>
+        public int MaxControlPoints { get; init; }
+
+        public int SplineChannels { get; init; }
+    }
+
+    /// <summary>
+    /// Walks each block and reports how much of it the parse consumed, for diagnosing a format
+    /// variant without decoding a whole animation.
+    /// </summary>
+    public static IReadOnlyList<BlockConsumption> DescribeBlocks(
+        ReadOnlySpan<byte> data,
+        IReadOnlyList<uint> blockOffsets,
+        int transformTrackCount,
+        IReadOnlyList<ReferenceTransform> referencePose)
+    {
+        var result = new List<BlockConsumption>(blockOffsets.Count);
+
+        for (int i = 0; i < blockOffsets.Count; i++)
+        {
+            int start = (int)blockOffsets[i];
+            int end = i + 1 < blockOffsets.Count ? (int)blockOffsets[i + 1] : data.Length;
+            var block = data[start..end];
+
+            try
+            {
+                var channels = ReadBlock(block, transformTrackCount, referencePose, out int consumed);
+
+                int maxKnot = 0, maxPoints = 0, splines = 0;
+                foreach (var track in channels)
+                {
+                    foreach (var channel in new[] { track.Translation, track.Rotation, track.Scale })
+                    {
+                        if (channel.Basis is not { } basis) continue;
+                        splines++;
+                        maxKnot = Math.Max(maxKnot, basis.MaxKnot);
+                        maxPoints = Math.Max(maxPoints, basis.ControlPointCount);
+                    }
+                }
+
+                result.Add(new BlockConsumption(i, block.Length, consumed)
+                {
+                    MaxKnot = maxKnot,
+                    MaxControlPoints = maxPoints,
+                    SplineChannels = splines,
+                });
+            }
+            catch (Exception ex) when (ex is ArgumentOutOfRangeException or IndexOutOfRangeException)
+            {
+                result.Add(new BlockConsumption(i, block.Length, -1));
+            }
+        }
+
+        return result;
+    }
+
     private readonly record struct TrackChannels(ChannelData Translation, ChannelData Rotation, ChannelData Scale);
 
     private static TrackChannels[] ReadBlock(
-        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose)
+        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose) =>
+        ReadBlock(block, trackCount, referencePose, out _);
+
+    private static TrackChannels[] ReadBlock(
+        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose, out int consumed)
     {
         var result = new TrackChannels[trackCount];
         int position = trackCount * TransformMask.Size;
@@ -139,6 +228,7 @@ public static class SplineDecompressor
             result[t] = new TrackChannels(translation, rotation, scale);
         }
 
+        consumed = position;
         return result;
     }
 
@@ -242,6 +332,20 @@ public static class SplineDecompressor
                 position += width;
             }
 
+            // q and -q are the same rotation, and the packed form does not preserve which was
+            // written, so neighbouring control points can arrive on opposite hemispheres. Blending
+            // across such a pair takes the long way round.
+            //
+            // Aligning every point to the first one only works while the curve stays within a half
+            // turn of where it started. Over a long spline it does not: Ryan's putter swings past
+            // that, and one control point on the wrong side threw the club — and his arm with it —
+            // a thousand units in a single frame. Each point is aligned to its predecessor instead,
+            // so the chain stays continuous however far the curve travels.
+            for (int i = 1; i < controlPointCount; i++)
+            {
+                if (Quaternion.Dot(points[i], points[i - 1]) < 0f) points[i] = -points[i];
+            }
+
             position = Align(position, 4);
 
             return new ChannelData
@@ -304,18 +408,15 @@ public static class SplineDecompressor
         if (!channel.IsSpline || channel.RotationControlPoints is null) return channel.StaticRotation;
 
         // Havok blends the control points directly and renormalises rather than doing a chain of
-        // slerps; matching that keeps playback identical to the game.
+        // slerps; matching that keeps playback identical to the game. The points were put on a
+        // consistent hemisphere when the channel was read, so no sign fixing is needed here.
         var accumulated = new Quaternion(0f, 0f, 0f, 0f);
-        var reference = channel.RotationControlPoints[0];
 
         foreach (var (index, weight) in channel.Basis!.Weights(t))
-        {
-            var point = channel.RotationControlPoints[index];
-            // Keep control points on the same hemisphere before blending.
-            if (Quaternion.Dot(point, reference) < 0f) point = -point;
-            accumulated += point * weight;
-        }
+            accumulated += channel.RotationControlPoints[index] * weight;
 
-        return accumulated.LengthSquared() > 1e-12f ? Quaternion.Normalize(accumulated) : reference;
+        return accumulated.LengthSquared() > 1e-12f
+            ? Quaternion.Normalize(accumulated)
+            : channel.RotationControlPoints[0];
     }
 }

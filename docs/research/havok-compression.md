@@ -1,4 +1,4 @@
-# Havok spline compression as BioShock uses it
+﻿# Havok spline compression as BioShock uses it
 
 **Implementation:** `src/BioShockStudio.Core/Havok/Animation/SplineCompression/`
 **Tests:** `tests/BioShockStudio.Tests/SplineDecompressionTests.cs`
@@ -135,3 +135,49 @@ Multi-block animations select their block as `frame / maxFramesPerBlock`.
 - Under animation, 46 of 47 bones keep their rest length exactly. The exception is
   `Bip01_R_UpperArm`, whose shoulder offset the animation deliberately overrides (it stores X
   explicitly as 19.14 against a bind value of 18.73, a 5% change).
+
+
+## Sampling a block (CONFIRMED_BYTES)
+
+Two faults here were invisible on the first-person hands, whose animations are a few dozen frames
+and fit in a single block. They only appear on long animations, and both were found on Ryan's
+speeches — 2,352 and 2,613 frames, across ten and eleven blocks.
+
+### Blocks overlap by one frame
+
+A block's knot values are frame numbers within that block. A full block's knots run to
+`maxFramesPerBlock - 1` (255), so it describes 256 frames — and the last of those is the first frame
+of the next block. **A block therefore advances the animation by `maxFramesPerBlock - 1`, not by
+`maxFramesPerBlock`.**
+
+The evidence is the final block. `Ryan_Speech_B` has 2,613 frames in 11 blocks:
+
+| | stride 255 | stride 256 |
+|---|---|---|
+| Frames left for the last block | 63 | 53 |
+| Its knots should therefore stop at | 62 | 52 |
+| Its knots actually stop at | **62** | — |
+
+Advancing by the full count instead samples one frame further into the curve per block: nothing
+visible in the first few, and nine frames early by block nine.
+
+### The last knot span
+
+`FindSpan` follows Piegl & Tiller A2.1. With `n = ControlPointCount - 1` and a knot vector of
+`n + degree + 2` entries, the curve's domain is `[knots[degree], knots[n + 1]]`.
+
+Both bounds were wrong: the clamp compared against `knots[n]` and returned span `n - 1`, and the
+binary search ran to `n` rather than `n + 1`. The last span was therefore never selected, and every
+sample inside it was evaluated against the span below — a basis extrapolated outside its own
+interval. The error grew towards the end of each block and carried into the next.
+
+On `Ryan_DoorLoop`, a quiet idle, the worst single-frame bone movement was **10.44 units on a
+skeleton 130 units tall**; corrected, it is **0.25**. On the long speeches it stretched a quarter of
+the skeleton at once, which is what folded Ryan's chest into his legs partway through.
+
+### Prop bones are not the mesh
+
+When measuring this, restrict to bones the mesh is actually skinned to. `Ryan` has 131 bones and only
+98 of them are skinned; `Dummy02`, `putterPLACEHOLDER` and `R_Grip` carry his golf club and move
+freely without ever being drawn. Measured over all bones they dominate every statistic and hide the
+real signal.
