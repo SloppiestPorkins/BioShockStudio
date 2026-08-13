@@ -44,6 +44,9 @@ public partial class MainViewModel
     [ObservableProperty] private int _viewportHeight = 300;
 
     [ObservableProperty] private bool _showTextures = true;
+
+    /// <summary>Honour the diffuse texture's alpha rather than drawing every surface solid.</summary>
+    [ObservableProperty] private bool _showTransparency = true;
     [ObservableProperty] private bool _showWireframe;
     [ObservableProperty] private bool _showShading = true;
     [ObservableProperty] private bool _showSkeleton;
@@ -116,6 +119,7 @@ public partial class MainViewModel
     public ObservableCollection<double> PlaybackSpeeds { get; } = [0.25, 0.5, 1.0, 2.0];
 
     partial void OnShowTexturesChanged(bool value) => RequestRender();
+    partial void OnShowTransparencyChanged(bool value) => RequestRender();
     partial void OnShowWireframeChanged(bool value) => RequestRender();
     partial void OnShowShadingChanged(bool value) => RequestRender();
     partial void OnShowSkeletonChanged(bool value) => RequestRender();
@@ -587,6 +591,7 @@ public partial class MainViewModel
                 var options = new RenderOptions
                 {
                     Textured = ShowTextures,
+                    Transparency = ShowTransparency,
                     Shaded = ShowShading,
                     Wireframe = ShowWireframe,
                     ShowSkeleton = ShowSkeleton,

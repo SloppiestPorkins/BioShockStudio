@@ -1,6 +1,6 @@
 ﻿# Handoff
 
-**186/186 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 25 commits
+**188/188 tests pass against the installed game.** Branch `feature/fbx-materials-gui`, 27 commits
 ahead of `master`, tree clean.
 
 ```bash
@@ -293,11 +293,10 @@ These are the project's, and they are why its claims have held up.
 |---|---|---|
 | Meshes decoded | 9,672 | **9,654 (99.8%)** |
 | Animations decoded | 16,025 | **16,025 (100%)** |
-| Meshes with a diffuse texture | 9,672 | **680 (7.0%)** |
+| Meshes with a diffuse texture | 9,672 | **7,146 (73.9%)** |
 
-Geometry and animation are essentially done. **Materials are the one large gap**, and §6.1 is its
-cause. That file also records which of the audit's checks fired on correct data, so the next person
-does not chase them.
+Geometry, animation and materials are all in reasonable shape. That file also records which of the
+audit's checks fired on correct data, so the next person does not chase them.
 
 ## 8. Open unknowns
 

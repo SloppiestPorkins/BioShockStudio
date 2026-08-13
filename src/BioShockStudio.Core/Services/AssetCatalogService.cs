@@ -1,4 +1,4 @@
-using BioShockStudio.Core.Assets;
+﻿using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
@@ -276,8 +276,9 @@ public sealed class AssetCatalogService
                 ClassName = AssetClasses.AnimationPackageWrapper,
                 ExportIndex = -1,
                 SerialSize = character.LargestMeshSize,
-                Detail = $"{character.AnimationCount} animations · {character.Meshes.Count} mesh(es) · "
-                         + $"{character.TextureCount} textures",
+                Detail = $"{character.AnimationCount} anims · {character.Meshes.Count} "
+                         + (character.Meshes.Count == 1 ? "mesh" : "meshes")
+                         + $" · {character.TextureCount} textures",
             });
         }
 

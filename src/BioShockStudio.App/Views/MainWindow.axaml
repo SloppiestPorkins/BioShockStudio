@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:BioShockStudio.App.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -79,7 +79,7 @@
         </Border>
 
         <!-- ============================================ browser -->
-        <Grid Grid.Row="1" ColumnDefinitions="220,4,*,4,470" IsVisible="{Binding HasInstall}">
+        <Grid Grid.Row="1" ColumnDefinitions="196,4,*,4,452" IsVisible="{Binding HasInstall}">
 
             <!-- categories -->
             <DockPanel Grid.Column="0" Margin="10">
@@ -109,14 +109,14 @@
                 <DataGrid ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedAsset}"
                           IsReadOnly="True" GridLinesVisibility="Horizontal" CanUserSortColumns="True">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="190" />
-                        <DataGridTextColumn Header="Kind" Binding="{Binding Category}" Width="95" />
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="170" />
+                        <DataGridTextColumn Header="Kind" Binding="{Binding Category}" Width="102" />
                         <!-- Details carries what the asset actually is — a texture's format and size,
                              a shader's type and how many maps it binds — so it gets the room. The
                              group and the Unreal class are in the details panel; repeating them here
                              squeezed this column to nothing. -->
-                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="*" MinWidth="150" />
-                        <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="100" />
+                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="3*" MinWidth="150" />
+                        <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="130" MinWidth="110" />
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -143,7 +143,7 @@
                         <!-- 3D preview -->
                         <StackPanel Spacing="6" IsVisible="{Binding HasViewport}">
                             <Border Name="ViewportHost" Background="#FF202020" CornerRadius="4"
-                                    Height="300" ClipToBounds="True" Cursor="Hand"
+                                    Height="360" ClipToBounds="True" Cursor="Hand"
                                     ToolTip.Tip="Drag to orbit · Shift-drag or middle-drag to pan · Wheel to zoom · Space plays">
                                 <Panel>
                                     <Image Source="{Binding Viewport}" Stretch="Uniform" />
@@ -154,29 +154,41 @@
                                 </Panel>
                             </Border>
 
-                            <WrapPanel>
-                                <CheckBox Content="Textured" IsChecked="{Binding ShowTextures}" Margin="0,0,10,0" />
-                                <CheckBox Content="Normal + spec" IsChecked="{Binding ShowShading}" Margin="0,0,10,0"
-                                          ToolTip.Tip="Apply the material's normal and specular maps, not just its base colour." />
-                                <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
-                                <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
-                                <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
-                                <Button Content="−" Command="{Binding ZoomOutCommand}" Padding="10,2"
-                                        ToolTip.Tip="Zoom out" />
-                                <Button Content="+" Command="{Binding ZoomInCommand}" Padding="10,2" Margin="4,0"
-                                        ToolTip.Tip="Zoom in" />
-                                <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
-                            </WrapPanel>
+                            <!-- What to draw on the left, where to look from on the right, so the two
+                                 kinds of control are not one undifferentiated row of boxes. -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <CheckBox Content="Textured" IsChecked="{Binding ShowTextures}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Normal + spec" IsChecked="{Binding ShowShading}" Margin="0,0,10,0"
+                                              ToolTip.Tip="Apply the material's normal and specular maps, not just its base colour." />
+                                    <CheckBox Content="Transparency" IsChecked="{Binding ShowTransparency}" Margin="0,0,10,0"
+                                              ToolTip.Tip="Cut out the holes in an alpha texture and blend what is translucent." />
+                                    <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
+                                </WrapPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="−" Command="{Binding ZoomOutCommand}" Padding="10,2"
+                                            ToolTip.Tip="Zoom out" />
+                                    <Button Content="+" Command="{Binding ZoomInCommand}" Padding="10,2" Margin="4,0"
+                                            ToolTip.Tip="Zoom in" />
+                                    <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
+                                </StackPanel>
+                            </Grid>
 
                             <!-- a group is often several meshes on one skeleton -->
-                            <ComboBox ItemsSource="{Binding PreviewMeshes}"
-                                      SelectedItem="{Binding SelectedPreviewMesh}"
-                                      HorizontalAlignment="Stretch"
-                                      IsVisible="{Binding HasMeshVariants}"
-                                      ToolTip.Tip="This asset has more than one mesh on the same skeleton." />
+                            <StackPanel Spacing="3" IsVisible="{Binding HasMeshVariants}">
+                                <TextBlock Text="MESH" FontSize="10" Opacity="0.5" />
+                                <ComboBox ItemsSource="{Binding PreviewMeshes}"
+                                          SelectedItem="{Binding SelectedPreviewMesh}"
+                                          HorizontalAlignment="Stretch"
+                                          ToolTip.Tip="This asset has more than one mesh on the same skeleton." />
+                            </StackPanel>
 
                             <!-- attachments: what hangs off this asset's sockets -->
-                            <StackPanel Spacing="4" IsVisible="{Binding HasAttachments}">
+                            <StackPanel Spacing="3" IsVisible="{Binding HasAttachments}">
+                                <TextBlock Text="ATTACHMENT" FontSize="10" Opacity="0.5" />
                                 <ComboBox ItemsSource="{Binding Attachments}"
                                           SelectedItem="{Binding SelectedAttachment}"
                                           HorizontalAlignment="Stretch"
@@ -188,20 +200,25 @@
 
                             <!-- animation transport -->
                             <StackPanel Spacing="6" IsVisible="{Binding PreviewAnimations.Count}">
-                                <ComboBox ItemsSource="{Binding AnimationSets}"
-                                          SelectedItem="{Binding SelectedAnimationSet}"
-                                          HorizontalAlignment="Stretch"
-                                          IsVisible="{Binding HasAnimationSets}"
-                                          ToolTip.Tip="Animation sets, as the game groups them" />
+                                <StackPanel Spacing="3" IsVisible="{Binding HasAnimationSets}">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="ANIMATION SET" FontSize="10" Opacity="0.5" />
+                                        <TextBlock Grid.Column="1" Text="{Binding AnimationSetSummary}"
+                                                   FontSize="10" Opacity="0.5" />
+                                    </Grid>
+                                    <ComboBox ItemsSource="{Binding AnimationSets}"
+                                              SelectedItem="{Binding SelectedAnimationSet}"
+                                              HorizontalAlignment="Stretch"
+                                              ToolTip.Tip="Animation sets, as the game groups them" />
+                                </StackPanel>
 
-                                <TextBlock Text="{Binding AnimationSetSummary}"
-                                           Opacity="0.7" FontSize="11"
-                                           IsVisible="{Binding HasAnimationSets}" />
-
-                                <ComboBox ItemsSource="{Binding PreviewAnimations}"
-                                          SelectedItem="{Binding SelectedAnimation}"
-                                          HorizontalAlignment="Stretch"
-                                          PlaceholderText="Choose an animation to play" />
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="ANIMATION" FontSize="10" Opacity="0.5" />
+                                    <ComboBox ItemsSource="{Binding PreviewAnimations}"
+                                              SelectedItem="{Binding SelectedAnimation}"
+                                              HorizontalAlignment="Stretch"
+                                              PlaceholderText="Choose an animation to play" />
+                                </StackPanel>
 
                                 <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto"
                                       IsVisible="{Binding SelectedAnimation, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
