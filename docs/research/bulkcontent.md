@@ -92,10 +92,52 @@ on all of them, so the arithmetic is what the reader uses.
 have a size that does not decompose against their declared dimensions, and are left as they shipped
 rather than guessed at.
 
+## The group name is load-bearing — it is not descriptive
+
+`CONFIRMED_BYTES`. **This note used to say the group was probably only descriptive, "because the
+packages repeat the same art rather than varying it". That was wrong**, and it produced one of the
+most visible faults in the tool.
+
+A texture name is not unique across groups, and the duplicates are **different art**:
+
+| | |
+|---|---|
+| Catalogue entries | 5,777 |
+| Distinct names | 5,622 |
+| Names appearing in more than one group | **112** |
+| …of those, pointing at different bytes | **112 — all of them** |
+
+Not one of the 112 is a duplicate copy. Resolving a name without its group therefore silently picks
+another group's texture, and it did so on **340 of the game's 30,831 texture exports**.
+
+The clearest case is the final boss. `Atlas_Diffuse` exists twice, in the same chunk 2.8 MB apart:
+
+```
+Atlas_Diffuse   Gen_Graffiti  BulkChunk1_41.blk +37781504  2793472    the "ATLAS IS WATCHING" wall decal
+Atlas_Diffuse   Atlas         BulkChunk1_41.blk +40599552  2793472    the boss's skin
+```
+
+Both are 2048×2048 DXT1 with identical sizes, so **every check the reader has passed on the wrong
+one** — the offset is 32,768-aligned, the size decomposes into an exact mip chain, and the seam
+lands exactly on the package's own top mip. `Atlas_MESH` rendered as a black figure with white paint
+strokes over it, which reads as a shader or lighting fault and is neither.
+
+### Where the group comes from
+
+The export's own **outer**. It resolves to a catalogue group for **24,950 of the 30,831** texture
+exports, and it is the package stating the group rather than anything inferred.
+`TextureReader.Read` takes it from there when a caller does not supply one, so the preview, the
+extraction service, the material exporter and the CLI all get it without knowing about any of this.
+
+`BulkTextureCatalog.Find` still falls back to the first candidate when the group matches nothing —
+a texture whose outer names no group has to resolve to something, and for the 5,510 unambiguous
+names it is the only candidate anyway.
+
+Pinned by `BulkTextureGroupTests` against real bytes: that the catalogue really does hold different
+art under one name, that the boss resolves his own skin and not the graffiti, and that game-wide no
+texture whose outer names a group resolves to a different one.
+
 ## Still unknown
 
 - The 23-byte header, and the byte between a chunk's name and its first entry.
-- Whether the group name disambiguates duplicates or is only descriptive. The reader prefers a
-  matching group when one is offered and takes the first entry otherwise, because the packages
-  repeat the same art rather than varying it.
 - The nine textures per package whose size does not decompose.

@@ -94,10 +94,23 @@ public sealed class BulkTextureCatalog
     }
 
     /// <summary>
-    /// The entry for a texture. When a name appears in more than one group — the packages repeat
-    /// assets — the group narrows it, and failing that the first is taken, since the duplicates are
-    /// copies of the same art.
+    /// The entry for a texture, narrowed by group.
     /// </summary>
+    /// <remarks>
+    /// <b>Pass the group.</b> This used to say that when a name appears in more than one group the
+    /// duplicates are "copies of the same art", so taking the first was harmless. <b>That was wrong.</b>
+    /// 112 names in the catalogue appear in more than one group, and all 112 point at different
+    /// bytes — different offsets, sometimes different sizes. Taking the first put another group's
+    /// texture on 340 of the game's 30,831 texture exports, including the final boss, whose skin was
+    /// drawn with the <c>Gen_Graffiti</c> "ATLAS IS WATCHING" wall decal that shares the name
+    /// <c>Atlas_Diffuse</c>.
+    /// <para>
+    /// The fallback to the first candidate is kept, because a texture whose outer names no
+    /// catalogue group still has to resolve to something, and for the 5,510 unambiguous names it is
+    /// the only candidate anyway. <see cref="TextureReader"/> supplies the group from the export's
+    /// own outer, so callers do not have to know about this.
+    /// </para>
+    /// </remarks>
     public BulkTextureEntry? Find(string textureName, string? group = null)
     {
         if (!_byTexture.TryGetValue(textureName, out var candidates)) return null;

@@ -118,10 +118,26 @@ public static class TextureReader
     /// The bulk catalogue, or null to read only what the package carries — which for most textures
     /// is the bottom of the chain, 64 square or less.
     /// </param>
-    /// <param name="group">The asset group, used to disambiguate a name that appears in several.</param>
+    /// <param name="group">
+    /// The asset group, used to disambiguate a name that appears in several. When null it is taken
+    /// from the export's own outer, which is what the package itself says the texture belongs to.
+    /// <para>
+    /// This matters more than it looks. Texture names are <b>not</b> unique across groups, and the
+    /// duplicates are not copies of the same art: 112 names in the bulk catalogue appear in more
+    /// than one group and <b>every one of them points at different bytes</b>. Guessing — taking the
+    /// first entry with a matching name — put another group's texture on 340 of the game's 30,831
+    /// texture exports. The clearest was <c>Atlas_Diffuse</c>: the boss's skin was being drawn with
+    /// the <c>Gen_Graffiti</c> wall decal that shares its name, which is why he rendered black with
+    /// white streaks across him.
+    /// </para>
+    /// </param>
     public static BioShockTexture? Read(
         BioShockPackage package, ObjectExport export, BulkTextureCatalog? bulk = null, string? group = null)
     {
+        // The export's outer names its group. It resolves to a catalogue group for 24,950 of the
+        // 30,831 texture exports, and it is the package's own statement rather than an inference.
+        group ??= package.ResolveName(export.OuterIndex);
+
         byte[] payload = package.ReadExportData(export);
         if (payload.Length < 64) return null;
 
