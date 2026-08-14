@@ -7,14 +7,13 @@
 
 | | |
 |---|---|
-| **Phase** | **PHASE 1 — animation + mesh extraction. NOT COMPLETE.** |
-| **Blocker** | `NEWPlayerHands` is the only rig in the game whose arm pair is a **translated duplicate** rather than a mirror (5 of 6 armed skeletons are mirrors). Below the clavicle the two chains carry identical orientation and **0.00 cm** lateral separation, and the animation then separates them with the wrong sign. Nothing else is affected. |
-| **Blocker detail** | `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 242 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
+| **Phase** | **PHASE 1 — animation + mesh extraction. The blocker is FIXED.** |
+| **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
+| **Tests** | 243 passed, 0 failed, **0 skipped** |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
-| **Do not start** | Phase 2 (level extraction) until the blocker is fixed and Phase 1 is frozen |
+| **Do not start** | Phase 2 (level extraction) until Phase 1 is frozen |
 
-**242 tests pass against the installed game, 1 skipped.**
+**243 tests pass against the installed game, none skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -106,6 +105,21 @@ Each of these produced a plausible, wrong result before it was understood.
   and a normal by `+C`, so the reflection negates their agreement and the result is
   counter-clockwise, as FBX and Blender want. Reversing the winding on top of it puts the geometry
   back the wrong way. This was implemented the intuitive way first and the tests caught it.
+- **An omitted channel component is Havok's IDENTITY, not the bone's reference pose.** This was the
+  Phase 1 blocker and it cost three sessions. Havok's own `recompose` fills a component that is
+  neither static nor spline from an "Identity values" vector — 0 for a translation, 1 for a scale,
+  `(0,0,0,1)` for a rotation. Filling it from the reference pose instead gives the *same answer* for
+  every bone whose bind translation is zero in the omitted components, which is nearly every bone in
+  the game; it differs only where a bind translation is not axis-aligned. On the first-person rig
+  that is exactly `Bip01_L/R_UpperArm`, and it put each arm root 93 cm from its clavicle instead of
+  19 cm. **The evidence recorded for the wrong reading was circular** — "filling from the reference
+  pose keeps 4,442 of 4,452 tracks at their rigid bone length" is true by construction, because
+  filling from the bind pose preserves the bind pose's lengths. A `CONFIRMED_BYTES` label is only as
+  good as the test behind it, and that test has to be able to fail.
+- **A channel that stores *nothing* is still the reference pose.** Havok reaches `recompose` through
+  `readNURBSCurve`, so a channel with no components is never read and the caller's value survives.
+  Applying identity there instead collapses 44 of `AggressorBabyJane`'s bones onto their parents in
+  `smg/smg_fire`.
 - **The animation reference-pose fallback is where a double conversion hides.** Omitted channels
   fall back to the bound bone's reference pose, which comes from the already-converted skeleton
   while the compressed data has not been converted yet. `AnimationPackage.Decode` takes the fallback
@@ -224,9 +238,15 @@ independently from the game's own track data:
 blender --background --python tools/blender/validate_fbx.py -- <scene>.json <fbx-dir> [rig]
 ```
 
-Both exit non-zero on failure. Current FBX results: worst rest-matrix error 0.00006 cm, worst posed
-bone position error 0.0052 cm, across the hands (47 bones, 10 animations), the pistol (8 bones) and
-the Little Sister (60 bones, 138 animations).
+Both exit non-zero on failure. Last run, on the first-person pistol set (hands 47 bones / 10
+animations, pistol 8 bones / 2 animations), Blender 5.1.2:
+
+| | worst rest error | worst posed position error |
+|---|---|---|
+| `.blend` | 0.000007 (`kBone_R_Thumb3`) | 0.000001 m (`EmptyFidgetPistol` frame 55) |
+| FBX | — | 0.001376 (`EquipPistol` frame 0, `Bip01_R_UpperArm`) |
+
+Both `VALIDATION PASSED`; 0 mirrored bones skipped.
 
 Poses are sampled at the keys' own frame positions. Blender lays FBX keys out at its rounded scene
 rate, so an animation authored at 27.02 fps has keys on fractional frames; sampling at whole numbers
@@ -251,69 +271,41 @@ front on the desktop, not the window you meant — this went wrong once and caug
 
 ## 6. What to do next, in priority order
 
-### 6.0 THE PHASE 1 BLOCKER — first-person hands are on the wrong sides
+### 6.0 The former Phase 1 blocker — SOLVED
 
-**Full detail: `docs/research/FIRST_PERSON_ANIMATION.md`. Read it before touching anything.**
+**Full detail: `docs/research/FIRST_PERSON_ANIMATION.md`.**
 
-The first-person **bind pose is correct**; **every animation swaps the hands**. Measured with a
-naming-free, view-free body frame (`up = spine→neck`, `forward = shoulders→hands`,
-`left = up × forward`), calibrated against `ProtectorRosie` whose left/right is proven from world
-anatomy:
+A channel component a track omits is Havok's **identity**, not the bound bone's reference pose.
+Found by reading `hkaSplineCompressedAnimation::recompose` in the Havok 2012.2.0-r1 SDK. The two
+readings agree for every bone whose bind translation is axis-aligned along the omitted components —
+nearly every bone in the game — and differ only on `Bip01_L/R_UpperArm`, the one bone in the
+first-person arm chain whose bind translation is not.
 
-| | L_Hand | R_Hand |
+| | before | after |
 |---|---|---|
-| FP bind pose | **+25.95** correct | **−25.95** correct |
-| Every FP animation, every frame | −11 to −16 **swapped** | +11 to +16 **swapped** |
-| Rosie, 6 animations | correct throughout | — |
+| `L_UpperArm` local | `(19.142, -25.116, -87.677)` len 93.19 | `(19.142, 0, 0)` len **19.14** |
+| `R_UpperArm` local | `(19.142, 27.574, 85.631)` len 91.98 | `(19.142, 0, 0)` len **19.14** |
+| Left hand on the wrong side | **3,384 / 5,984 frames** | **48 / 5,984** |
+| Closest the left hand gets to the grip | 11.08 cm | **4.36 cm** |
 
-Ruled out by measurement: mirroring (hand *chirality* proves `L_Hand` is geometrically a left hand),
-bone-name swap, the basis conversion (the bind pose uses it and is right), the binding (identity
-0–46), retargeting (`originalSkeleton` empty), additive blending (`blendHint` 0), channel
-misalignment (0 blocks unconsumed game-wide), and the weapon/socket (the weapon hangs under
-`Bip01_R_Hand`, so it can never disagree with the right hand — and is therefore never evidence).
+Both hands now sit on the weapon; rendered and checked. The audit is unchanged on every headline
+figure and its single-frame jump counts all went down. §4 of the research note has the whole-game
+blast radius.
 
-**Localised to one bone.** Both rigs are mirror-symmetric about Z=0 (`q → (−x,−y,z,w)`,
-`t → (x,y,−z)`). Rosie: 0 pairs break it. First-person: exactly one — **`Bip01_L_UpperArm`**,
-`L = (18.73, −25.12, −87.68)` against `R = (24.50, +27.57, +85.63)` where the mirror predicts
-`(18.73, −25.12, +87.68)`. Its Y is sign-flipped, and it sits at the root of the arm chain.
-Substituting the bind local for its parent `Bip01_L_Clavicle` flips the left hand back to the
-correct side (−15.62 → +14.17). Now established: **it is authored, not a decode fault.** The raw `hkQsTransform` bytes give the
-right hierarchy, exact `(1,1,1)` scales, and clean Z=0 mirrors for the clavicles and forearms.
-Both upper arms sit ~93 units from their clavicle in non-mirrored directions, and their *global*
-positions come out mirror-symmetric about Y=0 while the clavicles are symmetric about Z=0 — that
-bone bridges two conventions. Also: the clavicles are pinned to one value across all 13
-animations, differing from bind, so the reference pose is an authoring pose the animations do not
-build on. **The swap is confirmed independently** of the body-frame metric: the crossbow names its own
-limbs `X_Larm`/`X_Rarm`, and against that axis the left hand sits at **+45.48 (weapon-left) in the
-bind pose and −54.86 (weapon-right) in every animation** — a 100 cm swing across the weapon, ending
-up on the same side as the right hand. See §4f–4g of the research note.
+**One data anomaly is left open, deliberately unfixed:** `AggressorBabyJane`'s `smg/smg_fire` —
+54 tracks against her usual 73, 6 frames — still collapses `Bip01_R_Forearm` and
+`Bip01_R_ForeTwist`, whose tracks store Y and Z and omit X on a bone whose bind is `(25.05, 0, 0)`.
+Havok would collapse them too. It is not additive: **every animation in the game carries
+`blendHint` 0**, established by census. Nothing else in the game looks like it — 0 of 15,998
+animations omit translation on every track. Inventing a rule to rescue one animation of 16,031 is
+how the original fault got in.
 
-**Do not "fix" it by converting the animation again.** It flips the sides back and it is wrong: the
-animation's fallback channels already equal the skeleton's bind translations exactly, proving both
-are already in the same basis.
+### 6.0b The left hand and the weapon — resolved by the same fix
 
-Regression tests live in `tests/BioShockStudio.Tests/FirstPersonHandTests.cs`; the animation case is
-`Skip`ped with a reason so the blocker stays visible without turning the suite red.
-
-### 6.0b The left hand does not touch the weapon — same blocker, probably
-
-**Confirmed against the game.** On the first-person rig the left hand sits 25–70 cm from the weapon
-in every idle, fidget and fire animation, on every weapon; only reloads bring it in. The right hand
-measures a constant 5.8 cm and that proves nothing — the weapon is parented to `R_Grip` under
-`Bip01_R_Hand`, so it follows the right hand wherever it goes and the right arm could be equally
-wrong.
-
-`docs/QUALITY.md` has the full measurement table and the elimination list — the basis conversion,
-binding, retargeting, additive blending, the attachment transform, scale, block boundaries,
-hemisphere alignment, bone stretching, the bind pose, `IKbindLhandDummy` as an IK goal, and any
-clean rotation fix at the chain root are all ruled out with numbers.
-
-The best remaining thread: in the bind pose the clavicles mirror about Z=0 while everything from the
-upper arm down mirrors about Y=0. One symmetric rig cannot do both. It may be ordinary Max Biped
-convention, or it may be the fault.
-
-**Do not fit a correction.** Several axis-aligned rotations improve the distance and none is
-principled; the best is an arbitrary permutation at 8.4 cm against the right hand's 5.8.
+The left hand used to sit 25-70 cm from the weapon in every idle, fidget and fire animation. It now
+reaches **4.36 cm** from the grip, and `FirstPersonHandTests.TheLeftHandReachesTheWeapon` holds it
+there. The elimination list this section used to carry is superseded; the `IKbindLhandDummy`
+reachability correction from the previous session stands and is recorded in `docs/QUALITY.md`.
 
 ### 6.1 Where a `StaticMesh` names its material — highest value
 
@@ -464,9 +456,39 @@ translation on a bone carrying it, including the first-person root 89.8 cm from 
 *Rejected because* honouring it would pin every rig to its bind root. It is a `hkaSkeletonMapper`
 retargeting hint, preserved and unused.
 
+**An omitted channel component decodes to identity.** *Evidence:* Havok 2012.2.0-r1's own
+`hkaSplineCompressedAnimation::recompose` fills a component that is neither static nor spline from an
+"Identity values" vector. *Alternative:* the bound bone's reference pose, which is what this reader
+did for three sessions. *Rejected because* it injects the authoring pose into every animated frame
+wherever a bind translation is not axis-aligned, and the measurement recorded in its favour was
+circular. *Refinement:* a channel that stores nothing at all still takes the reference pose, since
+Havok never reads it. *Consequence:* the first-person arm roots come out symmetric at 19.14 cm
+instead of 93 cm; 3.7% of the game's tracks move; the audit's headline figures do not.
+
+**A hand's side is measured on the head bone's local +Z.** *Evidence:* on every shipped character
+with a `Bip01_Head` and feet it is world left at dot 1.00 and equals that character's own clavicle
+axis at dot 1.00, and it is a bone the arms do not drive. *Alternatives:* the body frame
+(`up × forward` with `forward = shoulders → hands`), which judges the hands with an axis built from
+the hands, and the arm-root axis (`L_UpperArm − R_UpperArm`), which took as its reference the very
+bones that were misplaced and which on the first-person bind pose is the rig's *forward* direction.
+*Rejected because* both read green on data that was not. *Consequence:* one metric in
+`FirstPersonHandTests`, with guard tests pinning both discarded ones as invalid.
+
 ## 8c. Failed approaches — do not repeat these
 
 - **Reversing triangle winding after the reflection.** Wrong; the reflection already does it.
+- **Hunting for a rig-level cause of the first-person hand swap.** There wasn't one. Three sessions
+  eliminated the basis conversion, the binding, retargeting, additive blending, channel alignment,
+  the socket, model-space composition, track transposition, per-bone negations, rotations at the
+  chain root, the spine, hidden reflections, and a second copy of the bind pose in the
+  `SkeletalMesh` — all of it correct behaviour. The fault was one line in the spline decompressor.
+  **When every internal check passes and the result is still wrong, go and read the format's own
+  implementation.** The Havok SDK settled it in one function.
+- **Any per-bone or per-chain transform to "fix" the arms.** Ten were scored against every
+  constraint at once in an isolated worktree; all ten were inadmissible for the same reason — each
+  also moved a proven character, because an unconditional transform applies everywhere. That was the
+  signal that the fault had to be a decode change which is a no-op wherever the decode was already
+  right, and it was.
 - **Converting the decoded animation a second time to fix the hand sides.** Flips the sides back and
   is wrong — the animation's fallback channels already match the skeleton's bind translations
   exactly, so both are already in the same basis.
@@ -513,30 +535,25 @@ retargeting hint, preserved and unused.
 
 # NEXT CLAUDE SESSION
 
-1. Read this file, then `docs/research/FIRST_PERSON_ANIMATION.md`, then
-   `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **242 passed, 0 failed, 1 skipped**. The skip is the
-   Phase 1 blocker and is deliberate.
-3. Confirm the blocker still reproduces:
-   `dotnet test --filter FullyQualifiedName~FirstPersonHandTests`
-   Four cases must pass, including the two that pin the discarded metrics as invalid. Remove the
-   `Skip` on `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` to watch it fail.
-4. **Work the blocker.** Measure sides on the **head bone's local +Z**, or equivalently the clavicle
-   axis, and nothing else — §1 of `FIRST_PERSON_ANIMATION.md` explains why the two earlier metrics
-   were invalid, and both are now pinned by tests. The live question is §4j: this rig's arm pair is a
-   translated duplicate rather than a mirror, alone among the game's six armed skeletons, so there is
-   no left/right distinction below the clavicle for the animation to inherit. Already eliminated, so
-   do not redo them: the spine (it is the rig root, so every relative measurement is invariant to
-   it), any hidden reflection (every scale is exactly `(1,1,1)`), the clavicle rotation decode (§4i,
-   read from the bytes by hand), and a second copy of the bind pose in the `SkeletalMesh` (§4k, there
-   is none). Superseded framing to ignore: that only the left arm is wrong, and that the
-   first-person clavicles separate along Z while the hands separate along Y, which no single
-   symmetric rig can do, and that `Bip01_L_UpperArm` sits 93 cm from its clavicle.
-5. Do **not** convert the animation a second time. See §8c.
-6. Re-run the audit when the blocker is fixed:
-   `dotnet run -c Release --project src/BioShockStudio.Cli -- audit-animations out.csv`
-   and compare against the numbers in "Current state" above. Explain any change; never silently
-   replace them.
-7. Then validate the `.blend` path (not just FBX), the GUI workflow, and rebuild the app.
-8. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
+**The Phase 1 blocker is fixed.** A channel component a track omits is Havok's identity, not the
+bone's reference pose — found in the Havok 2012.2.0-r1 SDK, which is now in the repo root at
+`hk2012_2_0_r1/`. `docs/research/FIRST_PERSON_ANIMATION.md` has the whole account.
+
+1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
+2. `dotnet build && dotnet test` — expect **243 passed, 0 failed, 0 skipped**.
+3. Verified when the fix landed, so it does not need redoing:
+   - the audit is unchanged on every headline figure — 33 packages, 883 wrappers, 399 skeletons,
+     16,031 animations, 100% playable, 47,560 events, 0 blocks unconsumed — and its single-frame
+     jump counts all went *down*;
+   - the `.blend` and FBX validators pass, figures in §5;
+   - the hands render with both hands on the weapon;
+   - the app republishes to `artifacts/app`.
+4. **Phase 1 is ready to freeze.** What is left is quality, not correctness, in priority order in
+   §6. The highest-value item is §6.1, the static mesh's material reference: only 22 of 630 drawable
+   meshes in `1-Medical` resolve a diffuse texture.
+5. One open data anomaly, deliberately unfixed: `AggressorBabyJane`'s `smg/smg_fire`. See §6.0.
+6. **`hk2012_2_0_r1/` is the highest-value reference in the repo and is barely mined.** It settled a
+   three-session blocker in one function. `UModel-master` and `Unreal-Library-master` are also
+   present and untouched — `UModel` may be worth reading for §6.2, the skeletal geometry variant.
+7. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
    `src/BioShockStudio.Core/Level/` — read it before writing anything new.

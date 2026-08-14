@@ -22,6 +22,33 @@ internal sealed class ChannelData
 /// <summary>
 /// Decodes <c>hkaSplineCompressedAnimation</c> track data into per-frame transforms.
 /// <para>
+/// <b>An omitted channel component is identity, not the bone's reference pose.</b>
+/// <c>CONFIRMED_EXTERNAL</c> against Havok 2012.2.0-r1's own
+/// <c>hkaSplineCompressedAnimation::recompose</c>:
+/// </para>
+/// <code>
+/// int stat = mask &amp; 0x0F;                          // statically stored components
+/// int iden = ~mask &amp; ( ~mask >> 4 ) &amp; 0x0F;         // neither static nor spline
+/// if ( stat &amp; shift )      inOut(i) = S(i);        // S = static values
+/// else if ( iden &amp; shift ) inOut(i) = I(i);        // I = "Identity values"
+/// </code>
+/// <para>
+/// Identity is <c>0</c> for a translation, <c>1</c> for a scale and <c>(0,0,0,1)</c> for a rotation,
+/// which is why Havok passes it as a parameter rather than hard-coding it. This reader used to fill
+/// those components from the bound bone's reference pose instead, which is the same value for every
+/// bone whose bind translation is axis-aligned along the stored component — so it agreed almost
+/// everywhere and was wrong only where a bind translation had a second non-zero component. On the
+/// first-person rig that is exactly <c>Bip01_L/R_UpperArm</c>: mask <c>0x01</c> stores X, and the
+/// reference pose then injected the authoring pose's Y and Z into every animated frame, putting the
+/// arm root 93 cm from the shoulder instead of 19 cm and throwing both arms across the body.
+/// </para>
+/// <para>
+/// The evidence previously recorded for the reference-pose reading — that it "keeps 4,442 of 4,452
+/// tracks at their rigid bone length, versus 4,160 when filling with zero" — is circular: filling a
+/// component from the bind pose preserves the bind pose's bone length by construction. It measured
+/// its own assumption.
+/// </para>
+/// <para>
 /// Block layout, all CONFIRMED_BYTES against the shipped first-person hands package:
 /// </para>
 /// <code>
@@ -58,11 +85,9 @@ public static class SplineDecompressor
     /// <summary>
     /// Decodes every transform track of an animation into per-frame transforms.
     /// <para>
-    /// <paramref name="referencePose"/> supplies the fallback for channels a track does not store.
-    /// CONFIRMED_BYTES that this fallback is the skeleton's reference pose and not identity: across
-    /// all 130 animations, 4,452 tracks omit at least one translation component, and filling from
-    /// the reference pose keeps 4,442 of them at their rigid bone length, versus 4,160 when filling
-    /// with zero. Filling with zero visibly detaches limbs whose parent offset is not axis-aligned.
+    /// A component omitted from a channel that stores something falls back to identity, per Havok's
+    /// <c>recompose</c>. <paramref name="referencePose"/> is used only for a channel that stores
+    /// nothing at all, which Havok never reads. See the class remarks.
     /// </para>
     /// </summary>
     public static DecodedAnimation Decode(
@@ -219,11 +244,14 @@ public static class SplineDecompressor
         for (int t = 0; t < trackCount; t++)
         {
             var mask = TransformMask.Read(block.Slice(t * TransformMask.Size, TransformMask.Size));
-            var fallback = t < referencePose.Count ? referencePose[t] : ReferenceTransform.Identity;
+            var reference = t < referencePose.Count ? referencePose[t] : ReferenceTransform.Identity;
 
-            var translation = ReadVectorChannel(block, ref position, mask.Translation, mask.TranslationQuantization, fallback.Translation);
-            var rotation = ReadRotationChannel(block, ref position, mask.Rotation, mask.RotationQuantization, fallback.Rotation);
-            var scale = ReadVectorChannel(block, ref position, mask.Scale, mask.ScaleQuantization, fallback.Scale);
+            var translation = ReadVectorChannel(block, ref position, mask.Translation, mask.TranslationQuantization,
+                Vector3.Zero, reference.Translation);
+            var rotation = ReadRotationChannel(block, ref position, mask.Rotation, mask.RotationQuantization,
+                reference.Rotation);
+            var scale = ReadVectorChannel(block, ref position, mask.Scale, mask.ScaleQuantization,
+                Vector3.One, reference.Scale);
 
             result[t] = new TrackChannels(translation, rotation, scale);
         }
@@ -234,9 +262,22 @@ public static class SplineDecompressor
 
     private static int Align(int value, int alignment) => (value + alignment - 1) / alignment * alignment;
 
+    /// <param name="identity">
+    /// Havok's identity for this channel — zero for a translation, one for a scale. It fills any
+    /// component the channel does not store.
+    /// </param>
+    /// <param name="reference">
+    /// The bound bone's reference pose, used ONLY when the channel stores nothing at all. Havok
+    /// reaches <c>recompose</c> through <c>readNURBSCurve</c>, so a channel with no components is
+    /// never read and the caller's existing value survives — and the caller's value, for a bone the
+    /// animation is not driving in this respect, is the reference pose.
+    /// </param>
     private static ChannelData ReadVectorChannel(
-        ReadOnlySpan<byte> block, ref int position, TrackComponent mask, ScalarQuantization quantization, Vector3 fallback)
+        ReadOnlySpan<byte> block, ref int position, TrackComponent mask, ScalarQuantization quantization,
+        Vector3 identity, Vector3 reference)
     {
+        var fallback = identity;
+
         if ((mask & TrackComponent.SplineMask) != 0)
         {
             int numItems = BinaryPrimitives.ReadUInt16LittleEndian(block[position..]);
@@ -306,7 +347,8 @@ public static class SplineDecompressor
             return new ChannelData { StaticValue = value, StaticRotation = Quaternion.Identity };
         }
 
-        return new ChannelData { StaticValue = fallback, StaticRotation = Quaternion.Identity };
+        // Nothing stored at all: the channel is never read, so the bone keeps its reference pose.
+        return new ChannelData { StaticValue = reference, StaticRotation = Quaternion.Identity };
     }
 
     private static ChannelData ReadRotationChannel(

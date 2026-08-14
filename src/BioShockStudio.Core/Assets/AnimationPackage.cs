@@ -71,15 +71,17 @@ public sealed class AnimationPackage
 
         var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
 
-        // Channels a track omits fall back to the bound bone's reference pose, so the binding has to
-        // be applied before decoding rather than after.
+        // A component omitted from a channel that stores something is identity, per Havok's own
+        // recompose(), and needs nothing from the skeleton. The reference pose is still required for
+        // a channel that stores nothing at all, which Havok never reads — so the binding still has
+        // to be applied before decoding rather than after.
         var referencePose = new ReferenceTransform[header.TransformTrackCount];
         for (int track = 0; track < referencePose.Length; track++)
         {
             int bone = animation.Binding.BoneForTrack(track);
-            // The skeleton is already in the studio's basis, but the spline data about to be decoded
-            // is not, and the two are interleaved channel by channel. So the fallback goes back to
-            // the game's basis here and the whole decoded result is converted once, below.
+            // The skeleton is already in the studio's basis and the spline data is not, so the
+            // reference pose goes back to the game's basis here and the whole decoded result is
+            // converted once, below.
             referencePose[track] = bone >= 0 && bone < Skeleton.BoneCount
                 ? GameBasis.ToGameBasis(new ReferenceTransform(
                     Skeleton.Bones[bone].LocalTranslation,

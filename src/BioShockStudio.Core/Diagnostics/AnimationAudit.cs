@@ -359,8 +359,8 @@ public static class AnimationAudit
 
             var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
 
-            // The walk must see the same reference-pose fallback the real decode does, or it will
-            // consume a different number of bytes than the decode did and measure nothing.
+            // The walk must see the same fallbacks the real decode does, or it will consume a
+            // different number of bytes than the decode did and measure nothing.
             var referencePose = new ReferenceTransform[header.TransformTrackCount];
             for (int track = 0; track < referencePose.Length; track++)
             {
