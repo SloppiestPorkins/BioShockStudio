@@ -74,6 +74,33 @@ would only look right by coincidence.
 This is exactly the "make the screenshot look right" fix the project forbids. It is recorded here so
 the next session recognises it as a dead end rather than rediscovering it as a breakthrough.
 
+## 4b. Two more candidates, both rejected
+
+`REJECTED.`
+
+**Tracks as model-space rather than parent-local.** Composing each track as an absolute
+model-space transform instead of a parent-local one collapses `Bip01_L_Forearm → Bip01_L_Hand` from
+29.98 cm to 13.32 cm and puts both hands at 0.00. The tracks are parent-local; local composition
+reproduces every bone length exactly.
+
+**Applying the animation as a delta on the bind pose** (`anim_local * bind_local`) makes the
+first-person sides come out correct (+62.41 / −62.41) and preserves bone lengths. It is **not**
+applied, because there is no evidence for it and real evidence against:
+
+- `blendHint` is 0 (NORMAL), not additive.
+- It materially changes **every character animation too** — Rosie's `MG_AggToIdle` goes from +32.48
+  to +6.60 — and her animations are currently correct, validated through FBX and Blender.
+
+**A warning for the next session:** the side test is a *sign* test, and at least three different
+wrong changes satisfy it (a second basis conversion, model-space composition, additive
+application). A candidate fix must therefore also be checked against:
+
+1. Rosie's animations, whose magnitudes must not move much;
+2. bone rigidity — every bone length must stay at its bind value;
+3. the fallback channels, which must keep matching the bind translations exactly.
+
+Satisfying the sign test alone proves nothing.
+
 ## 5. Where to look next
 
 `HYPOTHESIS`. The animation and the skeleton are in the same basis, the binding is the identity, and

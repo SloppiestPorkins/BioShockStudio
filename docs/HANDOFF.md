@@ -448,6 +448,12 @@ retargeting hint, preserved and unused.
   preview camera's roll makes screen left/right meaningless. Use the body-frame measurement.
 - **Fitting an axis-aligned rotation at the arm chain root.** Several improve the numbers; none is
   principled. The best is an arbitrary permutation.
+- **Interpreting animation tracks as model-space.** Collapses bone lengths (29.98 cm to 13.32 cm).
+- **Applying animations additively on the bind pose.** Fixes the first-person sides but changes
+  every character animation too, and `blendHint` is 0 (NORMAL). No evidence for it.
+- **Trusting the hand-side sign test alone.** At least three wrong changes satisfy it. Any
+  candidate must also preserve bone rigidity, leave Rosie's magnitudes alone, and keep the
+  fallback channels equal to the bind translations.
 
 ## 9. Reading order for a new session
 
