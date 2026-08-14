@@ -359,22 +359,8 @@ public static class AnimationAudit
 
             var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
 
-            // The walk must see the same reference-pose fallback the real decode does, or it will
-            // consume a different number of bytes than the decode did and measure nothing.
-            var referencePose = new ReferenceTransform[header.TransformTrackCount];
-            for (int track = 0; track < referencePose.Length; track++)
-            {
-                int bone = animation.Binding.BoneForTrack(track);
-                referencePose[track] = bone >= 0 && bone < package.Skeleton.BoneCount
-                    ? Coordinates.GameBasis.ToGameBasis(new ReferenceTransform(
-                        package.Skeleton.Bones[bone].LocalTranslation,
-                        package.Skeleton.Bones[bone].LocalRotation,
-                        package.Skeleton.Bones[bone].LocalScale))
-                    : ReferenceTransform.Identity;
-            }
-
             var blocks = SplineDecompressor.DescribeBlocks(
-                data, header.BlockOffsets, header.TransformTrackCount, referencePose);
+                data, header.BlockOffsets, header.TransformTrackCount);
 
             int worst = 0;
             bool complete = true;

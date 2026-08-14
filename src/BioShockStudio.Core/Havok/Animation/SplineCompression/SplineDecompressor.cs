@@ -22,6 +22,33 @@ internal sealed class ChannelData
 /// <summary>
 /// Decodes <c>hkaSplineCompressedAnimation</c> track data into per-frame transforms.
 /// <para>
+/// <b>An omitted channel component is identity, not the bone's reference pose.</b>
+/// <c>CONFIRMED_EXTERNAL</c> against Havok 2012.2.0-r1's own
+/// <c>hkaSplineCompressedAnimation::recompose</c>:
+/// </para>
+/// <code>
+/// int stat = mask &amp; 0x0F;                          // statically stored components
+/// int iden = ~mask &amp; ( ~mask >> 4 ) &amp; 0x0F;         // neither static nor spline
+/// if ( stat &amp; shift )      inOut(i) = S(i);        // S = static values
+/// else if ( iden &amp; shift ) inOut(i) = I(i);        // I = "Identity values"
+/// </code>
+/// <para>
+/// Identity is <c>0</c> for a translation, <c>1</c> for a scale and <c>(0,0,0,1)</c> for a rotation,
+/// which is why Havok passes it as a parameter rather than hard-coding it. This reader used to fill
+/// those components from the bound bone's reference pose instead, which is the same value for every
+/// bone whose bind translation is axis-aligned along the stored component — so it agreed almost
+/// everywhere and was wrong only where a bind translation had a second non-zero component. On the
+/// first-person rig that is exactly <c>Bip01_L/R_UpperArm</c>: mask <c>0x01</c> stores X, and the
+/// reference pose then injected the authoring pose's Y and Z into every animated frame, putting the
+/// arm root 93 cm from the shoulder instead of 19 cm and throwing both arms across the body.
+/// </para>
+/// <para>
+/// The evidence previously recorded for the reference-pose reading — that it "keeps 4,442 of 4,452
+/// tracks at their rigid bone length, versus 4,160 when filling with zero" — is circular: filling a
+/// component from the bind pose preserves the bind pose's bone length by construction. It measured
+/// its own assumption.
+/// </para>
+/// <para>
 /// Block layout, all CONFIRMED_BYTES against the shipped first-person hands package:
 /// </para>
 /// <code>
@@ -56,13 +83,18 @@ internal sealed class ChannelData
 public static class SplineDecompressor
 {
     /// <summary>
+    /// WORKTREE EXPERIMENT ONLY — set to a track-indexed reference pose to reproduce the old,
+    /// wrong fallback so the two readings can be diffed on identical bytes. Empty means the correct
+    /// identity fallback. Delete before this leaves the experiment branch.
+    /// </summary>
+    public static IReadOnlyList<ReferenceTransform> LegacyReferencePose { get; set; } = [];
+
+    /// <summary>
     /// Decodes every transform track of an animation into per-frame transforms.
     /// <para>
-    /// <paramref name="referencePose"/> supplies the fallback for channels a track does not store.
-    /// CONFIRMED_BYTES that this fallback is the skeleton's reference pose and not identity: across
-    /// all 130 animations, 4,452 tracks omit at least one translation component, and filling from
-    /// the reference pose keeps 4,442 of them at their rigid bone length, versus 4,160 when filling
-    /// with zero. Filling with zero visibly detaches limbs whose parent offset is not axis-aligned.
+    /// Channels a track does not store fall back to identity, per Havok's <c>recompose</c> — see the
+    /// class remarks. The bound bone's reference pose is deliberately NOT consulted here; a bone the
+    /// animation does not drive at all keeps its reference pose, but that is the caller's business.
     /// </para>
     /// </summary>
     public static DecodedAnimation Decode(
@@ -70,8 +102,7 @@ public static class SplineDecompressor
         IReadOnlyList<uint> blockOffsets,
         int transformTrackCount,
         int frameCount,
-        int maxFramesPerBlock,
-        IReadOnlyList<ReferenceTransform> referencePose)
+        int maxFramesPerBlock)
     {
         var translations = new Vector3[transformTrackCount][];
         var rotations = new Quaternion[transformTrackCount][];
@@ -105,7 +136,7 @@ public static class SplineDecompressor
             {
                 int start = (int)blockOffsets[blockIndex];
                 int end = blockIndex + 1 < blockOffsets.Count ? (int)blockOffsets[blockIndex + 1] : data.Length;
-                channels = ReadBlock(data[start..end], transformTrackCount, referencePose);
+                channels = ReadBlock(data[start..end], transformTrackCount);
                 loadedBlock = blockIndex;
             }
 
@@ -161,8 +192,7 @@ public static class SplineDecompressor
     public static IReadOnlyList<BlockConsumption> DescribeBlocks(
         ReadOnlySpan<byte> data,
         IReadOnlyList<uint> blockOffsets,
-        int transformTrackCount,
-        IReadOnlyList<ReferenceTransform> referencePose)
+        int transformTrackCount)
     {
         var result = new List<BlockConsumption>(blockOffsets.Count);
 
@@ -174,7 +204,7 @@ public static class SplineDecompressor
 
             try
             {
-                var channels = ReadBlock(block, transformTrackCount, referencePose, out int consumed);
+                var channels = ReadBlock(block, transformTrackCount, out int consumed);
 
                 int maxKnot = 0, maxPoints = 0, splines = 0;
                 foreach (var track in channels)
@@ -207,11 +237,11 @@ public static class SplineDecompressor
     private readonly record struct TrackChannels(ChannelData Translation, ChannelData Rotation, ChannelData Scale);
 
     private static TrackChannels[] ReadBlock(
-        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose) =>
-        ReadBlock(block, trackCount, referencePose, out _);
+        ReadOnlySpan<byte> block, int trackCount) =>
+        ReadBlock(block, trackCount, out _);
 
     private static TrackChannels[] ReadBlock(
-        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose, out int consumed)
+        ReadOnlySpan<byte> block, int trackCount, out int consumed)
     {
         var result = new TrackChannels[trackCount];
         int position = trackCount * TransformMask.Size;
@@ -219,11 +249,16 @@ public static class SplineDecompressor
         for (int t = 0; t < trackCount; t++)
         {
             var mask = TransformMask.Read(block.Slice(t * TransformMask.Size, TransformMask.Size));
-            var fallback = t < referencePose.Count ? referencePose[t] : ReferenceTransform.Identity;
 
-            var translation = ReadVectorChannel(block, ref position, mask.Translation, mask.TranslationQuantization, fallback.Translation);
-            var rotation = ReadRotationChannel(block, ref position, mask.Rotation, mask.RotationQuantization, fallback.Rotation);
-            var scale = ReadVectorChannel(block, ref position, mask.Scale, mask.ScaleQuantization, fallback.Scale);
+            // A component that is neither static nor spline falls back to Havok's IDENTITY, not to
+            // the bound bone's reference pose. See the class remarks.
+            var fallback = t < LegacyReferencePose.Count ? LegacyReferencePose[t] : ReferenceTransform.Identity;
+            var translation = ReadVectorChannel(block, ref position, mask.Translation, mask.TranslationQuantization,
+                LegacyReferencePose.Count > 0 ? fallback.Translation : Vector3.Zero);
+            var rotation = ReadRotationChannel(block, ref position, mask.Rotation, mask.RotationQuantization,
+                LegacyReferencePose.Count > 0 ? fallback.Rotation : Quaternion.Identity);
+            var scale = ReadVectorChannel(block, ref position, mask.Scale, mask.ScaleQuantization,
+                LegacyReferencePose.Count > 0 ? fallback.Scale : Vector3.One);
 
             result[t] = new TrackChannels(translation, rotation, scale);
         }

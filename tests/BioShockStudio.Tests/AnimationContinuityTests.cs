@@ -139,19 +139,7 @@ public sealed class AnimationContinuityTests(GameFixture game)
         var header = HkaSplineCompressedAnimationReader.Read(section, speech.Offset);
         var data = section.Data.Span.Slice(header.DataOffset!.Value, header.DataSize);
 
-        var referencePose = new ReferenceTransform[header.TransformTrackCount];
-        for (int track = 0; track < referencePose.Length; track++)
-        {
-            int bone = speech.Binding.BoneForTrack(track);
-            referencePose[track] = bone >= 0 && bone < animations.Skeleton.BoneCount
-                ? new ReferenceTransform(
-                    animations.Skeleton.Bones[bone].LocalTranslation,
-                    animations.Skeleton.Bones[bone].LocalRotation,
-                    animations.Skeleton.Bones[bone].LocalScale)
-                : ReferenceTransform.Identity;
-        }
-
-        var blocks = SplineDecompressor.DescribeBlocks(data, header.BlockOffsets, header.TransformTrackCount, referencePose);
+        var blocks = SplineDecompressor.DescribeBlocks(data, header.BlockOffsets, header.TransformTrackCount);
 
         Assert.Equal(11, blocks.Count);
         Assert.All(blocks, b => Assert.True(b.LooksComplete, $"block {b.Index} left {b.Slack} bytes"));
