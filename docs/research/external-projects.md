@@ -11,12 +11,25 @@ hint, never an assumption about BioShock.
 | UEViewer, same file | No BioShock-specific branch exists for `FObjectExport` / `FObjectImport` / `FPackageFileSummary`. | `CONFIRMED_EXTERNAL` |
 | **Havok 2012.2.0-r1 SDK** (`hk2012_2_0_r1/`) | `hkaSplineCompressedAnimation::recompose` — a channel component that is neither static nor spline takes **identity**, not the bone's reference pose. Also confirms `ScalarQuantization` is only BITS8/BITS16, the per-quantization quaternion sizes `{4,5,6,3,2,16}` and alignments `{4,1,2,1,2,4}`, `unpackQuantizationTypes`' bit layout, and `getBlockAndTime`'s `frame / (maxFramesPerBlock - 1)` block stride. | `CONFIRMED_EXTERNAL` |
 
+| **Nyko's `Bioshock1REMSDK-WIP--main`** | `bioshock1-bsm.md` §C.4 `UStaticMesh`: the **section table** — `CI NumSections`, then 14 bytes per section, before the vertex block — and that a section's ordinal indexes the object's `Materials` array. Verified against Remastered bytes here. Also that its `Materials` array is an ordinary tagged property, and that struct elements need recursive tagged-property serialisation with an unknown-property skip path. | `CONFIRMED_EXTERNAL`, and independently `CONFIRMED_BYTES` here |
+
 **The Havok SDK is the highest-value thing on this list.** The identity-fallback line settled a
 blocker that three sessions of internal measurement could not, because the fault was in an
 assumption that had already been labelled `CONFIRMED_BYTES` on circular evidence — nothing internal
 was going to challenge it. Note the build shipped here is "NO SOURCE PC DOWNLOAD": headers and
 `.inl` only, no `.cpp`, so the inline and reflection detail is available and the sampling functions
 are not. See `docs/research/havok-compression.md` and `FIRST_PERSON_ANIMATION.md`.
+
+Nyko's SDK is the second most valuable, and the two projects answer different questions: it is an
+in-engine SDK, so it knows the *engine's* structures — sections, material binding, the shader
+factories, lightmaps, BSP — where this project knows the shipped *bytes* in more depth. Its
+`docs/reverse-engineering/` also holds `BioShock_Materials_And_Shaders.md` (the full material class
+tree and the `EMaterialType` ordinals), `BioShock_Texture_Lightmap_Format.md` and
+`BioShock_Bulk_Files_And_Catalog.md`, none of which have been read against our own notes yet.
+
+**Beware of one divergence.** Its `UStaticMesh` vertex is 24 bytes with packed normals, cross-
+validated against UEViewer; Remastered's is 48 with full float basis vectors. Both are right for
+their own target. A finding ported from UEViewer or the original game may need the record widening.
 
 Also present and not yet mined: `UModel-master` (UEViewer source) and `Unreal-Library-master`
 (UELib, C#).

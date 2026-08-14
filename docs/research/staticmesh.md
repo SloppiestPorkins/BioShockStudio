@@ -141,3 +141,54 @@ not bound, and drawing them in one space would imply they were.
 - **The variable-length header.** Located by search rather than understood, exactly as with
   `SkeletalMesh`.
 - **LODs.** Whether further vertex blocks follow the tail has not been checked.
+
+## The section table — found via Nyko's SDK, verified here
+
+`CONFIRMED_BYTES`. **This is the missing piece for multi-material meshes**, and it was found by
+reading Nyko's `Bioshock1REMSDK-WIP--main/bioshock1-bsm.md` §C.4 rather than from these bytes.
+
+A `UStaticMesh` carries a section table **before** the vertex block:
+
+```
+CI     NumSections
+per section, 14 bytes:
+    int32  f4            always 0   (UE2.5's IsStrip)
+    uint16 FirstIndex
+    uint16 FirstVertex               (UE2.5's MinVertexIndex)
+    uint16 LastVertex                (UE2.5's MaxVertexIndex)
+    uint16 fE                        alias of NumFaces on some paths
+    uint16 NumFaces                  (UE2.5's NumTriangles / NumPrimitives)
+25 B   FBox bounding box             serialized a second time
+CI     NumVerts ...
+```
+
+A section is a run of the index buffer, and **the Nth section uses the Nth entry of the object's
+`Materials` array**. That is what this project could not answer: 28 meshes name two or three
+materials and are textured from the first only, because nothing said which triangles belong to
+which.
+
+Verified against Remastered bytes, reading backwards from the vertex block this reader already
+locates, on meshes whose geometry was decoded independently:
+
+| mesh | our decode | section says |
+|---|---|---|
+| `ConeDrill` | 561 verts, 1,686 indices | `NumSections 1`, `lastVertex 560`, `numFaces 562` |
+| `Turret_Cover` | 45 verts, 72 indices | `NumSections 1`, `lastVertex 44`, `numFaces 24` |
+
+`lastVertex` is exactly `vertexCount − 1` and `numFaces` exactly `indexCount / 3` on both, with
+`f4`, `FirstIndex` and `FirstVertex` all zero as documented. Two independent fields agreeing with a
+separately-decoded mesh is not a coincidence.
+
+**Not yet implemented.** The reader still finds the vertex block by search and skips the sections.
+Wiring them up is what turns "textured from the first material only" into per-section materials.
+
+### Where Remastered diverges from the original game
+
+`CONFIRMED_BYTES`, and worth recording because it is a real difference from the prior art rather
+than a mistake on either side. Nyko's spec — cross-validated against UEViewer's
+`UnMeshBioshock.cpp` — documents a **24-byte** vertex: `FVector` position plus three
+`FPackedNormal` DWORDs. Remastered uses **48 bytes**: position plus three full `FVector` basis
+vectors, which is what this reader has always read and what all 8,668 shipped exports decode with.
+The section table's `lastVertex` confirms the vertex *count* independently, so the stride is not in
+doubt. Anyone porting a finding from UEViewer or from the original game must expect the vertex
+record to have been widened.
