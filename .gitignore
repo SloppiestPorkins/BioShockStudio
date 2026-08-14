@@ -7,3 +7,14 @@ obj/
 # someone else's project under its own licence, and 137 MB of it, so it is read here and not vendored.
 /Bioshock1REMSDK-WIP--main/
 /Bioshock1REMSDK-WIP--main.zip
+
+# The Havok 2012.2.0-r1 SDK. It settled the first-person animation blocker — see
+# docs/research/havok-compression.md — and it must never be committed: its own headers say
+# "Confidential Information of Havok. Not for disclosure or distribution without Havok's prior
+# written consent." Read in place, quoted in the notes, never vendored.
+/hk2012_2_0_r1/
+
+# UEViewer and UELib sources, kept as references for the Unreal side. Someone else's projects under
+# their own licences.
+/UModel-master/
+/Unreal-Library-master/
