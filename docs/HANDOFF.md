@@ -268,8 +268,10 @@ Both upper arms sit ~93 units from their clavicle in non-mirrored directions, an
 positions come out mirror-symmetric about Y=0 while the clavicles are symmetric about Z=0 — that
 bone bridges two conventions. Also: the clavicles are pinned to one value across all 13
 animations, differing from bind, so the reference pose is an authoring pose the animations do not
-build on. **And the side metric is partly circular on this rig** — see §4f of the research note
-before trusting it further.
+build on. **The swap is confirmed independently** of the body-frame metric: the crossbow names its own
+limbs `X_Larm`/`X_Rarm`, and against that axis the left hand sits at **+45.48 (weapon-left) in the
+bind pose and −54.86 (weapon-right) in every animation** — a 100 cm swing across the weapon, ending
+up on the same side as the right hand. See §4f–4g of the research note.
 
 **Do not "fix" it by converting the animation again.** It flips the sides back and it is wrong: the
 animation's fallback channels already equal the skeleton's bind translations exactly, proving both

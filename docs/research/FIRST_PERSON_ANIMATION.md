@@ -183,9 +183,27 @@ Two things argue the finding survives anyway: the derived `left` stays 0.86 alig
 pose's `left` under animation, so the frame is not flipping; and the weapon — which hangs off the
 right hand — ends up on the anatomical left, where the game plainly puts it on the right.
 
-But a **non-circular lateral reference for this rig has not yet been found**, and finding one is
-probably the precondition for settling this. The mesh is the most promising source: the hands are
-two chiral objects whose own geometry defines left and right without reference to the torso.
+## 4g. Independent confirmation — the weapon's own left/right
+
+`CONFIRMED_BYTES`. The circularity above is now settled with a reference that involves neither the
+torso nor the hands: **the crossbow rig names its own limbs `X_Larm` and `X_Rarm`.** Their
+difference points along +Y in weapon space, agreeing with the weapon mesh's lateral extent (48.8 cm
+on Y against 81.9 on X and 30.3 on Z), so the sign is trustworthy even though the two bones sit only
+2.86 cm apart.
+
+Projecting each player hand onto that axis, about the limb midpoint:
+
+| | L_Hand | R_Hand |
+|---|---|---|
+| **Bind pose** | **+45.48** — weapon-left | −4.56 — weapon-right |
+| `FidgetCrossbow`, `ReloadCrossbow`, `FireCrossbow`, `EmptyFidgetCrossbow` | **−54.86** — weapon-**right** | −4.56 — weapon-right |
+
+The left hand swings **100 cm across the weapon** and ends up on the same side as the right one.
+`R_Hand` reads −4.56 in every case because the weapon is parented to it and cannot move relative to
+it, which is the same reason it is never evidence about the right arm.
+
+**So the swap is real and is not an artifact of the body-frame metric.** The bind pose puts one hand
+either side of the weapon; every animation puts both on the same side.
 
 ## 5. Where to look next
 
