@@ -26,6 +26,23 @@ public sealed record MeshVertex
 }
 
 /// <summary>
+/// One run of a mesh's index buffer, drawn with one material.
+/// </summary>
+/// <remarks>
+/// <c>CONFIRMED_BYTES</c>, 14 bytes on the wire, sitting before the vertex block. The Nth section
+/// uses the Nth entry of the object's <c>Materials</c> array. See <c>docs/research/staticmesh.md</c>.
+/// </remarks>
+/// <param name="FirstIndex">Where this section starts in the index buffer.</param>
+/// <param name="FirstVertex">Lowest vertex the section references.</param>
+/// <param name="LastVertex">Highest vertex the section references.</param>
+/// <param name="TriangleCount">Triangles in the section, so it covers <c>TriangleCount * 3</c> indices.</param>
+public readonly record struct MeshSection(int FirstIndex, int FirstVertex, int LastVertex, int TriangleCount)
+{
+    /// <summary>Indices this section covers.</summary>
+    public int IndexCount => TriangleCount * 3;
+}
+
+/// <summary>
 /// Geometry of a mesh: one vertex pool plus a triangle list.
 /// <para>
 /// Both mesh classes decode into this. A <c>SkeletalMesh</c> fills the bone map and the influences;
@@ -55,6 +72,16 @@ public sealed record MeshGeometry
     /// channel, and says so rather than pretending the mesh had one set.
     /// </summary>
     public int ExtraUvStreamCount { get; init; }
+
+    /// <summary>
+    /// Runs of the index buffer, one per material. Empty when the mesh does not declare them.
+    /// </summary>
+    /// <remarks>
+    /// A section's ordinal indexes the mesh's <c>Materials</c> array, which is what says <b>which
+    /// triangles use which material</b>. Without it a mesh naming two or three materials could only
+    /// be textured from the first.
+    /// </remarks>
+    public IReadOnlyList<MeshSection> Sections { get; init; } = [];
 
     /// <summary>Whether the vertices are bound to a skeleton at all.</summary>
     public bool IsSkinned => BoneMap.Count > 0;

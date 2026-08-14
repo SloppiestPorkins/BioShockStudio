@@ -81,6 +81,7 @@ public static class StaticMeshReader
             SkinnedVertexCount = 0,
             RigidVertexCount = 0,
             ExtraUvStreamCount = layout.StreamCount - 1,
+            Sections = ReadSections(payload, layout),
         });
     }
 
@@ -88,6 +89,91 @@ public static class StaticMeshReader
         int CountOffset, int VertexOffset, int VertexCount,
         int UvOffset, int StreamCount,
         int IndexOffset, int IndexCount);
+
+    /// <summary>Bytes of one section record on the wire.</summary>
+    private const int SectionStride = 14;
+
+    /// <summary>
+    /// The <c>FBox</c> between the section table and the vertex count: 24 bytes of min and max plus
+    /// a one-byte valid flag.
+    /// </summary>
+    private const int BoundingBoxSize = 25;
+
+    /// <summary>
+    /// Reads the section table that precedes the bounding box, or nothing when it does not verify.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CI NumSections</c>, then <c>NumSections</c> records of 14 bytes: <c>int32</c> always zero,
+    /// then <c>uint16</c> FirstIndex, FirstVertex, LastVertex, a repeat of the face count, and the
+    /// face count. The layout comes from Nyko's SDK (<c>bioshock1-bsm.md</c> §C.4) and is verified
+    /// here against Remastered bytes — see <c>docs/research/staticmesh.md</c>.
+    /// </para>
+    /// <para>
+    /// It is read <b>backwards</b>, because the header ahead of the geometry is not a fixed length
+    /// and the vertex block is what this reader locates first. The count that terminates the search
+    /// has to land exactly on the start of the array, and the sections then have to tile the index
+    /// buffer and stay inside the vertex array — so a wrong guess is rejected rather than returned.
+    /// </para>
+    /// <para>
+    /// Nothing is invented when it does not verify: the mesh simply reports no sections, and is
+    /// drawn from its first material as before.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<MeshSection> ReadSections(
+        ReadOnlySpan<byte> payload, GeometryLayout layout)
+    {
+        int tableEnd = layout.CountOffset - BoundingBoxSize;
+        if (tableEnd <= 0) return [];
+
+        for (int count = 1; count <= 64; count++)
+        {
+            int arrayStart = tableEnd - count * SectionStride;
+            if (arrayStart < 1) break;
+
+            // The compact index is 1-5 bytes, so try each start that could reach the array exactly.
+            bool declared = false;
+            for (int back = 1; back <= 5 && arrayStart - back >= 0; back++)
+            {
+                int cursor = arrayStart - back;
+                int value;
+                try { value = ReadCompactIndex(payload, ref cursor); }
+                catch { continue; }
+                if (cursor == arrayStart && value == count) { declared = true; break; }
+            }
+            if (!declared) continue;
+
+            var sections = new MeshSection[count];
+            int covered = 0;
+            bool ok = true;
+
+            for (int i = 0; i < count && ok; i++)
+            {
+                int at = arrayStart + i * SectionStride;
+                if (BinaryPrimitives.ReadInt32LittleEndian(payload[at..]) != 0) { ok = false; break; }
+
+                int firstIndex = BinaryPrimitives.ReadUInt16LittleEndian(payload[(at + 4)..]);
+                int firstVertex = BinaryPrimitives.ReadUInt16LittleEndian(payload[(at + 6)..]);
+                int lastVertex = BinaryPrimitives.ReadUInt16LittleEndian(payload[(at + 8)..]);
+                int triangles = BinaryPrimitives.ReadUInt16LittleEndian(payload[(at + 12)..]);
+
+                // Sections tile the index buffer in order and stay inside the vertex array.
+                if (firstIndex != covered) ok = false;
+                else if (firstVertex > lastVertex || lastVertex >= layout.VertexCount) ok = false;
+                else if (triangles <= 0) ok = false;
+                else
+                {
+                    sections[i] = new MeshSection(firstIndex, firstVertex, lastVertex, triangles);
+                    covered += triangles * 3;
+                }
+            }
+
+            // The whole index buffer has to be accounted for, or this is not the table.
+            if (ok && covered == layout.IndexCount) return sections;
+        }
+
+        return [];
+    }
 
     /// <summary>
     /// Locates the chain by search, because the header preceding it is not a fixed length — the

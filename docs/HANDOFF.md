@@ -9,11 +9,11 @@
 |---|---|
 | **Phase** | **PHASE 1 — animation + mesh extraction. The blocker is FIXED.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 249 passed, 0 failed, **0 skipped** |
+| **Tests** | 251 passed, 0 failed, **0 skipped** |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Do not start** | Phase 2 (level extraction) until Phase 1 is frozen |
 
-**249 tests pass against the installed game, none skipped.**
+**251 tests pass against the installed game, none skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -53,7 +53,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `hkaSkeleton`, `hkaAnimationBinding` | Complete, original bone indices preserved. |
 | `hkaSplineCompressedAnimation` | Complete. 130/130 hands animations decode. |
 | `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **954/972 exports decode (98.1%)** — the 18 that do not are all doors. |
-| `StaticMesh` | Geometry, UV streams, indices. **All 8,668 shipped exports decode.** |
+| `StaticMesh` | Geometry, UV streams, indices, and the per-material **section table**. **All 8,668 shipped exports decode.** |
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
 | Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
@@ -575,13 +575,12 @@ bones that were misplaced and which on the first-person bind pose is the rig's *
 both Blender validators pass, and the suite is green with nothing skipped. What is left is quality.
 
 1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **249 passed, 0 failed, 0 skipped**.
-3. **Start here: implement the `StaticMesh` section table.** `docs/research/staticmesh.md` has the
-   layout, verified against Remastered bytes on `ConeDrill` and `Turret_Cover`. Read
-   `CI NumSections` + 14 bytes per section before the vertex block, and index the object's
-   `Materials` array by section ordinal. That is the fix for the 28 multi-material meshes currently
-   textured from their first material only. The spec is known — this is implementation, not
-   research.
+2. `dotnet build && dotnet test` — expect **251 passed, 0 failed, 0 skipped**.
+3. **Start here: consume the section table.** It is now *read* — `MeshGeometry.Sections`, one run of
+   the index buffer per material, verified game-wide by `StaticMeshSectionTests`. It is not yet
+   *used*: pair section *N* with `Materials[N]` in the material resolver, the preview and the
+   exporters, and the 28 multi-material meshes stop being textured from their first material only.
+   No research left — the layout is in `docs/research/staticmesh.md`.
 4. Then **§6.1**, the static-mesh material reference: only 22 of 630 drawable meshes in `1-Medical`
    resolve a diffuse texture. Concrete lead from Nyko's SDK: the `Materials` array is an ordinary
    tagged property, and struct elements need **recursive tagged-property serialisation with an

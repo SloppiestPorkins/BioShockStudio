@@ -179,8 +179,20 @@ locates, on meshes whose geometry was decoded independently:
 `f4`, `FirstIndex` and `FirstVertex` all zero as documented. Two independent fields agreeing with a
 separately-decoded mesh is not a coincidence.
 
-**Not yet implemented.** The reader still finds the vertex block by search and skips the sections.
-Wiring them up is what turns "textured from the first material only" into per-section materials.
+**Implemented.** `StaticMeshReader.ReadSections` reads the table backwards from the bounding box the
+geometry search already locates, because the header ahead of the geometry is not a fixed length. A
+candidate is accepted only when the compact count lands exactly on the start of the array, the
+sections tile the index buffer in order from zero, every section stays inside the vertex array, and
+the tiling accounts for **every** index. Anything else and the mesh reports no sections and is drawn
+as before — nothing is invented.
+
+`StaticMeshSectionTests` holds it: the two meshes above field by field, and a game-wide sweep
+asserting that every table that does resolve tiles its own index buffer exactly, over more than
+5,000 meshes, with the check refusing to pass vacuously.
+
+**Still to do:** the sections are read but not yet consumed. Turning "textured from the first
+material only" into per-section materials means pairing section *N* with `Materials[N]` in the
+material resolver and the exporters.
 
 ### Where Remastered diverges from the original game
 
