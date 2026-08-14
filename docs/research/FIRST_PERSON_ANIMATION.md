@@ -264,6 +264,67 @@ is done to the tracks, because the weapon is parented to it and the projection i
 construction. Only the **left** hand's reading carries information there; compare its bind value
 (+45.48) against its animated value (−54.86).
 
+## 4j. The sharpest result: the arm pair is a translated DUPLICATE, not a MIRROR
+
+`CONFIRMED_BYTES`. This supersedes §4c as the localisation, and it is a structural statement about
+the rig rather than about one bone.
+
+For each `Bip01_L_*` / `Bip01_R_*` pair, take the two bones' **global rotations** in the bind pose
+and ask which relation holds, reflecting in the plane whose normal is the rig's own clavicle axis:
+
+| pair | first person | `AggressorBabyJane` | `GathererGirl` |
+|---|---|---|---|
+| Clavicle | **mirror 2.000** | mirror 2.000 | mirror 2.000 |
+| UpperArm | **duplicate 0.084** | mirror 2.000 | mirror 2.000 |
+| Forearm | **duplicate 0.085** | mirror 2.000 | mirror 2.000 |
+| Hand | neither (4.07 / 6.00) | mirror 2.000 | mirror 2.000 |
+
+A proper Biped is a mirror on every pair, and scores exactly 2.0. **The first-person rig is a mirror
+only at the clavicle.** From the upper arm down the two chains carry effectively *identical* global
+orientation — the arms were copied, not mirrored — and their lateral separation is **0.00 cm**: they
+are 53.03 cm apart entirely front-to-back.
+
+Across every skeleton the game ships that has both clavicles and both upper arms:
+
+```
+skeletons with clavicles and upper arms   6
+arm pair is a MIRROR                      5
+arm pair is a DUPLICATE                   1     UAPW_NEWPlayerHands
+```
+
+So the rig has no left/right distinction below the clavicle to inherit, and the animation does not
+supply one either — it produces separation of the **wrong sign**. Lateral separation `L − R` down
+the chain, in each rig's own lateral axis:
+
+```
+AggressorBabyJane / Fidget_Burning   clav  +6.93   upper +26.65   fore +33.03   hand +34.77
+NEWPlayerHands   / FidgetCrossbow    clav +17.31   upper -23.38   fore -22.40   hand -47.98
+NEWPlayerHands   / FidgetPistol      clav +17.31   upper  -4.74   fore  -1.42   hand  -0.14
+```
+
+The character fans out to the left monotonically. The first-person rig flips sign immediately after
+the clavicle, and on the pistol it collapses onto the midline instead.
+
+**One lead, measured but NOT applied and NOT verified:** substituting the whole left chain with the
+Z-mirror of the right gives `L_UpperArm −4.78` against `R_UpperArm +4.62` — mirror-symmetric, but
+with the two arms swapped. That hints that the arm data may be both mirrored and transposed relative
+to the rest of the game. Transposition **alone** is already rejected (§4h) and a per-asset mirror is
+forbidden by the coordinate policy, so this is recorded as an observation to explain, not a fix to
+apply.
+
+## 4k. The `SkeletalMesh` carries no second copy of the bind pose
+
+`CONFIRMED_BYTES`. An Unreal `SkeletalMesh` normally ships a `RefSkeleton`, which would be an
+independent statement of the same bind pose and would settle whether the arm chain is authored the
+way it decodes. `NEWPlayerHands` does not have one that can be found: searching all 777,635 bytes of
+its payload for the Havok bind translations in the game's basis finds no coherent run — `Neck.x
+71.967`, `Forearm.x 43.297`, `L_UpperArm.z −87.677`, `R_UpperArm.y −27.574` and `R_UpperArm.z
++85.631` have **zero** hits, and the values that do hit are scattered single matches in vertex data.
+Only 11 of the 47 Havok bone names appear in the package's name table at all.
+
+The Havok `hkaSkeleton` is therefore the only statement of this rig's bind pose, and there is
+nothing in the shipped files to cross-check it against.
+
 ## 4i. The clavicle rotations are decoded exactly as stored
 
 `CONFIRMED_BYTES`. The clavicles are the only per-side structure above the upper arms, so if

@@ -8,22 +8,12 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 /// <summary>
-/// Scratch probe for the first-person arm chain. Writes to <c>BIOSHOCK_ARMPROBE</c> and does
-/// nothing otherwise.
+/// Scratch probe: across every skeleton the game ships, is each arm pair a mirror or a translated
+/// duplicate? Writes to <c>BIOSHOCK_ARMPROBE</c> and does nothing otherwise.
 /// </summary>
 [Collection(GameCollection.Name)]
 public sealed class ArmChainProbeTests(GameFixture game)
 {
-    private AnimationPackage Load(string packagePath, string objectName)
-    {
-        using var package = BioShockPackage.Open(packagePath);
-        var export = package.Exports
-            .Where(e => e.ObjectName == objectName
-                        && package.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
-            .MaxBy(e => e.SerialSize);
-        return AnimationPackage.Load(package, export!);
-    }
-
     private static int Index(BioShockSkeleton s, string name)
     {
         for (int i = 0; i < s.Bones.Count; i++)
@@ -43,104 +33,61 @@ public sealed class ArmChainProbeTests(GameFixture game)
         if (string.IsNullOrWhiteSpace(target)) return;
 
         var sb = new StringBuilder();
-        sb.AppendLine("Are the two arm chains a MIRROR of each other, or a translated DUPLICATE?");
-        sb.AppendLine("For each pair, the global rotation of the right bone is compared against");
-        sb.AppendLine("  duplicate : the left bone's own global rotation, unchanged");
-        sb.AppendLine("  mirror    : the left bone's global rotation reflected in the lateral plane");
-        sb.AppendLine("Whichever is near zero is how the rig is built. A real Biped is a mirror.");
+        sb.AppendLine("Every skeleton with both clavicles and both upper arms. For the UpperArm pair:");
+        sb.AppendLine("  mirror    = right bone's global rotation against the left's, reflected in the");
+        sb.AppendLine("              plane whose normal is the clavicle axis. ~2.0 on a Biped.");
+        sb.AppendLine("  duplicate = right against the left unchanged. ~0 means the arm was copied,");
+        sb.AppendLine("              not mirrored, and the two chains have no left/right distinction.");
         sb.AppendLine();
 
-        void Study(string package, string name)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var duplicates = new List<string>();
+        int mirrors = 0, total = 0;
+
+        foreach (string map in Directory.GetFiles(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(p => p))
         {
-            var pack = Load(package, name);
-            var s = pack.Skeleton;
-            int head = Index(s, "Bip01_Head");
-            if (head < 0) { sb.AppendLine($"=== {name}: no head ==="); return; }
-
-            var g = s.ComputeGlobalTransforms();
-            var (_, _, lateral) = Axes(g[head]);
-
-            sb.AppendLine($"=== {name} ===  lateral axis ({lateral.X:0.00},{lateral.Y:0.00},{lateral.Z:0.00})");
-
-            foreach (string part in new[] { "Clavicle", "UpperArm", "Forearm", "Hand" })
+            using var package = BioShockPackage.Open(map);
+            foreach (var export in package.Exports
+                         .Where(e => package.GetClassName(e) == AssetClasses.AnimationPackageWrapper))
             {
-                int l = Index(s, "Bip01_L_" + part), r = Index(s, "Bip01_R_" + part);
-                if (l < 0 || r < 0) continue;
+                if (!seen.Add(export.ObjectName)) continue;
 
-                var (lx, ly, lz) = Axes(g[l]);
-                var (rx, ry, rz) = Axes(g[r]);
+                AnimationPackage pack;
+                try { pack = AnimationPackage.Load(package, export); } catch { continue; }
+                var s = pack.Skeleton;
 
-                // Reflection in the plane whose normal is the lateral axis: v -> v - 2(v.n)n.
+                int lc = Index(s, "Bip01_L_Clavicle"), rc = Index(s, "Bip01_R_Clavicle");
+                int lu = Index(s, "Bip01_L_UpperArm"), ru = Index(s, "Bip01_R_UpperArm");
+                if (lc < 0 || rc < 0 || lu < 0 || ru < 0) continue;
+
+                var g = s.ComputeGlobalTransforms();
+
+                // The clavicle axis, which is the head's lateral axis at dot 1.00 on every rig that
+                // has both, and is available on far more of them.
+                var separation = g[lc].Translation - g[rc].Translation;
+                if (separation.Length() < 1f) continue;
+                var lateral = Vector3.Normalize(separation);
+                var (lx, ly, lz) = Axes(g[lu]);
+                var (rx, ry, rz) = Axes(g[ru]);
                 Vector3 Reflect(Vector3 v) => v - 2f * Vector3.Dot(v, lateral) * lateral;
 
                 float duplicate = (lx - rx).Length() + (ly - ry).Length() + (lz - rz).Length();
                 float mirror = (Reflect(lx) - rx).Length() + (Reflect(ly) - ry).Length() + (Reflect(lz) - rz).Length();
+                float lateralGap = Vector3.Dot(g[lu].Translation - g[ru].Translation, lateral);
 
-                // And how far apart are they along each axis?
-                var delta = g[l].Translation - g[r].Translation;
-                float along = Vector3.Dot(delta, lateral);
-
-                sb.AppendLine($"  {part,-9} duplicate {duplicate,7:0.###}   mirror {mirror,7:0.###}" +
-                              $"    L-R lateral {along,8:0.00}   |L-R| {delta.Length(),8:0.00}");
-            }
-            sb.AppendLine();
-        }
-
-        void StudyAnimated(string package, string name, string[] animations)
-        {
-            var pack = Load(package, name);
-            var s = pack.Skeleton;
-            int head = Index(s, "Bip01_Head");
-            if (head < 0) return;
-
-            foreach (string animationName in animations)
-            {
-                var found = pack.Find(animationName);
-                if (found is null) continue;
-                var decoded = pack.Decode(found);
-
-                var byBone = new Core.Animation.DecodedTrack?[s.BoneCount];
-                foreach (var t in decoded.Tracks)
-                    if (t.TargetBoneIndex >= 0) byBone[t.TargetBoneIndex] = t;
-
-                var g = new Matrix4x4[s.BoneCount];
-                for (int i = 0; i < s.BoneCount; i++)
-                {
-                    var bone = s.Bones[i];
-                    var t = byBone[i];
-                    var local = Matrix4x4.CreateScale(t is not null && t.Scales.Length > 0 ? t.Scales[0] : bone.LocalScale)
-                                * Matrix4x4.CreateFromQuaternion(t is not null && t.Rotations.Length > 0 ? t.Rotations[0] : bone.LocalRotation)
-                                * Matrix4x4.CreateTranslation(t is not null && t.Translations.Length > 0 ? t.Translations[0] : bone.LocalTranslation);
-                    g[i] = bone.ParentIndex >= 0 && bone.ParentIndex < i ? local * g[bone.ParentIndex] : local;
-                }
-
-                var (_, _, lateral) = Axes(g[head]);
-                sb.AppendLine($"=== {name} / {animationName} frame 0 ===");
-                foreach (string part in new[] { "Clavicle", "UpperArm", "Forearm", "Hand" })
-                {
-                    int l = Index(s, "Bip01_L_" + part), r = Index(s, "Bip01_R_" + part);
-                    if (l < 0 || r < 0) continue;
-                    var (lx, ly, lz) = Axes(g[l]);
-                    var (rx, ry, rz) = Axes(g[r]);
-                    Vector3 Reflect(Vector3 v) => v - 2f * Vector3.Dot(v, lateral) * lateral;
-                    float duplicate = (lx - rx).Length() + (ly - ry).Length() + (lz - rz).Length();
-                    float mirror = (Reflect(lx) - rx).Length() + (Reflect(ly) - ry).Length() + (Reflect(lz) - rz).Length();
-                    var delta = g[l].Translation - g[r].Translation;
-                    sb.AppendLine($"  {part,-9} duplicate {duplicate,7:0.###}   mirror {mirror,7:0.###}" +
-                                  $"    L-R lateral {Vector3.Dot(delta, lateral),8:0.00}   |L-R| {delta.Length(),8:0.00}");
-                }
-                sb.AppendLine();
+                total++;
+                if (duplicate < mirror) duplicates.Add(
+                    $"    {export.ObjectName,-36} duplicate {duplicate,6:0.###}  mirror {mirror,6:0.###}" +
+                    $"  lateral gap {lateralGap,8:0.00}   [{Path.GetFileNameWithoutExtension(map)}]");
+                else mirrors++;
             }
         }
 
-        Study(game.LighthousePackage, "UAPW_NEWPlayerHands");
-        StudyAnimated(game.LighthousePackage, "UAPW_NEWPlayerHands", ["FidgetCrossbow", "FidgetPistol"]);
-        StudyAnimated(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"),
-            "UAPW_AggressorBabyJane", ["Fidget_Burning"]);
-        string gauntlet = Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-BossFight.bsm");
-        Study(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"), "UAPW_AggressorBabyJane");
-        Study(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"), "UAPW_GathererGirl");
-        _ = gauntlet;
+        sb.AppendLine($"  skeletons with clavicles and upper arms   : {total}");
+        sb.AppendLine($"  arm pair is a MIRROR                      : {mirrors}");
+        sb.AppendLine($"  arm pair is a DUPLICATE                   : {duplicates.Count}");
+        sb.AppendLine();
+        foreach (string line in duplicates) sb.AppendLine(line);
 
         File.WriteAllText(target, sb.ToString());
     }

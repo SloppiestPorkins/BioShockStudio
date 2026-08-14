@@ -8,7 +8,7 @@
 | | |
 |---|---|
 | **Phase** | **PHASE 1 — animation + mesh extraction. NOT COMPLETE.** |
-| **Blocker** | The first-person arm chains cross the midline. The clavicles are on the correct sides (±8.65 cm); everything from the **upper arm** down is on the wrong one, on **both** arms. Only `NEWPlayerHands` is affected. |
+| **Blocker** | `NEWPlayerHands` is the only rig in the game whose arm pair is a **translated duplicate** rather than a mirror (5 of 6 armed skeletons are mirrors). Below the clavicle the two chains carry identical orientation and **0.00 cm** lateral separation, and the animation then separates them with the wrong sign. Nothing else is affected. |
 | **Blocker detail** | `docs/research/FIRST_PERSON_ANIMATION.md` |
 | **Tests** | 242 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
@@ -521,12 +521,15 @@ retargeting hint, preserved and unused.
    `dotnet test --filter FullyQualifiedName~FirstPersonHandTests`
    Four cases must pass, including the two that pin the discarded metrics as invalid. Remove the
    `Skip` on `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` to watch it fail.
-4. **Work the blocker.** Measure sides on the **head bone's local +Z** and nothing else — §1 of
-   `FIRST_PERSON_ANIMATION.md` explains why the two earlier metrics were invalid, and both are now
-   pinned by tests. The fault is above both upper arms: mirroring the left chain onto the right
-   leaves the right arm crossed too. The clavicle rotations are byte-confirmed decoded-as-stored
-   (§4i), so the next thing to examine is the spine's static transform, the one shared structure
-   above both clavicles. Superseded framing to ignore: that only the left arm is wrong, and that the
+4. **Work the blocker.** Measure sides on the **head bone's local +Z**, or equivalently the clavicle
+   axis, and nothing else — §1 of `FIRST_PERSON_ANIMATION.md` explains why the two earlier metrics
+   were invalid, and both are now pinned by tests. The live question is §4j: this rig's arm pair is a
+   translated duplicate rather than a mirror, alone among the game's six armed skeletons, so there is
+   no left/right distinction below the clavicle for the animation to inherit. Already eliminated, so
+   do not redo them: the spine (it is the rig root, so every relative measurement is invariant to
+   it), any hidden reflection (every scale is exactly `(1,1,1)`), the clavicle rotation decode (§4i,
+   read from the bytes by hand), and a second copy of the bind pose in the `SkeletalMesh` (§4k, there
+   is none). Superseded framing to ignore: that only the left arm is wrong, and that the
    first-person clavicles separate along Z while the hands separate along Y, which no single
    symmetric rig can do, and that `Bip01_L_UpperArm` sits 93 cm from its clavicle.
 5. Do **not** convert the animation a second time. See §8c.
