@@ -8,9 +8,8 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 /// <summary>
-/// Scratch probe: re-test the additive interpretation of animation locals against the head-frame
-/// lateral axis. The original rejection of it used the body-frame metric, which is now known to be
-/// invalid, so the evidence against it has to be re-taken. Writes to <c>BIOSHOCK_ARMPROBE</c>.
+/// Scratch probe for the first-person arm chain. Writes to <c>BIOSHOCK_ARMPROBE</c> and does
+/// nothing otherwise.
 /// </summary>
 [Collection(GameCollection.Name)]
 public sealed class ArmChainProbeTests(GameFixture game)
@@ -32,46 +31,10 @@ public sealed class ArmChainProbeTests(GameFixture game)
         return -1;
     }
 
-    /// <summary>Composes a frame, either replacing the bind local or applying the track on top of it.</summary>
-    private static Matrix4x4[] PoseAt(
-        BioShockSkeleton s, Core.Animation.DecodedAnimation animation, int frame, bool additive)
-    {
-        var byBone = new Core.Animation.DecodedTrack?[s.BoneCount];
-        foreach (var track in animation.Tracks)
-            if (track.TargetBoneIndex >= 0 && track.TargetBoneIndex < s.BoneCount)
-                byBone[track.TargetBoneIndex] = track;
-
-        var g = new Matrix4x4[s.BoneCount];
-        for (int b = 0; b < s.BoneCount; b++)
-        {
-            var bone = s.Bones[b];
-            var t = byBone[b];
-
-            var tr = t is not null && frame < t.Translations.Length ? t.Translations[frame] : bone.LocalTranslation;
-            var ro = t is not null && frame < t.Rotations.Length ? t.Rotations[frame] : bone.LocalRotation;
-            var sc = t is not null && frame < t.Scales.Length ? t.Scales[frame] : bone.LocalScale;
-
-            var local = Matrix4x4.CreateScale(sc) * Matrix4x4.CreateFromQuaternion(ro) * Matrix4x4.CreateTranslation(tr);
-
-            if (additive && t is not null)
-            {
-                var bind = Matrix4x4.CreateScale(bone.LocalScale)
-                           * Matrix4x4.CreateFromQuaternion(bone.LocalRotation)
-                           * Matrix4x4.CreateTranslation(bone.LocalTranslation);
-                local = local * bind;
-            }
-
-            int p = bone.ParentIndex;
-            g[b] = p >= 0 && p < b ? local * g[p] : local;
-        }
-        return g;
-    }
-
-    private static Vector3 ViewLeft(BioShockSkeleton s, Matrix4x4[] g)
-    {
-        var m = g[Index(s, "Bip01_Head")];
-        return Vector3.Normalize(new Vector3(m.M31, m.M32, m.M33));
-    }
+    private static (Vector3 X, Vector3 Y, Vector3 Z) Axes(Matrix4x4 m) => (
+        Vector3.Normalize(new Vector3(m.M11, m.M12, m.M13)),
+        Vector3.Normalize(new Vector3(m.M21, m.M22, m.M23)),
+        Vector3.Normalize(new Vector3(m.M31, m.M32, m.M33)));
 
     [RequiresGameFact]
     public void Probe()
@@ -80,97 +43,104 @@ public sealed class ArmChainProbeTests(GameFixture game)
         if (string.IsNullOrWhiteSpace(target)) return;
 
         var sb = new StringBuilder();
-        string gauntlet = Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm");
-
-        sb.AppendLine("Additive (anim_local * bind_local) against replacement, judged on the head-frame");
-        sb.AppendLine("lateral axis. Bone lengths are checked too: an additive read that stretched the");
-        sb.AppendLine("skeleton would be disqualified whatever the sides did.");
+        sb.AppendLine("Are the two arm chains a MIRROR of each other, or a translated DUPLICATE?");
+        sb.AppendLine("For each pair, the global rotation of the right bone is compared against");
+        sb.AppendLine("  duplicate : the left bone's own global rotation, unchanged");
+        sb.AppendLine("  mirror    : the left bone's global rotation reflected in the lateral plane");
+        sb.AppendLine("Whichever is near zero is how the rig is built. A real Biped is a mirror.");
         sb.AppendLine();
 
-        // ---- first person, the arm chain laterally ----
+        void Study(string package, string name)
         {
-            var hands = Load(game.LighthousePackage, "UAPW_NEWPlayerHands");
-            var s = hands.Skeleton;
+            var pack = Load(package, name);
+            var s = pack.Skeleton;
             int head = Index(s, "Bip01_Head");
-            string[] bones = ["Bip01_L_Clavicle", "Bip01_L_UpperArm", "Bip01_L_Hand",
-                              "Bip01_R_Clavicle", "Bip01_R_UpperArm", "Bip01_R_Hand", "R_grip"];
+            if (head < 0) { sb.AppendLine($"=== {name}: no head ==="); return; }
 
-            foreach (string animationName in new[] { "FidgetCrossbow", "FidgetPistol" })
+            var g = s.ComputeGlobalTransforms();
+            var (_, _, lateral) = Axes(g[head]);
+
+            sb.AppendLine($"=== {name} ===  lateral axis ({lateral.X:0.00},{lateral.Y:0.00},{lateral.Z:0.00})");
+
+            foreach (string part in new[] { "Clavicle", "UpperArm", "Forearm", "Hand" })
             {
-                var decoded = hands.Decode(hands.Find(animationName)!);
-                foreach (bool additive in new[] { false, true })
-                {
-                    var g = PoseAt(s, decoded, 0, additive);
-                    var left = ViewLeft(s, g);
-                    var eye = g[head].Translation;
-                    sb.Append($"  {animationName,-16} {(additive ? "ADDITIVE " : "replace  ")}");
-                    foreach (string bone in bones)
-                        sb.Append($" {bone.Replace("Bip01_", "")} {Vector3.Dot(g[Index(s, bone)].Translation - eye, left),7:0.0}");
-                    sb.AppendLine();
-                }
+                int l = Index(s, "Bip01_L_" + part), r = Index(s, "Bip01_R_" + part);
+                if (l < 0 || r < 0) continue;
+
+                var (lx, ly, lz) = Axes(g[l]);
+                var (rx, ry, rz) = Axes(g[r]);
+
+                // Reflection in the plane whose normal is the lateral axis: v -> v - 2(v.n)n.
+                Vector3 Reflect(Vector3 v) => v - 2f * Vector3.Dot(v, lateral) * lateral;
+
+                float duplicate = (lx - rx).Length() + (ly - ry).Length() + (lz - rz).Length();
+                float mirror = (Reflect(lx) - rx).Length() + (Reflect(ly) - ry).Length() + (Reflect(lz) - rz).Length();
+
+                // And how far apart are they along each axis?
+                var delta = g[l].Translation - g[r].Translation;
+                float along = Vector3.Dot(delta, lateral);
+
+                sb.AppendLine($"  {part,-9} duplicate {duplicate,7:0.###}   mirror {mirror,7:0.###}" +
+                              $"    L-R lateral {along,8:0.00}   |L-R| {delta.Length(),8:0.00}");
             }
             sb.AppendLine();
-
-            // Rigidity: does the additive read preserve every bone length?
-            foreach (bool additive in new[] { false, true })
-            {
-                float worst = 0f; string at = "";
-                foreach (var animation in hands.Animations.Take(30))
-                {
-                    var decoded = hands.Decode(animation);
-                    for (int frame = 0; frame < decoded.FrameCount; frame += 5)
-                    {
-                        var g = PoseAt(s, decoded, frame, additive);
-                        for (int b = 0; b < s.BoneCount; b++)
-                        {
-                            int p = s.Bones[b].ParentIndex;
-                            if (p < 0) continue;
-                            float bind = s.Bones[b].LocalTranslation.Length();
-                            float now = (g[b].Translation - g[p].Translation).Length();
-                            if (MathF.Abs(now - bind) > worst) { worst = MathF.Abs(now - bind); at = $"{animation.Name} {s.Bones[b].Name}"; }
-                        }
-                    }
-                }
-                sb.AppendLine($"  first-person bone-length drift, {(additive ? "ADDITIVE" : "replace ")}: {worst,8:0.###} cm  ({at})");
-            }
         }
 
-        // ---- proven characters: additive must not break them ----
-        sb.AppendLine();
-        foreach (string name in new[] { "UAPW_AggressorBabyJane", "UAPW_GathererGirl" })
+        void StudyAnimated(string package, string name, string[] animations)
         {
-            AnimationPackage pack;
-            try { pack = Load(gauntlet, name); } catch { continue; }
+            var pack = Load(package, name);
             var s = pack.Skeleton;
-            if (Index(s, "Bip01_Head") < 0) continue;
-            int lh = Index(s, "Bip01_L_Hand"), rh = Index(s, "Bip01_R_Hand");
-            if (lh < 0 || rh < 0) continue;
+            int head = Index(s, "Bip01_Head");
+            if (head < 0) return;
 
-            foreach (bool additive in new[] { false, true })
+            foreach (string animationName in animations)
             {
-                int frames = 0, wrong = 0;
-                float drift = 0f;
-                foreach (var animation in pack.Animations.Take(40))
+                var found = pack.Find(animationName);
+                if (found is null) continue;
+                var decoded = pack.Decode(found);
+
+                var byBone = new Core.Animation.DecodedTrack?[s.BoneCount];
+                foreach (var t in decoded.Tracks)
+                    if (t.TargetBoneIndex >= 0) byBone[t.TargetBoneIndex] = t;
+
+                var g = new Matrix4x4[s.BoneCount];
+                for (int i = 0; i < s.BoneCount; i++)
                 {
-                    var decoded = pack.Decode(animation);
-                    for (int frame = 0; frame < decoded.FrameCount; frame += 5)
-                    {
-                        var g = PoseAt(s, decoded, frame, additive);
-                        frames++;
-                        if (Vector3.Dot(g[lh].Translation - g[rh].Translation, ViewLeft(s, g)) < 0f) wrong++;
-                        for (int b = 0; b < s.BoneCount; b++)
-                        {
-                            int p = s.Bones[b].ParentIndex;
-                            if (p < 0) continue;
-                            drift = MathF.Max(drift, MathF.Abs(
-                                (g[b].Translation - g[p].Translation).Length() - s.Bones[b].LocalTranslation.Length()));
-                        }
-                    }
+                    var bone = s.Bones[i];
+                    var t = byBone[i];
+                    var local = Matrix4x4.CreateScale(t is not null && t.Scales.Length > 0 ? t.Scales[0] : bone.LocalScale)
+                                * Matrix4x4.CreateFromQuaternion(t is not null && t.Rotations.Length > 0 ? t.Rotations[0] : bone.LocalRotation)
+                                * Matrix4x4.CreateTranslation(t is not null && t.Translations.Length > 0 ? t.Translations[0] : bone.LocalTranslation);
+                    g[i] = bone.ParentIndex >= 0 && bone.ParentIndex < i ? local * g[bone.ParentIndex] : local;
                 }
-                sb.AppendLine($"  {name,-26} {(additive ? "ADDITIVE" : "replace ")}: hands wrong on {wrong,6}/{frames,-6} frames," +
-                              $" worst bone-length drift {drift,8:0.###} cm");
+
+                var (_, _, lateral) = Axes(g[head]);
+                sb.AppendLine($"=== {name} / {animationName} frame 0 ===");
+                foreach (string part in new[] { "Clavicle", "UpperArm", "Forearm", "Hand" })
+                {
+                    int l = Index(s, "Bip01_L_" + part), r = Index(s, "Bip01_R_" + part);
+                    if (l < 0 || r < 0) continue;
+                    var (lx, ly, lz) = Axes(g[l]);
+                    var (rx, ry, rz) = Axes(g[r]);
+                    Vector3 Reflect(Vector3 v) => v - 2f * Vector3.Dot(v, lateral) * lateral;
+                    float duplicate = (lx - rx).Length() + (ly - ry).Length() + (lz - rz).Length();
+                    float mirror = (Reflect(lx) - rx).Length() + (Reflect(ly) - ry).Length() + (Reflect(lz) - rz).Length();
+                    var delta = g[l].Translation - g[r].Translation;
+                    sb.AppendLine($"  {part,-9} duplicate {duplicate,7:0.###}   mirror {mirror,7:0.###}" +
+                                  $"    L-R lateral {Vector3.Dot(delta, lateral),8:0.00}   |L-R| {delta.Length(),8:0.00}");
+                }
+                sb.AppendLine();
             }
         }
+
+        Study(game.LighthousePackage, "UAPW_NEWPlayerHands");
+        StudyAnimated(game.LighthousePackage, "UAPW_NEWPlayerHands", ["FidgetCrossbow", "FidgetPistol"]);
+        StudyAnimated(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"),
+            "UAPW_AggressorBabyJane", ["Fidget_Burning"]);
+        string gauntlet = Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-BossFight.bsm");
+        Study(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"), "UAPW_AggressorBabyJane");
+        Study(Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-Gauntlet.bsm"), "UAPW_GathererGirl");
+        _ = gauntlet;
 
         File.WriteAllText(target, sb.ToString());
     }

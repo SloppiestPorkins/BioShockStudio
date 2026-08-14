@@ -10,11 +10,11 @@
 | **Phase** | **PHASE 1 — animation + mesh extraction. NOT COMPLETE.** |
 | **Blocker** | The first-person arm chains cross the midline. The clavicles are on the correct sides (±8.65 cm); everything from the **upper arm** down is on the wrong one, on **both** arms. Only `NEWPlayerHands` is affected. |
 | **Blocker detail** | `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 241 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
+| **Tests** | 242 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Do not start** | Phase 2 (level extraction) until the blocker is fixed and Phase 1 is frozen |
 
-**241 tests pass against the installed game, 1 skipped.**
+**242 tests pass against the installed game, 1 skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -197,6 +197,13 @@ Each of these produced a plausible, wrong result before it was understood.
 - **Measure animation on the bones the mesh actually uses.** `Ryan` has 131 bones and 98 are skinned;
   `Dummy02` and `putterPLACEHOLDER` carry his golf club, move freely, and dominate every statistic
   taken over all bones. They are never drawn.
+- **The window reads the catalogue while the catalogue is still being built.** `BuildAsync` runs on
+  a background thread and used to clear and refill the very `List` the UI thread walks in `Search`,
+  so typing in the search box during a build crashed the app with *Collection was modified;
+  enumeration operation may not execute*. Every single-threaded test passed throughout, because
+  nothing exercised the two together. The catalogue is now published as a finished array in one
+  assignment and readers take a local snapshot; `_packageFiles` is a `ConcurrentDictionary` for the
+  same reason. `CatalogConcurrencyTests` reproduces the original exception when the fix is reverted.
 - **Render everything.** Numeric validation has passed while the result was visibly wrong, more than
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
@@ -508,7 +515,7 @@ retargeting hint, preserved and unused.
 
 1. Read this file, then `docs/research/FIRST_PERSON_ANIMATION.md`, then
    `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **241 passed, 0 failed, 1 skipped**. The skip is the
+2. `dotnet build && dotnet test` — expect **242 passed, 0 failed, 1 skipped**. The skip is the
    Phase 1 blocker and is deliberate.
 3. Confirm the blocker still reproduces:
    `dotnet test --filter FullyQualifiedName~FirstPersonHandTests`

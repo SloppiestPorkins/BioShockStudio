@@ -1,4 +1,5 @@
-﻿using BioShockStudio.Core.Assets;
+﻿using System.Collections.Concurrent;
+using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
@@ -106,9 +107,25 @@ public sealed class AssetCatalogService
 
     private const int CharacterMeshSizeThreshold = 200_000;
 
-    private readonly List<CatalogEntry> _entries = [];
-    private readonly List<CatalogFailure> _failures = [];
-    private readonly Dictionary<string, string> _packageFiles = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// The catalogue, published as a whole array rather than mutated in place.
+    /// </summary>
+    /// <remarks>
+    /// <b>The window reads these while <see cref="BuildAsync"/> is still writing them.</b> Typing in
+    /// the search box during a build used to throw <c>Collection was modified; enumeration operation
+    /// may not execute</c> out of <see cref="Search"/>, because the build cleared and refilled the
+    /// same <c>List</c> the UI thread was walking. Swapping a finished array in with one assignment
+    /// removes the race without a lock: a reader takes a local reference and enumerates a snapshot
+    /// that nothing will ever mutate. <c>Enrich</c> then replaces elements of the published array in
+    /// place, which is safe — a reference assignment is atomic, so a reader sees either the entry
+    /// with its detail or the one without, never a torn value.
+    /// </remarks>
+    private volatile CatalogEntry[] _entries = [];
+
+    private volatile CatalogFailure[] _failures = [];
+
+    /// <summary>Written by the build thread and read by the window, so it must tolerate both.</summary>
+    private readonly ConcurrentDictionary<string, string> _packageFiles = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<CatalogEntry> Entries => _entries;
     public IReadOnlyList<CatalogFailure> Failures => _failures;
@@ -116,7 +133,7 @@ public sealed class AssetCatalogService
     /// <summary>Package names, in the order they were catalogued.</summary>
     public IReadOnlyList<string> Packages => _packageFiles.Keys.ToList();
 
-    public bool IsLoaded => _entries.Count > 0;
+    public bool IsLoaded => _entries.Length > 0;
 
     /// <summary>Resolves a package name back to the file it was read from.</summary>
     public string PackageFile(string packageName) =>
@@ -163,10 +180,11 @@ public sealed class AssetCatalogService
     {
         await Task.Run(() =>
         {
-            _entries.Clear();
-            _failures.Clear();
+            _entries = [];
+            _failures = [];
             _packageFiles.Clear();
             var collected = new List<CatalogEntry>();
+            var failures = new List<CatalogFailure>();
 
             var files = GameLocator.EnumeratePackages(gameRoot).ToList();
             string? weapons = GameLocator.WeaponPackage(gameRoot);
@@ -189,16 +207,21 @@ public sealed class AssetCatalogService
                 catch (Exception ex)
                 {
                     // One unreadable package must never cost the user the other twenty.
-                    _failures.Add(new CatalogFailure(name, ex.Message));
+                    failures.Add(new CatalogFailure(name, ex.Message));
                 }
             }
 
-            _entries.AddRange(Collapse(collected));
+            _failures = failures.ToArray();
 
-            progress?.Report(new CatalogProgress(files.Count, files.Count, "describing textures and materials", _entries.Count));
-            Enrich(_entries, PackageFile, cancellation);
+            // Published in one assignment, so a reader either sees the previous catalogue or this
+            // one — never a list mid-refill.
+            var built = Collapse(collected).ToArray();
+            _entries = built;
 
-            progress?.Report(new CatalogProgress(files.Count, files.Count, string.Empty, _entries.Count));
+            progress?.Report(new CatalogProgress(files.Count, files.Count, "describing textures and materials", built.Length));
+            Enrich(built, PackageFile, cancellation);
+
+            progress?.Report(new CatalogProgress(files.Count, files.Count, string.Empty, built.Length));
         }, cancellation);
     }
 
@@ -383,7 +406,7 @@ public sealed class AssetCatalogService
     /// answer.
     /// </para>
     /// </remarks>
-    private static void Enrich(List<CatalogEntry> entries, Func<string, string> packageFile, CancellationToken cancellation)
+    private static void Enrich(CatalogEntry[] entries, Func<string, string> packageFile, CancellationToken cancellation)
     {
         var wanted = entries
             .Select((entry, index) => (entry, index))
@@ -460,11 +483,15 @@ public sealed class AssetCatalogService
         string? package = null,
         int limit = 2000)
     {
+        // One read of the field, then walk that array. The build thread may publish a new one
+        // meanwhile; this call finishes against the catalogue it started with.
+        var entries = _entries;
+
         var results = new List<CatalogEntry>();
         bool hasQuery = !string.IsNullOrWhiteSpace(query);
         string term = query?.Trim() ?? string.Empty;
 
-        foreach (var entry in _entries)
+        foreach (var entry in entries)
         {
             if (category is not null && entry.Category != category) continue;
             // A collapsed row belongs to every package that carries it, not only the one it is read
@@ -493,7 +520,7 @@ public sealed class AssetCatalogService
     public IReadOnlyDictionary<AssetCategory, int> CategoryCounts()
     {
         var counts = new Dictionary<AssetCategory, int>();
-        foreach (var entry in _entries)
+        foreach (var entry in _entries)   // one field read; the array itself is never mutated in length
             counts[entry.Category] = counts.GetValueOrDefault(entry.Category) + 1;
         return counts;
     }
