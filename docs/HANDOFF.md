@@ -262,8 +262,14 @@ misalignment (0 blocks unconsumed game-wide), and the weapon/socket (the weapon 
 `L = (18.73, −25.12, −87.68)` against `R = (24.50, +27.57, +85.63)` where the mirror predicts
 `(18.73, −25.12, +87.68)`. Its Y is sign-flipped, and it sits at the root of the arm chain.
 Substituting the bind local for its parent `Bip01_L_Clavicle` flips the left hand back to the
-correct side (−15.62 → +14.17). Whether this is a decode fault or authored is **not yet
-established** — do not just negate that bone's Y.
+correct side (−15.62 → +14.17). Now established: **it is authored, not a decode fault.** The raw `hkQsTransform` bytes give the
+right hierarchy, exact `(1,1,1)` scales, and clean Z=0 mirrors for the clavicles and forearms.
+Both upper arms sit ~93 units from their clavicle in non-mirrored directions, and their *global*
+positions come out mirror-symmetric about Y=0 while the clavicles are symmetric about Z=0 — that
+bone bridges two conventions. Also: the clavicles are pinned to one value across all 13
+animations, differing from bind, so the reference pose is an authoring pose the animations do not
+build on. **And the side metric is partly circular on this rig** — see §4f of the research note
+before trusting it further.
 
 **Do not "fix" it by converting the animation again.** It flips the sides back and it is wrong: the
 animation's fallback channels already equal the skeleton's bind translations exactly, proving both

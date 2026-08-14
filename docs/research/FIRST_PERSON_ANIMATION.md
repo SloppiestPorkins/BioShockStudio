@@ -140,6 +140,53 @@ only this bone's particular channel combination reaches. **Do not simply negate 
 that is a per-bone hack, and it must first be shown from the Havok bytes whether the stored value is
 what we decode.
 
+## 4d. The reference pose is not the pose the animations build on
+
+`CONFIRMED_BYTES`. Across all 13 crossbow animations the clavicle rotations are **pinned to a single
+value** — `Bip01_L_Clavicle` is byte-identical in 11 of 13, `Bip01_R_Clavicle` in 10 of 13, the rest
+differing in the fourth decimal — and that value is nothing like the bind pose:
+
+```
+Bip01_L_Clavicle   bind (-0.5756, +0.0579, -0.8146, +0.0414)
+                   every animation (-0.4837, -0.4439, -0.6861, -0.3134)
+```
+
+So the `hkaSkeleton` reference pose is an authoring pose, and every animation re-establishes its own
+viewmodel base orientation on top of it. This matters because it undermines the assumption that
+"bind correct, animation wrong" means the animation is faulty — the two are simply different poses,
+and only one of them is what the game ever displays.
+
+## 4e. Raw bytes: the reference pose is decoded correctly
+
+`CONFIRMED_BYTES`. Read straight from the `hkQsTransform` records:
+
+- the hierarchy is right — `Bip01_L_Clavicle` → `Bip01_L_UpperArm`, both clavicles under `Bip01_Neck`;
+- every scale is exactly `(1,1,1)`, so there is no hidden negative scale;
+- the clavicles mirror about Z=0 exactly, and the forearms do too once `q ≡ −q` is taken into
+  account.
+
+The `Bip01_L_UpperArm` asymmetry is therefore **what the file contains**, not a decode fault. Both
+upper arms sit ~93 units from their clavicle (|L| 93.11, |R| 93.24) — the same distance, in
+non-mirrored directions. Their *global* positions come out mirror-symmetric about Y=0
+(`±26.51`), while the clavicles are mirror-symmetric about Z=0. The upper-arm local transform is the
+joint that bridges those two conventions, which is why it is the one that breaks the test.
+
+## 4f. Caveat on the side metric — read before trusting it further
+
+`IMPORTANT.` The metric builds `forward` from `shoulders → hands`, so the hand positions feed into
+the axis that then judges the hands. On a large, consistent rig like Rosie's that is harmless. On
+this rig the clavicle line runs along Z while the arms splay along Y, so the clavicles supply no
+usable lateral axis and `forward` is dominated by the arms themselves — the measurement is partly
+circular.
+
+Two things argue the finding survives anyway: the derived `left` stays 0.86 aligned with the bind
+pose's `left` under animation, so the frame is not flipping; and the weapon — which hangs off the
+right hand — ends up on the anatomical left, where the game plainly puts it on the right.
+
+But a **non-circular lateral reference for this rig has not yet been found**, and finding one is
+probably the precondition for settling this. The mesh is the most promising source: the hands are
+two chiral objects whose own geometry defines left and right without reference to the torso.
+
 ## 5. Where to look next
 
 `HYPOTHESIS`. The animation and the skeleton are in the same basis, the binding is the identity, and
