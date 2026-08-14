@@ -9,36 +9,70 @@ sides**. The right hand ends up left of the left hand.
 
 ## 1. How "which side" is decided
 
-`CONFIRMED`. Earlier attempts at this question were all fooled — by a rolled camera, by a rig whose
-local axes are not world axes, by bone names. The measurement now used is naming-free, view-free and
-basis-free, and is built from the skeleton itself:
+`CONFIRMED_BYTES`. **The lateral axis is the head bone's local +Z.**
 
 ```
-up      = spine -> neck
-forward = shoulders -> hands          (orthogonalised against up)
-left    = up x forward                (right-handed frame: forward, left, up)
+left = the head bone's local +Z, in skeleton space
+side = dot(L_Hand - R_Hand, left)
 ```
 
-A hand's side is the sign of its offset from the shoulders along `left`.
+Verified on **every** shipped character that has a `Bip01_Head` and feet: that axis is world left
+(+Y after conversion) at **dot 1.00**, and it coincides with the character's own clavicle axis at
+**dot 1.00**. No exceptions anywhere in the game, so it is a Biped convention rather than one
+character's quirk. It is measured on a bone the arms do not drive, which is the property both
+earlier metrics lacked.
 
-**Calibrated** against `ProtectorRosie`, whose left/right is independently proven from world anatomy
-(feet near Z=0, toes ahead of ankles in X, `Bip01_L_*` at +Y after conversion). The method agrees.
+Sanity, with `replace` composition: `AggressorBabyJane` 18 of 592 sampled frames on the wrong side,
+`GathererGirl` 34 of 1,217 — real, shallow crossings from melee and reaching.
+
+### 1b. Two earlier metrics, both invalid — do not reinstate either
+
+`REJECTED.` Both read green on data that is not, and each cost a session.
+
+**The body frame** (`up = spine→neck`, `forward = shoulders→hands`, `left = up × forward`) feeds the
+hands into the axis that then judges them. Its `left` is **perpendicular** to the rig's real lateral
+axis under animation (0.08 alignment for the pistol against 1.000 in the bind pose — so the bind
+pose's "pass" was true by construction and never a result). It calls `ProtectorRosie`'s hands
+swapped on **2,415 of her 7,982 frames**.
+
+**The arm-root axis** (`L_UpperArm − R_UpperArm`) takes the upper arms as the reference — but the
+upper arms are precisely what is on the wrong side, so it defines the fault as correct and reports
+94% of first-person frames fine. Worse, on this rig that axis is the **forward** direction: the
+51.89 cm of "hand separation" it measured in the bind pose is front-to-back, and laterally the two
+hands sit **0.01 cm** apart.
+
+Both are pinned as invalid by tests in `FirstPersonHandTests` so they cannot come back.
 
 ## 2. The measurement
 
-`CONFIRMED_BYTES`.
+`CONFIRMED_BYTES`. Lateral position of each bone in the player's own view frame, `FidgetCrossbow`
+frame 0. Positive is the player's left.
 
-| | L_Hand | R_Hand | |
-|---|---|---|---|
-| First-person **bind pose** | **+25.95** | **−25.95** | correct |
-| `FidgetCrossbow`, every frame | −15.6 | +15.6 | **swapped** |
-| `EmptyFidgetCrossbow`, `EquipCrossbow`, `FireCrossbow`, `ReloadCrossbow`, the fidget accents | −11 to −16 | +11 to +16 | **swapped** |
-| `ProtectorRosie`, 6 animations × 3 frames | +16 to +62 | — | correct throughout |
+| bone | lateral | |
+|---|---|---|
+| `Bip01_L_Clavicle` | **+8.65** | correct |
+| `Bip01_L_UpperArm` | **−18.76** | wrong side |
+| `Bip01_L_Forearm` | −30.49 | |
+| `Bip01_L_Hand` | **−49.59** | wrong side |
+| `Bip01_R_Clavicle` | **−8.65** | correct |
+| `Bip01_R_UpperArm` | **+4.62** | wrong side |
+| `Bip01_R_Hand` | −1.61 | |
+| `R_grip` | +1.87 | on the centreline |
 
-Rosie shows one transient negative frame at the end of `MG_AggToIdle`, which is an arm crossing
-during a transition and is what a real crossed arm looks like. The first-person rig is swapped at
-**every frame of every animation**, at a near-constant magnitude. That difference is what says the
-method is sound and the fault is specific to the first-person animation path.
+**The clavicles are on the correct sides and the chain crosses the midline at the upper arm.** The
+clavicle translations are never animated — they are the bind offsets `(0,0,±8.654)` in every frame —
+so everything above the upper arm is beyond suspicion.
+
+**Both arms cross, not just the left.** That is new, and it overturns the framing the rest of this
+note was written under. Substituting the whole left chain with the exact Z-mirror of the right chain
+gives `L_UpperArm −4.78` against `R_UpperArm +4.62` — perfectly mirror-symmetric, and still with the
+right arm on the wrong side. So the fault is **upstream of both arms**, and the long hunt for what
+was wrong with `Bip01_L_UpperArm` specifically was looking one level too low.
+
+The scale of it is weapon-dependent: on the pistol everything collapses onto the centreline
+(`L_UpperArm +1.08`, `L_Hand +0.59`, `R_Hand +0.73`), on the crossbow the left hand is thrown 50 cm
+across. That matches the long-standing "the left hand does not touch the weapon" measurement in
+`docs/QUALITY.md`; they are the same fault seen two ways.
 
 ## 3. What this is NOT
 
@@ -83,13 +117,22 @@ model-space transform instead of a parent-local one collapses `Bip01_L_Forearm �
 29.98 cm to 13.32 cm and puts both hands at 0.00. The tracks are parent-local; local composition
 reproduces every bone length exactly.
 
-**Applying the animation as a delta on the bind pose** (`anim_local * bind_local`) makes the
-first-person sides come out correct (+62.41 / −62.41) and preserves bone lengths. It is **not**
-applied, because there is no evidence for it and real evidence against:
+**Applying the animation as a delta on the bind pose** (`anim_local * bind_local`). ~~Preserves bone
+lengths and makes the first-person sides come out correct.~~ **Both halves of that were wrong**, and
+the original rejection was argued on the body-frame metric, which is itself invalid — so it has been
+re-taken on the head-frame axis and on bone rigidity:
 
-- `blendHint` is 0 (NORMAL), not additive.
-- It materially changes **every character animation too** — Rosie's `MG_AggToIdle` goes from +32.48
-  to +6.60 — and her animations are currently correct, validated through FBX and Blender.
+| | hands on the wrong side | worst bone-length drift |
+|---|---|---|
+| `AggressorBabyJane`, replace | 18 / 592 frames | 2.017 cm |
+| `AggressorBabyJane`, **additive** | **437 / 592** | **44.826 cm** |
+| `GathererGirl`, replace | 34 / 1,217 | 0.034 cm |
+| `GathererGirl`, **additive** | **843 / 1,217** | **20.602 cm** |
+| first-person, additive | — | **71.967 cm** (`Bip01_Neck`) |
+
+Additive tears the skeleton apart and breaks three quarters of a proven character's frames. It also
+does not fix the first person: `FidgetPistol` goes to `L_UpperArm −50.3`, `R_UpperArm +104.9`.
+`blendHint` is 0 (NORMAL) as well. Dead on every count.
 
 **A warning for the next session:** the side test is a *sign* test, and at least three different
 wrong changes satisfy it (a second basis conversion, model-space composition, additive
@@ -139,6 +182,10 @@ handles Rosie's 25 pairs perfectly, so it is not uniformly broken; if it is a fa
 only this bone's particular channel combination reaches. **Do not simply negate this bone's Y** —
 that is a per-bone hack, and it must first be shown from the Havok bytes whether the stored value is
 what we decode.
+
+**Update — this localisation is too low in the chain.** See §2: the *right* arm crosses the midline
+as well, and mirroring the left chain onto the right leaves it crossed. Whatever is wrong is above
+both upper arms, so `Bip01_L_UpperArm`'s broken mirror symmetry is a real oddity but not the cause.
 
 ## 4d. The reference pose is not the pose the animations build on
 
@@ -216,6 +263,26 @@ One measurement note for whoever continues: on the weapon axis `R_Hand` reads �
 is done to the tracks, because the weapon is parented to it and the projection is invariant by
 construction. Only the **left** hand's reading carries information there; compare its bind value
 (+45.48) against its animated value (−54.86).
+
+## 4i. The clavicle rotations are decoded exactly as stored
+
+`CONFIRMED_BYTES`. The clavicles are the only per-side structure above the upper arms, so if
+anything above the arms is wrong it is these. It is not the decode. Read straight out of block 0 of
+`FidgetCrossbow`, both are fully static rotations (mask `0x0F`, one packed `ThreeComp40`):
+
+```
+Bip01_L_Clavicle  rotation at +228:  78 AD 2F 74 24     c0=3448 c1= 762 c2=1140 omitted=2 negate=0
+Bip01_R_Clavicle  rotation at +708:  15 E1 4F 97 2A     c0= 277 c1=1278 c2=2711 omitted=2 negate=0
+```
+
+Decoding those fields by hand — `(raw − 2047.5)/2047.5 × 1/√2`, missing component from unit length,
+then the basis conversion `(x,y,z,w) → (−x,y,−z,w)` — reproduces the decoder's output to four
+decimals on both. The translations alongside them read `8.6536` and `−8.6536`, the bind values.
+
+So the asymmetry is **authored**: the bind clavicle pair mirrors about Z=0 exactly, and the animated
+pair does not (residual 0.9027), and that is what the file says. The animated values are also pinned
+across all 13 crossbow animations. A pinned constant that never varies looks like a base
+orientation, and a base orientation would normally be symmetric — but it is what shipped.
 
 ## 5. Where to look next
 

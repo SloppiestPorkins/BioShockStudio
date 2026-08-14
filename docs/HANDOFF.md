@@ -8,13 +8,13 @@
 | | |
 |---|---|
 | **Phase** | **PHASE 1 — animation + mesh extraction. NOT COMPLETE.** |
-| **Blocker** | First-person animations put the hands on the wrong sides. Bind pose is correct; every animation is swapped. |
+| **Blocker** | The first-person arm chains cross the midline. The clavicles are on the correct sides (±8.65 cm); everything from the **upper arm** down is on the wrong one, on **both** arms. Only `NEWPlayerHands` is affected. |
 | **Blocker detail** | `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 233 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
+| **Tests** | 241 passed, 0 failed, 1 skipped (the blocker, deliberately visible) |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Do not start** | Phase 2 (level extraction) until the blocker is fixed and Phase 1 is frozen |
 
-**233 tests pass against the installed game, 1 skipped.**
+**241 tests pass against the installed game, 1 skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -58,7 +58,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
 | Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
-| Bulk content | The 8 GB of stripped mips is indexed and read: 1,530 of 1,539 stripped textures in `1-Medical` come back at full size. |
+| Bulk content | The 8 GB of stripped mips is indexed and read: 1,530 of 1,539 stripped textures in `1-Medical` come back at full size, each resolved **within its own group** — 112 names are shared between groups and every one of them is different art. |
 | Transparency | The viewport cuts out holes and blends translucent surfaces, from the texture's own alpha. |
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
@@ -172,6 +172,14 @@ Each of these produced a plausible, wrong result before it was understood.
   tool drew the bottom of the chain for most of the game and looked merely blurry.
 - **`StrippedNumMips` is not reliable.** Deriving the recovered chain from it gets 542 of 1,539
   textures; deriving it from the blob size — the run of levels that sums to it exactly — gets 1,530.
+- **A texture name is not unique across bulk-content groups, and the duplicates are different art.**
+  112 catalogue names appear in more than one group and **all 112 point at different bytes**.
+  Resolving without the group put another group's texture on **340 of 30,831 texture exports**. The
+  final boss drew as a black figure with white paint strokes over him because `Atlas_Diffuse`
+  resolved to the `Gen_Graffiti` "ATLAS IS WATCHING" wall decal instead of his skin — both 2048²
+  DXT1, in the same chunk, 2.8 MB apart, so the alignment, the exact mip-chain decomposition and the
+  seam check all passed on the wrong texture. The group comes from the export's **outer**, which
+  resolves to a catalogue group for 24,950 of the 30,831 exports. `docs/research/bulkcontent.md`.
 - **A `SkeletalMesh`'s property list is empty.** Its material reference is in the binary payload,
   after a tag block whose position varies between meshes (64 in `NEWPlayerHands`, 54 in
   `WP_PistolMesh`), so the block is found by search.
@@ -470,6 +478,18 @@ retargeting hint, preserved and unused.
 - **Trusting the hand-side sign test alone.** At least three wrong changes satisfy it. Any
   candidate must also preserve bone rigidity, leave Rosie's magnitudes alone, and keep the
   fallback channels equal to the bind translations.
+- **Two side metrics that read green on broken data.** The body frame (`up × forward` with
+  `forward = shoulders → hands`) judges the hands with an axis built from the hands; it calls
+  `ProtectorRosie` swapped on 2,415 of her 7,982 frames. The arm-root axis
+  (`L_UpperArm − R_UpperArm`) takes as its reference the very bones that are misplaced, and on the
+  first-person rig that axis is *forward*, not lateral — the 51.89 cm "hand separation" it measures
+  in the bind pose is front-to-back, and laterally the hands are 0.01 cm apart. **Use the head
+  bone's local +Z**: world left at dot 1.00 on every character in the game, and equal to that
+  character's own clavicle axis at dot 1.00. Both bad metrics are pinned by tests.
+- **Applying the animation additively (`anim_local * bind_local`).** Re-tested properly and it is
+  far worse than the old note implied: 44.8 cm of bone-length drift on `AggressorBabyJane` and
+  437 of 592 of her frames broken, 71.97 cm drift on the first-person neck — and it does not fix the
+  first person either.
 
 ## 9. Reading order for a new session
 
@@ -488,15 +508,18 @@ retargeting hint, preserved and unused.
 
 1. Read this file, then `docs/research/FIRST_PERSON_ANIMATION.md`, then
    `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **233 passed, 0 failed, 1 skipped**. The skip is the
+2. `dotnet build && dotnet test` — expect **241 passed, 0 failed, 1 skipped**. The skip is the
    Phase 1 blocker and is deliberate.
 3. Confirm the blocker still reproduces:
    `dotnet test --filter FullyQualifiedName~FirstPersonHandTests`
-   The Rosie calibration and the FP bind pose must pass. Remove the `Skip` on
-   `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` to watch it fail.
-4. **Work the blocker.** The bind pose is right and every animation is wrong, so the fault is in how
-   animated locals compose, not in what basis they are in. The unexplained facts a correct
-   explanation must account for are listed in §5 of `FIRST_PERSON_ANIMATION.md` — chiefly that the
+   Four cases must pass, including the two that pin the discarded metrics as invalid. Remove the
+   `Skip` on `FirstPersonAnimationsKeepTheHandsOnTheCorrectSides` to watch it fail.
+4. **Work the blocker.** Measure sides on the **head bone's local +Z** and nothing else — §1 of
+   `FIRST_PERSON_ANIMATION.md` explains why the two earlier metrics were invalid, and both are now
+   pinned by tests. The fault is above both upper arms: mirroring the left chain onto the right
+   leaves the right arm crossed too. The clavicle rotations are byte-confirmed decoded-as-stored
+   (§4i), so the next thing to examine is the spine's static transform, the one shared structure
+   above both clavicles. Superseded framing to ignore: that only the left arm is wrong, and that the
    first-person clavicles separate along Z while the hands separate along Y, which no single
    symmetric rig can do, and that `Bip01_L_UpperArm` sits 93 cm from its clavicle.
 5. Do **not** convert the animation a second time. See §8c.
