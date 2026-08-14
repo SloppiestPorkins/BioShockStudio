@@ -257,6 +257,14 @@ bone-name swap, the basis conversion (the bind pose uses it and is right), the b
 misalignment (0 blocks unconsumed game-wide), and the weapon/socket (the weapon hangs under
 `Bip01_R_Hand`, so it can never disagree with the right hand — and is therefore never evidence).
 
+**Localised to one bone.** Both rigs are mirror-symmetric about Z=0 (`q → (−x,−y,z,w)`,
+`t → (x,y,−z)`). Rosie: 0 pairs break it. First-person: exactly one — **`Bip01_L_UpperArm`**,
+`L = (18.73, −25.12, −87.68)` against `R = (24.50, +27.57, +85.63)` where the mirror predicts
+`(18.73, −25.12, +87.68)`. Its Y is sign-flipped, and it sits at the root of the arm chain.
+Substituting the bind local for its parent `Bip01_L_Clavicle` flips the left hand back to the
+correct side (−15.62 → +14.17). Whether this is a decode fault or authored is **not yet
+established** — do not just negate that bone's Y.
+
 **Do not "fix" it by converting the animation again.** It flips the sides back and it is wrong: the
 animation's fallback channels already equal the skeleton's bind translations exactly, proving both
 are already in the same basis.

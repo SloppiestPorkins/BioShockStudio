@@ -101,6 +101,45 @@ application). A candidate fix must therefore also be checked against:
 
 Satisfying the sign test alone proves nothing.
 
+## 4c. Localised: `Bip01_L_UpperArm` is the one bone that breaks the rig's mirror symmetry
+
+`CONFIRMED_BYTES`. This is the sharpest result so far and the place to start.
+
+**Both rigs are mirror-symmetric about the Z=0 plane.** For a quaternion, reflection about Z=0 is
+`q = (x,y,z,w) → (−x,−y,z,w)`; for a translation it is `(x,y,z) → (x,y,−z)`. Testing every
+`Bip01_L_*` / `Bip01_R_*` pair's **bind local**:
+
+| | rotations mirroring about Z=0 | translations breaking the Z=0 mirror |
+|---|---|---|
+| `ProtectorRosie` | 24 of 25 | **0** |
+| First-person hands | 19 of 21 | **1** |
+
+The single translation outlier, and one of the two rotation outliers, is the same bone:
+
+```
+Bip01_L_UpperArm   L = (18.73, -25.12, -87.68)
+                   R = (24.50, +27.57, +85.63)
+   mirror of L about Z=0 predicts R = (18.73, -25.12, +87.68)      error 53.05
+```
+
+Z is nearly right (87.68 against 85.63). **Y is sign-flipped** (−25.12 against +27.57). So this pair
+is related by a 180° rotation about X rather than by the reflection every other pair uses.
+
+Two independent lines point at this same bone:
+
+- It is the **only** bone in either rig whose bind local breaks the Z=0 mirror.
+- Substituting the **bind** local for `Bip01_L_Clavicle` — its parent — flips the left hand back to
+  the correct side (−15.62 → +14.17), and `Bip01_L_UpperArm` is the joint that chain drives.
+
+It is also one of only four bones in the whole rig whose translation the animation actually drives,
+so it takes the channel path rather than the reference-pose fallback path.
+
+**Not yet established** whether this is a decode fault or genuinely authored that way. The decoder
+handles Rosie's 25 pairs perfectly, so it is not uniformly broken; if it is a fault it is one that
+only this bone's particular channel combination reaches. **Do not simply negate this bone's Y** —
+that is a per-bone hack, and it must first be shown from the Havok bytes whether the stored value is
+what we decode.
+
 ## 5. Where to look next
 
 `HYPOTHESIS`. The animation and the skeleton are in the same basis, the binding is the identity, and
