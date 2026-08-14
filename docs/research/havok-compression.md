@@ -104,18 +104,47 @@ Evidence:
 `UNKNOWN`: the exact 12-bit midpoint. 2047, 2048 and the symmetric 2047.5 are indistinguishable by
 the continuity test; the symmetric midpoint is used and the resulting error is under 0.0005.
 
-## Absent channels fall back to the reference pose
+## An omitted component is IDENTITY; an entirely absent channel is the reference pose
 
-`CONFIRMED_BYTES`, and the single most consequential detail for export correctness.
+`CONFIRMED_EXTERNAL` against Havok 2012.2.0-r1, and the single most consequential detail for export
+correctness. **This note previously said the opposite** — see the correction below.
 
-A channel a track does not store does **not** decode to identity. It takes the bound bone's
-reference-pose value from `hkaSkeleton`. Evidence: 4,452 tracks across the 130 hands animations omit
-at least one translation component. Filling from the reference pose keeps 4,442 of them at their
-rigid bone length; filling with zero keeps only 4,160 and visibly detaches limbs whose parent offset
-is not axis-aligned.
+Havok's own `hkaSplineCompressedAnimation::recompose`:
 
-This is why `AnimationPackage.Decode` resolves the binding *before* decoding rather than after: the
-decoder needs the skeleton to fill the gaps.
+```cpp
+/// \param S Static values
+/// \param I Identity values
+int stat = mask & 0x0F;                       // statically stored components
+int iden = ~mask & ( ~mask >> 4 ) & 0x0F;     // neither static nor spline
+if ( stat & shift )      inOut( i ) = S( i );
+else if ( iden & shift ) inOut( i ) = I( i );
+```
+
+A component that is neither static nor spline takes **identity** — `0` for a translation, `1` for a
+scale, `(0,0,0,1)` for a rotation, which is why Havok passes it rather than hard-coding it.
+
+`LIKELY`, and separate: `recompose` is reached through `readNURBSCurve`, which only runs when the
+channel stores something. A channel storing *nothing* is never read at all, so the caller's value
+survives — the bound bone's reference pose. The reader follows both rules. Filling an entirely
+absent channel with identity instead collapses 44 of `AggressorBabyJane`'s bones onto their parents
+in `smg/smg_fire`; the split rescues 42 of the 44. The SDK build here ships headers and `.inl` only,
+so `sampleTranslation` cannot be read directly and this half is inference from the call graph.
+
+`AnimationPackage.Decode` still resolves the binding *before* decoding, because the second rule
+needs the skeleton.
+
+### Correction — the old evidence was circular
+
+This section used to read: *"A channel a track does not store does not decode to identity. It takes
+the bound bone's reference-pose value. Evidence: 4,452 tracks omit at least one translation
+component; filling from the reference pose keeps 4,442 of them at their rigid bone length, filling
+with zero keeps only 4,160."*
+
+That measures its own assumption. Filling a component from the bind pose preserves the bind pose's
+bone length **by construction**, so the test could only ever favour the reading it was testing. The
+error cost three sessions: it put the first-person arm roots 93 cm from their clavicles instead of
+19 cm and threw both arms across the body, because `Bip01_L/R_UpperArm` is the only bone in that
+chain whose bind translation is not axis-aligned. `docs/research/FIRST_PERSON_ANIMATION.md`.
 
 ## Curve evaluation
 

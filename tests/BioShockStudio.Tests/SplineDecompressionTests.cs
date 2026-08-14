@@ -106,27 +106,31 @@ public sealed class SplineDecompressionTests(GameFixture game)
     }
 
     [RequiresGameFact]
-    public void DecodedTranslations_MatchTheSkeletonBoneLengths()
+    public void DecodedTranslations_AreRigidAcrossFrames()
     {
         var hands = Hands();
-        var animation = hands.Find("FidgetPistol")!;
-        var decoded = hands.Decode(animation);
+        var decoded = hands.Decode(hands.Find("FidgetPistol")!);
 
-        // Bone lengths are rigid: an animated bone's local translation should stay close to its
-        // reference-pose translation. This catches dequantisation range errors, which would scale
-        // the skeleton rather than merely rotate it.
+        // A dequantisation range error would scale the skeleton rather than merely rotate it, and
+        // would show up as a bone's length wandering from frame to frame.
+        //
+        // It must NOT be asserted that an animated translation equals the bind translation. That was
+        // asserted here before, and it is the assumption that hid the first-person blocker for three
+        // sessions: a channel component the track omits is Havok's identity, not the bind value, so
+        // an animation is free to place a bone somewhere its authoring pose did not.
         int checkedBones = 0;
         foreach (var track in decoded.Tracks)
         {
             if (track.TargetBoneIndex < 0) continue;
-            var bone = hands.Skeleton.Bones[track.TargetBoneIndex];
-            if (bone.IsRoot) continue;
+            if (hands.Skeleton.Bones[track.TargetBoneIndex].IsRoot) continue;
 
-            float referenceLength = bone.LocalTranslation.Length();
-            if (referenceLength < 0.01f) continue;
+            float first = track.Translations[0].Length();
+            if (first < 0.01f) continue;
 
-            float animatedLength = track.Translations[0].Length();
-            Assert.InRange(animatedLength, referenceLength * 0.5f, referenceLength * 2f);
+            foreach (var translation in track.Translations)
+                Assert.InRange(translation.Length(), first * 0.5f, first * 2f);
+
+            Assert.InRange(first, 0.01f, 500f);
             checkedBones++;
         }
 

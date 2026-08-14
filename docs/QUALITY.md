@@ -69,9 +69,10 @@ genuinely move a long way — `BathyPath_Full` (a bathysphere path, 1782 cm), wh
 plane crash — so the absolute figure alone says little. The `worstStepRatio` column, the jump as a
 multiple of that animation's own mean step, is the discriminating one.
 
-One real finding sits in here: on the first-person hands rig, **60% of animations have their worst
-jump on a left-side bone against 13% on a right-side one** (1,605 cm against 579 cm when weighted by
-size), and `IKbindLhandDummy` is the single most common offender. See §"The left hand" below.
+One real finding sat in here: on the first-person hands rig, 60% of animations had their worst jump
+on a left-side bone against 13% on a right-side one. That was the blocker, and it is fixed — see
+§"The left hand" below. The audit's jump counts all fell when it landed: 9,564 → 9,504 at ≥10 cm,
+3,664 → 3,644 at ≥25 cm, 1,212 → 1,211 at ≥50 cm, 273 → 272 at ≥100 cm.
 
 ### `LockTranslation` is a retargeting hint, not a sampling instruction
 
@@ -94,51 +95,32 @@ Two things worth stating plainly, because both look like gaps and neither is:
   feeds each check its own breakage — zero frames, zero tracks, an unbound track, a truncated track,
   a NaN translation, an infinite scale, a non-unit quaternion — and asserts each one is caught.
 
-## The left hand — open, and the most important thing here
+## The left hand — RESOLVED
 
-**On the first-person rig the left hand does not touch the weapon**, in every animation and every
-weapon, and this is confirmed against the game itself. Measured as the closest the left hand's bone
-gets to the weapon's own geometry, across whole animations:
+**The left hand now reaches the weapon.** This section used to record that on the first-person rig
+the left hand sat 25–70 cm from the weapon in every idle, fidget and fire animation, on every
+weapon. The cause was in the spline decompressor: a channel component a track omits is Havok's
+identity, not the bound bone's reference pose, and the reference pose was injecting the authoring
+pose's Y and Z into `Bip01_L/R_UpperArm` on every frame.
 
-| | idle / fidget / fire | reload |
+| | before | after |
 |---|---|---|
-| Pistol | 38 – 53 cm | **9.0 cm** |
-| Tommy gun | 44 – 70 cm | **8.2 cm** |
-| Crossbow | 25 – 43 cm | **3.7 cm** |
+| Closest the left hand gets to the weapon grip | 11.08 cm | **4.36 cm** |
+| Left hand on the wrong side, all 130 animations | 3,384 / 5,984 frames | **48 / 5,984** |
 
-The right hand is a constant 5.8 cm on every weapon and every animation — but **that is not
-evidence**, because the weapon is parented to `R_Grip`, a child of `Bip01_R_Hand`. The weapon follows
-the right hand wherever it goes, so the right arm could be equally wrong and still look perfect.
-Only the left hand is observable, which is why only the left hand looks broken.
+`FirstPersonHandTests` holds both. Full account in `docs/research/FIRST_PERSON_ANIMATION.md`; the
+format detail is in `docs/research/havok-compression.md`.
 
-Reloads are the exception: the left hand does come to the weapon exactly when it should. So the
-decode is not uniformly wrong.
+The long elimination list this section carried — the basis conversion, the binding, retargeting,
+additive blending, the attachment transform, scale, block boundaries, hemisphere alignment, bone
+stretching, the bind pose, and a clean rotation at the chain root — was all correct behaviour being
+correctly eliminated. The fault was never in any of it.
 
-What has been eliminated, each by measurement:
-
-- **The basis conversion.** An export made before it is identical with Y negated.
-- **Track-to-bone binding.** Identity, 0–46.
-- **Retargeting and additive blending.** `originalSkeleton` is empty, `blendHint` is 0.
-- **The weapon attachment.** The weapon rig's root `R_grip` is exact identity in bind and in every
-  animation, so no transform is applied twice.
-- **Weapon and mesh scale.** The crossbow is 82 cm long, correct.
-- **Spline block boundaries.** These animations are a single block, and no block in the game leaves
-  slack.
-- **Quaternion hemisphere alignment.** Already handled.
-- **Bone stretching.** Translation drift is 0.00 — the animation is pure rotation.
-- **The bind pose.** The mesh's skin weights and the skeleton's reference pose agree, and agree
-  *symmetrically*: median centroid-to-bone 2.22 cm on both the left and right sides.
-- **`IKbindLhandDummy` as an IK goal.** It rides with the weapon and is authored per weapon class —
-  four distinct values across the 130 hands animations, with two-handed weapons pushing it out to
-  60 cm — but it sits **93–108 cm from the left shoulder against a 73.3 cm arm reach**. Out of
-  range, so the left hand cannot be solved onto it.
-- **A clean correction at the chain root.** No axis-aligned rotation applied to `L_Clavicle` or
-  `L_UpperArm` brings the hand to the weapon; the best fit is an arbitrary permutation at 8.4 cm.
-
-What is still unexplained, and is the best remaining thread: in the bind pose the **clavicles mirror
-about Z=0 while everything from the upper arm down mirrors about Y=0**. One symmetric rig cannot do
-both. This may be ordinary 3ds Max Biped convention — right-side bones' local frames are commonly
-related to the left by a 180° rotation rather than a reflection — or it may be the fault.
+**One correction from that list stands and is worth keeping.** `IKbindLhandDummy` was ruled out as
+unreachable by measuring 93–108 cm from `Bip01_L_Clavicle` against a 73.3 cm reach that begins at
+`Bip01_L_UpperArm`, 93.11 cm further down the chain. Measured from the origin the reach actually
+starts at, it is 13–30 cm away across the pistol set. Whether it is an IK goal remains `UNKNOWN`;
+nothing in the code consumes it.
 
 ## What is actually wrong
 

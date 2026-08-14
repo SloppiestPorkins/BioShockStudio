@@ -9,6 +9,17 @@ hint, never an assumption about BioShock.
 |---|---|---|
 | [gildor2/UEViewer](https://github.com/gildor2/UEViewer) | `GAME_Bioshock` FName serialisation: FCompactIndex index + int32 extra, suffix appended with no separator. Read directly from `UnPackage.cpp`. | `CONFIRMED_EXTERNAL`, and independently `CONFIRMED_BYTES` here. |
 | UEViewer, same file | No BioShock-specific branch exists for `FObjectExport` / `FObjectImport` / `FPackageFileSummary`. | `CONFIRMED_EXTERNAL` |
+| **Havok 2012.2.0-r1 SDK** (`hk2012_2_0_r1/`) | `hkaSplineCompressedAnimation::recompose` — a channel component that is neither static nor spline takes **identity**, not the bone's reference pose. Also confirms `ScalarQuantization` is only BITS8/BITS16, the per-quantization quaternion sizes `{4,5,6,3,2,16}` and alignments `{4,1,2,1,2,4}`, `unpackQuantizationTypes`' bit layout, and `getBlockAndTime`'s `frame / (maxFramesPerBlock - 1)` block stride. | `CONFIRMED_EXTERNAL` |
+
+**The Havok SDK is the highest-value thing on this list.** The identity-fallback line settled a
+blocker that three sessions of internal measurement could not, because the fault was in an
+assumption that had already been labelled `CONFIRMED_BYTES` on circular evidence — nothing internal
+was going to challenge it. Note the build shipped here is "NO SOURCE PC DOWNLOAD": headers and
+`.inl` only, no `.cpp`, so the inline and reflection detail is available and the sampling functions
+are not. See `docs/research/havok-compression.md` and `FIRST_PERSON_ANIMATION.md`.
+
+Also present and not yet mined: `UModel-master` (UEViewer source) and `Unreal-Library-master`
+(UELib, C#).
 
 That second finding is load-bearing. UEViewer handles BioShock's export table through its generic
 UE2 path, but the Remastered export record is **not** stock UE2 — it carries an extra int32 after

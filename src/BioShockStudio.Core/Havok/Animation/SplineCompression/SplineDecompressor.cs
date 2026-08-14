@@ -83,18 +83,11 @@ internal sealed class ChannelData
 public static class SplineDecompressor
 {
     /// <summary>
-    /// WORKTREE EXPERIMENT ONLY — set to a track-indexed reference pose to reproduce the old,
-    /// wrong fallback so the two readings can be diffed on identical bytes. Empty means the correct
-    /// identity fallback. Delete before this leaves the experiment branch.
-    /// </summary>
-    public static IReadOnlyList<ReferenceTransform> LegacyReferencePose { get; set; } = [];
-
-    /// <summary>
     /// Decodes every transform track of an animation into per-frame transforms.
     /// <para>
-    /// Channels a track does not store fall back to identity, per Havok's <c>recompose</c> — see the
-    /// class remarks. The bound bone's reference pose is deliberately NOT consulted here; a bone the
-    /// animation does not drive at all keeps its reference pose, but that is the caller's business.
+    /// A component omitted from a channel that stores something falls back to identity, per Havok's
+    /// <c>recompose</c>. <paramref name="referencePose"/> is used only for a channel that stores
+    /// nothing at all, which Havok never reads. See the class remarks.
     /// </para>
     /// </summary>
     public static DecodedAnimation Decode(
@@ -102,7 +95,8 @@ public static class SplineDecompressor
         IReadOnlyList<uint> blockOffsets,
         int transformTrackCount,
         int frameCount,
-        int maxFramesPerBlock)
+        int maxFramesPerBlock,
+        IReadOnlyList<ReferenceTransform> referencePose)
     {
         var translations = new Vector3[transformTrackCount][];
         var rotations = new Quaternion[transformTrackCount][];
@@ -136,7 +130,7 @@ public static class SplineDecompressor
             {
                 int start = (int)blockOffsets[blockIndex];
                 int end = blockIndex + 1 < blockOffsets.Count ? (int)blockOffsets[blockIndex + 1] : data.Length;
-                channels = ReadBlock(data[start..end], transformTrackCount);
+                channels = ReadBlock(data[start..end], transformTrackCount, referencePose);
                 loadedBlock = blockIndex;
             }
 
@@ -192,7 +186,8 @@ public static class SplineDecompressor
     public static IReadOnlyList<BlockConsumption> DescribeBlocks(
         ReadOnlySpan<byte> data,
         IReadOnlyList<uint> blockOffsets,
-        int transformTrackCount)
+        int transformTrackCount,
+        IReadOnlyList<ReferenceTransform> referencePose)
     {
         var result = new List<BlockConsumption>(blockOffsets.Count);
 
@@ -204,7 +199,7 @@ public static class SplineDecompressor
 
             try
             {
-                var channels = ReadBlock(block, transformTrackCount, out int consumed);
+                var channels = ReadBlock(block, transformTrackCount, referencePose, out int consumed);
 
                 int maxKnot = 0, maxPoints = 0, splines = 0;
                 foreach (var track in channels)
@@ -237,11 +232,11 @@ public static class SplineDecompressor
     private readonly record struct TrackChannels(ChannelData Translation, ChannelData Rotation, ChannelData Scale);
 
     private static TrackChannels[] ReadBlock(
-        ReadOnlySpan<byte> block, int trackCount) =>
-        ReadBlock(block, trackCount, out _);
+        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose) =>
+        ReadBlock(block, trackCount, referencePose, out _);
 
     private static TrackChannels[] ReadBlock(
-        ReadOnlySpan<byte> block, int trackCount, out int consumed)
+        ReadOnlySpan<byte> block, int trackCount, IReadOnlyList<ReferenceTransform> referencePose, out int consumed)
     {
         var result = new TrackChannels[trackCount];
         int position = trackCount * TransformMask.Size;
@@ -249,16 +244,14 @@ public static class SplineDecompressor
         for (int t = 0; t < trackCount; t++)
         {
             var mask = TransformMask.Read(block.Slice(t * TransformMask.Size, TransformMask.Size));
+            var reference = t < referencePose.Count ? referencePose[t] : ReferenceTransform.Identity;
 
-            // A component that is neither static nor spline falls back to Havok's IDENTITY, not to
-            // the bound bone's reference pose. See the class remarks.
-            var fallback = t < LegacyReferencePose.Count ? LegacyReferencePose[t] : ReferenceTransform.Identity;
             var translation = ReadVectorChannel(block, ref position, mask.Translation, mask.TranslationQuantization,
-                LegacyReferencePose.Count > 0 ? fallback.Translation : Vector3.Zero);
+                Vector3.Zero, reference.Translation);
             var rotation = ReadRotationChannel(block, ref position, mask.Rotation, mask.RotationQuantization,
-                LegacyReferencePose.Count > 0 ? fallback.Rotation : Quaternion.Identity);
+                reference.Rotation);
             var scale = ReadVectorChannel(block, ref position, mask.Scale, mask.ScaleQuantization,
-                LegacyReferencePose.Count > 0 ? fallback.Scale : Vector3.One);
+                Vector3.One, reference.Scale);
 
             result[t] = new TrackChannels(translation, rotation, scale);
         }
@@ -269,9 +262,22 @@ public static class SplineDecompressor
 
     private static int Align(int value, int alignment) => (value + alignment - 1) / alignment * alignment;
 
+    /// <param name="identity">
+    /// Havok's identity for this channel — zero for a translation, one for a scale. It fills any
+    /// component the channel does not store.
+    /// </param>
+    /// <param name="reference">
+    /// The bound bone's reference pose, used ONLY when the channel stores nothing at all. Havok
+    /// reaches <c>recompose</c> through <c>readNURBSCurve</c>, so a channel with no components is
+    /// never read and the caller's existing value survives — and the caller's value, for a bone the
+    /// animation is not driving in this respect, is the reference pose.
+    /// </param>
     private static ChannelData ReadVectorChannel(
-        ReadOnlySpan<byte> block, ref int position, TrackComponent mask, ScalarQuantization quantization, Vector3 fallback)
+        ReadOnlySpan<byte> block, ref int position, TrackComponent mask, ScalarQuantization quantization,
+        Vector3 identity, Vector3 reference)
     {
+        var fallback = identity;
+
         if ((mask & TrackComponent.SplineMask) != 0)
         {
             int numItems = BinaryPrimitives.ReadUInt16LittleEndian(block[position..]);
@@ -341,7 +347,8 @@ public static class SplineDecompressor
             return new ChannelData { StaticValue = value, StaticRotation = Quaternion.Identity };
         }
 
-        return new ChannelData { StaticValue = fallback, StaticRotation = Quaternion.Identity };
+        // Nothing stored at all: the channel is never read, so the bone keeps its reference pose.
+        return new ChannelData { StaticValue = reference, StaticRotation = Quaternion.Identity };
     }
 
     private static ChannelData ReadRotationChannel(

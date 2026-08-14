@@ -7,39 +7,25 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 /// <summary>
-/// Which side of the body each hand is on — the Phase 1 first-person blocker.
+/// Which side of the body each hand is on — the Phase 1 first-person blocker, now fixed.
 /// <para>
-/// The lateral axis is taken from the <b>head bone</b>, which the arms do not drive:
-/// </para>
-/// <code>
-/// left = the head bone's local +Z, in skeleton space
-/// side = dot(L_Hand - R_Hand, left)
-/// </code>
-/// <para>
-/// <c>CONFIRMED_BYTES</c> that this is a game-wide Biped convention rather than one character's
-/// quirk: on every shipped character that has a <c>Bip01_Head</c> and feet, world left (+Y after
-/// conversion) is the head's local +Z at <b>dot 1.00</b>, and that axis coincides with the
-/// character's own clavicle axis at <b>dot 1.00</b>. Two independent references, every character,
-/// no exceptions.
+/// The cause was in the spline decompressor, not in the rig: a channel component that is neither
+/// static nor spline is Havok's <b>identity</b>, and this reader filled it from the bound bone's
+/// reference pose. See <c>SplineDecompressor</c> and
+/// <c>docs/research/FIRST_PERSON_ANIMATION.md</c>.
 /// </para>
 /// <para>
-/// <b>Two earlier metrics were wrong and are pinned as invalid below, because both read green on
-/// data that is not.</b>
+/// The lateral axis is taken from the <b>head bone</b>, which the arms do not drive.
+/// <c>CONFIRMED_BYTES</c>: on every shipped character with a <c>Bip01_Head</c> and feet, world left
+/// (+Y after conversion) is the head's local +Z at dot 1.00, and that axis coincides with the
+/// character's own clavicle axis at dot 1.00.
 /// </para>
-/// <list type="bullet">
-/// <item>
-/// The <i>body frame</i> (<c>up × forward</c> with <c>forward = shoulders → hands</c>) fed the hands
-/// into the axis that judged them. It calls a proven character's hands swapped on 2,415 of her
-/// 7,982 frames.
-/// </item>
-/// <item>
-/// The <i>arm-root axis</i> (<c>L_UpperArm − R_UpperArm</c>) took the upper arms as the reference —
-/// but on this rig the upper arms are themselves on the wrong sides, so it defines the fault as
-/// correct. In the first-person bind pose that axis is the rig's <b>forward</b> direction: the
-/// 51.89 cm it measured is a front-to-back separation, and the two hands sit at the same lateral
-/// position to within 0.01 cm.
-/// </item>
-/// </list>
+/// <para>
+/// <b>Two earlier metrics are pinned as invalid below</b>, because both read green on data that was
+/// not: the body frame (<c>up × forward</c> with <c>forward = shoulders → hands</c>) judges the
+/// hands with an axis built from the hands, and the arm-root axis
+/// (<c>L_UpperArm − R_UpperArm</c>) took as its reference the very bones that were misplaced.
+/// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
 public sealed class FirstPersonHandTests(GameFixture game)
@@ -98,7 +84,6 @@ public sealed class FirstPersonHandTests(GameFixture game)
         var globals = jane.Skeleton.ComputeGlobalTransforms();
         var left = ViewLeft(jane.Skeleton, globals);
 
-        // World left is +Y after conversion — proven from anatomy in ANIMATION_COORDINATE_SYSTEM.md.
         Assert.True(Vector3.Dot(left, new Vector3(0f, 1f, 0f)) > 0.99f,
             $"the head's +Z is {left} and should be world left");
 
@@ -110,7 +95,10 @@ public sealed class FirstPersonHandTests(GameFixture game)
         Assert.True(HandSide(jane.Skeleton, globals) > 0f, "her bind pose should put each hand on its own side");
     }
 
-    /// <summary>The first metric this file used, pinned as invalid so it is not reinstated.</summary>
+    /// <summary>
+    /// The first metric this file used, pinned as invalid so it is not reinstated. It still reports
+    /// hundreds of a proven character's frames as swapped, on a decode that is now correct.
+    /// </summary>
     [RequiresGameFact]
     public void TheOldBodyFrameMetricIsNotAValidSideTest()
     {
@@ -135,14 +123,14 @@ public sealed class FirstPersonHandTests(GameFixture game)
             }
         }
 
-        Assert.True(wrong > frames / 5,
-            $"the old body-frame metric called only {wrong} of {frames} proven-correct frames swapped");
+        Assert.True(wrong > 100,
+            $"the old body-frame metric called only {wrong} of {frames} proven-correct frames swapped; " +
+            "if it has become reliable, this guard should be revisited rather than deleted");
     }
 
     /// <summary>
-    /// The second metric this file used, pinned as invalid. In the first-person bind pose the
-    /// arm-root axis is the rig's forward direction, so the "hand separation" it measured is
-    /// front-to-back and carries no side information at all.
+    /// The second metric this file used, pinned as invalid. On the first-person rig the arm-root
+    /// axis is not the lateral axis — it was the rig's forward direction.
     /// </summary>
     [RequiresGameFact]
     public void TheArmRootAxisIsNotTheLateralAxisOnTheFirstPersonRig()
@@ -154,14 +142,13 @@ public sealed class FirstPersonHandTests(GameFixture game)
             At(hands.Skeleton, globals, "Bip01_L_UpperArm") - At(hands.Skeleton, globals, "Bip01_R_UpperArm"));
 
         Assert.True(MathF.Abs(Vector3.Dot(armRoots, ViewLeft(hands.Skeleton, globals))) < 0.05f,
-            "the arm-root axis is nearly perpendicular to the lateral axis; if that has changed, the " +
-            "reasoning in this file's summary needs revisiting rather than this test deleting");
+            "the bind pose's arm-root axis is nearly perpendicular to the lateral axis; if that has " +
+            "changed, the reasoning in this file's summary needs revisiting rather than this test deleting");
     }
 
     /// <summary>
-    /// The bind pose separates the hands front-to-back, not laterally — 0.01 cm apart on the lateral
-    /// axis. So it can neither pass nor fail a side test, and the old claim that it was "correct" was
-    /// never a result.
+    /// The bind pose separates the hands front-to-back, not laterally, so it can neither pass nor
+    /// fail a side test. It is an authoring pose and the animations do not build on it.
     /// </summary>
     [RequiresGameFact]
     public void TheFirstPersonBindPoseSeparatesTheHandsFrontToBack()
@@ -174,55 +161,86 @@ public sealed class FirstPersonHandTests(GameFixture game)
     }
 
     /// <summary>
-    /// <b>KNOWN FAILING — this is the Phase 1 blocker, deliberately left visible.</b>
-    /// <para>
-    /// In the player's own view frame the first-person arm chains cross the midline. The clavicles
-    /// are on the correct sides (±8.65 cm); everything from the upper arm down is on the wrong one.
-    /// <c>FidgetCrossbow</c> frame 0: <c>L_Clavicle +8.65</c>, <c>L_UpperArm −18.76</c>,
-    /// <c>L_Forearm −30.49</c>, <c>L_Hand −49.59</c>.
-    /// </para>
-    /// <para>
-    /// Do not make this pass by converting the animation again, by negating one bone's Y, or by
-    /// fitting a rotation at the chain root. See <c>docs/research/FIRST_PERSON_ANIMATION.md</c> §8c
-    /// of the handoff for the changes already known to satisfy a sign test while being wrong.
-    /// </para>
+    /// <b>The former Phase 1 blocker.</b> Every frame of every first-person animation, on the rig's
+    /// own lateral axis.
     /// </summary>
-    [RequiresGameFact(Skip = "Phase 1 blocker: the first-person arm chains cross the midline at the upper arm. See docs/research/FIRST_PERSON_ANIMATION.md")]
+    [RequiresGameFact]
     public void FirstPersonAnimationsKeepTheHandsOnTheCorrectSides()
     {
         var hands = Load(game.LighthousePackage, "UAPW_NEWPlayerHands");
 
-        foreach (var animation in hands.Animations.Take(20))
+        int frames = 0, crossed = 0;
+        float deepest = float.MaxValue;
+        string deepestAt = "";
+
+        foreach (var animation in hands.Animations)
         {
             var decoded = hands.Decode(animation);
-            var pose = PoseAt(hands.Skeleton, decoded, 0);
-            float side = HandSide(hands.Skeleton, pose);
-
-            Assert.True(side > 0f, $"{animation.Name}: hands are swapped ({side:0.##} cm)");
+            for (int frame = 0; frame < decoded.FrameCount; frame++)
+            {
+                float side = HandSide(hands.Skeleton, PoseAt(hands.Skeleton, decoded, frame));
+                frames++;
+                if (side < 0f) crossed++;
+                if (side < deepest) { deepest = side; deepestAt = $"{animation.Owner}/{animation.Name}[{frame}]"; }
+            }
         }
+
+        Assert.True(frames > 5_000, $"only {frames} frames swept");
+
+        // Before the fix this was 3,384 of 5,984. What is left is real, transient crossing — a hand
+        // reaching over during a reload — not a swap.
+        Assert.True(crossed * 50 < frames,
+            $"the hands are on the wrong side in {crossed} of {frames} frames; deepest {deepest:0.##} at {deepestAt}");
     }
 
     /// <summary>
-    /// Localises the blocker, and stays green so the localisation cannot rot: the clavicles are on
-    /// the correct sides and the chain crosses the midline at the upper arm.
+    /// The arm roots are symmetric, which is what the fix restored. Before it, the reference pose's
+    /// Y and Z were injected into every frame and put each root 93 cm from its clavicle.
     /// </summary>
     [RequiresGameFact]
-    public void TheChainCrossesTheMidlineAtTheUpperArm()
+    public void TheArmRootsAreSymmetricUnderAnimation()
     {
         var hands = Load(game.LighthousePackage, "UAPW_NEWPlayerHands");
         var s = hands.Skeleton;
         var decoded = hands.Decode(hands.Find("FidgetCrossbow")!);
-        var g = PoseAt(s, decoded, 0);
-        var left = ViewLeft(s, g);
 
-        float Side(string bone) => Vector3.Dot(At(s, g, bone) - At(s, g, "Bip01_Head"), left);
+        Vector3 Local(string bone)
+        {
+            int b = IndexOf(s, bone);
+            return decoded.Tracks.First(t => t.TargetBoneIndex == b).Translations[0];
+        }
 
-        Assert.True(Side("Bip01_L_Clavicle") > 5f, $"L_Clavicle at {Side("Bip01_L_Clavicle"):0.##}, expected the left");
-        Assert.True(Side("Bip01_R_Clavicle") < -5f, $"R_Clavicle at {Side("Bip01_R_Clavicle"):0.##}, expected the right");
+        var left = Local("Bip01_L_UpperArm");
+        var right = Local("Bip01_R_UpperArm");
 
-        Assert.True(Side("Bip01_L_UpperArm") < 0f,
-            $"L_UpperArm at {Side("Bip01_L_UpperArm"):0.##}; if it is no longer on the wrong side the " +
-            "blocker may be fixed — un-skip FirstPersonAnimationsKeepTheHandsOnTheCorrectSides");
+        Assert.Equal(left.X, right.X, 3);
+        Assert.True(MathF.Abs(left.Y) < 0.01f && MathF.Abs(left.Z) < 0.01f, $"L_UpperArm local is {left}");
+        Assert.True(MathF.Abs(right.Y) < 0.01f && MathF.Abs(right.Z) < 0.01f, $"R_UpperArm local is {right}");
+
+        // A shoulder offset, not the 93 cm the reference-pose fallback produced.
+        Assert.InRange(left.Length(), 10f, 30f);
+    }
+
+    /// <summary>The left hand reaches the weapon, which it never did before the fix.</summary>
+    [RequiresGameFact]
+    public void TheLeftHandReachesTheWeapon()
+    {
+        var hands = Load(game.LighthousePackage, "UAPW_NEWPlayerHands");
+        var s = hands.Skeleton;
+        int lh = IndexOf(s, "Bip01_L_Hand"), grip = IndexOf(s, "R_grip");
+
+        float best = float.MaxValue;
+        foreach (var animation in hands.Animations)
+        {
+            var decoded = hands.Decode(animation);
+            for (int frame = 0; frame < decoded.FrameCount; frame++)
+            {
+                var g = PoseAt(s, decoded, frame);
+                best = MathF.Min(best, (g[lh].Translation - g[grip].Translation).Length());
+            }
+        }
+
+        Assert.True(best < 8f, $"the left hand never gets closer than {best:0.##} cm to the weapon grip");
     }
 
     /// <summary>Composes an animation's frame onto the skeleton, parent before child.</summary>
