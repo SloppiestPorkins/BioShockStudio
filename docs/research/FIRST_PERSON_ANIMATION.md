@@ -205,6 +205,18 @@ it, which is the same reason it is never evidence about the right arm.
 **So the swap is real and is not an artifact of the body-frame metric.** The bind pose puts one hand
 either side of the weapon; every animation puts both on the same side.
 
+## 4h. The track data is not transposed left/right
+
+`REJECTED.` Swapping the animated tracks between each `Bip01_L_*` and its `Bip01_R_*` partner — both
+for the clavicles alone and for the whole rig — leaves both hands on the same side of the weapon
+(−40.56 and −12.55 against −54.86 as decoded, where the bind pose gives +45.48). Bone lengths stay
+rigid throughout. So the swap is not a left/right transposition in the binding or the channel data.
+
+One measurement note for whoever continues: on the weapon axis `R_Hand` reads −4.56 no matter what
+is done to the tracks, because the weapon is parented to it and the projection is invariant by
+construction. Only the **left** hand's reading carries information there; compare its bind value
+(+45.48) against its animated value (−54.86).
+
 ## 5. Where to look next
 
 `HYPOTHESIS`. The animation and the skeleton are in the same basis, the binding is the identity, and
