@@ -571,25 +571,68 @@ bones that were misplaced and which on the first-person bind pose is the rig's *
 
 # NEXT CLAUDE SESSION
 
-**The Phase 1 blocker is fixed.** A channel component a track omits is Havok's identity, not the
-bone's reference pose — found in the Havok 2012.2.0-r1 SDK, which is now in the repo root at
-`hk2012_2_0_r1/`. `docs/research/FIRST_PERSON_ANIMATION.md` has the whole account.
+**Phase 1 has no correctness blocker.** The first-person hand blocker is fixed, the audit is clean,
+both Blender validators pass, and the suite is green with nothing skipped. What is left is quality.
 
 1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
 2. `dotnet build && dotnet test` — expect **249 passed, 0 failed, 0 skipped**.
-3. Verified when the fix landed, so it does not need redoing:
-   - the audit is unchanged on every headline figure — 33 packages, 883 wrappers, 399 skeletons,
-     16,031 animations, 100% playable, 47,560 events, 0 blocks unconsumed — and its single-frame
-     jump counts all went *down*;
-   - the `.blend` and FBX validators pass, figures in §5;
-   - the hands render with both hands on the weapon;
-   - the app republishes to `artifacts/app`.
-4. **Phase 1 is ready to freeze.** What is left is quality, not correctness, in priority order in
-   §6. The highest-value item is §6.1, the static mesh's material reference: only 22 of 630 drawable
-   meshes in `1-Medical` resolve a diffuse texture.
-5. One open data anomaly, deliberately unfixed: `AggressorBabyJane`'s `smg/smg_fire`. See §6.0.
-6. **`hk2012_2_0_r1/` is the highest-value reference in the repo and is barely mined.** It settled a
-   three-session blocker in one function. `UModel-master` and `Unreal-Library-master` are also
-   present and untouched — `UModel` may be worth reading for §6.2, the skeletal geometry variant.
-7. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
+3. **Start here: implement the `StaticMesh` section table.** `docs/research/staticmesh.md` has the
+   layout, verified against Remastered bytes on `ConeDrill` and `Turret_Cover`. Read
+   `CI NumSections` + 14 bytes per section before the vertex block, and index the object's
+   `Materials` array by section ordinal. That is the fix for the 28 multi-material meshes currently
+   textured from their first material only. The spec is known — this is implementation, not
+   research.
+4. Then **§6.1**, the static-mesh material reference: only 22 of 630 drawable meshes in `1-Medical`
+   resolve a diffuse texture. Concrete lead from Nyko's SDK: the `Materials` array is an ordinary
+   tagged property, and struct elements need **recursive tagged-property serialisation with an
+   unknown-property skip path**. That is probably also **§6.5**, the `MaskMaterial` size problem —
+   same root cause, likely one fix.
+5. Then §6.2 (skeletal geometry variant — read `UModel-master/Unreal/` first), §6.4 (verify the
+   Unreal import, never once run), §6.6 (attachment placement under animation).
+
+## The four reference projects in the repo root — how far each has been mined
+
+They are gitignored and must stay so; the Havok one is licensed material. **Reading these first is
+now project policy**: the hand blocker cost three sessions of internal measurement and was settled
+by one function in the Havok SDK, and the section table above came from Nyko's SDK after this
+project failed to find it from bytes alone.
+
+| folder | mined |
+|---|---|
+| `hk2012_2_0_r1` | **2 files of 114** in `Source/Animation`. `hkaSplineCompressedAnimation.h`/`.inl` only. |
+| `Bioshock1REMSDK-WIP--main` | `bioshock1-bsm.md` §C.4 only. |
+| `UModel-master` | **Nothing.** |
+| `Unreal-Library-master` | **Nothing.** |
+
+Highest-value unread material, in order:
+
+- **`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/`** — `BioShock_Materials_And_Shaders.md`
+  (full material class tree, `EMaterialType` ordinals, the binder), plus texture/lightmap and bulk
+  catalog notes. Directly on items 4 and 5 above.
+- **`UModel-master/Unreal/`** — mesh readers, for §6.2.
+- **`hk2012_2_0_r1/Docs/…User_Guide.pdf`** — never opened. Likely settles `blendHint` and the
+  animation-binding contract outright.
+- `hkaSkeleton.h`, `hkaAnimationBinding.h`, `hkaSkeletonMapper.h` — we carry `Unknown*` fields and
+  two carried-but-unused flags on inference.
+
+**Dead end, do not re-check:** `hkaSignedQuaternion` ships declarations only, no `.inl`, so this SDK
+cannot confirm the ThreeComp40 bit layout. It stays `CONFIRMED_BYTES` by continuity inference.
+
+**Beware one divergence:** Nyko's and UEViewer's `UStaticMesh` vertex is 24 bytes with packed
+normals; Remastered's is 48 with full float basis vectors. Both right for their own target. A
+finding ported from either may need the record widening.
+
+## Open, recorded, deliberately unfixed
+
+- **`smg/smg_fire`** — one animation of 16,031 where `Bip01_R_Forearm` and `Bip01_R_ForeTwist`
+  collapse. Their tracks store Y and Z and omit X on a bone whose bind is `(25.05, 0, 0)`; Havok
+  would collapse them too. Not additive — every animation in the game is `blendHint 0`, by census.
+  The answer is probably in `sampleTranslation`, which is not in this SDK build.
+- **The `Melee` socket** — could be the wrench, pipe, machete, rake or shovel. Left unresolved
+  rather than given whichever sorted first.
+- **Splicer variant ↔ animation set** — nothing in the data links a *particular* variant to a
+  *particular* behaviour set (spider, nitro, leadhead). Needs evidence found, not a mapping invented.
+- **§6.0b** is closed: the left hand now reaches 4.36 cm from the grip.
+
+6. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
    `src/BioShockStudio.Core/Level/` — read it before writing anything new.
