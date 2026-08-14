@@ -73,7 +73,7 @@ rather than as a direct object reference to a Little Sister asset.
 interaction, not a mesh. Whether the Big Daddy side carries an equivalent reference has not yet been
 checked.
 
-## Attachments are of three different kinds (CONFIRMED)
+## Attachments are of four different kinds (CONFIRMED)
 
 Sockets do not all point at the same sort of thing, which is why a resolver written for the
 first-person weapons finds nothing on a Big Daddy.
@@ -106,6 +106,33 @@ observed — a name match inside a group the game itself declares.
 fingertips and `CS_photo` at the right hand. The prop's vertices are in its own local space and the
 socket bone's global rest transform places them, with no extra offset needed. The Bouncer's props sit
 largely inside its silhouette in the rest pose, which is consistent but not by itself evidence.
+
+**4. The weapon an NPC carries — a `WP_AI_*` static mesh.** `CONFIRMED_BYTES`. The game ships
+twelve: pistol, smg, wrench, pipe, machete, rake, shovel, rivet gun, grenade box, molotov box,
+flashlight and handcart. They are `StaticMesh` exports in their own groups, and the `WP_AI_` prefix
+together with that class marks them as the NPC's weapon — **a different asset from the player's
+viewmodel of the same weapon**, which `firstperson.md` already recorded.
+
+This kind was not resolved at all, and its absence was doing active harm. The viewmodel sweep only
+looks at groups that carry a skeleton, which no `WP_AI_*` asset does, so a splicer's `Pistol` socket
+fell through to `WP_Pistol` — the thing in the *player's* hands — while its `smg` and `MeleePipe`
+sockets resolved to nothing. Every splicer variant was being shown holding the player's pistol and a
+first-person grenade launcher.
+
+Now: `Pistol` → `WP_AI_Pistol`, `smg` → `WP_AI_smg`, `GrenadeBox` → `WP_AI_GrenadeBox`, and Rosie's
+`RivetGunSocket` → `WP_AI_RivetGun` once the trailing `Socket` is stripped. Reported as `Likely`,
+never `Confirmed`, for the same reason kind 2 is: a static mesh has no root bone to check the socket
+against.
+
+**A viewmodel is no longer offered to an NPC on a name match alone.** A `WP_` group that carries its
+own rig is the player's weapon; the only thing that can promote it onto another host is the stated
+relationship — the weapon's skeleton being rooted at the host's socket bone — and that still counts
+for anyone. A resemblance alone does not, which is what stopped splicers being handed
+`WP_GrenadeLauncherMesh` when no `WP_AI_GrenadeLauncher` exists.
+
+**A socket the game fills from a set is left unresolved.** `Melee` could be the wrench, pipe,
+machete, rake or shovel; the data does not say which, so the match is exact-only and `Melee` matches
+none of them rather than being given whichever sorted first.
 
 **3. A skeletal weapon in a `WP_` group named differently from the socket.** `ProtectorRosie`
 declares `RivetGunSocket -> Dummy_GunParent` and carries no static meshes; her weapon is the separate

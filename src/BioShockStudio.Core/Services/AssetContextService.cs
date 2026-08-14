@@ -28,6 +28,13 @@ public sealed record AttachmentCandidate(
     /// the host's socket bone and moves with it.
     /// </summary>
     public bool IsStatic { get; init; }
+
+    /// <summary>
+    /// True when this is the weapon an NPC carries — a <c>WP_AI_*</c> static mesh — rather than the
+    /// player's first-person viewmodel of the same weapon. The two are different assets, and a
+    /// splicer used to be offered the player's.
+    /// </summary>
+    public bool IsNpcWeapon { get; init; }
 }
 
 /// <summary>
@@ -57,6 +64,7 @@ public sealed class AssetContextService(AssetCatalogService catalog)
     public IReadOnlyList<AttachmentCandidate> Attachments(CatalogEntry host, CancellationToken cancellation = default)
     {
         var results = new List<AttachmentCandidate>();
+        bool isFirstPerson = host.Group.Contains("PlayerHands", StringComparison.OrdinalIgnoreCase);
 
         IReadOnlyList<MeshSocket> sockets;
         using (var package = BioShockPackage.Open(catalog.PackageFile(host.Package)))
@@ -77,6 +85,11 @@ public sealed class AssetContextService(AssetCatalogService catalog)
         // and no second package, so they are resolved before the weapon sweep below.
         results.AddRange(StaticAttachments(host, sockets));
 
+        // Kind four: the weapon an NPC carries, which is a different asset from the one the player
+        // holds. Resolved before the viewmodel sweep so a splicer is not handed the first-person
+        // pistol.
+        results.AddRange(NpcWeaponAttachments(host, sockets, cancellation));
+
         // Weapon viewmodels are not in the map packages; they are in the script package.
         foreach (string packageName in catalog.Packages)
         {
@@ -92,6 +105,14 @@ public sealed class AssetContextService(AssetCatalogService catalog)
 
                 var (confidence, evidence) = Assess(package, candidate, socket);
 
+                // A weapon group carrying its own rig is a first-person viewmodel — the thing in the
+                // player's hands. Offering one to an NPC on a name match alone is how a splicer came
+                // to be handed WP_GrenadeLauncherMesh: there is no WP_AI_GrenadeLauncher, so the
+                // socket fell through to the player's. A stated relationship still counts for
+                // anyone — if the weapon's skeleton is rooted at the host's socket bone, that is
+                // evidence rather than a resemblance — but a resemblance alone is not enough.
+                if (confidence != "Confirmed" && !isFirstPerson) continue;
+
                 results.Add(new AttachmentCandidate(
                     socket.Name, socket.BoneName, packageName, candidate.Group,
                     candidate.Mesh, candidate.Wrapper, confidence, evidence));
@@ -104,9 +125,91 @@ public sealed class AssetContextService(AssetCatalogService catalog)
             .OrderBy(r => r.Socket, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // A stated relationship beats a prop found in the host's own group, which in turn beats a
-        // name that merely resembles a weapon group in some other package.
-        static int Rank(AttachmentCandidate c) => c.Confidence == "Confirmed" ? 0 : c.IsStatic ? 1 : 2;
+        // A stated relationship beats a prop found in the host's own group, which beats the NPC
+        // weapon whose name the socket carries, which beats a name that merely resembles a weapon
+        // group in some other package. The NPC weapon outranks the viewmodel deliberately: both are
+        // matched by name, and only one of them is the thing this host actually holds.
+        static int Rank(AttachmentCandidate c) =>
+            c.Confidence == "Confirmed" ? 0
+            : c.IsNpcWeapon ? 1
+            : c.IsStatic ? 2
+            : 3;
+    }
+
+    /// <summary>Group prefix for the weapon an NPC carries, as opposed to the player's viewmodel.</summary>
+    /// <remarks>
+    /// <c>CONFIRMED_BYTES</c>, and already recorded in <c>docs/research/firstperson.md</c>:
+    /// <c>WP_AI_Pistol</c> is a <c>StaticMesh</c>, and the <c>WP_AI_</c> prefix together with that
+    /// class marks the NPC-carried weapon — a different asset from whatever the first-person pistol
+    /// uses. The game ships twelve: pistol, smg, wrench, pipe, machete, rake, shovel, rivet gun,
+    /// grenade box, molotov box, flashlight and handcart.
+    /// </remarks>
+    private const string NpcWeaponPrefix = "WP_AI_";
+
+    /// <summary>
+    /// The NPC weapons a host's sockets name.
+    /// </summary>
+    /// <remarks>
+    /// Without this a splicer was offered the player's first-person viewmodels, because those are
+    /// the only weapon groups that carry a skeleton and the viewmodel sweep only looks at groups
+    /// that do. A splicer's <c>Pistol</c> socket resolved to <c>WP_Pistol</c> — the thing in the
+    /// player's hands — and its <c>smg</c> and <c>MeleePipe</c> sockets resolved to nothing at all.
+    /// <para>
+    /// The match is by name and is reported as <c>Likely</c>, never <c>Confirmed</c>: a static mesh
+    /// has no root bone to check the socket against, so there is no stated relationship to promote
+    /// it on. A socket the game fills at runtime from a set — <c>Melee</c>, which could be any of
+    /// the wrench, pipe, machete, rake or shovel — matches none of them exactly and is deliberately
+    /// left unresolved rather than being given whichever sorted first.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<AttachmentCandidate> NpcWeaponAttachments(
+        CatalogEntry host, IReadOnlyList<MeshSocket> sockets, CancellationToken cancellation)
+    {
+        // The player's own hands hold viewmodels, not the NPC props.
+        if (host.Group.Contains("PlayerHands", StringComparison.OrdinalIgnoreCase)) return [];
+
+        var results = new List<AttachmentCandidate>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string packageName in catalog.Packages)
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            using var package = BioShockPackage.Open(catalog.PackageFile(packageName));
+            var weapons = package.Exports
+                .Where(e => package.GetClassName(e) == AssetClasses.StaticMesh
+                            && e.SerialSize > 0
+                            && e.ObjectName.StartsWith(NpcWeaponPrefix, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(e => e.ObjectName, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.MaxBy(e => e.SerialSize)!)
+                .ToList();
+
+            if (weapons.Count == 0) continue;
+
+            foreach (var socket in sockets)
+            {
+                // Exact name only. These are twelve short names in one flat set, so the fuzzy match
+                // the viewmodel sweep needs would happily give 'Melee' the machete.
+                var weapon = weapons.FirstOrDefault(e => string.Equals(
+                    e.ObjectName[NpcWeaponPrefix.Length..], NormaliseSocket(socket.Name),
+                    StringComparison.OrdinalIgnoreCase));
+                if (weapon is null || !seen.Add(socket.Name)) continue;
+
+                results.Add(new AttachmentCandidate(
+                    socket.Name, socket.BoneName, packageName, weapon.ObjectName,
+                    weapon.ObjectName, string.Empty, "Likely",
+                    $"'{weapon.ObjectName}' is a static mesh whose name after the '{NpcWeaponPrefix}' "
+                    + $"prefix is exactly the '{socket.Name}' socket, which sits on bone "
+                    + $"'{socket.BoneName}'. That prefix and class mark the weapon an NPC carries, "
+                    + "which is a different asset from the player's viewmodel")
+                {
+                    IsStatic = true,
+                    IsNpcWeapon = true,
+                });
+            }
+        }
+
+        return results;
     }
 
     /// <summary>

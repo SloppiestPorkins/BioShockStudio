@@ -295,7 +295,10 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             if (chosen is not null) return chosen;
         }
 
-        if (entry.Category == AssetCategory.SkeletalMeshes || entry.Category == AssetCategory.StaticMeshes)
+        // Keyed on what the row *is*, not which bucket it is shown in: a splicer variant is a
+        // SkeletalMesh row filed under Characters, and it must still load its own mesh rather than
+        // the largest of the thirteen that share its rig.
+        if (entry.ClassName is AssetClasses.SkeletalMesh or AssetClasses.StaticMesh)
         {
             var direct = package.Exports
                 .Where(e => e.ObjectName == entry.ObjectName && package.GetClassName(e) == entry.ClassName)

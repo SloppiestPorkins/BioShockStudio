@@ -299,6 +299,12 @@ public sealed class AssetCatalogService
         {
             animatedGroups[character.Group] = character;
 
+            // A group holding several meshes is several characters sharing one rig — the thirteen
+            // splicer variants, the corpses and Sander Cohen all hang off AggressorBabyJane. Each
+            // one gets its own row below, so the group does not also get a fourteenth that stands
+            // for none of them.
+            if (character.Meshes.Count > 1) continue;
+
             entries.Add(new CatalogEntry
             {
                 Category = CategoriseGroup(character),
@@ -311,7 +317,8 @@ public sealed class AssetCatalogService
                 SerialSize = character.LargestMeshSize,
                 Detail = $"{character.AnimationCount} anims · {character.Meshes.Count} "
                          + (character.Meshes.Count == 1 ? "mesh" : "meshes")
-                         + $" · {character.TextureCount} textures",
+                         + $" · {character.TextureCount} textures"
+                         + (character.HasRagdoll ? " · ragdoll" : string.Empty),
             });
         }
 
@@ -336,6 +343,22 @@ public sealed class AssetCatalogService
 
             string name = export.ObjectName;
             string? owner = null;
+            string? detail = null;
+
+            // A skeletal mesh in a group that owns several is one character among several sharing a
+            // rig, not loose geometry. It is filed with the group and carries the group as its owner
+            // so the shared animation package resolves — before this they landed in SkeletalMeshes
+            // with no owner at all, which is why the splicer variants could not be animated and the
+            // turret and security-bot meshes looked like scenery.
+            if (category == AssetCategory.SkeletalMeshes
+                && animatedGroups.TryGetValue(group, out var sharedRig)
+                && sharedRig.Meshes.Count > 1)
+            {
+                category = CategoriseGroup(sharedRig);
+                owner = group;
+                detail = $"shares {group}'s rig · {sharedRig.AnimationCount} anims"
+                         + (sharedRig.HasRagdoll ? " · ragdoll" : string.Empty);
+            }
 
             if (category == AssetCategory.Animations)
             {
@@ -356,7 +379,7 @@ public sealed class AssetCatalogService
                 ClassName = className,
                 ExportIndex = export.Index,
                 SerialSize = export.SerialSize,
-                Detail = Summarise(category, group, export.SerialSize, animatedGroups),
+                Detail = detail ?? Summarise(category, group, export.SerialSize, animatedGroups),
                 OwnerGroup = owner,
             });
         }
@@ -364,6 +387,24 @@ public sealed class AssetCatalogService
         return entries;
     }
 
+    /// <summary>
+    /// Which bucket an animated group belongs in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A group is a character if its Havok packfile declares a <b>ragdoll</b> — the game's own
+    /// statement that this is something it expects to go limp under physics. That replaced a pair of
+    /// magic numbers, <c>AnimationCount >= 20 &amp;&amp; LargestMeshSize > 200_000</c>, which filed
+    /// every security turret, the security bot, both security cameras and <c>Ryan</c> as props
+    /// because they have two to six animations each.
+    /// </para>
+    /// <para>
+    /// It is a signal, not a proof, and the row's detail says which one it fired on. Breakable
+    /// scenery carries a ragdoll too — a slot machine, a wall safe, a flower vase — so those appear
+    /// here as well. The alternative was to keep tuning thresholds until the answer looked right,
+    /// which is how the browser came to hide the turrets in the first place.
+    /// </para>
+    /// </remarks>
     private static AssetCategory CategoriseGroup(CharacterEntry character)
     {
         if (character.Group.Contains("PlayerHands", StringComparison.OrdinalIgnoreCase))
@@ -371,8 +412,9 @@ public sealed class AssetCatalogService
         if (character.Group.StartsWith("WP_", StringComparison.OrdinalIgnoreCase))
             return AssetCategory.Weapons;
 
-        return character.AnimationCount >= CharacterAnimationThreshold
-               && character.LargestMeshSize > CharacterMeshSizeThreshold
+        return character.HasRagdoll
+               || (character.AnimationCount >= CharacterAnimationThreshold
+                   && character.LargestMeshSize > CharacterMeshSizeThreshold)
             ? AssetCategory.Characters
             : AssetCategory.Props;
     }

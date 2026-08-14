@@ -9,11 +9,11 @@
 |---|---|
 | **Phase** | **PHASE 1 — animation + mesh extraction. The blocker is FIXED.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 243 passed, 0 failed, **0 skipped** |
+| **Tests** | 249 passed, 0 failed, **0 skipped** |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Do not start** | Phase 2 (level extraction) until Phase 1 is frozen |
 
-**243 tests pass against the installed game, none skipped.**
+**249 tests pass against the installed game, none skipped.**
 
 ```bash
 dotnet build && dotnet test
@@ -62,12 +62,13 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
 | FBX export | Binary 7.4, validated by round trip through Blender. |
 | Unreal import | **Never attempted.** See §6.4. |
-| Attachments | All three socket kinds resolve: weapon rigs, static props in the host's own group, and `*Socket`-suffixed names. |
+| Attachments | All four socket kinds resolve: weapon rigs, static props in the host's own group, `*Socket`-suffixed names, and the NPC's own `WP_AI_*` weapon. A viewmodel is never offered to an NPC on a name match alone. |
 | Weapon viewmodels | All ten in `ShockGame.U` decode and draw, textured. |
 | Animation sets | A character's animations carry the game's own set — Melee, Pistol, Ceiling — and the UI filters by it. |
 | Coordinate system | One reflection, `C = diag(1,-1,1)`, applied at four decode boundaries. Left-handed game basis → right-handed internal basis. Meshes, skeletons and animations are no longer mirrored. |
 | Whole-game animation audit | `audit-animations` — 16,031 animations, **100% playable**, 0 failures, 0 unbound tracks, 47,560 events. |
 | Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
+| Characters | A group is a character if its packfile declares a **ragdoll**. Each mesh in a multi-mesh group is its own character carrying the shared rig — the thirteen splicer variants, the corpses and Sander Cohen all hang off `AggressorBabyJane`. |
 
 ## 3. Architecture
 
@@ -218,6 +219,25 @@ Each of these produced a plausible, wrong result before it was understood.
   nothing exercised the two together. The catalogue is now published as a finished array in one
   assignment and readers take a local snapshot; `_packageFiles` is a `ConcurrentDictionary` for the
   same reason. `CatalogConcurrencyTests` reproduces the original exception when the fix is reverted.
+- **The browser's character/prop split was two magic numbers, and it hid whole assets.**
+  `AnimationCount >= 20 && LargestMeshSize > 200_000` filed every security turret, the security bot,
+  both security cameras and `Ryan` as props, because they have two to six animations each. A group is
+  a character if its Havok packfile declares an `hkaRagdollInstance` — the game's own statement that
+  it expects the thing to go limp. That is a signal and is presented as one: breakable scenery
+  carries a ragdoll too (a slot machine, a wall safe, a flower vase), so those appear as characters
+  as well and the row says which test it fired on. `Ryan` carries no ragdoll and is kept by the old
+  size bar, which is retained for exactly that reason.
+- **A group holding several meshes is several characters, not one.** `AggressorBabyJane` owns
+  thirteen — the splicer variants, three corpses and Sander Cohen — sharing one rig and nineteen
+  animation sets. The catalogue emitted one row for the group and dumped all thirteen meshes into
+  `SkeletalMeshes` **with no owner group**, so they were orphaned from their own animations. Each
+  mesh is now its own row carrying the group. Anything that resolves an entry must key off what the
+  row *is* (`ClassName`) rather than which bucket it is shown in, or a variant loads the largest
+  mesh of the thirteen instead of its own.
+- **An NPC's weapon is a different asset from the player's.** `WP_AI_Pistol` is a `StaticMesh`;
+  `WP_Pistol` is the first-person viewmodel with its own rig. The viewmodel sweep only considers
+  groups that carry a skeleton, so before this every splicer was offered the player's pistol and a
+  first-person grenade launcher. See `docs/research/context.md`, attachment kind 4.
 - **Render everything.** Numeric validation has passed while the result was visibly wrong, more than
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
@@ -451,6 +471,22 @@ frame-count match. *Rejected because* it silently discarded the weapon's motion 
 reload, the launcher's `FireLast`/`Equip` and every zoomed fire. *Consequence:* one rule in
 `Core/Animation/AnimationPairing.cs`, shared by the preview and the FBX manifest.
 
+**A character is a group whose packfile declares a ragdoll.** *Evidence:* 207 of the game's 870
+animation wrappers declare `hkaRagdollInstance`, and it separates actors from scenery better than
+anything else the data offers. *Alternative:* the previous `AnimationCount >= 20 &&
+LargestMeshSize > 200_000`. *Rejected because* it filed the turrets, the security bot, the security
+cameras and `Ryan` as props. *Cost, accepted deliberately:* breakable scenery carries a ragdoll too,
+so a slot machine and a flower vase are listed as characters; the row's detail says what it
+qualified on rather than asserting the category as fact. *Consequence:* the old size bar is kept as
+a second path, because `Ryan` has 131 bones and no ragdoll.
+
+**An NPC is not offered the player's viewmodel on a name match.** *Evidence:* `WP_AI_*` static
+meshes are the NPC-carried weapons and are a different asset from the `WP_*` viewmodel rigs.
+*Alternative:* match any `WP_` group by name, which is what happened before. *Rejected because* it
+put the player's pistol and first-person grenade launcher on every splicer. *Consequence:* a
+viewmodel reaches a non-first-person host only on the stated relationship — its skeleton rooted at
+the host's socket bone — never on a resemblance.
+
 **`LockTranslation` is never applied.** *Evidence:* set on 66.6% of bones; 59,889 tracks drive a
 translation on a bone carrying it, including the first-person root 89.8 cm from its reference pose.
 *Rejected because* honouring it would pin every rig to its bind root. It is a `hkaSkeletonMapper`
@@ -540,7 +576,7 @@ bone's reference pose — found in the Havok 2012.2.0-r1 SDK, which is now in th
 `hk2012_2_0_r1/`. `docs/research/FIRST_PERSON_ANIMATION.md` has the whole account.
 
 1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **243 passed, 0 failed, 0 skipped**.
+2. `dotnet build && dotnet test` — expect **249 passed, 0 failed, 0 skipped**.
 3. Verified when the fix landed, so it does not need redoing:
    - the audit is unchanged on every headline figure — 33 packages, 883 wrappers, 399 skeletons,
      16,031 animations, 100% playable, 47,560 events, 0 blocks unconsumed — and its single-frame
