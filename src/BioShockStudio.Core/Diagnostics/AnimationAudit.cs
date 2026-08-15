@@ -82,6 +82,36 @@ public sealed record AnimationAuditRow
     /// <summary>The same jump as a multiple of the animation's own mean step — a scale-free measure.</summary>
     public float WorstFrameStepRatio { get; init; }
 
+    /// <summary>
+    /// The most bones that sit on top of their parent in any one frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A skeleton is rigid: a bone keeps its distance from its parent whatever the pose. A bone that
+    /// decodes to a fraction of its reference offset has been folded into its parent, and a whole
+    /// limb doing it is an arm inside a chest — which is what a user photographed on
+    /// <c>PI_Fire_B</c>, and what this audit called "playable" because it only ever checked for NaN,
+    /// zero-length and unbound tracks.
+    /// </para>
+    /// <para>
+    /// Counted per frame rather than per animation because the fault is concentrated: all three
+    /// <c>PI_</c> fire animations collapse 25 bones on frame 0 and only a handful afterwards, so an
+    /// any-frame count understates it and an all-frame count misses it almost entirely.
+    /// </para>
+    /// <para>
+    /// Reported, not judged. Havok animations may drive scale, and a scaled bone legitimately
+    /// changes length, so this is a number to look at rather than grounds for calling an animation
+    /// unplayable. See <c>docs/HANDOFF.md</c> §6.0c.
+    /// </para>
+    /// </remarks>
+    public int WorstCollapsedBones { get; init; }
+
+    /// <summary>Frame at which <see cref="WorstCollapsedBones"/> was counted.</summary>
+    public int WorstCollapseFrame { get; init; }
+
+    /// <summary>A bone collapsed at that frame, for a place to start looking.</summary>
+    public string WorstCollapseBone { get; init; } = string.Empty;
+
     public bool IsExportable => Status is AnimationStatus.Playable or AnimationStatus.Partial;
 }
 
@@ -110,6 +140,19 @@ public sealed record AnimationAuditReport
 
     /// <summary>Animations carrying a bone jump of at least <paramref name="centimetres"/> in one frame.</summary>
     public int Discontinuous(float centimetres) => Rows.Count(r => r.WorstFrameStep >= centimetres);
+
+    /// <summary>
+    /// Animations that fold at least <paramref name="bones"/> bones into their parents in one frame.
+    /// </summary>
+    /// <remarks>
+    /// A rigid skeleton cannot do this. At a threshold of 1 the shipped game yields five animations,
+    /// four of them <c>AggressorBabyJane</c>'s 54-track fire clips — <c>docs/HANDOFF.md</c> §6.0c.
+    /// </remarks>
+    public int WithCollapsedBones(int bones = 1) => Rows.Count(r => r.WorstCollapsedBones >= bones);
+
+    /// <summary>The worst offender, for a report to name rather than only count.</summary>
+    public AnimationAuditRow? WorstCollapse =>
+        Rows.Where(r => r.WorstCollapsedBones > 0).MaxBy(r => r.WorstCollapsedBones);
 }
 
 /// <summary>
@@ -277,6 +320,7 @@ public static class AnimationAudit
 
             var (slack, complete) = BlockWalk(animationPackage, animation);
             var jump = WorstJump(animationPackage.Skeleton, decoded);
+            var collapse = WorstCollapse(animationPackage.Skeleton, decoded);
 
             yield return Row(animation.Owner, animation.Name,
                 problem.Length == 0 ? AnimationStatus.Playable : AnimationStatus.Partial,
@@ -289,6 +333,9 @@ public static class AnimationAudit
                 WorstFrameStepBone = jump.Bone,
                 WorstFrameStepFrame = jump.Frame,
                 WorstFrameStepRatio = jump.Ratio,
+                WorstCollapsedBones = collapse.Count,
+                WorstCollapseFrame = collapse.Frame,
+                WorstCollapseBone = collapse.Bone,
             };
         }
     }
@@ -397,6 +444,83 @@ public static class AnimationAudit
     /// The largest distance any bone moves between consecutive frames, with the mean step alongside
     /// it so the jump can be read as a ratio rather than an absolute the scale of the rig decides.
     /// </summary>
+    /// <summary>
+    /// How badly the animation breaks the skeleton's rigidity: the most bones sitting on their
+    /// parent in any one frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only bones that the animation actually drives are considered — an undriven bone keeps its
+    /// reference pose by construction, so counting it would make every animation look perfect for a
+    /// reason that has nothing to do with the decode.
+    /// </para>
+    /// <para>
+    /// A bone counts as collapsed when its animated offset from its parent falls below
+    /// <see cref="CollapseFraction"/> of its reference offset, and only when that reference offset is
+    /// big enough to measure — a bone that sits on its parent in the bind pose cannot collapse
+    /// further and must not be counted.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// Public for the same reason <see cref="WhyNotPlayable"/> is: a sweep that reports nothing wrong
+    /// is worth nothing unless the check can be shown to fire.
+    /// </remarks>
+    public static (int Count, int Frame, string Bone) WorstCollapse(
+        Skeleton.BioShockSkeleton skeleton, DecodedAnimation animation)
+    {
+        int boneCount = skeleton.BoneCount;
+        if (boneCount == 0 || animation.FrameCount == 0) return (0, 0, string.Empty);
+
+        var byBone = new DecodedTrack?[boneCount];
+        foreach (var track in animation.Tracks)
+            if (track.TargetBoneIndex >= 0 && track.TargetBoneIndex < boneCount)
+                byBone[track.TargetBoneIndex] = track;
+
+        int worst = 0, worstFrame = 0;
+        string worstBone = string.Empty;
+
+        for (int frame = 0; frame < animation.FrameCount; frame++)
+        {
+            int collapsed = 0;
+            string first = string.Empty;
+
+            for (int b = 0; b < boneCount; b++)
+            {
+                var bone = skeleton.Bones[b];
+                if (bone.ParentIndex < 0) continue;
+
+                var track = byBone[b];
+                if (track is null || frame >= track.Translations.Length) continue;
+
+                float reference = bone.LocalTranslation.Length();
+                if (reference < MinimumBoneLength) continue;
+
+                if (track.Translations[frame].Length() >= reference * CollapseFraction) continue;
+
+                collapsed++;
+                if (first.Length == 0) first = bone.Name;
+            }
+
+            if (collapsed <= worst) continue;
+            worst = collapsed;
+            worstFrame = frame;
+            worstBone = first;
+        }
+
+        return (worst, worstFrame, worstBone);
+    }
+
+    /// <summary>Below this a bone is treated as sitting on its parent already, and is not counted.</summary>
+    private const float MinimumBoneLength = 1f;
+
+    /// <summary>Fraction of its reference offset below which a bone counts as collapsed.</summary>
+    /// <remarks>
+    /// Deliberately far from 1: this is meant to catch a bone that has gone to <b>zero</b>, not one
+    /// that moved. On the shipped game the affected bones decode to exact zeros, so any small
+    /// fraction gives the same answer and the number is not doing any fitting.
+    /// </remarks>
+    private const float CollapseFraction = 0.05f;
+
     private static (float Distance, string Bone, int Frame, float Ratio) WorstJump(
         Skeleton.BioShockSkeleton skeleton, DecodedAnimation animation)
     {
