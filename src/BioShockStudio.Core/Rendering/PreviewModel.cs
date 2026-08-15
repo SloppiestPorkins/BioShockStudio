@@ -10,7 +10,40 @@ namespace BioShockStudio.Core.Rendering;
 public sealed record PreviewBone(string Name, int Parent, Matrix4x4 RestGlobal, Matrix4x4 InverseRestGlobal);
 
 /// <summary>A socket drawn as a marker on the bone it hangs off.</summary>
-public sealed record PreviewSocket(string Name, int Bone);
+/// <param name="Transform">
+/// Where the socket sits relative to its bone. Identity for most sockets — every first-person
+/// weapon socket has a zero origin — but <c>FireballSocket</c> is 65.8 cm from its bone and
+/// <c>GathererAttach</c> 84.8 cm, and a prop placed on the bone alone is wrong by that much.
+/// </param>
+public sealed record PreviewSocket(string Name, int Bone, Matrix4x4 Transform)
+{
+    /// <summary>The socket's place in skeleton space, given its bone's current transform.</summary>
+    public Matrix4x4 On(Matrix4x4 bone) => Transform * bone;
+}
+
+/// <summary>
+/// One run of the index buffer drawn with one material's maps.
+/// </summary>
+/// <remarks>
+/// A mesh naming several materials draws each of its sections with its own. Before this the whole
+/// mesh took the first material, so the Bathysphere's windows were painted in hull metal and every
+/// lamp lens took the shade around it. Which triangles belong to which comes from the section table
+/// via <c>MeshSurfaceResolver</c>, and this is only its rendering form.
+/// </remarks>
+/// <param name="MaterialName">
+/// For diagnostics and the details panel. Null when the slot resolves to no material, in which case
+/// the run draws in flat grey rather than borrowing a neighbour's texture.
+/// </param>
+public sealed record PreviewSurface(
+    int FirstIndex,
+    int IndexCount,
+    string? MaterialName = null,
+    PreviewImage? Texture = null,
+    PreviewImage? NormalMap = null,
+    PreviewImage? SpecularMap = null)
+{
+    public int TriangleCount => IndexCount / 3;
+}
 
 /// <summary>
 /// Everything needed to draw one asset: geometry, its skeleton, and optionally a base colour map.
@@ -26,14 +59,30 @@ public sealed class PreviewModel
     public required IReadOnlyList<PreviewBone> Bones { get; init; }
     public required IReadOnlyList<PreviewSocket> Sockets { get; init; }
 
-    /// <summary>Base colour map, already decoded. Null means the model draws untextured.</summary>
-    public PreviewImage? Texture { get; init; }
+    /// <summary>
+    /// The mesh's runs and the maps each is drawn with, in section order. Empty means the whole mesh
+    /// draws untextured.
+    /// </summary>
+    public IReadOnlyList<PreviewSurface> Surfaces { get; init; } = [];
 
-    /// <summary>Tangent-space normal map, when the material binds one.</summary>
-    public PreviewImage? NormalMap { get; init; }
+    /// <summary>
+    /// Surface index for each triangle, so the rasteriser does not search the run list per triangle.
+    /// <c>-1</c> where no surface covers it, which draws untextured.
+    /// </summary>
+    public IReadOnlyList<int> TriangleSurface { get; init; } = [];
 
-    /// <summary>Specular colour map, when the material binds one.</summary>
-    public PreviewImage? SpecularMap { get; init; }
+    /// <summary>Base colour map of the first surface that binds one. Null means nothing is textured.</summary>
+    /// <remarks>
+    /// A convenience for callers that only ask whether the mesh resolved any texture at all. It is
+    /// <b>not</b> what the mesh is drawn with — see <see cref="Surfaces"/>.
+    /// </remarks>
+    public PreviewImage? Texture => Surfaces.FirstOrDefault(s => s.Texture is not null)?.Texture;
+
+    /// <summary>Tangent-space normal map of the first surface that binds one.</summary>
+    public PreviewImage? NormalMap => Surfaces.FirstOrDefault(s => s.NormalMap is not null)?.NormalMap;
+
+    /// <summary>Specular colour map of the first surface that binds one.</summary>
+    public PreviewImage? SpecularMap => Surfaces.FirstOrDefault(s => s.SpecularMap is not null)?.SpecularMap;
 
     /// <summary>Centre of the geometry in its rest pose, used as the camera's orbit target.</summary>
     public required Vector3 Centre { get; init; }
@@ -56,7 +105,24 @@ public sealed class PreviewModel
         IReadOnlyList<MeshSocket>? sockets = null,
         PreviewImage? texture = null,
         PreviewImage? normalMap = null,
-        PreviewImage? specularMap = null)
+        PreviewImage? specularMap = null) =>
+        Build(geometry, skeleton, sockets,
+            geometry is null || geometry.Indices.Count < 3
+                ? []
+                : [new PreviewSurface(0, geometry.Indices.Count, null, texture, normalMap, specularMap)]);
+
+    /// <summary>
+    /// Builds a preview model whose geometry is split into runs, each with its own material maps.
+    /// </summary>
+    /// <remarks>
+    /// The runs come from <c>MeshSurfaceResolver</c>, which is the one place that pairs a section
+    /// with a material. This method only turns them into what the rasteriser indexes.
+    /// </remarks>
+    public static PreviewModel Build(
+        MeshGeometry? geometry,
+        BioShockSkeleton? skeleton,
+        IReadOnlyList<MeshSocket>? sockets,
+        IReadOnlyList<PreviewSurface> surfaces)
     {
         var bones = new List<PreviewBone>();
 
@@ -79,24 +145,44 @@ public sealed class PreviewModel
         {
             // The mesh writes R_Grip where the skeleton writes R_grip.
             int index = bones.FindIndex(b => string.Equals(b.Name, socket.BoneName, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0) socketList.Add(new PreviewSocket(socket.Name, index));
+            if (index >= 0) socketList.Add(new PreviewSocket(socket.Name, index, socket.Transform));
         }
 
         var vertices = geometry?.Vertices ?? [];
+        var indices = geometry?.Indices ?? [];
         var (centre, radius) = Bounds(vertices, bones);
 
         return new PreviewModel
         {
             Vertices = vertices,
-            Indices = geometry?.Indices ?? [],
+            Indices = indices,
             Bones = bones,
             Sockets = socketList,
-            Texture = texture,
-            NormalMap = normalMap,
-            SpecularMap = specularMap,
+            Surfaces = surfaces,
+            TriangleSurface = MapTrianglesToSurfaces(indices.Count, surfaces),
             Centre = centre,
             Radius = radius,
         };
+    }
+
+    /// <summary>
+    /// Which surface draws each triangle, resolved once so the rasteriser does not search per
+    /// triangle. A triangle no surface covers gets <c>-1</c> and draws untextured.
+    /// </summary>
+    private static int[] MapTrianglesToSurfaces(int indexCount, IReadOnlyList<PreviewSurface> surfaces)
+    {
+        var map = new int[indexCount / 3];
+        Array.Fill(map, -1);
+
+        for (int s = 0; s < surfaces.Count; s++)
+        {
+            var surface = surfaces[s];
+            int first = Math.Max(0, surface.FirstIndex / 3);
+            int last = Math.Min(map.Length, (surface.FirstIndex + surface.IndexCount) / 3);
+            for (int t = first; t < last; t++) map[t] = s;
+        }
+
+        return map;
     }
 
     private static (Vector3 Centre, float Radius) Bounds(

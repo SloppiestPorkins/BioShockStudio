@@ -1,4 +1,5 @@
 ﻿using BioShockStudio.Core.Materials;
+using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
 
@@ -25,11 +26,104 @@ public static class MaterialExporter
         BioShockPackage package, ObjectExport meshExport, string outputDirectory, BulkTextureCatalog? bulk = null)
     {
         var material = MaterialReader.ReadForMesh(package, meshExport);
-        if (material is null) return null;
+        return material is null ? null : Convert(package, material, outputDirectory, bulk);
+    }
 
+    /// <summary>
+    /// Resolves every material a mesh uses and which triangles use each.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A mesh naming more than one material draws a run of its index buffer with each — 1,179 of the
+    /// game's 8,668 static meshes do. Exporting only the first is what put hull metal on the
+    /// Bathysphere's windows.
+    /// </para>
+    /// <para>
+    /// The pairing itself is <see cref="MeshSurfaceResolver"/>'s, not this method's: this only turns
+    /// its result into scene records and writes the images.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// The distinct materials, and one index per triangle into that list. A triangle whose slot
+    /// resolves nothing gets <c>-1</c> and exports with no material rather than a neighbour's.
+    /// </returns>
+    public static (IReadOnlyList<SceneMaterial> Materials, int[] TriangleMaterials) ResolveSurfaces(
+        BioShockPackage package,
+        ObjectExport meshExport,
+        MeshGeometry geometry,
+        string outputDirectory,
+        BulkTextureCatalog? bulk = null,
+        IExternalMaterialSource? external = null)
+    {
+        var surfaces = MeshSurfaceResolver.Resolve(package, meshExport, geometry, external);
+        var triangles = new int[geometry.Indices.Count / 3];
+        Array.Fill(triangles, -1);
+
+        if (surfaces.Count == 0) return ([], triangles);
+
+        var materials = new List<SceneMaterial>();
+        var indexOf = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var surface in surfaces)
+        {
+            int index = -1;
+
+            if (surface.Material is not null)
+            {
+                // The same shader on two sections is one slot, not two.
+                if (!indexOf.TryGetValue(surface.Material.Name, out index))
+                {
+                    materials.Add(Convert(package, surface.Material, outputDirectory, bulk));
+                    index = materials.Count - 1;
+                    indexOf[surface.Material.Name] = index;
+                }
+            }
+
+            int first = surface.FirstIndex / 3;
+            int last = Math.Min(triangles.Length, (surface.FirstIndex + surface.IndexCount) / 3);
+            for (int t = Math.Max(0, first); t < last; t++) triangles[t] = index;
+        }
+
+        return (materials, triangles);
+    }
+
+    private static SceneMaterial Convert(
+        BioShockPackage package, BioShockMaterial material, string outputDirectory, BulkTextureCatalog? bulk)
+    {
         var written = new Dictionary<string, string>(StringComparer.Ordinal);
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
 
+        // A material resolved out of another package keeps its textures there — the weapon shaders
+        // and their images are both in the script packages — so the images are read from wherever
+        // the material came from, not from beside the mesh.
+        BioShockPackage? borrowed = null;
+        if (material.SourceFile is { } file
+            && !string.Equals(file, package.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            try { borrowed = BioShockPackage.Open(file); }
+            catch (Exception ex) when (ex is IOException or InvalidDataException) { borrowed = null; }
+        }
+
+        var source = borrowed ?? package;
+
+        try
+        {
+            return Build(source, material, outputDirectory, bulk, written, files);
+        }
+        finally
+        {
+            borrowed?.Dispose();
+        }
+    }
+
+    private static SceneMaterial Build(
+        BioShockPackage package,
+        BioShockMaterial material,
+        string outputDirectory,
+        BulkTextureCatalog? bulk,
+        Dictionary<string, string> written,
+        Dictionary<string, string> files)
+    {
         foreach (var texture in material.Textures)
         {
             // The same image is usually bound to several slots — the hands use Hand_DIFF as both the

@@ -221,13 +221,23 @@ public static class FbxSceneBuilder
             uvEntry.Add("Type", "LayerElementUV");
             uvEntry.Add("TypedIndex", 0);
 
-            // One material for the whole mesh: the game binds a single shader per SkeletalMesh.
+            // A mesh naming several materials draws a run of its index buffer with each, so the
+            // assignment is per polygon. Where it names one, "AllSame" with a single entry says so
+            // more cheaply and is what every importer takes the fast path on.
+            //
+            // A triangle whose slot resolved nothing is -1 in the scene. FBX has no "no material",
+            // so it is given slot 0 and the untextured run is visible as the slot it landed in
+            // rather than dropping the polygon.
+            var assignment = mesh.TriangleMaterials;
+            bool perPolygon = assignment.Length > 0 && scene.Materials.Count > 1;
+
             var materialLayer = geometry.Add("LayerElementMaterial").Int32(0);
             materialLayer.Add("Version", 101);
             materialLayer.Add("Name", string.Empty);
-            materialLayer.Add("MappingInformationType", "AllSame");
+            materialLayer.Add("MappingInformationType", perPolygon ? "ByPolygon" : "AllSame");
             materialLayer.Add("ReferenceInformationType", "IndexToDirect");
-            materialLayer.Add("Materials").Int32Array([0]);
+            materialLayer.Add("Materials").Int32Array(
+                perPolygon ? [.. assignment.Select(m => Math.Max(0, m))] : [0]);
 
             var materialEntry = layer.Add("LayerElement");
             materialEntry.Add("Type", "LayerElementMaterial");
@@ -242,7 +252,12 @@ public static class FbxSceneBuilder
             // A static mesh has no skeleton, so it gets no skin deformer at all rather than an empty
             // one an importer would have to interpret.
             if (scene.Bones.Count > 0) BuildSkin(mesh, geometryId, name);
-            if (scene.Material is not null) BuildMaterial(scene.Material, modelId);
+
+            // Connection order is the slot order: LayerElementMaterial indexes the materials
+            // attached to the model by the order they were connected, so these must go out in the
+            // same order the scene lists them.
+            foreach (var material in scene.Materials) BuildMaterial(material, modelId);
+
             return modelId;
         }
 

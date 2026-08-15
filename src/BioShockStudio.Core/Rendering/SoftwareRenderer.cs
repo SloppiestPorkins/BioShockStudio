@@ -83,6 +83,25 @@ public sealed record RenderOptions
     /// <summary>Highlighted bone, drawn in a different colour. -1 for none.</summary>
     public int SelectedBone { get; init; } = -1;
 
+    /// <summary>
+    /// Tint the triangles whose material did not resolve, so an untextured run is visibly a fault
+    /// rather than a grey surface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the viewport half of the Problems panel. A run with no material draws in flat grey,
+    /// and flat grey is also what a lot of BioShock legitimately looks like — bare concrete, painted
+    /// metal, the inside of a crate. The two are indistinguishable by eye, which is exactly the
+    /// class of fault this project keeps being caught by: <i>grey security cameras</i> were found by
+    /// a user, not by the tool, and the tool had the evidence.
+    /// </para>
+    /// <para>
+    /// Magenta is deliberate — it is the long-standing convention for a missing texture, and no
+    /// shipped BioShock surface is that colour, so the overlay can never be mistaken for art.
+    /// </para>
+    /// </remarks>
+    public bool HighlightUnresolvedSurfaces { get; init; }
+
     public byte BackgroundGrey { get; init; } = 32;
 }
 
@@ -195,14 +214,32 @@ public static class SoftwareRenderer
         RenderOptions options)
     {
         var eye = camera.Eye;
-        var texture = options.Textured ? model.Texture : null;
-        var normalMap = options.Shaded && options.Textured ? model.NormalMap : null;
-        var specularMap = options.Shaded && options.Textured ? model.SpecularMap : null;
+
+        // A mesh draws one run per material, so the maps are picked per triangle rather than once.
+        // Resolved into arrays here so the inner loop indexes rather than walking the surface list.
+        int surfaceCount = model.Surfaces.Count;
+        var textures = new PreviewImage?[surfaceCount];
+        var normalMaps = new PreviewImage?[surfaceCount];
+        var specularMaps = new PreviewImage?[surfaceCount];
+
+        for (int s = 0; s < surfaceCount; s++)
+        {
+            var surface = model.Surfaces[s];
+            textures[s] = options.Textured ? surface.Texture : null;
+            normalMaps[s] = options.Shaded && options.Textured ? surface.NormalMap : null;
+            specularMaps[s] = options.Shaded && options.Textured ? surface.SpecularMap : null;
+        }
 
         // Alpha is taken from the diffuse texture rather than from the material's blend mode, whose
         // values are still UNKNOWN — see docs/research/materials.md. A texture whose alpha is 255
         // everywhere takes exactly the path it always did, so nothing opaque can change.
-        bool hasAlpha = texture is not null && options.Transparency && texture.HasTransparency;
+        //
+        // One surface carrying alpha puts the whole mesh through the sorted two-pass path: a window
+        // in a hull has to be drawn after what is behind it, and which run it belongs to does not
+        // change that. Fragments of an opaque run report alpha 255 and so all land in the first pass,
+        // exactly as before.
+        bool hasAlpha = options.Transparency
+                        && textures.Any(t => t is not null && t.HasTransparency);
 
         // Opaque first, then the translucent surfaces back to front over the top. Without the sort a
         // window drawn before what is behind it hides it.
@@ -273,6 +310,16 @@ public static class SoftwareRenderer
                 var (pa, pb, pc, a, b, c, ok) = projected[index];
                 if (!ok) continue;
 
+                int surface = index < model.TriangleSurface.Count ? model.TriangleSurface[index] : -1;
+                var texture = surface >= 0 ? textures[surface] : null;
+                var normalMap = surface >= 0 ? normalMaps[surface] : null;
+                var specularMap = surface >= 0 ? specularMaps[surface] : null;
+
+                // A run whose slot named nothing, or that no section covers at all. Both draw grey
+                // and neither is distinguishable from grey paint without saying so.
+                bool unresolved = options.HighlightUnresolvedSurfaces
+                                  && (surface < 0 || model.Surfaces[surface].MaterialName is null);
+
                 RasteriseTriangle(target, pa, pb, pc, (bary, depth, x, y) =>
                 {
                     var uv = model.Vertices[a].Uv * bary.X
@@ -282,6 +329,16 @@ public static class SoftwareRenderer
                     byte r, g, bl, alpha;
                     if (texture is not null) (r, g, bl, alpha) = SampleRgba(texture, uv);
                     else { r = g = bl = 190; alpha = 255; }
+
+                    // Tinted rather than replaced, so the shading still reads and the shape of the
+                    // affected run stays legible — a flat magenta silhouette hides which part of the
+                    // mesh is at fault, which is the only thing the overlay is for.
+                    if (unresolved)
+                    {
+                        r = (byte)((r + 255 * 2) / 3);
+                        g /= 3;
+                        bl = (byte)((bl + 255 * 2) / 3);
+                    }
 
                     if (hasAlpha)
                     {
@@ -418,7 +475,10 @@ public static class SoftwareRenderer
         foreach (var socket in model.Sockets)
         {
             if (socket.Bone < 0 || socket.Bone >= model.Bones.Count) continue;
-            var matrix = pose is null ? model.Bones[socket.Bone].RestGlobal : pose[socket.Bone];
+            // The socket's own offset from its bone, not just the bone: most are identity, but
+            // FireballSocket sits 65.8 cm out and drawing the marker on the bone hides that.
+            var bone = pose is null ? model.Bones[socket.Bone].RestGlobal : pose[socket.Bone];
+            var matrix = socket.On(bone);
             var origin = Vector3.Transform(matrix.Translation, transform);
 
             DrawLine(target, origin - Vector3.UnitX * size, origin + Vector3.UnitX * size, viewProjection, 255, 120, 120, true);

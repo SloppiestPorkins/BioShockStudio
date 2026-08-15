@@ -148,6 +148,16 @@ public sealed class AssetCatalogService
     public BulkTextureCatalog? Bulk { get; private set; }
 
     /// <summary>
+    /// Resolves materials a mesh names by import — the shared shaders in the script packages.
+    /// </summary>
+    /// <remarks>
+    /// Null until an install is registered. 433 material slots across the game are imports and none
+    /// resolve inside their own package, so without this every security camera, ammo pickup and
+    /// NPC-carried weapon draws untextured.
+    /// </remarks>
+    public Materials.IExternalMaterialSource? ExternalMaterials { get; private set; }
+
+    /// <summary>
     /// Records where an install's packages are without reading any of them.
     /// </summary>
     /// <remarks>
@@ -159,6 +169,7 @@ public sealed class AssetCatalogService
         // Loading the bulk index is half a megabyte and one parse, and without it most textures
         // read as their 64-square tail.
         Bulk ??= BulkTextureCatalog.Load(gameRoot);
+        ExternalMaterials ??= new PackageMaterialSource(gameRoot);
 
         foreach (string file in GameLocator.EnumeratePackages(gameRoot))
             _packageFiles[Path.GetFileNameWithoutExtension(file)] = file;
@@ -551,6 +562,61 @@ public sealed class AssetCatalogService
     private static bool InPackage(CatalogEntry entry, string package) =>
         string.Equals(entry.Package, package, StringComparison.OrdinalIgnoreCase)
         || entry.Packages.Contains(package, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The catalogue row for a named asset, preferring the copy in a given package.
+    /// </summary>
+    /// <param name="assetName">
+    /// The name as another subsystem knows it — a diagnostic's asset, a related asset in the details
+    /// panel, an object named by a material. Matched against both the row's display name and its
+    /// object name, which differ for a grouped row.
+    /// </param>
+    /// <param name="preferredPackage">
+    /// Where the caller found the reference. The copy in that package wins when the catalogue lists
+    /// one; otherwise any row for the same asset is returned, because it is the same asset under a
+    /// different map's name.
+    /// </param>
+    /// <param name="category">Restrict to one category, when the caller knows which it wants.</param>
+    /// <returns>The row, or null when the catalogue has none — which is not the same as "no such asset".</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the one place that turns a name into a browsable row.</b> The Problems panel and
+    /// the relationship tree both navigate this way; when the logic lived in the view model it was
+    /// already duplicated once, and the two copies could disagree about which asset a click opens.
+    /// </para>
+    /// <para>
+    /// <b>A row's <c>Package</c> is not the only package it is in.</b> Every map embeds its own copy
+    /// of what it uses, so the catalogue collapses duplicates into one row carrying all of them in
+    /// <see cref="CatalogEntry.Packages"/>, and the one it reports is often a different map from the
+    /// one the caller is looking at. Matching on name <i>and</i> reported package therefore fails on
+    /// real data — it did, on <c>Cheese_Mould_Normal</c> — so this uses the same
+    /// <see cref="InPackage"/> rule the search does.
+    /// </para>
+    /// </remarks>
+    public CatalogEntry? Resolve(
+        string assetName, string? preferredPackage = null, AssetCategory? category = null)
+    {
+        if (string.IsNullOrWhiteSpace(assetName)) return null;
+
+        var entries = _entries;
+        CatalogEntry? fallback = null;
+
+        foreach (var entry in entries)
+        {
+            if (category is not null && entry.Category != category) continue;
+
+            if (!string.Equals(entry.ObjectName, assetName, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(entry.Name, assetName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (preferredPackage is not null && InPackage(entry, preferredPackage)) return entry;
+            fallback ??= entry;
+        }
+
+        return fallback;
+    }
 
     private static bool Matches(CatalogEntry entry, string term) =>
         entry.Name.Contains(term, StringComparison.OrdinalIgnoreCase)

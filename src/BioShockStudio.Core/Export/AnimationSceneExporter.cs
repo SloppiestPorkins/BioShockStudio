@@ -17,12 +17,27 @@ namespace BioShockStudio.Core.Export;
 /// </summary>
 public static class AnimationSceneExporter
 {
+    /// <summary>
+    /// How a scene is written. Compact by default.
+    /// </summary>
+    /// <remarks>
+    /// This file was indented for readability, on the reasoning that it doubles as a research
+    /// artefact. Measured, that costs <b>60.5%</b> of its size — the hands' scene is 67.5 MB indented
+    /// and 26.6 MB compact — because the content is almost entirely flat arrays of animation floats,
+    /// which is exactly the part no one reads. A character with 457 animations writes 517 MB, and a
+    /// bulk extraction of the 2,000 assets the browser shows by default came to roughly 350 GB.
+    /// Nothing about the file is readable at that size, so the indentation bought nothing and cost
+    /// more than half of every scene written.
+    /// </remarks>
     private static readonly JsonSerializerOptions Options = new()
     {
-        WriteIndented = true,
+        WriteIndented = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
+
+    /// <summary>The same scene, indented, for reading by eye. Only sane on a small asset.</summary>
+    private static readonly JsonSerializerOptions ReadableOptions = new(Options) { WriteIndented = true };
 
     /// <summary>
     /// Bones treated as attachment sockets rather than skeleton joints. Recognised from the shipped
@@ -43,7 +58,9 @@ public static class AnimationSceneExporter
         string packageName,
         string objectName,
         MeshGeometry geometry,
-        SceneMaterial? material = null) =>
+        SceneMaterial? material = null,
+        IReadOnlyList<SceneMaterial>? materials = null,
+        int[]? triangleMaterials = null) =>
         new()
         {
             SourcePackage = packageName,
@@ -53,8 +70,9 @@ public static class AnimationSceneExporter
             Animations = [],
             Failures = [],
             Sockets = [],
-            Mesh = BuildMesh(geometry),
-            Material = material,
+            Mesh = BuildMesh(geometry, triangleMaterials),
+            Material = material ?? materials?.FirstOrDefault(),
+            Materials = materials ?? (material is null ? [] : [material]),
         };
 
     public static AnimationScene Build(
@@ -63,7 +81,9 @@ public static class AnimationSceneExporter
         IReadOnlyList<MeshSocket>? sockets = null,
         MeshGeometry? geometry = null,
         IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>>? events = null,
-        SceneMaterial? material = null)
+        SceneMaterial? material = null,
+        IReadOnlyList<SceneMaterial>? materials = null,
+        int[]? triangleMaterials = null)
     {
         var skeleton = package.Skeleton;
 
@@ -132,12 +152,13 @@ public static class AnimationSceneExporter
             Sockets = (sockets ?? [])
                 .Select(s => new SceneSocket { Name = s.Name, BoneName = s.BoneName })
                 .ToList(),
-            Mesh = geometry is null ? null : BuildMesh(geometry),
-            Material = material,
+            Mesh = geometry is null ? null : BuildMesh(geometry, triangleMaterials),
+            Material = material ?? materials?.FirstOrDefault(),
+            Materials = materials ?? (material is null ? [] : [material]),
         };
     }
 
-    private static SceneMesh BuildMesh(MeshGeometry geometry)
+    private static SceneMesh BuildMesh(MeshGeometry geometry, int[]? triangleMaterials = null)
     {
         var positions = new float[geometry.Vertices.Count * 3];
         var normals = new float[geometry.Vertices.Count * 3];
@@ -175,16 +196,26 @@ public static class AnimationSceneExporter
             Normals = normals,
             Uvs = uvs,
             Triangles = geometry.Indices.ToArray(),
+
+            // Only carried when it says something: a mesh drawn entirely in one material would
+            // otherwise ship an array of zeroes as long as its triangle list.
+            TriangleMaterials = triangleMaterials is not null && triangleMaterials.Distinct().Count() > 1
+                ? triangleMaterials
+                : [],
+
             InfluenceCounts = influenceCounts,
             InfluenceBones = influenceBones.ToArray(),
             InfluenceWeights = influenceWeights.ToArray(),
         };
     }
 
-    public static void WriteJson(AnimationScene scene, string path)
+    /// <param name="readable">
+    /// Indent the output. Off by default — see <see cref="Options"/> for what it costs.
+    /// </param>
+    public static void WriteJson(AnimationScene scene, string path, bool readable = false)
     {
         using var stream = File.Create(path);
-        JsonSerializer.Serialize(stream, scene, Options);
+        JsonSerializer.Serialize(stream, scene, readable ? ReadableOptions : Options);
     }
 
     private static float[] ToArray(Vector3 value) => [value.X, value.Y, value.Z];
@@ -206,8 +237,19 @@ public sealed record AnimationScene
     /// <summary>Skinned geometry, when a companion SkeletalMesh was resolved and decoded.</summary>
     public SceneMesh? Mesh { get; init; }
 
-    /// <summary>The material the mesh names, when it resolves. Null means the mesh exports untextured.</summary>
+    /// <summary>
+    /// The mesh's first material, when it resolves. Null means the mesh exports untextured.
+    /// </summary>
+    /// <remarks>
+    /// Kept for consumers that want one material for the whole mesh. A mesh naming more than one has
+    /// no single material — see <see cref="Materials"/> and <see cref="SceneMesh.TriangleMaterials"/>.
+    /// </remarks>
     public SceneMaterial? Material { get; init; }
+
+    /// <summary>
+    /// Every material the mesh uses, in slot order, indexed by <see cref="SceneMesh.TriangleMaterials"/>.
+    /// </summary>
+    public IReadOnlyList<SceneMaterial> Materials { get; init; } = [];
 
     /// <summary>
     /// Assets that attach to one of this scene's sockets and carry their own skeleton, mesh and
@@ -235,6 +277,16 @@ public sealed record SceneMesh
     public required float[] Normals { get; init; }
     public required float[] Uvs { get; init; }
     public required int[] Triangles { get; init; }
+
+    /// <summary>
+    /// Index into the scene's <c>Materials</c> for each triangle, or <c>-1</c> for a triangle whose
+    /// material slot resolves nothing. Empty when the mesh uses a single material throughout.
+    /// </summary>
+    /// <remarks>
+    /// One entry per triangle, so <c>Triangles.Length / 3</c> long. This is what carries the section
+    /// table out of the tool: without it a mesh naming three materials is drawn in one.
+    /// </remarks>
+    public int[] TriangleMaterials { get; init; } = [];
 
     /// <summary>Number of influences belonging to each vertex.</summary>
     public required int[] InfluenceCounts { get; init; }

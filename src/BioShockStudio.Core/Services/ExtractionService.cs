@@ -299,7 +299,8 @@ public sealed class ExtractionService(AssetCatalogService catalog)
 
         IReadOnlyList<MeshSocket> sockets = [];
         MeshGeometry? geometry = null;
-        SceneMaterial? material = null;
+        IReadOnlyList<SceneMaterial> materials = [];
+        int[]? triangleMaterials = null;
 
         Directory.CreateDirectory(directory);
 
@@ -308,7 +309,10 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             byte[] payload = package.ReadExportData(meshExport);
             sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
             geometry = SkeletalMeshReader.ReadGeometry(payload);
-            material = MaterialExporter.Resolve(package, meshExport, directory, catalog.Bulk);
+
+            if (geometry is not null)
+                (materials, triangleMaterials) =
+                    MaterialExporter.ResolveSurfaces(package, meshExport, geometry, directory, catalog.Bulk, catalog.ExternalMaterials);
         }
 
         var events = new Dictionary<string, IReadOnlyList<AnimationEvent>>(StringComparer.Ordinal);
@@ -325,7 +329,10 @@ public sealed class ExtractionService(AssetCatalogService catalog)
         }
 
         cancellation.ThrowIfCancellationRequested();
-        var scene = AnimationSceneExporter.Build(animations, null, sockets, geometry, events, material);
+        var scene = AnimationSceneExporter.Build(
+            animations, null, sockets, geometry, events, null, materials, triangleMaterials);
+
+        scene = scene with { Attachments = Attachments(package, entry, sockets, directory, cancellation) };
 
         if (options.Formats.HasFlag(ExportFormats.SceneJson))
             AnimationSceneExporter.WriteJson(scene, Path.Combine(directory, Sanitise(entry.Group) + ".json"));
@@ -334,6 +341,156 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             FbxExporter.Write(scene, directory);
 
         return directory;
+    }
+
+    /// <summary>
+    /// The static props hung on this asset's sockets, as attachments carrying their own geometry.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The Bouncer's drill, its cage and its backpack are <c>StaticMesh</c> exports in its own group,
+    /// named by its sockets. Until now they were not exported with it at all: only a <i>skeletal</i>
+    /// attachment — a first-person weapon with a rig of its own — reached the FBX, so a Big Daddy
+    /// arrived in Blender with nothing on his back and the drill had to be found and placed by hand.
+    /// </para>
+    /// <para>
+    /// A prop is exported as an attachment scene with no bones and no animations. It is not merged
+    /// into the host mesh: it is a separate object the game positions on a socket, and merging would
+    /// state a binding the data does not have. The consumer parents it to the socket bone, so it
+    /// follows the host under animation exactly as the viewport already draws it.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<SceneAttachment> Attachments(
+        BioShockPackage package,
+        CatalogEntry entry,
+        IReadOnlyList<MeshSocket> sockets,
+        string directory,
+        CancellationToken cancellation)
+    {
+        if (sockets.Count == 0) return [];
+
+        var attachments = new List<SceneAttachment>();
+
+        IReadOnlyList<AttachmentCandidate> candidates;
+        try { candidates = new AssetContextService(catalog).Attachments(entry, cancellation); }
+        catch (Exception ex) when (ex is InvalidDataException or IOException) { return []; }
+
+        foreach (var candidate in candidates.Where(c => !c.IsStatic))
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            var rig = RiggedAttachment(candidate, directory, cancellation);
+            if (rig is not null) attachments.Add(rig);
+        }
+
+        foreach (var candidate in candidates.Where(c => c.IsStatic))
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            // A prop lives in the host's own group and so in the same package.
+            var export = package.Exports
+                .Where(e => package.GetClassName(e) == AssetClasses.StaticMesh
+                            && string.Equals(e.ObjectName, candidate.MeshObject, StringComparison.OrdinalIgnoreCase))
+                .MaxBy(e => e.SerialSize);
+            if (export is null) continue;
+
+            MeshGeometry? propGeometry;
+            try { propGeometry = StaticMeshReader.ReadGeometry(package.ReadExportData(export)); }
+            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+            {
+                continue;
+            }
+
+            // A prop that will not decode is skipped rather than exported as an empty node, which
+            // would claim the socket is filled when it is not.
+            if (propGeometry is null || propGeometry.Vertices.Count == 0) continue;
+
+            var (propMaterials, propTriangles) =
+                MaterialExporter.ResolveSurfaces(package, export, propGeometry, directory, catalog.Bulk);
+
+            attachments.Add(new SceneAttachment
+            {
+                SocketName = candidate.Socket,
+                SocketBone = candidate.SocketBone,
+                Scene = AnimationSceneExporter.BuildStatic(
+                    entry.Package, export.ObjectName, propGeometry, null, propMaterials, propTriangles),
+            });
+        }
+
+        return attachments;
+    }
+
+    /// <summary>
+    /// An attachment that carries its own skeleton and animations — a first-person weapon.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The weapon lives in its own package (the viewmodels are in <c>ShockGame.U</c>, not in the map
+    /// holding the hands), so this opens that package rather than reusing the host's. It is exported
+    /// as a complete scene of its own and parented to the socket; the two skeletons are never merged,
+    /// because a first-person animation is a two-rig performance and merging destroys that structure.
+    /// </para>
+    /// <para>
+    /// This is what makes an extracted rig a usable library: <c>NEWPlayerHands</c> arrives with
+    /// <c>WP_Pistol</c> on its <c>Pistol</c> socket rather than empty-handed.
+    /// </para>
+    /// </remarks>
+    private SceneAttachment? RiggedAttachment(
+        AttachmentCandidate candidate, string directory, CancellationToken cancellation)
+    {
+        if (string.IsNullOrEmpty(candidate.AnimationPackageObject)) return null;
+
+        try
+        {
+            using var package = BioShockPackage.Open(catalog.PackageFile(candidate.Package));
+
+            var wrapper = package.Exports
+                .Where(e => package.GetClassName(e) == AssetClasses.AnimationPackageWrapper
+                            && string.Equals(e.ObjectName, candidate.AnimationPackageObject,
+                                StringComparison.OrdinalIgnoreCase))
+                .MaxBy(e => e.SerialSize);
+            if (wrapper is null) return null;
+
+            var animations = AnimationPackage.Load(package, wrapper);
+            cancellation.ThrowIfCancellationRequested();
+
+            var meshExport = package.Exports
+                .Where(e => package.GetClassName(e) == AssetClasses.SkeletalMesh
+                            && string.Equals(e.ObjectName, candidate.MeshObject, StringComparison.OrdinalIgnoreCase))
+                .MaxBy(e => e.SerialSize);
+
+            IReadOnlyList<MeshSocket> weaponSockets = [];
+            MeshGeometry? weaponGeometry = null;
+            IReadOnlyList<SceneMaterial> weaponMaterials = [];
+            int[]? weaponTriangles = null;
+
+            if (meshExport is not null)
+            {
+                byte[] payload = package.ReadExportData(meshExport);
+                weaponSockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
+                weaponGeometry = SkeletalMeshReader.ReadGeometry(payload);
+
+                if (weaponGeometry is not null)
+                    (weaponMaterials, weaponTriangles) = MaterialExporter.ResolveSurfaces(
+                        package, meshExport, weaponGeometry, directory, catalog.Bulk, catalog.ExternalMaterials);
+            }
+
+            return new SceneAttachment
+            {
+                SocketName = candidate.Socket,
+                SocketBone = candidate.SocketBone,
+                Scene = AnimationSceneExporter.Build(
+                    animations, null, weaponSockets, weaponGeometry, null,
+                    null, weaponMaterials, weaponTriangles),
+            };
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is InvalidDataException or IOException
+                                       or IndexOutOfRangeException or ArgumentOutOfRangeException)
+        {
+            // A weapon that will not load leaves the host exportable rather than failing the asset.
+            return null;
+        }
     }
 
     /// <summary>
@@ -354,8 +511,12 @@ public sealed class ExtractionService(AssetCatalogService catalog)
                 + "See docs/research/staticmesh.md.");
 
         Directory.CreateDirectory(directory);
-        var material = MaterialExporter.Resolve(package, export, directory, catalog.Bulk);
-        var scene = AnimationSceneExporter.BuildStatic(entry.Package, export.ObjectName, geometry, material);
+
+        var (materials, triangleMaterials) =
+            MaterialExporter.ResolveSurfaces(package, export, geometry, directory, catalog.Bulk, catalog.ExternalMaterials);
+
+        var scene = AnimationSceneExporter.BuildStatic(
+            entry.Package, export.ObjectName, geometry, null, materials, triangleMaterials);
 
         if (options.Formats.HasFlag(ExportFormats.SceneJson))
             AnimationSceneExporter.WriteJson(scene, Path.Combine(directory, Sanitise(export.ObjectName) + ".json"));

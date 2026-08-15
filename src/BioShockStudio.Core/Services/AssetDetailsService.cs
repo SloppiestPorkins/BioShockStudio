@@ -340,8 +340,10 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         else if (MeshGeometryReader.IsMeshClass(entry.ClassName))
         {
             string note = entry.ClassName == AssetClasses.StaticMesh ? "staticmesh" : "skeletalmesh";
-            problem = "This mesh uses a geometry layout this tool does not read yet, so it has no "
-                      + $"vertices to show or export. See docs/research/{note}.md.";
+            problem = "No vertex data was found in this mesh, so it has no geometry to show or "
+                      + $"export. See docs/research/{note}.md — every shipped StaticMesh decodes, and "
+                      + "the SkeletalMesh exports that reach this carry no vertices rather than an "
+                      + "unread format.";
         }
 
         var sockets = entry.ClassName == AssetClasses.SkeletalMesh

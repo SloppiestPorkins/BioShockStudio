@@ -84,9 +84,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         MeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
-        PreviewImage? texture = null;
-        PreviewImage? normalMap = null;
-        PreviewImage? specularMap = null;
+        IReadOnlyList<PreviewSurface> surfaces = [];
         string? problem = null;
 
         if (meshExport is not null)
@@ -101,17 +99,22 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
             if (geometry is null)
             {
-                problem = "This mesh uses a geometry layout this tool does not read yet, so only its "
-                          + "skeleton can be shown.";
+                // Deliberately does not claim an unsupported format. The 18 exports that reach this
+                // are four door rigs carrying no vertex data at all — see docs/research/skeletalmesh.md
+                // — and telling the user their file is unreadable would be a wrong diagnosis.
+                problem = "No vertex data was found in this mesh. Its skeleton, sockets and animations "
+                          + "are shown; the geometry they move may be supplied elsewhere.";
             }
 
-            (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
+            surfaces = LoadSurfaces(package, meshExport, geometry);
 
-            int materials = MaterialReader.ReadMeshMaterialReferences(payload, package).Count;
-            if (materials > 1)
+            // A run whose slot names no material is the honest remaining gap: it draws grey. The
+            // multi-material warning this replaced is gone because each run now takes its own.
+            int untextured = surfaces.Count(s => s.Texture is null);
+            if (untextured > 0 && surfaces.Count > 1)
             {
-                problem ??= $"This mesh uses {materials} materials and only the first is applied, so "
-                            + "some of it is textured wrongly. Which triangles use which is not yet decoded.";
+                problem ??= $"{untextured} of this mesh's {surfaces.Count} material slots resolve no "
+                            + "texture, so those parts draw untextured.";
             }
         }
         else
@@ -128,7 +131,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             catch (Exception ex) { problem ??= $"Animations could not be read: {ex.Message}"; }
         }
 
-        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
+        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, surfaces);
 
         var ordered = animations is null
             ? []
@@ -156,16 +159,37 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
     /// Both classes, because a group is often both: <c>NewProtectorBouncer</c> is a skeletal body
     /// plus the three static meshes its sockets name — the drill, its cage and the backpack.
     /// </remarks>
-    private static List<ObjectExport> MeshesInGroup(BioShockPackage package, string group) =>
-        package.Exports
+    private static List<ObjectExport> MeshesInGroup(BioShockPackage package, string group)
+    {
+        var members = package.Exports
             .Where(e => MeshGeometryReader.IsMeshClass(package.GetClassName(e))
                         && e.SerialSize > 0
                         && string.Equals(AssetContextResolver.TopLevelGroup(package, e), group,
                             StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // A weapon's upgrade tiers are part of the weapon, but two of the thirteen the game ships —
+        // SG_UpgradeB and XB_UpgradeB_Mesh, the two that carry their own rig — sit in a group of
+        // their own, so resolving by group alone offered upgrades for four weapons and not the
+        // other two. See Assets/WeaponUpgrades.cs.
+        foreach (var upgrade in WeaponUpgrades.For(package, group))
+        {
+            if (string.Equals(upgrade.Group, group, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var export = package.Exports
+                .Where(e => string.Equals(e.ObjectName, upgrade.MeshObject, StringComparison.OrdinalIgnoreCase)
+                            && package.GetClassName(e) == upgrade.ClassName)
+                .MaxBy(e => e.SerialSize);
+
+            if (export is not null) members.Add(export);
+        }
+
+        return members
             .GroupBy(e => e.ObjectName, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.MaxBy(e => e.SerialSize)!)
             .OrderByDescending(e => e.SerialSize)
             .ToList();
+    }
 
     /// <summary>
     /// Loads an attachment named by a socket — a first-person weapon — as its own model.
@@ -194,9 +218,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
 
         MeshGeometry? geometry = null;
         IReadOnlyList<MeshSocket> sockets = [];
-        PreviewImage? texture = null;
-        PreviewImage? normalMap = null;
-        PreviewImage? specularMap = null;
+        IReadOnlyList<PreviewSurface> surfaces = [];
         string? problem = null;
 
         if (meshExport is null)
@@ -210,15 +232,8 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             geometry = MeshGeometryReader.Read(className, payload);
             if (className == AssetClasses.SkeletalMesh)
                 sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
-            (texture, normalMap, specularMap) = LoadMaps(package, meshExport);
-            if (geometry is null) problem = $"'{candidate.MeshObject}' uses a geometry layout this tool does not read yet.";
-
-            int materials = MaterialReader.ReadMeshMaterialReferences(payload, package).Count;
-            if (materials > 1)
-            {
-                problem ??= $"'{candidate.MeshObject}' uses {materials} materials and only the first is "
-                            + "applied, so some of it is textured wrongly.";
-            }
+            surfaces = LoadSurfaces(package, meshExport, geometry);
+            if (geometry is null) problem = $"No vertex data was found in '{candidate.MeshObject}'.";
         }
 
         AnimationPackage? animations = null;
@@ -232,7 +247,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             catch (Exception ex) { problem ??= $"Its animations could not be read: {ex.Message}"; }
         }
 
-        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, texture, normalMap, specularMap);
+        var model = PreviewModel.Build(geometry, animations?.Skeleton, sockets, surfaces);
 
         var ordered = animations is null
             ? []
@@ -317,23 +332,71 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             .MaxBy(e => e.SerialSize);
 
     /// <summary>
-    /// The mesh's base colour, normal and specular maps, at a size cheap to sample per pixel.
+    /// The mesh's drawable runs, each with the maps its own material binds, at a size cheap to
+    /// sample per pixel.
     /// </summary>
     /// <remarks>
-    /// Resolved through the material, so a <c>FacingShader</c> yields its facing diffuse rather than
-    /// nothing. A mesh with no resolvable material simply draws in flat grey; a material that binds
-    /// only some of the three gets only those.
+    /// Which triangles use which material comes from <see cref="MeshSurfaceResolver"/> — the one
+    /// place that pairs a section with a material — so the viewport and the exporters cannot
+    /// disagree. Resolved through the material, so a <c>FacingShader</c> yields its facing diffuse
+    /// rather than nothing. A run whose slot names no material draws flat grey rather than borrowing
+    /// a neighbour's texture.
     /// </remarks>
-    private (PreviewImage? Diffuse, PreviewImage? Normal, PreviewImage? Specular) LoadMaps(
-        BioShockPackage package, ObjectExport meshExport)
+    private IReadOnlyList<PreviewSurface> LoadSurfaces(
+        BioShockPackage package, ObjectExport meshExport, MeshGeometry? geometry)
     {
-        var material = MaterialReader.ReadForMesh(package, meshExport);
-        if (material is null) return (null, null, null);
+        if (geometry is null || geometry.Indices.Count < 3) return [];
 
-        return (
-            LoadTexture(package, material.DiffuseTexture),
-            LoadTexture(package, material.NormalTexture),
-            LoadTexture(package, material.SpecularTexture));
+        var surfaces = MeshSurfaceResolver.Resolve(package, meshExport, geometry, catalog.ExternalMaterials);
+        if (surfaces.Count == 0) return [];
+
+        // One decode per texture, however many runs bind it: the Bathysphere's hull material appears
+        // on two of its three sections.
+        var images = new Dictionary<string, PreviewImage?>(StringComparer.OrdinalIgnoreCase);
+
+        // A material read from another package brings its textures with it: the shared shaders and
+        // their images both live in the script packages, and 427 imported materials name a diffuse
+        // that is in none of the meshes' own packages. Looking beside the mesh finds nothing.
+        var borrowed = new Dictionary<string, BioShockPackage>(StringComparer.OrdinalIgnoreCase);
+
+        PreviewImage? Image(BioShockMaterial? material, string? name)
+        {
+            if (material is null || name is null) return null;
+
+            string key = $"{material.SourceFile}|{name}";
+            if (images.TryGetValue(key, out var cached)) return cached;
+
+            var source = package;
+            if (material.SourceFile is { } file
+                && !string.Equals(file, package.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!borrowed.TryGetValue(file, out var opened))
+                {
+                    try { opened = BioShockPackage.Open(file); }
+                    catch (Exception ex) when (ex is IOException or InvalidDataException) { opened = null!; }
+                    borrowed[file] = opened!;
+                }
+
+                if (opened is not null) source = opened;
+            }
+
+            return images[key] = LoadTexture(source, name);
+        }
+
+        try
+        {
+            return [.. surfaces.Select(s => new PreviewSurface(
+                s.FirstIndex,
+                s.IndexCount,
+                s.Material?.Name,
+                Image(s.Material, s.Material?.DiffuseTexture),
+                Image(s.Material, s.Material?.NormalTexture),
+                Image(s.Material, s.Material?.SpecularTexture)))];
+        }
+        finally
+        {
+            foreach (var opened in borrowed.Values) opened?.Dispose();
+        }
     }
 
     /// <summary>
