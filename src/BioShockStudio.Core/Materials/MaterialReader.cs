@@ -61,11 +61,46 @@ public sealed record BioShockMaterial
     public required bool Truncated { get; init; }
 
     /// <summary>
-    /// The base colour texture, whichever slot the shader class puts it in. <c>FacingShader</c> has
-    /// no <c>Diffuse</c>; its base colour is the facing one, with the edge texture as the fallback.
+    /// The package file this material was read from.
     /// </summary>
-    public string? DiffuseTexture =>
-        TextureFor("Diffuse") ?? TextureFor("FacingDiffuse") ?? TextureFor("EdgeDiffuse");
+    /// <remarks>
+    /// A mesh often names a material that lives somewhere else — every NPC weapon points at the
+    /// viewmodel's shader in <c>ShockGame.U</c>, every security camera at <c>ShockAI.U</c> — and
+    /// <b>the textures live with the material, not with the mesh</b>. Across the game 427 imported
+    /// materials name a diffuse texture and <b>none</b> of those textures is in the mesh's own
+    /// package. A caller that looks for them beside the mesh finds nothing and draws grey, so the
+    /// material has to say where it came from.
+    /// </remarks>
+    public string? SourceFile { get; init; }
+
+    /// <summary>
+    /// The base colour texture, whichever slot the shader class puts it in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each material class names it differently — <c>FacingShader</c> has no <c>Diffuse</c> at all,
+    /// <c>PlantShader</c> calls it <c>AliveDiffuse</c>, <c>FluidShader</c> <c>WaterDiffuseMap</c> —
+    /// so the known names are tried first and then any bound slot whose name contains "Diffuse".
+    /// </para>
+    /// <para>
+    /// <b>There is deliberately no "first texture" fallback.</b> A material whose slots are all
+    /// unrecognised returns null and the surface is reported as having no base colour, because
+    /// picking arbitrarily would put a normal map on the mesh as its colour — a confidently wrong
+    /// result that renders as a blue-purple surface and passes every count.
+    /// </para>
+    /// </remarks>
+    public string? DiffuseTexture
+    {
+        get
+        {
+            foreach (string slot in MaterialReader.DiffuseSlots)
+                if (TextureFor(slot) is { } named) return named;
+
+            return Textures
+                .FirstOrDefault(t => t.Slot.Contains("Diffuse", StringComparison.OrdinalIgnoreCase))
+                ?.TextureName;
+        }
+    }
 
     public string? NormalTexture => TextureFor("NormalMap");
 
@@ -106,12 +141,35 @@ public static class MaterialReader
     /// the <c>Shader</c> slots would report the hands as having a material and no diffuse texture.
     /// </para>
     /// </summary>
-    private static readonly string[] TextureSlots =
+    /// <summary>
+    /// Slot names known to carry a base colour, in preference order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only used to decide which of a material's bound textures is <i>the</i> base colour. Which
+    /// slots exist at all is not a list any more — see <see cref="Read"/>.
+    /// </para>
+    /// <para>
+    /// <c>CONFIRMED_EXTERNAL</c> for <c>Diffuse</c> (Nyko's material note, §2.1) and
+    /// <c>CONFIRMED_BYTES</c> for the rest, each read off a shipped material of that class:
+    /// <c>FacingShader</c> has no <c>Diffuse</c> at all, <c>PlantShader</c> calls it
+    /// <c>AliveDiffuse</c>, and <c>FluidShader</c> calls it <c>WaterDiffuseMap</c>.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] DiffuseSlots =
     [
-        "Diffuse", "NormalMap", "SpecularColorMap", "Emissive", "Subsurface", "Opacity", "Detail",
-        "FacingDiffuse", "EdgeDiffuse", "FacingSpecularColorMap", "EdgeSpecularColorMap",
-        "FacingEmissive", "EdgeEmissive",
+        "Diffuse", "FacingDiffuse", "EdgeDiffuse", "AliveDiffuse", "DeadDiffuse", "WaterDiffuseMap",
+        SelfSlot,
     ];
+
+    /// <summary>The class of a material that is itself a texture — the <c>BitmapMaterial</c> branch.</summary>
+    private const string BitmapMaterialClass = "Texture";
+
+    /// <summary>
+    /// The slot a <see cref="BitmapMaterialClass"/> material binds itself under. Not a property name
+    /// the data declares — such a material has no texture properties, it <i>is</i> the texture.
+    /// </summary>
+    public const string SelfSlot = "Self";
 
     /// <summary>
     /// The block that separates a <c>SkeletalMesh</c>'s bounds from its material list:
@@ -148,7 +206,25 @@ public static class MaterialReader
     /// Reads a mesh's material list. Empty when the tag block is not found or nothing after it names
     /// a material.
     /// </summary>
+    /// <remarks>
+    /// Slots that name nothing are dropped, so this list cannot be indexed by a section ordinal.
+    /// Use <see cref="ReadMeshMaterialSlots"/> for that.
+    /// </remarks>
     public static IReadOnlyList<PackageIndex> ReadMeshMaterialReferences(
+        ReadOnlySpan<byte> payload, BioShockPackage package) =>
+        [.. ReadMeshMaterialSlots(payload, package).Where(r => r.IsExport || r.IsImport)];
+
+    /// <summary>
+    /// Reads a mesh's material list <b>at its own slot positions</b>, with a null
+    /// <see cref="PackageIndex"/> where a slot names nothing.
+    /// </summary>
+    /// <remarks>
+    /// This is the list a section table indexes: the Nth <c>MeshSection</c> uses the Nth entry here.
+    /// Compacting the list — which is what <see cref="ReadMeshMaterialReferences"/> does — shifts
+    /// every slot after an empty one, so a mesh whose first slot is null would draw its second
+    /// section with its third material. See <c>docs/research/staticmesh.md</c>.
+    /// </remarks>
+    public static IReadOnlyList<PackageIndex> ReadMeshMaterialSlots(
         ReadOnlySpan<byte> payload, BioShockPackage package)
     {
         // A StaticMesh says it outright, in a property. Only a SkeletalMesh, whose property list is
@@ -239,12 +315,16 @@ public static class MaterialReader
 
         if (count is <= 0 or > MaximumMaterials) return [];
 
-        var result = new List<PackageIndex>(count);
+        // The array's own count is what the sections index, so the list is that long whether or not
+        // every element can be read. A slot left null is a slot whose material is not known; it is
+        // never closed up, because compacting would shift every later section onto the wrong
+        // material. Nothing is invented — an unread slot stays null.
+        var result = new PackageIndex[count];
 
         for (int i = 0; i < count && offset < value.Length; i++)
         {
             if (!TryReadMaterialElement(value, ref offset, package, out var reference)) break;
-            if (reference.Value != 0) result.Add(reference);
+            result[i] = reference;
         }
 
         return result;
@@ -254,30 +334,34 @@ public static class MaterialReader
     /// Walks one <c>FStaticMeshMaterial</c> element and returns the reference its <c>Material</c>
     /// field holds.
     /// </summary>
+    /// <returns>
+    /// True when the element was walked to its end, so <paramref name="offset"/> is positioned on the
+    /// next one — including when the element named no material, which is a real empty slot. False
+    /// means alignment was lost and nothing after this point can be trusted.
+    /// </returns>
     private static bool TryReadMaterialElement(
         ReadOnlySpan<byte> value, ref int offset, BioShockPackage package, out PackageIndex reference)
     {
         reference = default;
-        bool found = false;
 
         // Bounded: a misread element must not spin.
         for (int guard = 0; guard < 16; guard++)
         {
-            if (offset >= value.Length) return found;
+            // The array's declared size is one byte short of its content, so the last element's
+            // terminator is cut off. Running out here is the end of a complete element, not a fault.
+            if (offset >= value.Length) return true;
 
             int nameIndex;
             try { nameIndex = ReadCompactIndex(value, ref offset); }
-            catch { return found; }
+            catch { return false; }
 
-            // The trailing terminator is cut short by the size being one byte under, so an element
-            // that ends there has still been read completely.
-            if (offset + 4 > value.Length) return found;
+            if (offset + 4 > value.Length) return true;
             offset += 4; // FName number
 
-            if (nameIndex < 0 || nameIndex >= package.Names.Count) return found;
-            if (package.Names[nameIndex].Name == "None") return found;
+            if (nameIndex < 0 || nameIndex >= package.Names.Count) return false;
+            if (package.Names[nameIndex].Name == "None") return true;
 
-            if (offset >= value.Length) return found;
+            if (offset >= value.Length) return true;
             byte info = value[offset++];
             var type = (UnrealPropertyType)(info & 0x0F);
             int sizeEncoding = (info >> 4) & 0x07;
@@ -285,8 +369,8 @@ public static class MaterialReader
 
             if (type == UnrealPropertyType.Struct)
             {
-                try { ReadCompactIndex(value, ref offset); } catch { return found; }
-                if (offset + 4 > value.Length) return found;
+                try { ReadCompactIndex(value, ref offset); } catch { return false; }
+                if (offset + 4 > value.Length) return false;
                 offset += 4;
             }
 
@@ -305,31 +389,29 @@ public static class MaterialReader
                     _ => BinaryPrimitives.ReadInt32LittleEndian(Advance(value, ref offset, 4)),
                 };
             }
-            catch { return found; }
+            catch { return false; }
 
             // A Bool carries its value in the array bit and has no payload.
             if (isArray && type != UnrealPropertyType.Bool)
             {
-                try { ReadCompactIndex(value, ref offset); } catch { return found; }
+                try { ReadCompactIndex(value, ref offset); } catch { return false; }
             }
 
-            if (size < 0 || offset + size > value.Length) return found;
+            if (size < 0 || offset + size > value.Length) return false;
 
-            if (!found && type == UnrealPropertyType.Object && package.Names[nameIndex].Name == "Material")
+            if (reference.IsNull && type == UnrealPropertyType.Object
+                && package.Names[nameIndex].Name == "Material")
             {
                 int cursor = offset;
-                try
-                {
-                    reference = new PackageIndex(ReadCompactIndex(value, ref cursor));
-                    found = true;
-                }
+                try { reference = new PackageIndex(ReadCompactIndex(value, ref cursor)); }
                 catch { /* leave it unread rather than guessing */ }
             }
 
             offset += size;
         }
 
-        return found;
+        // Sixteen properties without a terminator is not an element this reader understands.
+        return false;
     }
 
     private static ReadOnlySpan<byte> Advance(ReadOnlySpan<byte> value, ref int offset, int count)
@@ -363,8 +445,28 @@ public static class MaterialReader
             return null;
         }
 
+        string sourceFile = package.FilePath;
+
         var textures = new List<MaterialTexture>();
         var unhandled = new List<string>();
+
+        // A Texture IS a material — the BitmapMaterial branch of the class tree — and the surface it
+        // draws is itself, through MaterialFactory_BitmapMaterial ("diffuse + alpha straight from one
+        // texture"). 162 meshes in the game name a Texture in a material slot rather than a shader;
+        // reading one as if it were a Shader finds no Object properties and reports a material that
+        // binds nothing, and the mesh draws flat with its own texture sitting right there.
+        // Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §1.
+        if (package.GetClassName(export) == BitmapMaterialClass)
+        {
+            textures.Add(new MaterialTexture
+            {
+                // Named for what it is rather than for a property that does not exist: the binding
+                // is the object itself, not a slot it declares.
+                Slot = SelfSlot,
+                TextureName = export.ObjectName,
+                Reference = new PackageIndex(export.Index + 1),
+            });
+        }
 
         float? glossiness = null, specularBrightness = null, emissiveBrightness = null;
         MaterialColor? diffuseColor = null, specularColor = null, emissiveColor = null;
@@ -391,7 +493,17 @@ public static class MaterialReader
                 case "CheckpointTypePadding": continue;
             }
 
-            if (property.Type == UnrealPropertyType.Object && TextureSlots.Contains(property.Name, StringComparer.Ordinal))
+            // A texture binding is an Object property whose reference resolves to a Texture. It is
+            // NOT a property whose name is on a list: the list held thirteen names and the game ships
+            // at least nine material classes, each with its own — PlantShader binds AliveDiffuse,
+            // FluidShader WaterDiffuseMap, LightBeamShader FalloffMap and DustMap — so 522 meshes
+            // resolved a material that appeared to bind nothing and drew flat.
+            //
+            // The class check is what makes this safe rather than greedy: a FluidShader also carries
+            // Object properties naming TextureRotator and TexturePanner objects, which are UV
+            // modifiers and not textures, and those resolve to nothing here. See
+            // Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §2.
+            if (property.Type == UnrealPropertyType.Object)
             {
                 var texture = ReadTexture(package, property);
                 if (texture is not null) { textures.Add(texture); continue; }
@@ -416,6 +528,7 @@ public static class MaterialReader
             OutputBlending = outputBlending,
             UnhandledProperties = unhandled,
             Truncated = truncated,
+            SourceFile = sourceFile,
         };
     }
 
