@@ -7,17 +7,28 @@
 
 | | |
 |---|---|
-| **Phase** | **PHASE 1 — animation + mesh extraction. The blocker is FIXED.** |
+| **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 251 passed, 0 failed, **0 skipped** |
+| **Tests** | 308 passed, 0 failed, **0 skipped** |
+| **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
+| **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
+| **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
+| **Reference projects** | **`docs/research/reference-comparison.md`** — what each of the four says about the structures we read, where they disagree, and which the bytes side with. Two contests settled this session; `UModel-master` went from "nothing mined" to the source of two findings. |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
-| **Do not start** | Phase 2 (level extraction) until Phase 1 is frozen |
+| **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
+| **Phase 2** | **Unlocked once 1C is finished** — confirmed by the user. 1C's last item is the Asset Inspector. Until it lands, do not begin level extraction. |
 
-**251 tests pass against the installed game, none skipped.**
+**308 tests pass against the installed game, none skipped.**
 
 ```bash
 dotnet build && dotnet test
 ```
+
+**The suite still runs in about ten minutes** (9m42s with 308 tests, against 8m50s with 278). A cold
+run right after a large scan measured 19 minutes; that is the file cache, not the new tests. The
+diagnostic checks are cheap — scanning `0-Lighthouse` end to end is 1,866 assets in under five
+seconds — and the UI tests share one catalogue build and one package check across the class, which is
+why they add so little.
 
 Tests read the real install (auto-detected, or set `BIOSHOCK_REMASTERED_PATH`) and skip cleanly if
 it is absent. **No game data is in the repository**, and `/artifacts/` is gitignored.
@@ -54,6 +65,13 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `hkaSplineCompressedAnimation` | Complete. 130/130 hands animations decode. |
 | `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **954/972 exports decode (98.1%)** — the 18 that do not are all doors. |
 | `StaticMesh` | Geometry, UV streams, indices, and the per-material **section table**. **All 8,668 shipped exports decode.** |
+| Per-section materials | **Consumed.** Section *N* draws with `Materials[N]`, in one resolver shared by the preview, scene JSON, FBX and Blender. 1,179 multi-material meshes stop being textured from their first material only. |
+| Material property walk | **Complete. 13,532 materials, 0 partial.** A struct's declared size omits its nested properties' size bytes; corrected only where the nested list lands on a terminator. Was ~half partial in the larger packages. |
+| Attachments in the export | Both kinds now travel with their host: static props (the Bouncer's drill, cage, backpack) and **weapon rigs loaded from another package** (the hands arrive holding all six viewmodels). |
+| Socket transforms | **Decoded.** A socket carries an `FCoords` — origin plus three axes — relative to its bone. **200 of 332 sockets carry an offset and 246 a rotation**, all previously ignored. Every first-person weapon socket is identity, which is why this went unnoticed. |
+| Weapon upgrades | **All six weapons' tiers resolve** — 13 meshes. Eleven are in the weapon's own group; `SG_UpgradeB` and `XB_UpgradeB_Mesh`, the two with their own rig, are not, which is why only some weapons showed them. |
+| Materials named by import | **Resolved across packages.** 432 slots name a shader in another *file* — every NPC weapon and ammo pickup points into `ShockGame.U`, all 108 security-camera slots into `ShockAI.U`. **427 now resolve and all 427 decode their texture**; the 5 that do not name a `Texture` rather than a shader. Every one of those meshes used to draw flat grey. |
+| Blender library | One `.blend` per rig: armature, mesh, textures, materials, sockets, every animation as an Action with metadata and event markers, weapon rigs and props on their sockets, plus `validation.json`. |
 | Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
 | Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
 | Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
@@ -66,7 +84,8 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | Weapon viewmodels | All ten in `ShockGame.U` decode and draw, textured. |
 | Animation sets | A character's animations carry the game's own set — Melee, Pistol, Ceiling — and the UI filters by it. |
 | Coordinate system | One reflection, `C = diag(1,-1,1)`, applied at four decode boundaries. Left-handed game basis → right-handed internal basis. Meshes, skeletons and animations are no longer mirrored. |
-| Whole-game animation audit | `audit-animations` — 16,031 animations, **100% playable**, 0 failures, 0 unbound tracks, 47,560 events. |
+| Whole-game animation audit | `audit-animations` — 16,031 animations, 0 failures, 0 unbound tracks, 47,560 events. **"100% playable" is not the same as 100% correct:** it now also reports bone rigidity, and 252 rows fold a bone into a parent. |
+| Diagnostics | **`AssetDiagnostics` in Core.** One list of everything the tool knows is broken or degraded, each entry carrying the asset, the package, the subsystem and the **evidence**. Run by the `diagnose` command, the Problems panel and the per-asset panel, so the window and the command line cannot disagree. Whole game: 54,335 assets examined, 1,371 diagnostics. |
 | Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
 | Characters | A group is a character if its packfile declares a **ragdoll**. Each mesh in a multi-mesh group is its own character carrying the shared rig — the thirteen splicer variants, the corpses and Sander Cohen all hang off `AggressorBabyJane`. |
 
@@ -200,6 +219,59 @@ Each of these produced a plausible, wrong result before it was understood.
   `WP_PistolMesh`), so the block is found by search.
 - **A mesh's material reference is a counted array, not one reference.** The count was recorded as a
   fixed `byte 1`; meshes with two materials read `2` and lost their second.
+- **A struct property's declared size omits its nested properties' size bytes.** This was the last
+  place the tagged-property walk lost alignment, and it cost about half the shaders in the larger
+  packages. A nested property with an explicit size costs 1, 2 or 4 bytes the declared size does not
+  count, so the outer walk advanced that many bytes too few and stopped inside the next property's
+  name. Census: **14,610 `MaskMaterial` structs — 9,152 exact (none with a nested explicit size),
+  5,458 short by exactly their nested size bytes, no other cases.** Do not apply the rule blindly:
+  `Color` is a plain four-byte BGRA value, not a property list, and there are 6,329 of them. The
+  reader corrects only when the nested walk **lands exactly on a terminator** at the corrected
+  length. Result: **13,532 materials, 0 partial.**
+- **"Unsupported format" is a diagnosis, and it was the wrong one.** The 18 `SkeletalMesh` exports
+  that yield no geometry were described for several sessions as an unread vertex stride to be found.
+  They are four door rigs that **carry no vertex data at all** — payload sizes separate cleanly
+  (≥2,443 bytes decode, ≤1,291 do not), their groups hold a rig and open/close animations with no
+  drawable mesh, `AtlasLabsDoorAnim` ships `Model`/`Polys` (BSP), and other doors decode fine. The UI
+  said "a geometry layout this tool does not read yet" and was blaming the reader for the data.
+- **A validator that picks the wrong object reports a fault that is its own.** The material check
+  selected `meshes[0]` when it could not find the host by name, and in a library that is whichever
+  prop happened to be created first — so the hands' library "failed" because the Bouncer's cigarette
+  had a different material list. The host mesh is `<sourceObject>_Mesh`, and attachments are excluded
+  by their own marker. **Check what a failing check is actually looking at before believing it.**
+- **The first-person rig is not a representative sample.** Two faults survived because the pistol
+  looked right: sockets were assumed to have no offset (**every** first-person weapon socket has a
+  zero origin, and 60% of the game's do not), and weapon upgrades were assumed to be in the weapon's
+  group (11 of 13 are; the 2 that are not are the 2 with their own rig). The hands are the project's
+  target case and its most-checked asset, which makes them the easiest thing to over-generalise
+  from. **Check a claim on something that is not a weapon before writing it down.**
+- **A `TArray` count in this era is an `FCompactIndex`, not an `int32`.** Reading `AttachCoords`'
+  count as an `int32` put every subsequent float three bytes out and produced NaNs and 1e38s — which
+  looked like "this is not a transform array" and cost two wrong readings before UModel settled it.
+  When floats decode as garbage, suspect the count before the record.
+- **An empty material slot must keep its position.** A `Materials` array's own count is what the
+  section table indexes, and 40 of the game's 10,198 slots resolve to nothing — some a *declared*
+  null (an `Object` property with an implicit size and reference 0), some a reference truncated by
+  the array's one-byte-short declared size. Dropping them shortened the list and shifted every later
+  section onto the wrong material. The list is now built exactly `count` long with unread entries
+  left null, and that alone took sections-equal-slots from 8,632 to **8,668 of 8,668**. Read the
+  slot-ordered `ReadMeshMaterialSlots`, never the compacted `ReadMeshMaterialReferences`, when
+  indexing by section.
+- **A wrong section/material pairing is invisible to every numeric check.** Every triangle still has
+  a material, every count still agrees, and the mesh is complete — it is just wearing the wrong
+  paint. `bat_vehicle` with its two runs swapped is a glass hull with a metal window, and only a
+  render shows it. This is the same lesson as the mirrored-asset years: **numbers cannot see it.**
+- **The scene JSON was 60.5% indentation.** It was pretty-printed as a "research artefact", but its
+  content is flat arrays of animation floats: the hands' scene was 67.5 MB indented and 26.6 MB
+  compact, and one character with 457 animations wrote 517 MB. Nothing is readable at that size, so
+  the formatting bought nothing. Now compact, with an opt-in `readable` flag.
+- **Bulk extraction is a scale problem, not a broken one.** "Extract all shown" from the default view
+  is 2,000 assets — measured at ~350 GB and many hours before the JSON fix, ~140 GB after. The
+  browser lists characters first, and they are the most expensive assets in the game. While it runs
+  `IsBusy` is true and both Extract buttons are bound to `IsEnabled="{Binding !IsBusy}"`, so they
+  grey out and the whole thing reads as a dead button. `ExtractionUiTests` now drives the real
+  command on the real view model, because the service tests could only ever prove the pipeline
+  works, never that the button reaches it.
 - **The hands use a `FacingShader`, not a `Shader`** — no `Diffuse` at all; the base colour is in
   `FacingDiffuse` and `EdgeDiffuse`.
 - **Every map embeds its own copy of what it uses.** The catalogue is five times larger than the set
@@ -238,6 +310,50 @@ Each of these produced a plausible, wrong result before it was understood.
   `WP_Pistol` is the first-person viewmodel with its own rig. The viewmodel sweep only considers
   groups that carry a skeleton, so before this every splicer was offered the player's pistol and a
   first-person grenade launcher. See `docs/research/context.md`, attachment kind 4.
+- **A check dismissed as a false positive needs the same evidence as a check acted on.**
+  `docs/QUALITY.md` recorded `anim-character-stretched` on `PI_Fire`, `PI_Fire_B` and `PI_fire_C` as
+  firing on correct data — "a constant amount on every frame, which is authored translation", and
+  "the animation was rendered and the splicer is intact". Both halves were wrong: the offset is not
+  constant (25 bones on frame 0, 1–4 afterwards) and the splicer is not intact — a user later
+  photographed it with no arms. A dismissal is a claim, and this one went unchallenged for two
+  sessions because it read as diligence. The entry is struck through where it was written.
+- **Grey paint and a missing material are the same pixels.** A run whose material resolved to
+  nothing draws flat grey, and so does a great deal of BioShock — bare concrete, painted metal, the
+  inside of a crate. No count distinguishes them and no render does either, which is how the grey
+  security cameras survived: the tool had the evidence and the viewport could not express it. The
+  "Highlight problems" overlay tints the unresolved runs magenta, and the valuable half is the
+  *negative*: `Bomb`'s grey nose disc stays grey, which proves it is art rather than a fault.
+- **A diagnostic panel that is empty must not look like a clean bill of health.** Both the report
+  summary and the panel state coverage — how many meshes, materials and textures were examined —
+  before saying what was found, because "no problems" and "nothing ran" are opposite conclusions that
+  otherwise render identically.
+- **An allowlist of names is not a decode, and it fails silently.** `MaterialReader` decided what
+  counted as a texture binding from thirteen slot names taken off `Shader` and `FacingShader`. The
+  game ships at least nine material classes and each names its slots differently — `PlantShader` uses
+  `AliveDiffuse`, `FluidShader` `WaterDiffuseMap`, `LightBeamShader` `FalloffMap` — so 755 meshes
+  reported a material that bound *nothing* and drew flat grey, with the texture named in the property
+  list the whole time. Nothing failed; the material decoded, every count agreed, and the list was
+  simply short. **The rule is now the relationship, not the name:** a binding is an `Object` property
+  whose reference resolves to a `Texture`. The class check is what keeps that honest — a `FluidShader`
+  also carries seven object properties naming `TextureRotator`/`TexturePanner` UV modifiers, and
+  "any object property" would bind all seven as textures.
+- **Corroboration is not agreement — check the layer you actually depend on.** Two reference
+  projects both describe texture `Format` ordinal 12, agree on its name (3DC) and agree on its block
+  size (16 bytes per 4x4). They disagree about what is *inside* the block, which is the only part
+  that matters: Nyko's note says two BC4 blocks (BC5), UModel says an ordinary DXT5 block with the
+  normal in alpha and green (DXT5N). Implementing the first produces a magenta image whose green
+  channel averages 57 where a normal map's must average 128. **Agreement at one layer is not
+  evidence at the layer below it**, and the only thing that settled it was decoding both ways and
+  looking.
+- **A `Texture` named in a material slot is a material, not a mistake.** It is the `BitmapMaterial`
+  branch of the class tree and it draws as itself. 162 meshes do this.
+- **A catalogue row's `Package` is not the only package the asset is in.** Every map embeds its own
+  copy of what it uses, so a collapsed row carries them all in `Packages` and reports whichever one
+  it was read from — often a different map from the one you are looking at. Matching a diagnostic to
+  a browser row on name *and* `Package` therefore failed on real data (`Cheese_Mould_Normal`, raised
+  in `0-Lighthouse`, listed under another map) and the click silently did nothing. Use the
+  catalogue's own `InPackage` rule. **Found by rendering the panel, not by a test** — the numbers
+  were all green.
 - **Render everything.** Numeric validation has passed while the result was visibly wrong, more than
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
@@ -266,7 +382,46 @@ animations, pistol 8 bones / 2 animations), Blender 5.1.2:
 | `.blend` | 0.000007 (`kBone_R_Thumb3`) | 0.000001 m (`EmptyFidgetPistol` frame 55) |
 | FBX | — | 0.001376 (`EquipPistol` frame 0, `Bip01_R_UpperArm`) |
 
-Both `VALIDATION PASSED`; 0 mirrored bones skipped.
+Both `VALIDATION PASSED`; 0 mirrored bones skipped. **Re-run after the per-section material work and
+both figures are unchanged to the digit**, which is what says that work did not touch the rig.
+
+`validate_scene.py` also checks materials: slot count, slot order, and the slot every face is in
+against the scene's own per-face assignment. A scene with no skeleton — a `StaticMesh` prop — skips
+the rest and pose checks rather than failing on the armature it does not have.
+
+The **first-person library**, built and validated in Blender 5.1.2 — this is the Phase 1B target:
+
+```bash
+blender --background <library>.blend --python tools/blender/validate_scene.py -- <scene>.json validation.json
+```
+
+| | |
+|---|---|
+| Armatures | 7 — the hands plus six weapon rigs, each on `R_grip` |
+| Actions | **148** (130 hands across 9 animation sets, 18 weapon) |
+| Event markers | **144**, across 74 actions, as Blender pose markers |
+| Actions missing metadata | **0** — every one carries its original name, fps, duration, set, skeleton and package |
+| Sockets | 19, as `SOCKET_*` empties on their bones |
+| Static props | 2 (`CS_butt`, `CS_photo`) |
+| Materials / images | 9 / 26 |
+| Worst rest error | 0.000007 (`kBone_R_Thumb3`) |
+| Worst posed error | **0.000002 m** (`ZoomedInFidget_Crossbow` frame 29) — over **all 130 animations**, not one set |
+
+`VALIDATION PASSED`, and `validation.json` is written beside the library so a bulk export can be
+checked without opening each file. Rendered and looked at: both hands sit on the pistol through
+`ReloadPistolOne`, correctly textured.
+
+Multi-material, run in Blender 5.1.2:
+
+| | slots | faces | result |
+|---|---|---|---|
+| `bat_vehicle` `.blend` | 2 (`Bathysphere_mat`, `BathysphereLight_mat`) | 8,288 | `VALIDATION PASSED`, 2 slots used |
+| `CityGate` `.blend` | 3 (`Granite_L`, `Gate_Light`, `C_Gate`) | 2,400 | `VALIDATION PASSED`, 3 slots used |
+| `CityGate.fbx` → Blender's FBX importer | 3, in scene order | 2,400 | **0 faces in the wrong slot** |
+
+**The material check was proved able to fail**, not merely observed to pass: forcing every face into
+slot 0 — exactly what the tool did before this work — makes it report `1,840 of 2,400 faces are in
+the wrong slot`, first offender face 560, which is precisely where `Granite_L`'s 560-face run ends.
 
 Poses are sampled at the keys' own frame positions. Blender lays FBX keys out at its rounded scene
 rate, so an animation authored at 27.02 fps has keys on fractional frames; sampling at whole numbers
@@ -278,6 +433,8 @@ Pictures of the window and the viewport, rendered offscreen:
 BIOSHOCK_UI_SNAPSHOT=/tmp/ui.png dotnet test --filter FullyQualifiedName~WindowTests
 BIOSHOCK_RENDER_SNAPSHOT=/tmp/r.png dotnet test --filter FullyQualifiedName~RenderingTests
 BIOSHOCK_CONTEXT_SNAPSHOT=/tmp/c.png dotnet test --filter FullyQualifiedName~ContextTests
+BIOSHOCK_PROBLEMS_SNAPSHOT=/tmp/p.png dotnet test --filter FullyQualifiedName~DiagnosticsUiTests
+BIOSHOCK_OVERLAY_SNAPSHOT=/tmp/o.png dotnet test --filter FullyQualifiedName~Overlay_Snapshot
 BIOSHOCK_STATIC_SNAPSHOT=/tmp/s.png dotnet test --filter FullyQualifiedName~Static_Snapshot
 BIOSHOCK_BOUNCER_SNAPSHOT=/tmp/b.png dotnet test --filter FullyQualifiedName~Bouncer_Snapshot
 ```
@@ -312,7 +469,99 @@ Both hands now sit on the weapon; rendered and checked. The audit is unchanged o
 figure and its single-frame jump counts all went down. §4 of the research note has the whole-game
 blast radius.
 
-**One data anomaly is left open, deliberately unfixed:** `AggressorBabyJane`'s `smg/smg_fire` —
+### 6.0c The 54-track fire animations — a FAMILY, not one anomaly. **Reopened with measurements.**
+
+**This supersedes the "one animation of 16,031" framing below.** A user reported `PI_Fire_B` drawing a
+splicer with no arms; measuring it, and then sweeping the game with the largest copy of each rig,
+turns the single documented `smg_fire` anomaly into a small, coherent family:
+
+| animation | tracks | collapsed bones, per frame |
+|---|---|---|
+| `PI_Fire` | 54 | **f0=25**, then 5, 3, 2, 3, 4, 12, 12 |
+| `PI_Fire_B` | 54 | **f0=25**, then 4, 2, 1, 2, 3, 14, 14 |
+| `PI_fire_C` | 54 | **f0=25**, drifting up to 23 by frame 20 |
+| `smg_fire` | 54 | **f0=13**, then a steady 4 |
+| `PI_AttackMelee_A` — control | **73** | **0 on every one of 47 frames** |
+
+"Collapsed" means a bone whose reference offset from its parent is ≥1 cm decodes to under 5% of that
+length — the arm folded into the torso, which is what the user photographed.
+
+What the numbers say, and what they do not:
+
+- **All four are on `AggressorBabyJane` and all four have 54 tracks against her 73 bones.** Every
+  healthy animation measured has one track per bone. The 54 is the strongest signal available.
+- **Frame 0 is by far the worst** — 25 of 54 driven bones on all three `PI_` animations, and the
+  count recovers immediately afterwards. Whatever is wrong is worst at the start of the clip, which
+  argues against a purely per-track cause (a track missing a component would be equally wrong on
+  every frame) and points at block or spline evaluation at *t = 0*.
+- **The whole-game audit reports all of these as playable**, because it checks for NaN, zero-length
+  and unbound tracks and *not* for a bone leaving its parent. That is a real gap in the audit: a
+  collapse is exactly the kind of plausible-but-wrong result this project keeps being caught by.
+  **Adding a bone-rigidity check to `AnimationAudit` is the first thing to do here.**
+- Only **5 of 1,500** distinct animations collapse at all; the fifth is `CrackGlass_PreCrack`
+  (12 tracks, 2 frames), which is a different shape and may be a different cause.
+
+**Do not fix this by rescuing the four animations.** The previous wrong reading of the spline
+decompressor survived three sessions because it was justified by a measurement that could not fail.
+
+#### Four candidate causes, all now ELIMINATED with evidence
+
+The Havok SDK's `hkaSplineCompressedAnimation.inl` was read for this. It did not settle it, and what
+it ruled out is worth more than another guess:
+
+1. **The static/spline/identity mask is misread — NO.** Havok's `recompose` is
+   `stat = mask & 0x0F` (low nibble static), `iden = ~mask & (~mask >> 4) & 0x0F` (identity only when
+   *neither* static nor spline). `SplineDecompressor.ReadVectorChannel` implements exactly that,
+   including reading a static float where a component is static and leaving spline components to the
+   curve. The one nearby trap — `unpackMaskAndQuantizationType`, which steals bits 1–2 of the packed
+   byte for a quantization type — applies to **float tracks only** and is never called for transform
+   tracks, which use the 4-byte `TransformMask`. Our reader is right here.
+2. **The binding maps tracks to the wrong bones — NO.** `PI_Fire_B`'s binding holds 54 entries
+   mapping to bones **3..56, all distinct** — it simply does not drive `Bip01`, `Bip01_Pelvis`,
+   `Bip01_Spine` or bones 57+. The healthy 73-track animations map identity. Track 0 correctly
+   addresses `Bip01_Spine1`. The mapping is read and it is sane.
+3. **The clips are additive over an aim pose — NO**, despite looking exactly like it. The values have
+   the right *shape* for a recoil delta (start ~0, rise, return: `Bip01_L_Forearm` runs
+   0 → 4.72 → 0.90 on a bone whose bind is 25.05), and the Pistol set even contains `PI_aimposes`.
+   But **`blendHint` is 0 on all 15,998 animations** — re-censused properly, the original claim
+   holds — and applying `bind + delta` **does not restore rigidity**: worst drift stays 100% on
+   `Bip01_Neck`. Additive is ruled out by measurement, not just by the flag.
+
+4. **The clips are partition-limited partial-body animations — NO.** This was the newest candidate
+   and the only one the SDK suggested rather than the data: `hkaAnimationBinding` carries
+   `m_partitionIndices`, "the partitions used to sample the animation", and `hkaSkeleton` carries
+   `m_partitions`, a *named contiguous bone range*. The four clips drive bones 3..56 of 73 —
+   contiguous, ascending, a subset — which is exactly the shape of a partial-body animation, and both
+   fields had been documented in our own header comments and never read.
+
+   **Measured, and it is dead.** On `AggressorBabyJane`: **457 bindings and not one carries a
+   partition index**; the six skeletons in the wrapper — three `Bip01` at 73 bones, three ragdolls at
+   17 — **declare no partitions at all**. There is nothing for a partial animation to be sampled
+   against. Only 9 of the 457 bindings drive a subset of the skeleton at all, which does confirm how
+   unusual the 54-track clips are, and says nothing about why they collapse.
+   `SkeletonPartitionTests` pins both numbers so the elimination stays true.
+
+#### What is actually known
+
+The decoded values are **smooth, well-formed curves of plausible magnitude** — they are not corrupt
+bytes. They are the wrong *quantity* for the bone they land on. Something about what these tracks
+mean, not how they are unpacked, is still missing.
+
+#### Where to look next
+
+- **`sampleTranslation` is not in this SDK build** and remains the single most likely place the
+  answer lives.
+- The block header: `getBlockAndTime` divides by `m_maxFramesPerBlock - 1`. Frame 0 is the worst
+  frame in all four clips (25 of 54 bones, against 1–4 on later frames), which still points at
+  evaluation at *t = 0* rather than at per-track semantics. **Check what our reader does at u = 0
+  against `evaluateSimple1/2/3`** — that is the one part of the .inl not yet compared line by line.
+- `docs/research/QUALITY.md` note: the audit now *detects* this, so any change can be measured
+  against `AnimationAudit.WorstCollapse` rather than by eye.
+
+---
+
+**The original note, kept because its reasoning still applies to inventing a fix:**
+`AggressorBabyJane`'s `smg/smg_fire` —
 54 tracks against her usual 73, 6 frames — still collapses `Bip01_R_Forearm` and
 `Bip01_R_ForeTwist`, whose tracks store Y and Z and omit X on a bone whose bind is `(25.05, 0, 0)`.
 Havok would collapse them too. It is not additive: **every animation in the game carries
@@ -327,7 +576,12 @@ reaches **4.36 cm** from the grip, and `FirstPersonHandTests.TheLeftHandReachesT
 there. The elimination list this section used to carry is superseded; the `IKbindLhandDummy`
 reachability correction from the previous session stands and is recorded in `docs/QUALITY.md`.
 
-### 6.1 Where a `StaticMesh` names its material — highest value
+### 6.1 Where a `StaticMesh` names its material — CLOSED
+
+**This section is superseded and kept only for the record.** A static mesh names its materials in a
+real `Materials` tagged property, decoded in `docs/research/materials.md`; the count below belongs to
+the state before that. **10,158 of 10,198 material slots now resolve**, and the sections choose
+between them. What follows described the problem, not the current code.
 
 Of 630 meshes that draw in `1-Medical`, only **22 resolve a diffuse texture**. The Bouncer's body is
 textured; its drill, cage and backpack draw flat grey, and so does most of the world.
@@ -349,16 +603,38 @@ lost. It may be the same cause as §6.5.
 
 This also gates transparency: a mesh with no material has no texture, so it has no alpha either.
 
-### 6.2 The skeletal geometry variant
+### 6.2 The skeletal geometry variant — CLOSED, and it was not a variant
 
-~60% of `SkeletalMesh` exports yield no geometry. `TommyGunMESH`, `WP_GrenadeLauncherMesh` and
-`PlasmidEquipMESH` are the visible ones — they attach, animate and resolve materials, and draw
-nothing.
+**The premise of this section was wrong and is corrected here.** It claimed ~60% of `SkeletalMesh`
+exports yield no geometry and that a different vertex stride was waiting to be found. Both are
+false as of the measurements below.
 
-`ReadGeometry` locates the vertex chain **by search**, requiring tangent, binormal and normal to all
-be unit length at +12/+24/+36 with a 64- or 57-byte stride. A mesh that yields nothing means no
-candidate satisfied every constraint at once, which points at **a different vertex stride** rather
-than a different offset — an extra UV set or a compressed format.
+- **954 of 972 exports decode (98.1%).** The 60% figure predates the empty-skinned-block fix and
+  should have been struck then; `TommyGunMESH`, `WP_GrenadeLauncherMesh` and `PlasmidEquipMESH` all
+  decode and draw.
+- **The remaining 18 carry no vertex data at all.** They are four door rigs —
+  `LowRentDoor_Mesh`, `Sliding512SingleDoorMesh`, `GathererDoorAnimMesh`, `Atlas_labs_doorAnim` —
+  with 18 copies between them.
+
+`CORROBORATED`, on three independent lines:
+
+1. **The payloads separate cleanly with no overlap.** Every mesh that decodes is at least
+   **2,443 bytes** (`ArcadiaGateMESH`); every one of these is at most **1,291**.
+2. **Their groups have no drawable mesh of their own.** Each holds an `AnimationPackageWrapper` with
+   open/close/stuck animations, socket names for door leaves (`Door`, `BigDoor`, `doorLargeRight`)
+   and nothing else — and `AtlasLabsDoorAnim` ships `Model` and `Polys`, which is **BSP**. The door
+   leaf is level geometry, not a mesh asset.
+3. **Other doors decode.** `PeepDoorMESH` and `Gate01Anim` are doors and both yield geometry, so
+   this is not a format the door pipeline uses.
+
+So there is no unread stride to hunt for, and the UI no longer says there is: it reports *"No vertex
+data was found in this mesh"* rather than diagnosing an unsupported layout, because the evidence is
+against that diagnosis. `SkeletalMeshGeometryTests.TheMeshesWithoutGeometryAreTooSmallToHoldAny`
+pins the four names, the count and the separation, and fails if the two ever overlap.
+
+**What would settle it outright:** byte-exact accounting of a `SkeletalMesh` payload, which this
+project does not have — the vertex chain is still located by search. That is the real remaining gap
+in this container, and it is worth more than chasing a stride that is not there.
 
 Note that the earlier claim that these failed geometry *and* materials "for one shared cause" was
 **wrong**. The materials were the counted array; the geometry is unrelated.
@@ -383,24 +659,84 @@ one import:
 Until then the UI deliberately offers no "UE5" export, because that would claim a verification that
 does not exist.
 
-### 6.5 `MaskMaterial` nested struct sizes
+### 6.5 `MaskMaterial` nested struct sizes — CLOSED
 
-Roughly half the shaders in the larger packages stop early. The walk always loses alignment
-immediately after a `MaskMaterial` struct **whose nested list contains a sized reference**: the
-declared size is one byte short of its content. Byte evidence for both the working and the failing
-case is in `docs/research/materials.md`. The reader stops cleanly and flags the material `Truncated`
-rather than inventing properties.
+**A struct property's declared size omits the size-encoding bytes of its own nested properties.** A
+nested property with an explicit size costs 1, 2 or 4 bytes the declared size does not count, so the
+outer walk advanced that many bytes too few and stopped inside the next property's name.
 
-### 6.6 Attachment placement under animation
+Census of every struct-valued property on every material in the game: of **14,610 `MaskMaterial`
+structs, 9,152 declare their size exactly — all of them having no nested property with an explicit
+size — and the other 5,458 are short by exactly their nested size bytes. No other cases.**
 
-Static props resolve and draw, but on the socket bone's *rest* transform, so a prop stays where the
-bind pose put it while the host moves. The first-person set already solves this for a skeletal
-attachment — see `ContextTests.Render_ContextSnapshot`, which poses host and weapon together at
-frame 27 — so the work is feeding the host's posed bone matrix to a static prop's `PreviewInstance`
-instead of `RestGlobal`, and carrying the same into the FBX as a parent constraint.
+`UnrealPropertyReader` corrects a struct's length only when walking its nested list **lands exactly
+on a terminator** at the corrected length, so a struct that is not a property list — `Color` is a
+plain four-byte BGRA value, and the game ships 6,329 — is returned untouched.
+
+**Every material in the game now decodes to its terminator: 13,532 materials, 0 partial**, where
+`1-Medical` alone used to have 432 of 819 partial. 13,304 bind at least one texture.
+`StructSizeTests` holds it, including a check that no reported property name or texture slot is
+absent from the package's own name table — a wrong correction resumes the walk mid-property and
+produces plausible rubbish.
+
+### 6.6 Attachment placement under animation — half done, and the other half was stale
+
+**The viewport already does this.** `MainViewModel.Preview.cs` builds a static prop's
+`PreviewInstance` from `pose[socketBone]`, falling back to `RestGlobal` only when nothing is
+playing, so the drill travels with the Bouncer. The claim that it used `RestGlobal` was out of date;
+only the *tests* did, which is why nothing caught the discrepancy.
+
+`AttachmentPlacementTests` now pins it two ways: the socket bone's posed position is more than
+0.5 units from its rest position across a real animation — so the two placements are genuinely
+distinguishable — and rendering the prop on each produces visibly different images. A regression to
+`RestGlobal` makes the second test's two renders identical.
+
+**Still to do: the FBX side.** `SceneAttachment` carries a *skeletal* attachment — a whole scene
+parented to a socket — and a static prop is not exported as an attachment at all. Feeding it out as
+a mesh parented to the socket bone, so the drill arrives on the Bouncer's back in Blender and
+Unreal rather than at the origin, is the remaining work.
 
 Placement itself is verified: on the hands, `CS_butt` lands at the left fingertips and `CS_photo` at
 the right hand, with no offset beyond the socket bone's global transform.
+
+### 6.6b Socket transforms — CLOSED
+
+**A socket carries its own transform relative to its bone, and ignoring it is why some props lined
+up and others did not.**
+
+`CONFIRMED_EXTERNAL` then `CONFIRMED_BYTES`. UModel's `USkeletalMesh` — which carries its own
+`#if BIOSHOCK` branch — serialises sockets as *three* parallel arrays:
+
+```cpp
+Ar << AttachAliases << AttachBoneNames << AttachCoords;
+struct FCoords { FVector Origin, XAxis, YAxis, ZAxis; };   // 48 bytes
+```
+
+The count is an **`FCompactIndex`**, not an `int32` — reading it as an `int32` is what made both
+earlier attempts land three bytes out and produce NaNs. With the right stride, **33 of 33 sockets
+across three rigs decode to an exactly orthonormal frame**, which is the check that makes this a
+decode rather than a fit: a wrong offset cannot produce a proper rotation 33 times.
+
+Game-wide: **200 of 332 sockets carry a real offset and 246 carry a rotation.** The worst is 11 m.
+
+Why it survived so long: **every first-person weapon socket has a zero origin.** The pistol, wrench,
+Tommy gun and crossbow all placed correctly on the bone alone, and the note in this file generalised
+from them to "no offset beyond the socket bone's global transform". That was true of the sockets
+checked and false of 60% of the game's.
+
+| socket | offset from its bone |
+|---|---|
+| `NEWPlayerHands/Pistol`, `Wrench`, `TommyGun`, `Crossbow`, `Launcher`, `Chem` | **0** |
+| `NEWPlayerHands/WrenchRibbonSocket` | 36.4 cm |
+| `NEWPlayerHands/FireballSocket` | 65.8 cm |
+| `NEWPlayerHands/GathererAttach` | 84.8 cm |
+| `ProtectorRosie/SteamLeakB` | 70.3 cm |
+| `SecurityBot/Weapon` | 37.8 cm |
+
+Converted once at the decode boundary by the same `C·M·C⁻¹` conjugation as every other transform.
+Applied in the preview, the socket markers and attachment placement. `SocketTransformTests` holds
+all of it, including that the weapon sockets stay identity — so a regression to bone-only placement
+fails rather than silently looking fine on the pistol again.
 
 ### 6.7 Smaller things
 
@@ -438,7 +774,7 @@ These are the project's, and they are why its claims have held up.
 |---|---|---|
 | Meshes decoded | 9,672 | **9,654 (99.8%)** |
 | Animations decoded | 16,025 | **16,025 (100%)** |
-| Meshes with a diffuse texture | 9,672 | **7,146 (73.9%)** |
+| Meshes with a diffuse texture | 9,684 | **9,337 (96.4%)** — remeasured by the diagnostic sweep after the material-class work |
 
 Geometry, animation and materials are all in reasonable shape. That file also records which of the
 audit's checks fired on correct data, so the next person does not chase them.
@@ -501,6 +837,52 @@ circular. *Refinement:* a channel that stores nothing at all still takes the ref
 Havok never reads it. *Consequence:* the first-person arm roots come out symmetric at 19.14 cm
 instead of 93 cm; 3.7% of the game's tracks move; the audit's headline figures do not.
 
+**One resolver decides which triangles use which material.** `MeshSurfaceResolver` pairs section *N*
+with `Materials[N]` and is called by the preview, the scene JSON, the FBX exporter and the Blender
+importer. *Evidence:* the pairing rule is Nyko's, verified field by field on `ConeDrill` and
+`Turret_Cover`, and corroborated by two independent readers — the section table read backwards from
+the geometry block, the `Materials` property read forwards from offset 8 — agreeing on count for
+**all 8,668 shipped static meshes with no exceptions**. *Alternative:* resolving materials next to
+each consumer. *Rejected because* the viewport and the export would then be free to disagree about
+what a mesh looks like, and the project has already paid for that once. *Consequence:* a mesh has
+*surfaces*, not *a material*; `Primary()` exists for callers that genuinely need one name and is
+documented as not being what the mesh is drawn with.
+
+**A struct's length is corrected only when its own terminator proves it.** *Evidence:* the shortfall
+equals the nested properties' size-encoding bytes on all 14,610 `MaskMaterial` structs in the game.
+*Alternative:* apply that arithmetic to every struct. *Rejected because* not every struct is a
+property list — `Color` is four raw bytes — and a rule applied where it does not hold would resume
+the outer walk mid-property and invent properties, which is exactly the failure this replaced.
+*Consequence:* the correction is self-validating; a struct that is not a property list cannot
+satisfy it and is left alone.
+
+**A prop is exported as an attachment, never merged into its host.** *Evidence:* the game positions
+it on a socket; it is not skinned to the rig. *Alternative:* merge the drill into the Bouncer's mesh
+so one object comes out. *Rejected because* it states a binding the data does not have and would let
+the armature modifier deform a rigid prop. *Consequence:* a prop is a bone-parented mesh with no
+armature modifier, and a weapon keeps its own rig — a first-person animation is a two-rig
+performance.
+
+**An unresolved material slot draws untextured rather than inheriting.** *Evidence:* 40 slots across
+the game resolve to nothing, and an import naming a material in another package cannot be followed
+within one package. *Alternative:* fall back to the mesh's first resolved material. *Rejected
+because* it would present a guess as a decode, and the grey run is the honest signal that the slot
+is unread. *Consequence:* the preview says how many slots resolved nothing instead of the old
+"only the first material is applied" warning, which is no longer true.
+
+**A diagnostic carries its evidence, and the checks live in Core.** *Evidence:* every fault found in
+the two sessions before Phase 1C was found by a human looking at the viewport — grey security
+cameras, an armless splicer, a misaligned prop — and the tool held the measurement in all three
+cases. *Alternative:* let the Problems panel work out what is wrong for itself, next to the window.
+*Rejected because* the panel and the `diagnose` command would then be free to disagree about the
+state of an asset, and neither could be tested without the other's host. *Consequence:*
+`AssetDiagnostics` is one service the CLI, the panel and the per-asset view all call; a
+`Diagnostic` carries `Summary` (the user's terms) and `Evidence` (the measurement) as separate
+fields, and `ToReport()` is the copyable payload. A row with an empty evidence field fails
+`DiagnosticsTests`. *Also rejected:* scoping a per-asset check by scanning its whole package and
+filtering the result — tidier, and it decodes every texture in the package on every click.
+`AssetDiagnostics.ScanExport` is the shared per-export path, so the two scopes still cannot disagree.
+
 **A hand's side is measured on the head bone's local +Z.** *Evidence:* on every shipped character
 with a `Bip01_Head` and feet it is world left at dot 1.00 and equals that character's own clavicle
 axis at dot 1.00, and it is a bone the arms do not drive. *Alternatives:* the body frame
@@ -558,6 +940,10 @@ bones that were misplaced and which on the first-person bind pose is the rig's *
 
 ## 9. Reading order for a new session
 
+0. **`CLAUDE.md`, then `docs/ENGINEERING_RULES.md`** — how to work on this project: scope discipline,
+   evidence standards, confidence labels, and the standing instructions the user has given (§60).
+   The rules in §7 below are the project's; those are the engineering ones, and neither supersedes
+   the other.
 1. This file.
 2. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy. Nothing else makes sense
    without it, and every transform in the codebase depends on it.
@@ -574,20 +960,138 @@ bones that were misplaced and which on the first-person bind pose is the rig's *
 **Phase 1 has no correctness blocker.** The first-person hand blocker is fixed, the audit is clean,
 both Blender validators pass, and the suite is green with nothing skipped. What is left is quality.
 
+**Phase 1C's diagnostics now say what that quality is, in numbers** — 1,371 diagnostics over 54,335
+assets, and two of the counts agree exactly with results other tests already pin, which is what says
+the sweep is measuring the same game. Start from the three leads under item 5 rather than from a
+fresh survey: the survey has been run.
+
 1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **251 passed, 0 failed, 0 skipped**.
-3. **Start here: consume the section table.** It is now *read* — `MeshGeometry.Sections`, one run of
-   the index buffer per material, verified game-wide by `StaticMeshSectionTests`. It is not yet
-   *used*: pair section *N* with `Materials[N]` in the material resolver, the preview and the
-   exporters, and the 28 multi-material meshes stop being textured from their first material only.
-   No research left — the layout is in `docs/research/staticmesh.md`.
-4. Then **§6.1**, the static-mesh material reference: only 22 of 630 drawable meshes in `1-Medical`
-   resolve a diffuse texture. Concrete lead from Nyko's SDK: the `Materials` array is an ordinary
-   tagged property, and struct elements need **recursive tagged-property serialisation with an
-   unknown-property skip path**. That is probably also **§6.5**, the `MaskMaterial` size problem —
-   same root cause, likely one fix.
-5. Then §6.2 (skeletal geometry variant — read `UModel-master/Unreal/` first), §6.4 (verify the
-   Unreal import, never once run), §6.6 (attachment placement under animation).
+2. `dotnet build && dotnet test` — expect **308 passed, 0 failed, 0 skipped**.
+3. **The section table is now consumed** — that was the previous session's item 3 and it is done.
+   `MeshSurfaceResolver` pairs section *N* with `Materials[N]` and is shared by the preview, scene
+   JSON, FBX and Blender. Sections and material slots agree on **8,668 of 8,668** shipped static
+   meshes. Verified by render as well as by count. Do not reopen it without evidence.
+4. **The Blender and FBX multi-material paths are verified.** `validate_scene.py` now checks slot
+   count, slot order and the per-face assignment, and skips the rest/pose checks for a scene with no
+   skeleton instead of failing on the missing armature. Both paths were run for real in Blender
+   5.1.2 — see the table in §5. Do not reopen without evidence.
+5. **§6.5 is closed** — every material in the game decodes, 0 partial. **§6.2 is closed** and its
+   premise was wrong: there is no unread vertex stride, the 18 are door rigs with no geometry.
+   **§6.6 is done** on both sides — the viewport already posed props, and static props and weapon
+   rigs now both reach the export.
+
+   **Phase 1B is functionally complete.** The library works end to end (§5), builds for the hardest
+   character in the game (`AggressorBabyJane`, 488 actions, 3m28s, 189 MB), organises itself into
+   outliner collections, tags every Action with its weapon, and ships a browser add-on
+   (`tools/blender/bioshock_animation_browser.py`).
+
+   **Phase 1C's first three items are done.** The diagnostics service, the panel and the health
+   report all exist and are the same code:
+
+   - `src/BioShockStudio.Core/Diagnostics/AssetDiagnostics.cs` — the checks, with coverage counts so
+     an empty report cannot be mistaken for a clean game. `DiagnosticsService` scopes them to one
+     asset, one package or the install.
+   - The **Problems panel** in the application: check a package or everything, worst first,
+     click-to-navigate, Copy diagnostic / Copy all. The selected asset's own problems appear in the
+     details panel beside it.
+   - The **health report** is `diagnose`, which is the same service summarised, with `--code` to list
+     every instance of one finding and `--out` for a CSV.
+
+   Tests: `DiagnosticsTests` (checks fire, and are silent on assets other tests prove correct),
+   `DiagnosticsUiTests` (the buttons reach the checks, and the window renders with the panel).
+
+   **The sweep's largest finding has been acted on.** It said 755 meshes resolved a material that
+   binds no base colour, mostly material classes the reader did not know. **Reading one file settled
+   it** — `Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md`,
+   which states that every material class is a plain tagged-property object and that texture
+   references are ordinary objrefs. The reader was deciding what counted as a binding from a list of
+   thirteen slot names. Now: **an `Object` property whose reference resolves to a `Texture`**, plus
+   a `Texture` named in a material slot being a material in its own right. **755 → 240**, and
+   96.4% of the game's meshes carry a base colour. Rendered and checked. `docs/research/materials.md`,
+   open question 11b.
+
+   **Texture `Format` ordinal 12 is also done** — it was second on this list and it is **DXT5N**,
+   not the 3DC/BC5 that Nyko's texture note calls it. UModel's BioShock branch remaps it and says so
+   in a comment; the pixels agree, decisively (X and Y both centre on 128 and **0 of 4,096 texels**
+   violate `x² + y² ≤ 1`, where the BC5 reading puts green at 57 and renders magenta). **274 exports,
+   all normal maps, now decode**, and `texture-undecodable` fell 320 → 46.
+
+   **What is left, in priority order** — `docs/QUALITY.md` §"Whole-game diagnostic sweep":
+
+   1. **The `SkeletalMesh` section table** — item 6 below. 153 meshes, and it needs a forward walk of
+      the payload. Biggest piece of work left in Phase 1.
+   2. **`MaterialSwitch` (38) and `MaterialSequence` (4) are Modifiers**, and nothing follows them.
+      The note says a reader should "follow it to the wrapped child material(s)"; the child property
+      names have not been read off a shipped object yet. Small, and the clearest quick win.
+   3. **`FluidShader` (83)** — 63 bind textures but no `WaterDiffuseMap`. One look at what such a
+      material declares would say whether that is a gap or the truth.
+   4. **46 texture exports carry no `Format` property**, and all 42 distinct names are editor sprites
+      or engine placeholders. One hand-decode says whether they hold pixels at all.
+   5. **§6.0c: the partition lead was measured and is dead.** `hkaAnimationBinding.m_partitionIndices`
+      and `hkaSkeleton.m_partitions` are now read. On `AggressorBabyJane`, **457 bindings carry zero
+      partition indices and all six skeletons declare zero partitions**, so the partial-body reading
+      is eliminated — a fourth cause struck off §6.0c with evidence rather than argument. What
+      remains there is unchanged: spline evaluation at *t = 0*, compared against `evaluateSimple1/2/3`.
+
+   **`LightBeamShader` (64) is not on this list on purpose.** It binds `FalloffMap` and `DustMap` and
+   takes its colour from `BeamColor`; it has no base colour and reporting one would be an invention.
+
+   **The first viewport overlay is done too.** "Highlight problems" tints the triangles whose
+   material resolved to nothing, per-*surface* rather than per-mesh — on `Bomb`, two of seven runs go
+   magenta and the other five keep their texture. It closes the loop the panel opens: the panel says
+   which assets are affected, the overlay says which *part* of the one on screen.
+
+   Its most useful behaviour is the negative one. `Bomb`'s nose carries a plain grey disc that looks
+   exactly like an untextured surface, and with the overlay on it stays grey — so that disc is real
+   art and the fault is elsewhere. **A diagnostic that can only say "something is wrong" is worth much
+   less than one that can also say "not this".** `ProblemOverlayTests` asserts both directions,
+   including that a mesh whose materials all resolve renders byte-identical with the overlay on.
+
+   **The relationship tree is navigable — done, but NOT fully verified.** The details panel already
+   listed what an asset relates to and gave no way to go there. Every related asset is now a button
+   that opens it. The rule that turns a name into a browsable row moved out of the view model into
+   `AssetCatalogService.Resolve`, because it had already been duplicated once — the Problems panel and
+   the relationship tree now share one implementation, so a click means the same thing wherever it
+   comes from. `AssetNavigationTests` (5 tests) and `DiagnosticsUiTests` (6) pass.
+
+   **State this was left in:** `dotnet build` is clean and those two classes pass, but the **full
+   suite has not been run since the navigation change**. Run `dotnet test` first — the expected
+   figure is 308 plus the 5 navigation and 3 sound-event tests added since.
+
+   The Asset Inspector is still to do, and is easier now, because it wants the evidence the
+   diagnostics service already produces.
+
+   Remaining Phase 1B polish, none of it blocking:
+
+   - **The add-on has never been driven by hand in the Blender UI.** Its filtering is exercised
+     headlessly (`Pistol` → 10 actions, `Pistol` + `reload` → 1) but no one has clicked PLAY.
+   - **The scene JSON is still large** — the hands' library is 31 MB, `AggressorBabyJane` 206 MB.
+     See the bulk-extraction note below; the user deferred it deliberately.
+   - **A library is one mesh per rig.** `AggressorBabyJane` owns thirteen meshes sharing one
+     skeleton and the library takes the largest (`Agg_Doctor_Mesh`). The other twelve variants are
+     not in the `.blend`, which is existing catalogue behaviour rather than a new fault, but a
+     "library" arguably ought to carry them all as alternatives.
+
+   Then:
+   §6.2 (skeletal geometry variant — read `UModel-master/Unreal/` first), §6.4 (verify the Unreal
+   import, never once run — and it now also has `ByPolygon` material mapping to confirm), §6.6
+   (attachment placement under animation).
+6. **Skeletal meshes DO have a section table, and this item's `UNKNOWN` is closed.** It was worth
+   looking for in `UModel-master/Unreal/` exactly as this item said, and it is there:
+   `UnMeshBioshock.cpp`'s `FStaticLODModelBio` opens with `TArray<FSkelMeshSection> Sections`, nine
+   `uint16`s each — `MaterialIndex, MinStreamIndex, MinWedgeIndex, MaxWedgeIndex, NumStreamIndices,
+   BoneIndex, fE, FirstFace, NumFaces` — commented "1 section = 1 material". That is the **153**
+   meshes `diagnose` reports as `mesh-materials-without-sections`, `TommyGunMESH` and
+   `PlasmidEquipMESH` among them.
+
+   **Not implemented, deliberately.** It needs the payload walked from the front instead of the
+   vertex chain being searched for, and UModel targets the *original* game — the Remastered static
+   vertex is already 48 bytes against 24, so every field needs checking against shipped bytes. The
+   same source gives the full payload order and shows that the "tag block" this project searches for
+   (`04 00 00 00 05 00 00 00`) is a **versioned object header** whose subversion selects the layout,
+   which is the precondition for walking it. `docs/research/skeletalmesh.md`, open question 11d,
+   `docs/research/reference-comparison.md` §3–§4. **This is the biggest single piece of work left in
+   Phase 1.**
 
 ## The four reference projects in the repo root — how far each has been mined
 
@@ -599,15 +1103,20 @@ project failed to find it from bytes alone.
 | folder | mined |
 |---|---|
 | `hk2012_2_0_r1` | **2 files of 114** in `Source/Animation`. `hkaSplineCompressedAnimation.h`/`.inl` only. |
-| `Bioshock1REMSDK-WIP--main` | `bioshock1-bsm.md` §C.4 only. |
-| `UModel-master` | **Nothing.** |
-| `Unreal-Library-master` | **Nothing.** |
+| `Bioshock1REMSDK-WIP--main` | `bioshock1-bsm.md` §C.4, and **`docs/reverse-engineering/BioShock_Materials_And_Shaders.md` in full** — it took 515 meshes from flat grey to textured in one sitting, and closed half of open question 11. `BioShock_Reading_Textures.md` and the lightmap/bulk notes in the same folder are still unread. |
+| `UModel-master` | **`UnTexture2.cpp`, `UnMeshBioshock.cpp`, `UnMesh2.h`'s `FSkelMeshSection`, `UnCore.h`'s `TRIBES_HDR`.** Source of two findings this session — the DXT5N texture format and the skeletal section table. Its BioShock branches are extensive and the rest is still unread. |
+| `Unreal-Library-master` | **Nothing.** The only one of the four still completely untouched. |
+
+**The policy paid again, and quickly.** `BioShock_Materials_And_Shaders.md` had never been opened; it
+was read this session and its first two sections settled the largest open item in materials in
+minutes — 515 meshes went from flat grey to textured — after the project had spent two sessions
+measuring around it. **Read the reference projects first.**
 
 Highest-value unread material, in order:
 
-- **`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/`** — `BioShock_Materials_And_Shaders.md`
-  (full material class tree, `EMaterialType` ordinals, the binder), plus texture/lightmap and bulk
-  catalog notes. Directly on items 4 and 5 above.
+- **`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Reading_Textures.md`** and
+  `BioShock_Texture_Lightmap_Format.md` — 247 lines, never opened, and the obvious place to look for
+  `Format` ordinal 12 (open question 11c, 274 normal maps that will not decode).
 - **`UModel-master/Unreal/`** — mesh readers, for §6.2.
 - **`hk2012_2_0_r1/Docs/…User_Guide.pdf`** — never opened. Likely settles `blendHint` and the
   animation-binding contract outright.
@@ -627,11 +1136,30 @@ finding ported from either may need the record widening.
   collapse. Their tracks store Y and Z and omit X on a bone whose bind is `(25.05, 0, 0)`; Havok
   would collapse them too. Not additive — every animation in the game is `blendHint 0`, by census.
   The answer is probably in `sampleTranslation`, which is not in this SDK build.
+- **Bulk extraction is ~140 GB and hours long, and that is a deliberate open item.** Reported as
+  "extraction is not working"; it is not — `ExtractionUiTests` drives the real command and the
+  pipeline writes correct output (a 49-asset sample produced 2,478 files, including 457 per-animation
+  FBXs for `AggressorBabyJane`). The problem is that "Extract all shown" from the default view is
+  2,000 assets, characters first, and the buttons grey out while it runs. Compacting the scene JSON
+  took it from ~350 GB to ~140 GB. **The remaining bulk is animation track data written twice** —
+  once as floats in the scene JSON, once in the per-animation FBX files. Omitting the tracks from the
+  JSON when FBX is also selected is the obvious fix and was **explicitly deferred by the user**, not
+  overlooked. So were a size warning before a large job, and keeping the UI responsive during one.
+- **Skeletal meshes cannot be split by material** — no section table in that container. See item 6
+  under NEXT CLAUDE SESSION. The diagnostic sweep counts **153** meshes in this state, so the
+  scale of it is now known rather than estimated.
+- **Five material classes are read as if they were `Shader`** — `FluidShader`, `PlantShader`,
+  `LightBeamShader`, `MaterialSwitch`, `MaterialSequence`, `LayeredShader`. 522 meshes resolve a
+  material binding zero textures because of it. Open question 11b; read Nyko's material note first.
+- **Texture `Format` ordinal 12 is undecoded** — 274 exports, 64 distinct names, every one a normal
+  map. Open question 11c. The four known ordinals were each measured, and this one has not been.
 - **The `Melee` socket** — could be the wrench, pipe, machete, rake or shovel. Left unresolved
   rather than given whichever sorted first.
 - **Splicer variant ↔ animation set** — nothing in the data links a *particular* variant to a
   *particular* behaviour set (spider, nitro, leadhead). Needs evidence found, not a mapping invented.
 - **§6.0b** is closed: the left hand now reaches 4.36 cm from the grip.
 
-6. **Do not begin Phase 2 (level extraction) until Phase 1 is frozen.** Groundwork already exists in
-   `src/BioShockStudio.Core/Level/` — read it before writing anything new.
+6. **Phase 2 (level extraction) is unlocked when 1C finishes** — the user has confirmed this. 1C's
+   remaining item is the Asset Inspector; when that lands, Phase 1 is frozen and Phase 2 may begin.
+   Groundwork already exists in `src/BioShockStudio.Core/Level/` — **read it before writing anything
+   new**. The unlock is permission to start the phase, not permission to rewrite what is there.

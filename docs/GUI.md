@@ -28,6 +28,7 @@ command line from disagreeing about what an asset is.
 | `AssetDetailsService` | Resolves one selected asset's skeleton, animations, sockets, materials and textures. |
 | `TexturePreviewService` | Decodes a texture for display, using the extractor's own decoder. |
 | `ExtractionService` | Runs extraction jobs with progress, cancellation and per-asset failures. |
+| `DiagnosticsService` | Scopes the diagnostic checks to one asset, one package or the install. The checks themselves are `Core.Diagnostics.AssetDiagnostics`, shared with the `diagnose` command. |
 
 ## One row per asset
 
@@ -99,13 +100,69 @@ exactly how a plausible wrong answer gets believed, which has already happened t
 
 ## Honest failure
 
-A mesh in an unsupported geometry variant reports, in the details panel:
+A mesh that yields no geometry reports, in the details panel:
 
-> This mesh uses a geometry layout this tool does not read yet, so it has no vertices to show or
-> export.
+> No vertex data was found in this mesh, so it has no geometry to show or export.
+
+**That wording is deliberate and was a correction.** It used to say "a geometry layout this tool does
+not read yet", which blamed the reader for the data: the exports that reach this are four door rigs
+that carry no vertex data at all, and the evidence is against the unsupported-layout diagnosis.
+`docs/HANDOFF.md` §6.2.
 
 A shader whose property walk stopped early says the material is partial. A bulk extraction records
 every failure with its reason and keeps going; one bad asset never ends a job.
+
+## The Problems panel
+
+Every fault found in the two sessions before this panel existed was found by a human looking at the
+viewport — grey security cameras, an armless splicer, a misaligned prop — while the tool already held
+the measurement and never showed it. The panel is that measurement, surfaced.
+
+- **Check this package** or **Check everything** runs `DiagnosticsService`. A package is seconds —
+  `0-Lighthouse` is 1,866 assets in under five — and the whole install is minutes, with progress and
+  a Stop button.
+- Rows are worst first — broken, then degraded, then note — because sorting by package buries what a
+  user came for.
+- The **Evidence** column carries the measurement, not the conclusion: not "draws untextured" but
+  "20 of 20 triangles; slot 0 imports 'DefaultTexture' (Texture) and it did not resolve".
+- Selecting a row selects the asset, so the viewport shows the thing being complained about. It
+  matches on the catalogue's own `InPackage` rule, **not** on the row's reported package: a collapsed
+  row is often listed under a different map from the one the diagnostic came from, and matching both
+  made the click do nothing on assets that were in the list. When the catalogue genuinely has no row
+  — a shader, or a texture with no entry of its own — the status bar names the package and export
+  index instead of failing silently.
+- **Copy diagnostic** puts the whole entry — asset, package, group, export index, summary, evidence
+  and the research note it belongs to — on the clipboard, so a report to a future session costs one
+  click. **Copy all** does the panel.
+- The selected asset's own problems appear in the details panel beside it, which is where a user is
+  looking when the viewport shows something odd.
+
+**An empty panel is not a clean bill of health, and must not look like one.** Before anything is
+checked the panel says so in as many words, and every summary states how many meshes, materials and
+textures were examined before it says what was found.
+
+## Highlight problems — the viewport half of the panel
+
+**Grey paint and a missing material look identical.** A run whose material did not resolve draws in
+flat grey, and so does a great deal of BioShock: bare concrete, painted metal, the inside of a crate.
+That ambiguity is exactly what cost this project the grey security cameras — found by a user, not by
+the tool, while the tool held the evidence.
+
+The **Highlight problems** checkbox tints the triangles whose material resolved to nothing. It is
+per-*surface*, not per-mesh: on `Bomb`, two of seven runs have no material, and only those two go
+magenta while the other five keep their texture. Magenta is deliberate — the long-standing convention
+for a missing texture, and no shipped BioShock surface is that colour, so it can never be mistaken
+for art. The tint is blended rather than flat, so the shading still reads and the *shape* of the
+affected run stays legible.
+
+The most useful thing it does is the negative case. `Bomb`'s nose carries a plain grey disc that
+looks exactly like an untextured surface; with the overlay on it stays grey, which says that disc is
+real art and the fault is elsewhere. **A diagnostic that can only say "something is wrong" is worth
+much less than one that can also say "not this".**
+
+`ProblemOverlayTests` asserts both directions — that it tints an affected run, that it tints strictly
+less than the whole mesh, and that a mesh whose materials all resolve renders **byte-identical** with
+the overlay on. Set `BIOSHOCK_OVERLAY_SNAPSHOT` to write the on/off pair from four angles.
 
 ## Verifying the window
 
@@ -119,6 +176,8 @@ To produce a picture of the window:
 
 ```bash
 BIOSHOCK_UI_SNAPSHOT=/tmp/ui.png dotnet test --filter FullyQualifiedName~WindowTests
+BIOSHOCK_PROBLEMS_SNAPSHOT=/tmp/p.png dotnet test --filter FullyQualifiedName~DiagnosticsUiTests
+BIOSHOCK_OVERLAY_SNAPSHOT=/tmp/o.png dotnet test --filter FullyQualifiedName~Overlay_Snapshot
 ```
 
 It renders offscreen. Do not screen-capture the running application to check it — the capture
