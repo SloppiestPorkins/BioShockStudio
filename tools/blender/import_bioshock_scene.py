@@ -72,6 +72,28 @@ def global_matrices(bones):
     return result
 
 
+#: Outliner groups. A library holds a rig, its mesh, several weapons and twenty-odd socket empties,
+#: and a flat scene list is unusable at that size. Objects are linked to exactly one of these.
+COLLECTIONS = ("ARMATURE", "MESH", "WEAPONS", "PROPS", "SOCKETS", "DEBUG")
+
+
+def collection(name):
+    """The named outliner collection, created on first use."""
+    existing = bpy.data.collections.get(name)
+    if existing is None:
+        existing = bpy.data.collections.new(name)
+        bpy.context.scene.collection.children.link(existing)
+    return existing
+
+
+def place(obj, name):
+    """Move an object into one outliner collection, removing it from any other."""
+    for other in list(obj.users_collection):
+        other.objects.unlink(obj)
+    collection(name).objects.link(obj)
+    return obj
+
+
 def clear_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -82,7 +104,7 @@ def build_armature(scene):
 
     armature_data = bpy.data.armatures.new(scene["skeletonName"] or "Skeleton")
     armature = bpy.data.objects.new(scene["sourceObject"], armature_data)
-    bpy.context.collection.objects.link(armature)
+    place(armature, "ARMATURE")
 
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.mode_set(mode="EDIT")
@@ -164,7 +186,7 @@ def build_mesh(armature, scene):
     mesh.validate()
 
     obj = bpy.data.objects.new(f"{scene['sourceObject']}_Mesh", mesh)
-    bpy.context.collection.objects.link(obj)
+    place(obj, "MESH")
 
     # Custom split normals from the game data, so shading matches the original.
     try:
@@ -192,28 +214,65 @@ def build_mesh(armature, scene):
                 groups[name] = group
             group.add([vertex], weight, "REPLACE")
 
-    obj.parent = armature
-    modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
-    modifier.object = armature
+    # A prop has no skeleton: it is positioned on a socket, not deformed by one, so it gets neither
+    # a parent armature nor an armature modifier. Giving it one would state a binding the game does
+    # not have and would deform the drill by the Bouncer's spine.
+    if armature is not None:
+        obj.parent = armature
+        modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
+        modifier.object = armature
 
-    material = build_material(scene, os.path.dirname(os.path.abspath(scene["__path__"])))
-    if material is not None:
-        mesh.materials.append(material)
+    assign_materials(scene, mesh, obj, face_count)
 
     print(f"bioshock: mesh {vertex_count} verts, {face_count} tris, {len(groups)} vertex groups")
     return obj
 
 
-def build_material(scene, directory):
-    """Build a Principled BSDF from the game's shader.
+def assign_materials(scene, mesh, obj, face_count):
+    """Create one slot per material the mesh uses and put each face in its own.
+
+    A mesh naming several materials draws a run of its index buffer with each — which triangles use
+    which comes from the game's section table. Without the per-face assignment the whole mesh takes
+    the first material, which is what painted the Bathysphere's windows in hull metal.
+    """
+    directory = os.path.dirname(os.path.abspath(scene["__path__"]))
+
+    # "materials" is the slot-ordered list; "material" is the older single-material field, kept so a
+    # scene written before this still imports.
+    entries = scene.get("materials")
+    if not entries:
+        single = scene.get("material")
+        entries = [single] if single else []
+
+    if not entries:
+        return
+
+    for entry in entries:
+        material = build_material(entry, directory)
+        mesh.materials.append(material)
+
+    assignment = scene.get("mesh", {}).get("triangleMaterials") or []
+    if len(entries) < 2 or len(assignment) != face_count:
+        # One material, or nothing trustworthy to assign with: every face takes slot 0, which is
+        # what a single-slot mesh does anyway.
+        return
+
+    slots = len(entries)
+    for index, polygon in enumerate(mesh.polygons):
+        slot = assignment[index]
+        # -1 is a run whose slot named no material. Blender has no empty assignment, so it stays in
+        # slot 0 and shows as untextured rather than silently taking a neighbour's material.
+        polygon.material_index = slot if 0 <= slot < slots else 0
+
+    print(f"bioshock: {slots} material slots, assigned per face")
+
+
+def build_material(data, directory):
+    """Build a Principled BSDF from one of the game's shaders.
 
     Only the maps the game actually names are wired up. A slot the shader leaves empty is left empty
     here rather than filled with a default, so a missing map stays visible as a missing map.
     """
-    data = scene.get("material")
-    if not data:
-        return None
-
     material = bpy.data.materials.new(data["name"])
     material.use_nodes = True
     principled = material.node_tree.nodes.get("Principled BSDF")
@@ -289,7 +348,7 @@ def build_sockets(armature, scene):
         empty = bpy.data.objects.new(f"SOCKET_{socket['name']}", None)
         empty.empty_display_type = "ARROWS"
         empty.empty_display_size = 0.05
-        bpy.context.collection.objects.link(empty)
+        place(empty, "SOCKETS")
 
         empty.parent = armature
         empty.parent_type = "BONE"
@@ -305,6 +364,39 @@ def build_sockets(armature, scene):
     return created
 
 
+def weapon_for(scene, owner):
+    """Which weapon an animation set belongs to, if any.
+
+    HEURISTIC, and deliberately a narrow one. The game names a first-person animation set after the
+    weapon it is for — `Pistol`, `TommyGun`, `Crossbow` — and names the socket the weapon hangs on
+    the same way, but not always identically: the `GrenadeLauncher` set hangs on `Launcher` and
+    `ChemicalThrower` on `Chem`. So a set is credited to a weapon only when the host actually
+    *declares a socket* whose name and the set's contain one another, and the longest such match
+    wins. `Default` matches nothing and is left blank rather than being assigned whichever socket
+    sorted first.
+
+    Returns (weapon, socket) — both empty strings when the set is not a weapon's.
+    """
+    if not owner:
+        return "", ""
+
+    lowered = owner.lower()
+    best, best_score = "", 0
+
+    for socket in scene.get("sockets", []):
+        name = socket["name"]
+        candidate = name.lower()
+        if candidate in lowered or lowered in candidate:
+            score = min(len(candidate), len(lowered))
+            if score > best_score:
+                best, best_score = name, score
+
+    # Two characters of overlap is a coincidence, not a match.
+    if best_score < 3:
+        return "", ""
+    return owner, best
+
+
 def build_action(armature, scene, animation, globals_):
     bones = scene["bones"]
     # Blender's own rest hierarchy, which is what the pose basis is measured against.
@@ -315,10 +407,27 @@ def build_action(armature, scene, animation, globals_):
     action.use_fake_user = True
 
     # Original timing is carried as metadata rather than resampled: authored rates vary per
-    # animation (30.00, 29.94 and 27.02 all occur within the pistol set alone).
+    # animation (30.00, 29.94 and 27.02 all occur within the pistol set alone). The action's name is
+    # sanitised for Blender and can collide, so the game's own name travels with it and is what any
+    # tool downstream should match on.
+    action["bioshock_original_name"] = animation["name"]
     action["bioshock_frame_duration"] = animation["frameDuration"]
     action["bioshock_duration"] = animation["duration"]
+    action["bioshock_frame_count"] = animation["frameCount"]
+    action["bioshock_original_fps"] = (
+        round(1.0 / animation["frameDuration"], 4) if animation["frameDuration"] > 0 else 0.0)
     action["bioshock_owner"] = animation["owner"]
+    action["bioshock_animation_set"] = animation["owner"]
+    action["bioshock_skeleton"] = scene.get("skeletonName", "")
+    action["bioshock_package"] = scene.get("sourcePackage", "")
+    action["bioshock_source_export"] = scene.get("sourceObject", "")
+    action["bioshock_compression"] = animation.get("compression", "")
+
+    weapon, socket_name = weapon_for(scene, animation["owner"])
+    action["bioshock_weapon"] = weapon
+    action["bioshock_weapon_socket"] = socket_name
+    action["bioshock_track_count"] = len(animation["tracks"])
+    action["bioshock_event_count"] = len(animation.get("events", []))
 
     if armature.animation_data is None:
         armature.animation_data_create()
@@ -401,7 +510,9 @@ def build_camera(scene, armature, attachment_objects):
     for obj, _ in attachment_objects:
         if obj is None:
             continue
-        subject = next((c for c in obj.children_recursive if c.type == "MESH"), None)
+        # A weapon is an armature whose mesh hangs under it; a prop is the mesh itself.
+        subject = obj if obj.type == "MESH" else next(
+            (c for c in obj.children_recursive if c.type == "MESH"), None)
         if subject is not None:
             break
     if subject is None:
@@ -425,7 +536,7 @@ def build_camera(scene, armature, attachment_objects):
     camera_data.angle = math.radians(50.0)
     camera_data.clip_start = 0.01
     camera = bpy.data.objects.new("PreviewCamera", camera_data)
-    bpy.context.collection.objects.link(camera)
+    place(camera, "DEBUG")
 
     # Three-quarter view from the weapon's right and slightly above, which keeps the left arm — it
     # hangs well below the weapon and only animates during the reload — out of the way.
@@ -505,6 +616,36 @@ def assign_default_actions(armature, scene, attachments):
     return chosen
 
 
+def build_static_attachment(host_armature, attachment, scene, target):
+    """Parent a prop to the host's socket bone.
+
+    The Bouncer's drill, cage and backpack are static meshes the game hangs on sockets. They have no
+    skeleton, so there is nothing to build an armature from: the mesh is parented to the bone and
+    travels with it, which is what the viewport already draws.
+    """
+    obj = build_mesh(None, scene)
+    if obj is not None:
+        place(obj, "PROPS")
+    if obj is None:
+        print(f"bioshock: static attachment {attachment['socketName']} has no geometry")
+        return None
+
+    obj.name = f"{attachment['socketName']}_{scene['sourceObject']}"
+    obj.parent = host_armature
+    obj.parent_type = "BONE"
+    obj.parent_bone = target
+    # Bone parenting places children at the bone tail; cancel that so the prop sits on the socket.
+    obj.matrix_parent_inverse = Matrix.Translation(
+        (0.0, -host_armature.data.bones[target].length, 0.0))
+
+    obj["bioshock_socket"] = attachment["socketName"]
+    obj["bioshock_socket_bone"] = attachment["socketBone"]
+    obj["bioshock_static_attachment"] = True
+
+    print(f"bioshock: attached prop {attachment['socketName']} ({scene['sourceObject']}) to {target}")
+    return obj
+
+
 def build_attachment(host_armature, attachment):
     """Build an attached asset — a weapon — as its own rig parented to the host's socket bone.
 
@@ -520,9 +661,18 @@ def build_attachment(host_armature, attachment):
         print(f"bioshock: attachment {attachment['socketName']} references unknown bone {attachment['socketBone']}")
         return None
 
+    # A prop has no skeleton of its own — the Bouncer's drill, cage and backpack are static meshes
+    # the game hangs on a socket. It is parented to the bone directly rather than given an invented
+    # armature, which would put a joint in the file the game does not have.
+    if not scene.get("bones"):
+        return build_static_attachment(host_armature, attachment, scene, target)
+
     armature, globals_ = build_armature(scene)
     armature.name = f"{attachment['socketName']}_Rig"
-    build_mesh(armature, scene)
+    place(armature, "WEAPONS")
+    weapon_mesh = build_mesh(armature, scene)
+    if weapon_mesh is not None:
+        place(weapon_mesh, "WEAPONS")
 
     for animation in scene["animations"]:
         build_action(armature, scene, animation, globals_)
