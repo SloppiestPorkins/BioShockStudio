@@ -1,6 +1,7 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:BioShockStudio.App.ViewModels"
+        xmlns:diag="using:BioShockStudio.Core.Diagnostics"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="820"
@@ -139,6 +140,24 @@
                             <TextBlock Text="{Binding DetailsProblem}" TextWrapping="Wrap" />
                         </Border>
 
+                        <!-- What is measurably wrong with this asset. The evidence line is the whole
+                             point: "draws untextured" is a symptom, "slot 0 names nothing" is a
+                             thing a person can act on. -->
+                        <ItemsControl ItemsSource="{Binding AssetProblems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="diag:Diagnostic">
+                                    <Border Background="#26D8A657" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Evidence}" TextWrapping="Wrap"
+                                                       FontFamily="Consolas" FontSize="11" Opacity="0.8" />
+                                            <TextBlock Text="{Binding Code}" FontSize="10" Opacity="0.5" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
 
                         <!-- 3D preview -->
                         <StackPanel Spacing="6" IsVisible="{Binding HasViewport}">
@@ -166,6 +185,9 @@
                                     <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
                                     <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
                                     <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Highlight problems" IsChecked="{Binding HighlightProblems}"
+                                              Margin="0,0,10,0"
+                                              ToolTip.Tip="Tint the triangles whose material did not resolve. Grey paint and a missing material look identical without this." />
                                 </WrapPanel>
 
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -278,15 +300,28 @@
                                         <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                                        <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding Name}" />
-                                                            <TextBlock Text="{Binding Detail}" Opacity="0.6" FontSize="11" />
-                                                        </StackPanel>
-                                                        <!-- How the link was established, never left implied. -->
-                                                        <TextBlock Grid.Column="1" Text="{Binding Confidence}"
-                                                                   Opacity="0.5" FontSize="10" VerticalAlignment="Center" />
-                                                    </Grid>
+                                                    <!-- The relationship tree: every related asset is a
+                                                         way in. Before this the panel listed what an
+                                                         asset used and gave no way to go there, so
+                                                         following a material to its texture meant
+                                                         retyping the name into the search box. -->
+                                                    <Button Classes="link" Padding="0,2" Margin="0"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenRelatedCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Open this asset">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding Name}" />
+                                                                <TextBlock Text="{Binding Detail}" Opacity="0.6" FontSize="11" />
+                                                            </StackPanel>
+                                                            <!-- How the link was established, never left implied. -->
+                                                            <TextBlock Grid.Column="1" Text="{Binding Confidence}"
+                                                                       Opacity="0.5" FontSize="10" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Button>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
@@ -351,7 +386,77 @@
 
                 <TextBlock Text="{Binding Status}" Opacity="0.8" TextWrapping="Wrap" />
 
-                <Expander Header="Problems" IsVisible="{Binding Failures.Count}" MaxHeight="150">
+                <!-- ==================================== problems
+
+                     Everything this tool knows is wrong, from one service in Core. Every fault found
+                     in the two sessions before this panel existed was found by a human looking at
+                     the viewport, while the evidence sat unread in the tool.
+
+                     It opens itself once a check has run: a user who asked for the check should not
+                     then have to find where the answer went. -->
+                <Expander MaxHeight="230" IsExpanded="{Binding HasScanned, Mode=OneWay}">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Problems" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Problems.Count, StringFormat='{}{0:N0} found'}"
+                                       Opacity="0.6" VerticalAlignment="Center"
+                                       IsVisible="{Binding HasScanned}" />
+                        </StackPanel>
+                    </Expander.Header>
+
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <Button Content="Check this package" Command="{Binding ScanPackageCommand}"
+                                    IsEnabled="{Binding !IsScanning}"
+                                    ToolTip.Tip="Check every mesh, material and texture in the package the browser is filtered to." />
+                            <Button Content="Check everything" Command="{Binding ScanEverythingCommand}"
+                                    IsEnabled="{Binding !IsScanning}"
+                                    ToolTip.Tip="The whole install. Minutes, not seconds." />
+                            <Button Content="Stop" Command="{Binding CancelScanCommand}"
+                                    IsEnabled="{Binding IsScanning}" />
+                            <Button Content="Copy diagnostic" Command="{Binding CopyProblemCommand}"
+                                    ToolTip.Tip="The selected problem with its asset, package and evidence." />
+                            <Button Content="Copy all" Command="{Binding CopyAllProblemsCommand}" />
+                            <TextBlock Text="{Binding ProblemsSummary}" Opacity="0.75"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding !IsScanning}" />
+                            <!-- A multi-minute check with no sign of life reads as a hang. -->
+                            <TextBlock Text="{Binding ProgressText}" Opacity="0.75"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding IsScanning}" />
+                        </StackPanel>
+
+                        <!-- Empty and unscanned must not look the same: a blank Problems panel reads
+                             as a clean bill of health, and this project has been wrong that way
+                             before. -->
+                        <TextBlock DockPanel.Dock="Top" Opacity="0.6" TextWrapping="Wrap"
+                                   IsVisible="{Binding !HasScanned}"
+                                   Text="Nothing has been checked yet. Nothing here means nothing has run, not that nothing is wrong." />
+
+                        <DataGrid ItemsSource="{Binding Problems}" SelectedItem="{Binding SelectedProblem}"
+                                  IsReadOnly="True" GridLinesVisibility="Horizontal"
+                                  CanUserSortColumns="True" IsVisible="{Binding Problems.Count}">
+                            <DataGrid.Columns>
+                                <!-- Wide enough for its own header: rendering this at 76 cut it to
+                                     "Severi", which is the column-squeezed-to-nothing fault this
+                                     project has shipped before. -->
+                                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" />
+                                <DataGridTextColumn Header="Asset" Binding="{Binding Asset}" Width="170" MinWidth="120" />
+                                <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="104" />
+                                <DataGridTextColumn Header="Problem" Binding="{Binding Code}" Width="172" />
+                                <!-- The evidence gets whatever is left, and the fixed columns above
+                                     are kept narrow to leave it something. Rendering this the first
+                                     time showed the evidence clipped at the window edge, which is
+                                     the one column a user cannot do without: a code alone says
+                                     nothing, "20 of 20 triangles; slot 0 names nothing" says where
+                                     to look. -->
+                                <DataGridTextColumn Header="Evidence" Binding="{Binding Evidence}" Width="*" MinWidth="220" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Expander>
+
+                <Expander Header="Extraction failures" IsVisible="{Binding Failures.Count}" MaxHeight="150">
                     <ScrollViewer>
                         <ItemsControl ItemsSource="{Binding Failures}">
                             <ItemsControl.ItemTemplate>

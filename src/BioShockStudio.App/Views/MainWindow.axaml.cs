@@ -22,7 +22,9 @@ public partial class MainWindow : Window
         // hands it in rather than the view model reaching for a window it should not know about.
         DataContextChanged += (_, _) =>
         {
-            if (DataContext is MainViewModel model) model.PickFolder = PickFolderAsync;
+            if (DataContext is not MainViewModel model) return;
+            model.PickFolder = PickFolderAsync;
+            model.CopyText = CopyTextAsync;
         };
 
         HookViewport();
@@ -172,6 +174,19 @@ public partial class MainWindow : Window
 
         model.ViewportWidth = (int)(width * factor);
         model.ViewportHeight = (int)(height * factor);
+    }
+
+    /// <summary>
+    /// Puts text on the system clipboard, for the Problems panel's copy buttons.
+    /// </summary>
+    /// <remarks>
+    /// Like the folder picker, this is something the view model cannot do for itself, so the window
+    /// hands it in rather than the view model reaching for a top level it should not know about.
+    /// </remarks>
+    private async Task CopyTextAsync(string text)
+    {
+        if (Clipboard is null) return;
+        await Clipboard.SetTextAsync(text);
     }
 
     private async Task<string?> PickFolderAsync(string title)

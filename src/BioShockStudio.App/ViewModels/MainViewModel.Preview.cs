@@ -78,6 +78,16 @@ public partial class MainViewModel
     [ObservableProperty] private bool _showSkeleton;
     [ObservableProperty] private bool _showSockets;
 
+    /// <summary>
+    /// Tint the surfaces whose material did not resolve, so untextured is visibly a fault.
+    /// </summary>
+    /// <remarks>
+    /// The viewport half of the Problems panel: a run with no material draws grey, and so does a lot
+    /// of the game. The panel says which assets are affected; this says <i>which part</i> of the one
+    /// on screen.
+    /// </remarks>
+    [ObservableProperty] private bool _highlightProblems;
+
     [ObservableProperty] private string? _selectedAnimation;
     [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private int _frame;
@@ -150,6 +160,7 @@ public partial class MainViewModel
     partial void OnShowShadingChanged(bool value) => RequestRender();
     partial void OnShowSkeletonChanged(bool value) => RequestRender();
     partial void OnShowSocketsChanged(bool value) => RequestRender();
+    partial void OnHighlightProblemsChanged(bool value) => RequestRender();
     partial void OnFrameChanged(int value) { NoteInteraction(); RequestRender(); }
     partial void OnViewportWidthChanged(int value) => RequestRender();
     partial void OnViewportHeightChanged(int value) => RequestRender();
@@ -631,6 +642,7 @@ public partial class MainViewModel
                     Wireframe = ShowWireframe,
                     ShowSkeleton = ShowSkeleton,
                     ShowSockets = ShowSockets,
+                    HighlightUnresolvedSurfaces = HighlightProblems,
                 };
 
                 var animation = _animation;
@@ -653,7 +665,12 @@ public partial class MainViewModel
 
                     if (attachmentModel is not null && socketBone >= 0)
                     {
-                        var transform = pose is null ? model.Bones[socketBone].RestGlobal : pose[socketBone];
+                        // A socket carries its own offset from the bone. Placing the attachment on
+                        // the bone alone is right only when that offset is identity, which is true
+                        // of every first-person weapon socket and false of several others.
+                        var boneMatrix = pose is null ? model.Bones[socketBone].RestGlobal : pose[socketBone];
+                        var socket = model.Sockets.FirstOrDefault(s => s.Bone == socketBone);
+                        var transform = socket is null ? boneMatrix : socket.On(boneMatrix);
 
                         // The two rigs agree on duration, not on frame count, so the attachment is
                         // sampled by normalised time. Posing it at the host's own frame index reads

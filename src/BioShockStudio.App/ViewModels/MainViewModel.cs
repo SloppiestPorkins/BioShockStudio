@@ -167,6 +167,49 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ClearSearch() => Search = string.Empty;
 
+    /// <summary>
+    /// Selects the catalogue row for a named asset, widening the browser's filters if it is not
+    /// currently shown. False when the catalogue has no row for it.
+    /// </summary>
+    /// <remarks>
+    /// The one navigation path in the window — the Problems panel and the relationship tree both use
+    /// it, so a click means the same thing wherever it comes from. Which row a name resolves to is
+    /// <see cref="AssetCatalogService.Resolve"/>'s decision, not this method's: that rule has already
+    /// been got wrong once by matching on the reported package.
+    /// </remarks>
+    public bool NavigateTo(string assetName, string? preferredPackage = null)
+    {
+        if (_catalog.Resolve(assetName, preferredPackage) is not { } entry) return false;
+
+        // The row has to exist in the filtered list before it can be selected, or the grid selects
+        // nothing and the click reads as broken.
+        if (!Assets.Contains(entry))
+        {
+            SelectedCategory = Categories.Count > 0 ? Categories[0] : SelectedCategory;
+            SelectedPackage = AllPackages;
+            Search = entry.Name;
+        }
+
+        SelectedAsset = entry;
+        return true;
+    }
+
+    /// <summary>Opens the asset a details-panel relationship names.</summary>
+    [RelayCommand]
+    private void OpenRelated(RelatedAsset? related)
+    {
+        if (related is null) return;
+
+        if (!NavigateTo(related.Name, SelectedAsset?.Package))
+        {
+            // Sockets, bones and "(no textures bound)" are rows in the panel that are not assets at
+            // all. Saying so is better than a click that silently does nothing.
+            Status = related.Category is null
+                ? $"{related.Name} is not a browsable asset."
+                : $"{related.Name} has no row in the browser.";
+        }
+    }
+
     // ------------------------------------------------------------------ installation
 
     [RelayCommand]
@@ -333,6 +376,7 @@ public partial class MainViewModel : ViewModelBase
         DetailFields.Clear();
         DetailSections.Clear();
         ResearchFields.Clear();
+        AssetProblems.Clear();
         TexturePreview = null;
         TexturePreviewCaption = "";
         DetailsProblem = null;
@@ -371,6 +415,10 @@ public partial class MainViewModel : ViewModelBase
             }, token);
 
             if (token.IsCancellationRequested) return;
+
+            // What is measurably wrong with this asset, alongside what it is. The details panel is
+            // where a user is looking when the viewport shows something odd.
+            _ = ShowAssetProblemsAsync(entry, token);
 
             foreach (var field in details.Fields) DetailFields.Add(field);
             foreach (var section in details.Sections) DetailSections.Add(section);
