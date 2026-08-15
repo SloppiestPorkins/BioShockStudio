@@ -233,4 +233,79 @@ public sealed class SkeletalMeshGeometryTests(GameFixture game)
         Assert.Equal(46, total);
         Assert.Empty(failed);
     }
+
+    /// <summary>
+    /// The exports that yield no geometry carry none, rather than using a layout this reader cannot
+    /// read.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CORROBORATED.</c> §6.2 of the handoff used to describe these as an unsupported vertex
+    /// variant to be found. They are four door rigs — <c>LowRentDoor_Mesh</c>,
+    /// <c>Sliding512SingleDoorMesh</c>, <c>GathererDoorAnimMesh</c> and <c>Atlas_labs_doorAnim</c>,
+    /// 18 copies between them — and three independent things say there is nothing to decode:
+    /// </para>
+    /// <list type="number">
+    /// <item>the payloads separate cleanly by size with no overlap — every mesh that decodes is at
+    /// least 2,443 bytes and every one of these is at most 1,291;</item>
+    /// <item>their sockets are named for door leaves (<c>Door</c>, <c>BigDoor</c>,
+    /// <c>doorLargeRight</c>) and their groups hold a skeleton and open/close/stuck animations but no
+    /// drawable mesh of their own — <c>AtlasLabsDoorAnim</c> ships <c>Model</c> and <c>Polys</c>,
+    /// which is BSP;</item>
+    /// <item>other doors decode perfectly well — <c>PeepDoorMESH</c> and <c>Gate01Anim</c> both do —
+    /// so this is not a format the door pipeline uses.</item>
+    /// </list>
+    /// <para>
+    /// What would settle it outright is byte-exact accounting of a <c>SkeletalMesh</c> payload, which
+    /// this project does not yet have. Until then the reader reports "no vertex data was found"
+    /// rather than diagnosing an unread format, because the evidence is against that diagnosis.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheMeshesWithoutGeometryAreTooSmallToHoldAny()
+    {
+        var files = Core.Game.GameLocator.EnumeratePackages(game.RequireRoot).ToList();
+        if (Core.Game.GameLocator.WeaponPackage(game.RequireRoot) is { } weapons) files.Add(weapons);
+
+        int smallestDecoding = int.MaxValue, largestFailing = 0, total = 0, failed = 0;
+        var failingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string file in files)
+        {
+            using var package = BioShockPackage.Open(file);
+
+            foreach (var export in package.Exports.Where(e =>
+                         package.GetClassName(e) == "SkeletalMesh" && e.SerialSize > 0))
+            {
+                byte[] payload = package.ReadExportData(export);
+                total++;
+
+                MeshGeometry? geometry;
+                try { geometry = SkeletalMeshReader.ReadGeometry(payload); }
+                catch { geometry = null; }
+
+                if (geometry is not null && geometry.Vertices.Count > 0)
+                {
+                    smallestDecoding = Math.Min(smallestDecoding, payload.Length);
+                    continue;
+                }
+
+                failed++;
+                largestFailing = Math.Max(largestFailing, payload.Length);
+                failingNames.Add(export.ObjectName);
+            }
+        }
+
+        Assert.Equal(972, total);
+        Assert.Equal(18, failed);
+
+        Assert.Equal(
+            new[] { "Atlas_labs_doorAnim", "GathererDoorAnimMesh", "LowRentDoor_Mesh", "Sliding512SingleDoorMesh" },
+            failingNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
+
+        // The separation is the evidence: no mesh that ships geometry is anywhere near this small.
+        Assert.True(largestFailing < smallestDecoding,
+            $"a mesh with no geometry is {largestFailing} bytes and the smallest with geometry is "
+            + $"{smallestDecoding} — the two no longer separate, so the 'carries none' reading is in doubt");
+    }
 }

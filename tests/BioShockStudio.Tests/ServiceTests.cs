@@ -234,24 +234,35 @@ public sealed class ServiceTests(GameFixture game)
         Assert.Contains(material.Items, i => i.Detail.Contains("FacingDiffuse", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A mesh with nothing to draw must say so — and must not blame the reader for it.
+    /// </summary>
+    /// <remarks>
+    /// This used to assert the panel said the mesh "uses a geometry layout this tool does not read
+    /// yet". That was a wrong diagnosis: <c>LowRentDoor_Mesh</c> is a door rig carrying no vertex
+    /// data at all, not an unread format. See <c>docs/HANDOFF.md</c> §6.2 for the evidence — the
+    /// payload sizes separate cleanly, the group holds only a rig and open/close animations, and
+    /// other doors decode. The panel now reports the fact rather than the false cause.
+    /// </remarks>
     [RequiresGameFact]
-    public void Details_SayWhenAMeshCannotBeReadRatherThanShowingNothing()
+    public void Details_SayWhenAMeshHasNoGeometryRatherThanShowingNothing()
     {
         var catalog = Catalog();
         using var package = BioShockPackage.Open(
             Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
         var entries = AssetCatalogService.Catalogue(package, "1-Medical");
 
-        // The doors are the last unreadable skeletal variant; the weapon viewmodels all read now.
-        var broken = entries.FirstOrDefault(e =>
+        var empty = entries.FirstOrDefault(e =>
             e.Category == AssetCategory.SkeletalMeshes && e.Name == "LowRentDoor_Mesh");
-        Assert.NotNull(broken);
+        Assert.NotNull(empty);
 
-        var details = new AssetDetailsService(catalog).Describe(broken);
+        var details = new AssetDetailsService(catalog).Describe(empty);
 
-        // This mesh is a known unsupported variant. The panel must say so in the user's terms.
         Assert.NotNull(details.Problem);
-        Assert.Contains("does not read yet", details.Problem, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No vertex data", details.Problem, StringComparison.OrdinalIgnoreCase);
+
+        // It must not claim an unsupported format, which is what the evidence rules out.
+        Assert.DoesNotContain("does not read yet", details.Problem, StringComparison.OrdinalIgnoreCase);
     }
 
     [RequiresGameFact]

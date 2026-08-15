@@ -22,16 +22,18 @@ public sealed class StaticMeshRenderingTests(GameFixture game)
 
     private string MedicalFile => Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
 
-    private (MeshPreviewService Service, CatalogEntry Entry) Load(string name)
+    private (MeshPreviewService Service, CatalogEntry Entry) Load(string name, string map = "1-Medical")
     {
         var catalog = new AssetCatalogService();
         catalog.RegisterInstall(game.RequireRoot);
 
-        using var package = BioShockPackage.Open(MedicalFile);
-        var entry = AssetCatalogService.Catalogue(package, "1-Medical")
+        using var package = BioShockPackage.Open(
+            Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), map + ".bsm"));
+
+        var entry = AssetCatalogService.Catalogue(package, map)
             .Where(e => e.Name == name && e.ClassName == "StaticMesh")
             .MaxBy(e => e.SerialSize)
-            ?? throw new InvalidOperationException($"{name} is not catalogued as a StaticMesh.");
+            ?? throw new InvalidOperationException($"{name} is not catalogued as a StaticMesh in {map}.");
 
         return (new MeshPreviewService(catalog), entry);
     }
@@ -47,9 +49,9 @@ public sealed class StaticMeshRenderingTests(GameFixture game)
         return (double)drawn / (image.Width * image.Height);
     }
 
-    private PreviewImage Draw(string name, out PreviewSubject subject)
+    private PreviewImage Draw(string name, out PreviewSubject subject, string map = "1-Medical")
     {
-        var (service, entry) = Load(name);
+        var (service, entry) = Load(name, map);
         subject = service.Load(entry);
         var model = subject.Model;
         return SoftwareRenderer.Render(
@@ -117,9 +119,22 @@ public sealed class StaticMeshRenderingTests(GameFixture game)
         Directory.CreateDirectory(directory);
         string stem = Path.GetFileNameWithoutExtension(target);
 
-        foreach (string name in new[] { "ConeDrill", "ConeDrillCage", "ConeDrillBackpack", "Ammo_Pickup_Kerosene" })
+        // The last three name more than one material. They are here because per-section materials
+        // cannot be checked numerically: a wrong pairing is still a complete, plausible mesh with
+        // every triangle textured, and only looking at it shows the window glazed in hull metal.
+        foreach (var (name, map) in new[]
+                 {
+                     ("ConeDrill", "1-Medical"), ("ConeDrillCage", "1-Medical"),
+                     ("ConeDrillBackpack", "1-Medical"), ("Ammo_Pickup_Kerosene", "1-Medical"),
+                     ("bat_vehicle", "0-Lighthouse"), ("CityGate", "0-Lighthouse"),
+                     ("RotundaColumns", "0-Lighthouse"),
+                     // Two that used to draw flat grey and now should not: the first names a
+                     // PlantShader, whose slots are Alive*; the second names a Texture directly
+                     // rather than a shader. Both are only checkable by looking.
+                     ("kelp_01", "0-Lighthouse"), ("newspaper_old_05", "1-Medical"),
+                 })
         {
-            var image = Draw(name, out _);
+            var image = Draw(name, out _, map);
             Core.Textures.PngWriter.Write(
                 Path.Combine(directory, $"{stem}_{name}.png"), image.Rgba, image.Width, image.Height);
         }
