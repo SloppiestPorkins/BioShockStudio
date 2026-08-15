@@ -29,7 +29,28 @@ public static class HkaAnimationBindingReader
     private const int AnimationPointerOffset = 12;
     private const int TransformTrackMapOffset = 16;
     private const int FloatTrackMapOffset = 28;
+    private const int PartitionIndicesOffset = 40;
     private const int BlendHintOffset = 52;
+
+    /// <summary>
+    /// The partitions this binding says the animation is sampled against, if any.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Havok's own words for <c>m_partitionIndices</c>: "(Optional) A list of the partitions used to
+    /// sample the animation". A partition is a named contiguous bone range declared on the skeleton
+    /// (<see cref="Skeleton.HkaSkeletonReader.ReadPartitions"/>).
+    /// </para>
+    /// <para>
+    /// <b>Read and reported, not used.</b> The four fire animations in <c>docs/HANDOFF.md</c> §6.0c
+    /// drive bones 3..56 of 73 — contiguous, ascending, a subset — which is the shape of a
+    /// partial-body animation, and the field was documented in this file's own header comment and
+    /// never read. Measuring it either opens a line of enquiry or eliminates one; it decides nothing
+    /// on its own.
+    /// </para>
+    /// </remarks>
+    public static short[] ReadPartitionIndices(HavokSection section, int objectOffset) =>
+        ReadInt16Array(section, objectOffset + PartitionIndicesOffset);
 
     public static AnimationBinding Read(HavokSection section, int objectOffset) =>
         new()

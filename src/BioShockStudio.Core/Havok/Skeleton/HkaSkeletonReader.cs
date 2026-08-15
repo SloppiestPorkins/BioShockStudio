@@ -19,6 +19,7 @@ namespace BioShockStudio.Core.Havok.Skeleton;
 /// +48  hkArray&lt;hkReal&gt;      m_referenceFloats
 /// +60  hkArray&lt;const char*&gt; m_floatSlots
 /// +72  hkArray&lt;...&gt;         m_localFrames
+/// +84  hkArray&lt;Partition&gt;   m_partitions
 /// </code>
 /// <c>hkaBone</c> is 8 bytes: <c>const char* m_name</c> then <c>hkBool m_lockTranslation</c>, padded.
 /// </summary>
@@ -30,7 +31,45 @@ public static class HkaSkeletonReader
     private const int ParentIndicesOffset = 12;
     private const int BonesOffset = 24;
     private const int ReferencePoseOffset = 36;
+    private const int PartitionsOffset = 84;
     private const int BoneStride = 8;
+
+    /// <summary>A named, contiguous range of bones — Havok's unit for sampling part of a skeleton.</summary>
+    /// <param name="Name">May be empty; the pointer is optional.</param>
+    public readonly record struct SkeletonPartition(string Name, short StartBoneIndex, short BoneCount);
+
+    /// <summary>
+    /// The skeleton's partitions, if it declares any.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>hkaSkeleton::Partition</c> is <c>{ const char* m_name; hkInt16 m_startBoneIndex;
+    /// hkInt16 m_numBones; }</c> — 8 bytes with padding.
+    /// </para>
+    /// <para>
+    /// <b>Read and reported, not used.</b> This exists to measure a specific question: the four fire
+    /// animations of <c>docs/HANDOFF.md</c> §6.0c drive a contiguous ascending subset of
+    /// <c>AggressorBabyJane</c>'s bones, which is what a partition is, and nobody had checked whether
+    /// the shipped skeletons declare any. Nothing decides anything on this yet.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<SkeletonPartition> ReadPartitions(HavokSection section, int objectOffset)
+    {
+        var array = section.ReadArray(objectOffset + PartitionsOffset);
+        if (array.IsEmpty || array.DataOffset is null) return [];
+
+        var result = new SkeletonPartition[array.Count];
+        for (int i = 0; i < result.Length; i++)
+        {
+            int at = array.DataOffset.Value + i * 8;
+            result[i] = new SkeletonPartition(
+                section.ReadStringPointer(at) ?? string.Empty,
+                section.ReadInt16(at + 4),
+                section.ReadInt16(at + 6));
+        }
+
+        return result;
+    }
 
     public static BioShockSkeleton Read(HavokSection section, int objectOffset)
     {
