@@ -41,6 +41,10 @@ public static class BlockCompression
                 DecodeBlocks(data, width, height, pixels, blockSize: 16, DecodeDxt5Block);
                 return pixels;
 
+            case BioShockTextureFormat.ThreeDc:
+                DecodeBlocks(data, width, height, pixels, blockSize: 16, DecodeThreeDcBlock);
+                return pixels;
+
             default:
                 throw new NotSupportedException($"Unsupported texture format {format}.");
         }
@@ -153,27 +157,82 @@ public static class BlockCompression
     private static void DecodeDxt5Block(ReadOnlySpan<byte> block, Span<byte> rgba)
     {
         DecodeColourBlock(block[8..], rgba, punchThroughAlpha: false);
+        DecodeInterpolatedBlock(block[..8], rgba, channel: 3);
+    }
 
-        Span<byte> alpha = stackalloc byte[8];
-        alpha[0] = block[0];
-        alpha[1] = block[1];
-        if (alpha[0] > alpha[1])
+    /// <summary>
+    /// Decodes one 8-byte BC4-style block into a single channel of the 4x4 output.
+    /// </summary>
+    /// <remarks>
+    /// Two endpoints, a 3-bit index per texel, and two interpolation modes chosen by whether the
+    /// first endpoint is the larger. This is DXT5's alpha block and it is also, unchanged, each half
+    /// of a 3DC/BC5 block — which is why it is factored out rather than written twice.
+    /// </remarks>
+    private static void DecodeInterpolatedBlock(ReadOnlySpan<byte> block, Span<byte> rgba, int channel)
+    {
+        Span<byte> values = stackalloc byte[8];
+        values[0] = block[0];
+        values[1] = block[1];
+
+        if (values[0] > values[1])
         {
             for (int i = 1; i < 7; i++)
-                alpha[i + 1] = (byte)(((7 - i) * alpha[0] + i * alpha[1]) / 7);
+                values[i + 1] = (byte)(((7 - i) * values[0] + i * values[1]) / 7);
         }
         else
         {
             for (int i = 1; i < 5; i++)
-                alpha[i + 1] = (byte)(((5 - i) * alpha[0] + i * alpha[1]) / 5);
-            alpha[6] = 0;
-            alpha[7] = 255;
+                values[i + 1] = (byte)(((5 - i) * values[0] + i * values[1]) / 5);
+            values[6] = 0;
+            values[7] = 255;
         }
 
         ulong bits = 0;
         for (int i = 0; i < 6; i++) bits |= (ulong)block[2 + i] << (8 * i);
 
         for (int i = 0; i < 16; i++)
-            rgba[i * 4 + 3] = alpha[(int)((bits >> (3 * i)) & 0x7)];
+            rgba[i * 4 + channel] = values[(int)((bits >> (3 * i)) & 0x7)];
+    }
+
+    /// <summary>
+    /// Decodes one 16-byte block of the format BioShock calls 3DC, which is really <b>DXT5N</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two sources disagreed here and the bytes settled it.</b> Nyko's texture note gives ordinal
+    /// 12 as "3DC — BC5/ATI2, two BC4 alpha blocks giving R and G". UModel's BioShock branch says
+    /// otherwise, in as many words:
+    /// </para>
+    /// <code>
+    /// if (Ar.Game == GAME_Bioshock &amp;&amp; Format == 12)  // remap format; note: Bioshock used 3DC
+    ///     Format = TEXF_DXT5N;                        // name, but real format is DXT5N
+    /// </code>
+    /// <para>
+    /// The block is an ordinary DXT5 block, and the normal is carried in <b>alpha and green</b> —
+    /// nvtt's <c>buildNormal(c.a, c.g)</c> for a DXT5 with the normal flag, against
+    /// <c>buildNormal(c.r, c.g)</c> for a real ATI2. Decoding it as BC5 reads the colour block's
+    /// RGB565 endpoints as though they were a BC4 endpoint pair, and produces a magenta image whose
+    /// green channel averages 57 where a normal map's must average about 128. That is how this was
+    /// caught: the numbers alone looked plausible, and the picture did not.
+    /// </para>
+    /// <para>
+    /// Z follows from <c>z = sqrt(1 - x² - y²)</c>. The clamp matters — quantisation puts
+    /// <c>x² + y²</c> slightly over 1 on near-flat texels and the square root would be NaN.
+    /// </para>
+    /// </remarks>
+    private static void DecodeThreeDcBlock(ReadOnlySpan<byte> block, Span<byte> rgba)
+    {
+        DecodeDxt5Block(block, rgba);
+
+        for (int i = 0; i < 16; i++)
+        {
+            float x = rgba[i * 4 + 3] / 255f * 2f - 1f;   // X is in alpha
+            float y = rgba[i * 4 + 1] / 255f * 2f - 1f;   // Y is in green
+            float z = MathF.Sqrt(Math.Clamp(1f - x * x - y * y, 0f, 1f));
+
+            rgba[i * 4] = rgba[i * 4 + 3];
+            rgba[i * 4 + 2] = (byte)Math.Clamp((z + 1f) * 0.5f * 255f, 0f, 255f);
+            rgba[i * 4 + 3] = 255;
+        }
     }
 }

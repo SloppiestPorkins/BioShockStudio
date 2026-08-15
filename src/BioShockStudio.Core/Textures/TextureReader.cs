@@ -14,6 +14,19 @@ public enum BioShockTextureFormat
     Rgba8 = 5,
     Dxt3 = 7,
     Dxt5 = 8,
+
+    /// <summary>
+    /// 3DC — BC5 / ATI2, two channels, used for normal maps.
+    /// </summary>
+    /// <remarks>
+    /// <c>CONFIRMED_EXTERNAL</c> from Nyko's texture note, whose <c>ETextureFormat</c> table gives
+    /// ordinal 12 as 3DC at 16 bytes per 4x4 block, and <c>CONFIRMED_BYTES</c> here: 274 exports in
+    /// the game declare it, their mip chains decompose exactly against that block size, and all 64
+    /// distinct names are normal maps. Only the four ordinals this reader can actually decode are
+    /// declared — the enum is what <c>Enum.IsDefined</c> gates the reader on, so a name without a
+    /// decoder would turn a clean refusal into a failure further in.
+    /// </remarks>
+    ThreeDc = 12,
 }
 
 /// <summary>One mip level.</summary>
@@ -182,6 +195,61 @@ public static class TextureReader
     }
 
     /// <summary>
+    /// Why <see cref="Read"/> returned nothing, in the format's own terms.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For diagnostics. "This texture could not be decoded" is a symptom; the ordinal in the
+    /// <c>Format</c> property is the thing a future session can act on, and the reader is the only
+    /// place that knows which ordinals it implements.
+    /// </para>
+    /// <para>
+    /// It reports what it found and nothing more — an unknown ordinal is named, not guessed at.
+    /// </para>
+    /// </remarks>
+    public static string DescribeFailure(BioShockPackage package, ObjectExport export)
+    {
+        byte[] payload;
+        List<UnrealProperty> properties;
+
+        try
+        {
+            payload = package.ReadExportData(export);
+            if (payload.Length < 64) return $"payload is only {payload.Length} bytes";
+            properties = UnrealPropertyReader.Read(payload, package.Names, out _);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException or IOException)
+        {
+            return $"the property list would not read: {ex.GetType().Name}: {ex.Message}";
+        }
+
+        var format = properties.FirstOrDefault(p => p.Name == "Format");
+        var uSize = properties.FirstOrDefault(p => p.Name == "USize");
+        var vSize = properties.FirstOrDefault(p => p.Name == "VSize");
+
+        if (format is null || uSize is null || vSize is null)
+        {
+            var missing = new[] { ("Format", format), ("USize", uSize), ("VSize", vSize) }
+                .Where(p => p.Item2 is null)
+                .Select(p => p.Item1);
+            return $"no {string.Join(", no ", missing)} property";
+        }
+
+        byte ordinal = format.AsByte();
+        string size = $"{uSize.AsInt()}×{vSize.AsInt()}";
+
+        if (!Enum.IsDefined((BioShockTextureFormat)ordinal))
+        {
+            string known = string.Join(", ", Enum.GetValues<BioShockTextureFormat>()
+                .Select(f => $"{(int)f} {f}"));
+            return $"Format ordinal {ordinal} is not one this reader decodes ({known}); {size}";
+        }
+
+        return $"Format {(BioShockTextureFormat)ordinal}, {size}, but no mip chain was found in the payload";
+    }
+
+    /// <summary>
     /// Splits a bulk blob into the mip levels it holds, largest first.
     /// </summary>
     /// <remarks>
@@ -275,7 +343,8 @@ public static class TextureReader
     public static int DataSize(BioShockTextureFormat format, int width, int height) => format switch
     {
         BioShockTextureFormat.Dxt1 => Blocks(width) * Blocks(height) * 8,
-        BioShockTextureFormat.Dxt3 or BioShockTextureFormat.Dxt5 => Blocks(width) * Blocks(height) * 16,
+        BioShockTextureFormat.Dxt3 or BioShockTextureFormat.Dxt5 or BioShockTextureFormat.ThreeDc =>
+            Blocks(width) * Blocks(height) * 16,
         BioShockTextureFormat.Rgba8 => width * height * 4,
         _ => throw new NotSupportedException($"Unsupported texture format {format}."),
     };
