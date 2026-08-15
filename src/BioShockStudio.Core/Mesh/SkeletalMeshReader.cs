@@ -14,6 +14,30 @@ public sealed record MeshSocket
     /// <summary>Bone the socket hangs off, e.g. <c>R_Grip</c>.</summary>
     public required string BoneName { get; init; }
 
+    /// <summary>
+    /// Where the socket sits relative to its bone, already in the internal basis.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CONFIRMED_EXTERNAL</c> then <c>CONFIRMED_BYTES</c>. UModel's <c>USkeletalMesh</c> — which
+    /// carries its own <c>#if BIOSHOCK</c> branch for this game — serialises sockets as three
+    /// parallel arrays, <c>AttachAliases</c>, <c>AttachBoneNames</c> and <b><c>AttachCoords</c></b>,
+    /// the last being <c>FCoords</c>: an origin and three axis vectors, 48 bytes. Verified here on
+    /// the shipped bytes — <b>33 of 33 sockets across three rigs decode to an exactly orthonormal
+    /// frame</b>.
+    /// </para>
+    /// <para>
+    /// Ignoring it is why some props line up and others do not: every first-person weapon socket has
+    /// a <b>zero</b> origin and so looked perfect, while <c>FireballSocket</c> is 65.8 cm from its
+    /// bone, <c>GathererAttach</c> 84.8 cm and the security bot's <c>Weapon</c> 37.8 cm. A prop on
+    /// one of those was wrong by exactly that much.
+    /// </para>
+    /// </remarks>
+    public Matrix4x4 Transform { get; init; } = Matrix4x4.Identity;
+
+    /// <summary>Whether the socket actually offsets the prop, rather than sitting on the bone.</summary>
+    public bool HasOffset => !Transform.IsIdentity;
+
     public override string ToString() => $"{Name} -> {BoneName}";
 }
 
@@ -107,9 +131,22 @@ public static class SkeletalMeshReader
                 if (socketNames[i] is "None" or "" || boneNames[i] is "None" or "") return [];
             }
 
+            // AttachCoords: a TArray of FCoords, so an FCompactIndex count and 48 bytes each. It is
+            // read only when the count agrees with the two name arrays; anything else means the walk
+            // is not where it thinks it is, and a wrong transform is worse than none.
+            var transforms = ReadSocketCoords(payload, offset, socketCount);
+
             var result = new MeshSocket[socketCount];
             for (int i = 0; i < socketCount; i++)
-                result[i] = new MeshSocket { Name = socketNames[i], BoneName = boneNames[i] };
+            {
+                result[i] = new MeshSocket
+                {
+                    Name = socketNames[i],
+                    BoneName = boneNames[i],
+                    Transform = transforms is null ? Matrix4x4.Identity : transforms[i],
+                };
+            }
+
             return result;
         }
         catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException)
@@ -119,11 +156,119 @@ public static class SkeletalMeshReader
     }
 
     /// <summary>
+    /// Reads the <c>AttachCoords</c> array that follows the two socket name arrays, or null when it
+    /// is not there in the shape the format states.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>FCoords</c> is <c>Origin, XAxis, YAxis, ZAxis</c> — twelve floats. The axes form the
+    /// socket's rotation and the origin its offset, both relative to the bone.
+    /// </para>
+    /// <para>
+    /// Accepted only if the count matches the socket count and <b>every</b> frame is orthonormal.
+    /// That is the check that makes this a decode rather than a guess: two earlier readings of this
+    /// region — 28-byte quaternion+translation records, and parallel quaternion/vector arrays — both
+    /// produced NaNs and non-unit axes, and this one produces 33 of 33 exact frames.
+    /// </para>
+    /// <para>
+    /// The result is converted into the internal basis here, at the decode boundary, by the same
+    /// conjugation every other transform uses. Nothing downstream may convert it again.
+    /// </para>
+    /// </remarks>
+    private static Matrix4x4[]? ReadSocketCoords(ReadOnlySpan<byte> payload, int offset, int socketCount)
+    {
+        try
+        {
+            if (ReadCompactIndex(payload, ref offset) != socketCount) return null;
+            if (offset + socketCount * 48 > payload.Length) return null;
+
+            var result = new Matrix4x4[socketCount];
+
+            for (int i = 0; i < socketCount; i++)
+            {
+                int at = offset + i * 48;
+
+                var origin = new Vector3(
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[at..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 4)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 8)..]));
+
+                var x = new Vector3(
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 12)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 16)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 20)..]));
+
+                var y = new Vector3(
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 24)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 28)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 32)..]));
+
+                var z = new Vector3(
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 36)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 40)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(payload[(at + 44)..]));
+
+                // A socket frame is a rotation. Anything else means this is not the array.
+                if (!IsOrthonormal(x, y, z)) return null;
+
+                var local = new Matrix4x4(
+                    x.X, x.Y, x.Z, 0f,
+                    y.X, y.Y, y.Z, 0f,
+                    z.X, z.Y, z.Z, 0f,
+                    origin.X, origin.Y, origin.Z, 1f);
+
+                result[i] = Coordinates.GameBasis.Convert(local);
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsOrthonormal(Vector3 x, Vector3 y, Vector3 z)
+    {
+        const float tolerance = 0.01f;
+
+        return Math.Abs(x.Length() - 1f) < tolerance
+               && Math.Abs(y.Length() - 1f) < tolerance
+               && Math.Abs(z.Length() - 1f) < tolerance
+               && Math.Abs(Vector3.Dot(x, y)) < tolerance
+               && Math.Abs(Vector3.Dot(x, z)) < tolerance
+               && Math.Abs(Vector3.Dot(y, z)) < tolerance;
+    }
+
+    /// <summary>
     /// Where the socket table starts and ends, for looking at what follows it.
     /// <para>
     /// An Unreal socket carries a relative location and rotation as well as a bone; this reader only
     /// takes the two name arrays. Whether the transforms are stored here is <c>UNKNOWN</c>, and this
     /// exists so the bytes after the table can be inspected without re-deriving the walk.
+    /// </para>
+    /// <para>
+    /// <b>Two readings have been tried and both are wrong</b> — recorded so they are not tried again:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>
+    /// <b>28-byte records of quaternion plus translation</b>, immediately after an <c>int32</c> that
+    /// does equal the socket count. On <c>NEWPlayerHands</c> this yields NaN, infinities and
+    /// magnitudes around 1e38 from the fifth socket onward.
+    /// </item>
+    /// <item>
+    /// <b>Parallel arrays — N quaternions then N vectors</b>, in the style of the two name arrays.
+    /// <b>0 of 19</b> of the resulting quaternions are unit length, and the <c>int32</c> that follows
+    /// is <c>-2147483648</c> on the hands, <c>179</c> on <c>SecurityBot</c>: not a count, so the
+    /// array does not end where this reading says.
+    /// </item>
+    /// </list>
+    /// <para>
+    /// The <c>int32</c> equalling the socket count is suggestive but is not on its own evidence of a
+    /// transform array — the values after it do not behave like transforms under either layout, and
+    /// the recurring <c>-0.0058</c> and <c>8.7e-8</c> are what small integers look like when read as
+    /// floats. Anything here is more likely the bone map or another index array. **Do not fit a
+    /// third guess to it; find the layout in `UModel-master/Unreal/` or Nyko's SDK first.**
     /// </para>
     /// </summary>
     public static (int Start, int End, int Count) DescribeSocketTable(
