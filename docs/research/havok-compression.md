@@ -6,6 +6,21 @@
 BioShock stores every animation as `hkaSplineCompressedAnimation`. `CONFIRMED_BYTES`: no other
 animation class appears in the shipped data, and `hkaInterleavedUncompressedAnimation` is absent.
 
+## What the SDK says about the binding, and what the game actually carries
+
+`CONFIRMED_EXTERNAL` from `hkaAnimationBinding.h`, measured here.
+
+| field | SDK | shipped game |
+|---|---|---|
+| `m_blendHint` | `enum { NORMAL = 0, ADDITIVE = 1 }` | **0 on all 15,998 animations.** Additive blending is ruled out, by census and not by inference. |
+| `m_partitionIndices` | "(Optional) A list of the partitions used to sample the animation" | **empty on all 457 bindings** of `AggressorBabyJane`; her six skeletons declare **0 partitions**. |
+| `isMonotonic()` | "does this binding animate a **subset** of the bones in the same order in which they appear in the skeleton?" | 9 of 457 bindings on that rig drive a subset. The four collapsing fire clips are among them. |
+
+The last row is the useful one and it is a description, not a cause: Havok has a name for what the
+54-track clips are, and the mechanism it provides for them — partitions — is not used by this game.
+See `docs/HANDOFF.md` §6.0c, where this eliminates a fourth candidate cause.
+
+
 ## Animation header
 
 `CONFIRMED_BYTES`. See `HkaSplineCompressedAnimationReader` for the field offsets. Cross-validating

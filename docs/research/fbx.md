@@ -190,3 +190,35 @@ ue5_manifest.json            notifies, sockets, attachment pairing — what FBX 
 ```
 
 A static mesh exports the same way, minus the animation folder and the skeleton.
+
+## Multiple materials
+
+`CONFIRMED_EXTERNAL` — verified by importing the written file back into Blender.
+
+A mesh naming several materials writes one `Material` object per slot, in the scene's slot order,
+and a `LayerElementMaterial` with `MappingInformationType` **`ByPolygon`** carrying one index per
+polygon. A mesh with one material keeps `AllSame` and a single index, which is what every importer
+takes the fast path on.
+
+The connection order is the slot order: `LayerElementMaterial` indexes the materials attached to
+the model by the order they were connected, so the exporter emits them in scene order and must
+continue to.
+
+A polygon whose section resolved no material is written as slot 0. FBX has no "no material", and
+dropping the polygon would lose geometry, so the untextured run is visible as the slot it landed in.
+
+Verified two ways:
+
+| | |
+|---|---|
+| `FbxMaterialTests` | reads the written bytes back: `CityGate` declares `Granite_L`, `Gate_Light`, `C_Gate`, mapping is `ByPolygon`, and all 2,400 polygon indices equal the scene's. `ConeDrill` still writes `AllSame`. |
+| Blender 5.1.2 FBX importer | `CityGate.fbx` imports as three slots in scene order, **0 of 2,400 faces in the wrong slot**. |
+
+The Blender round trip is not in the test suite, which must not require Blender. To repeat it:
+
+```bash
+blender --background --python <script> -- CityGate.fbx CityGate.json
+```
+
+**Unreal is still unverified** — see `docs/HANDOFF.md` §6.4. Whether it honours `ByPolygon` material
+mapping on import is `UNKNOWN`, and is one more thing a single real import would settle.

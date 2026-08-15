@@ -136,8 +136,6 @@ not bound, and drawing them in one space would imply they were.
   megabyte on the largest — beginning with an `int32` and an `FCompactIndex` node count, then what
   look like 32-byte records of `FBox` plus two `uint16`. Almost certainly the kDOP collision tree.
   Not needed for geometry and not read.
-- **Sections.** Nothing yet distinguishes which triangles belong to which material on a mesh with
-  more than one, so a multi-material static mesh exports as a single surface.
 - **The variable-length header.** Located by search rather than understood, exactly as with
   `SkeletalMesh`.
 - **LODs.** Whether further vertex blocks follow the tail has not been checked.
@@ -190,9 +188,61 @@ as before — nothing is invented.
 asserting that every table that does resolve tiles its own index buffer exactly, over more than
 5,000 meshes, with the check refusing to pass vacuously.
 
-**Still to do:** the sections are read but not yet consumed. Turning "textured from the first
-material only" into per-section materials means pairing section *N* with `Materials[N]` in the
-material resolver and the exporters.
+### Consumed — the sections now choose the material
+
+`CONFIRMED_BYTES` for the layout, `CORROBORATED` game-wide for the pairing.
+
+`MeshSurfaceResolver` is the single place that pairs section *N* with `Materials[N]`. The preview,
+the scene JSON, the FBX exporter and the Blender importer all go through it, so none of them can
+form its own opinion about what a mesh looks like.
+
+**The evidence for the pairing is now much stronger than the two meshes it was found on.** The
+section table is read *backwards* from the geometry block that the geometry search located; the
+`Materials` array is read *forwards* as an ordinary tagged property from offset 8. Neither reader
+consults the other. Across **all 8,668 shipped static meshes the two counts are equal, with no
+exceptions** — 1,179 of them declaring more than one section. Two independently-decoded structures
+agreeing that many times is not a coincidence, and `MeshSurfaceTests` pins it.
+
+| | |
+|---|---|
+| Static meshes decoded | 8,668 |
+| With a section table | 8,668 |
+| More than one section | 1,179 |
+| Sections == material slots | **8,668 / 8,668** |
+| Material slots declared | 10,198 |
+| Slots resolving to a material | 10,158 |
+| Empty or unreadable slots | 40 |
+
+**A material slot may be empty, and an empty slot must keep its position.** Getting this right is
+what took the count agreement from 8,632 to 8,668. Two distinct causes, both real:
+
+- **A declared null.** `3-Arcadia/ad_01` declares two elements and the second's `Material` is an
+  `Object` property with an *implicit* size and a null reference — a real, empty, second slot:
+  ```
+  02                                            count = 2
+  5D02 00000000 D3 00                           EnableCollision (Bool, value in the array bit)
+  37   00000000 55 03 7FD705                    Material -> 46591  ad_frame_shader
+  00   00000000                                 None
+  5D02 00000000 D3 00                           EnableCollision
+  37   00000000 05 00                           Material, implicit size 1, reference 0  <- empty slot
+  00   0000                                     None, cut short by the array's declared size
+  ```
+- **A reference cut off by the array's one-byte-short size.** `5-Hephaestus/Bomb` declares 7 and its
+  seventh `Material` reference loses its last byte. The slot exists — the count says so — but its
+  value cannot be read.
+
+The reader therefore builds a list exactly `count` long and fills what it can, leaving anything
+unread as null. **It never closes the list up**, because compacting shifts every later section onto
+the wrong material. `ReadMeshMaterialSlots` returns that slot-ordered list;
+`ReadMeshMaterialReferences` is the compacted view, and must not be indexed by a section ordinal.
+
+The 13 meshes that used to disagree — `Bomb`, `DLC_Com_Door`, every `ad_01` and `ad_large` — all
+agree now, which was a falsifiable prediction of the reading above rather than a fitted result.
+
+Verified by rendering as well as by count: the Bathysphere (`bat_vehicle`, 8,200 hull faces +
+88 lamp faces) draws a verdigris copper hull with its lamp housings in a different pale metal, and
+`CityGate` (560 / 64 / 1,776) draws grey granite, blue-glass-and-brass lamp columns and a darker
+gate as three visibly different surfaces. `Static_Snapshot` renders all three.
 
 ### Where Remastered diverges from the original game
 

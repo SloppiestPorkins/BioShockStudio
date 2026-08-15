@@ -169,6 +169,43 @@ textured weapons.
 The 18 exports that still fail are all doors — `LowRentDoor_Mesh`, `Sliding512SingleDoorMesh`,
 `Atlas_labs_doorAnim` and `GathererDoorAnimMesh`, four distinct meshes across the packages.
 
+## UModel has the whole payload, and it says there IS a section table
+
+`CONFIRMED_EXTERNAL`, from `UModel-master/Unreal/UnMeshBioshock.cpp`. **Not implemented — recorded so
+the next session starts from it rather than from bytes.** Full detail and cross-checks in
+[reference-comparison.md](reference-comparison.md) §3.
+
+Two things it settles that this note and `HANDOFF.md` currently record as unknown:
+
+1. **A skeletal mesh carries a per-material section table.** `FStaticLODModelBio` begins
+   `TArray<FSkelMeshSection> Sections` — nine `uint16`s each, `MaterialIndex, MinStreamIndex,
+   MinWedgeIndex, MaxWedgeIndex, NumStreamIndices, BoneIndex, fE, FirstFace, NumFaces` — with the
+   comment "1 section = 1 material". That is the same pairing the `StaticMesh` path already uses, and
+   it is the **153** meshes the diagnostic sweep reports as
+   `mesh-materials-without-sections`, which today draw entirely in one material.
+2. **The payload can be walked from the front.** The order is bounds, versioned header, `Textures`
+   (the material array), scale/origin/rotation, four unknown scalars, `RefSkeleton`, `Animation`,
+   `SkeletalDepth`, the three socket arrays, then the LOD models. This project locates the vertex
+   chain by *search*, and open question 4 records byte-exact accounting as the thing that would
+   settle the container outright.
+
+**Caveat, and it is a real one.** UModel targets the **original** game. The Remastered static vertex
+is already 48 bytes against the original's 24, so a field-by-field check against shipped Remastered
+bytes is required before any of this becomes a parser. `t3_hdrSV` (§below) is what selects layout
+variants and is the first thing to read.
+
+## The "tag block" is a versioned object header
+
+`CONFIRMED_EXTERNAL`. `MaterialReader` searches for `04 00 00 00 05 00 00 00` and calls it a tag
+block whose position varies between meshes. It is UModel's `TRIBES_HDR` (`UnCore.h:2219`): an
+`int32 check` — 3 means two version fields follow, 4 means one — then the version(s). So the pattern
+is `check = 4`, `t3_hdrSV = 5`; the static mesh's `int32 4, int32 8` is the same header with
+subversion 8. Its position varies because the data before it does.
+
+`t3_hdrSV` **gates the layout** in UModel's reader (`< 4` selects BioShock 1's vertex blocks, `>= 3`
+and `>= 5` add fields), so reading it as a version rather than matching it as a pattern is the
+precondition for a forward walk.
+
 ## More than one LOD per payload (LIKELY)
 
 `WP_CrossbowMesh`'s payload is 1,405,352 bytes and the geometry chain ends at 655,675, leaving

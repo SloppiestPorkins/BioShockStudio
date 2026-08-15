@@ -141,3 +141,52 @@ texture whose outer names a group resolves to a different one.
 
 - The 23-byte header, and the byte between a chunk's name and its first entry.
 - The nine textures per package whose size does not decompose.
+- 46 texture exports carry **no `Format` property at all**, and all 42 of their distinct names are
+  editor sprites (`S_Actor`, `S_Camera`, …) or engine placeholders (`DefaultTexture`,
+  `WhiteTexture`, `MaterialBackdrop`). Whether they are meant to hold pixels is `UNKNOWN`; their
+  payloads run 438 to 22,267 bytes and none has been hand-decoded. They are the whole of what
+  `diagnose` still reports as `texture-undecodable`.
+
+## Pixel formats, and the one that took two sources to settle — CLOSED
+
+`CONFIRMED_EXTERNAL` and `CONFIRMED_BYTES`. The `Format` property is a byte holding an
+`ETextureFormat` ordinal. Four were established here by measuring bytes per pixel; the fifth came
+from the reference projects and is the reason
+[reference-comparison.md](reference-comparison.md) exists.
+
+| ordinal | format | bytes for `w × h` | state |
+|---|---|---|---|
+| 3 | DXT1 | `ceil(w/4)*ceil(h/4)*8` | decoded |
+| 5 | RGBA8 | `w*h*4` | decoded, stored BGRA on disk |
+| 7 | DXT3 | `ceil(w/4)*ceil(h/4)*16` | decoded |
+| 8 | DXT5 | `ceil(w/4)*ceil(h/4)*16` | decoded |
+| **12** | **DXT5N** — the game *calls* it 3DC | `ceil(w/4)*ceil(h/4)*16` | **decoded** |
+
+Nyko's texture note lists ordinals 0, 2, 6, 9, 10 and 11 as well (P8, R5G6B5, NODATA, A8, A16,
+ABGR16F). **None of them appears on any shipped texture** — the census of undecodable exports found
+only ordinal 12 and the property-less sprites — so they are recorded here and deliberately **not**
+added to the enum, which is what gates the reader.
+
+### Ordinal 12 is DXT5N, not 3DC/BC5
+
+The two reference projects disagree. Nyko's note says "3DC — BC5/ATI2, two BC4 alpha blocks giving R
+and G". UModel's BioShock branch remaps it: `Format = TEXF_DXT5N`, commented *"Bioshock used 3DC
+name, but real format is DXT5N"*, and nvtt then rebuilds the normal from `(alpha, green)` rather than
+`(red, green)`.
+
+**The bytes side with UModel**, and the check is an invariant rather than a preference:
+
+| | as BC5 | as DXT5N |
+|---|---|---|
+| X (red) mean | 127 | 127 |
+| **Y (green) mean** | **57** | **128** |
+| Z (blue) mean | 209 | 252 |
+| texels with `x² + y² > 1` | many | **0 of 4,096** |
+
+A tangent-space normal map's X and Y both centre on 128 and every texel is a unit vector. Read as
+BC5, the second half of the block — which is really the DXT5 colour block — is parsed as a BC4
+endpoint pair, and the image comes out magenta. `NormalMapFormatTests` asserts the invariants, so it
+fails on the wrong reading rather than merely describing the right one.
+
+**274 exports, 64 distinct names, every one a normal map.** They decoded to nothing before this, so
+every mesh using one had no normal map at all.

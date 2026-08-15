@@ -11,6 +11,7 @@ hint, never an assumption about BioShock.
 | UEViewer, same file | No BioShock-specific branch exists for `FObjectExport` / `FObjectImport` / `FPackageFileSummary`. | `CONFIRMED_EXTERNAL` |
 | **Havok 2012.2.0-r1 SDK** (`hk2012_2_0_r1/`) | `hkaSplineCompressedAnimation::recompose` — a channel component that is neither static nor spline takes **identity**, not the bone's reference pose. Also confirms `ScalarQuantization` is only BITS8/BITS16, the per-quantization quaternion sizes `{4,5,6,3,2,16}` and alignments `{4,1,2,1,2,4}`, `unpackQuantizationTypes`' bit layout, and `getBlockAndTime`'s `frame / (maxFramesPerBlock - 1)` block stride. | `CONFIRMED_EXTERNAL` |
 
+| **UModel-master (UEViewer source)** | `UnTexture2.cpp`: texture `Format` 12 is **DXT5N**, not 3DC/BC5 — 274 normal maps now decode. `UnMeshBioshock.cpp`: the whole `SkeletalMesh` payload, including a per-material **section table** (`FSkelMeshSection`), the socket arrays, and `HkMeshProxy` as a plain `UObject*`. `UnCore.h`: `TRIBES_HDR` is the Vengeance versioned-object header — the "tag block" this project searches for as a byte pattern. | `CONFIRMED_EXTERNAL`; the texture format independently `CONFIRMED_BYTES` here |
 | **Nyko's `Bioshock1REMSDK-WIP--main`** | `bioshock1-bsm.md` §C.4 `UStaticMesh`: the **section table** — `CI NumSections`, then 14 bytes per section, before the vertex block — and that a section's ordinal indexes the object's `Materials` array. Verified against Remastered bytes here. Also that its `Materials` array is an ordinary tagged property, and that struct elements need recursive tagged-property serialisation with an unknown-property skip path. | `CONFIRMED_EXTERNAL`, and independently `CONFIRMED_BYTES` here |
 
 **The Havok SDK is the highest-value thing on this list.** The identity-fallback line settled a
@@ -22,17 +23,26 @@ are not. See `docs/research/havok-compression.md` and `FIRST_PERSON_ANIMATION.md
 
 Nyko's SDK is the second most valuable, and the two projects answer different questions: it is an
 in-engine SDK, so it knows the *engine's* structures — sections, material binding, the shader
-factories, lightmaps, BSP — where this project knows the shipped *bytes* in more depth. Its
-`docs/reverse-engineering/` also holds `BioShock_Materials_And_Shaders.md` (the full material class
-tree and the `EMaterialType` ordinals), `BioShock_Texture_Lightmap_Format.md` and
-`BioShock_Bulk_Files_And_Catalog.md`, none of which have been read against our own notes yet.
+factories, lightmaps, BSP — where this project knows the shipped *bytes* in more depth. `BioShock_Materials_And_Shaders.md` and `BioShock_Reading_Textures.md` have now been read in full and
+are recorded in [reference-comparison.md](reference-comparison.md); between them they took the game's
+textured-mesh coverage from 73.9% to 96.4% and settled half of open question 11.
+`BioShock_Texture_Lightmap_Format.md` and `BioShock_Bulk_Files_And_Catalog.md` are still unread.
 
 **Beware of one divergence.** Its `UStaticMesh` vertex is 24 bytes with packed normals, cross-
 validated against UEViewer; Remastered's is 48 with full float basis vectors. Both are right for
 their own target. A finding ported from UEViewer or the original game may need the record widening.
 
-Also present and not yet mined: `UModel-master` (UEViewer source) and `Unreal-Library-master`
-(UELib, C#).
+**`UModel-master` is now partly mined and it was worth it.** Its `#if BIOSHOCK` branches settled
+texture `Format` ordinal 12 (**against** Nyko's note — see below), and `UnMeshBioshock.cpp` holds a
+complete `SkeletalMesh` serialisation including a **section table**, which this project had recorded
+as `UNKNOWN`. `Unreal-Library-master` is still untouched.
+
+**Two sources have now contradicted each other on a live question.** Nyko's texture note gives
+ordinal 12 as 3DC/BC5 with two BC4 blocks; UModel remaps it to `TEXF_DXT5N` with the comment
+"Bioshock used 3DC name, but real format is DXT5N", and the shipped bytes side with UModel. The full
+field-by-field comparison, and which source won each contest, is in
+[reference-comparison.md](reference-comparison.md). **Corroboration is not agreement: check the layer
+you actually depend on.**
 
 That second finding is load-bearing. UEViewer handles BioShock's export table through its generic
 UE2 path, but the Remastered export record is **not** stock UE2 — it carries an extra int32 after

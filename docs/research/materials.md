@@ -4,6 +4,62 @@
 **Tests:** `tests/BioShockStudio.Tests/MaterialTests.cs`
 **Status:** the mesh-to-shader link is decoded and meshes export textured.
 
+## Every material class is an ordinary property list, and a texture binding is not a name on a list
+
+`CONFIRMED_EXTERNAL` then `CONFIRMED_BYTES`. Nyko's
+`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md` states it
+plainly: **a material has no custom binary serialisation.** Every material class — `Shader`,
+`FacingShader`, `FluidShader`, `PlantShader`, `LightBeamShader`, `MaterialSwitch`,
+`MaterialSequence`, `LayeredShader` and the rest — is a stock UE2 object header plus a tagged
+property block, and "texture references are objrefs" resolved through the package tables.
+
+This reader already parsed all of them. What it got wrong was **which properties count as a texture
+binding**: it held a list of thirteen slot names taken from `Shader` and `FacingShader`, and every
+other class names its slots differently. Read off shipped objects:
+
+| class | base colour | other bindings |
+|---|---|---|
+| `Shader` | `Diffuse` | `NormalMap`, `SpecularColorMap`, … |
+| `FacingShader` | `FacingDiffuse` / `EdgeDiffuse` | — |
+| `PlantShader` | **`AliveDiffuse`** | `AliveNormalMap`, `AliveSpecularColorMap` |
+| `FluidShader` | **`WaterDiffuseMap`** | `NormalMap` |
+| `LightBeamShader` | none | **`FalloffMap`**, `DustMap` |
+
+So the rule is now the one the note describes rather than a list: **a texture binding is an `Object`
+property whose reference resolves to an object of class `Texture`.** That is strictly more permissive
+than the old list — every binding it used to find, it still finds — and it cannot invent one, because
+the reference has to actually name a `Texture`.
+
+**The class check is load-bearing, not decoration.** A `FluidShader` also carries `Object` properties
+naming `TextureRotator` and `TexturePanner` objects — `CoverageMaskAnimator`,
+`DiffuseTextureAnimator1`, `NormalTextureAnimator1`, `SpecularAnimator2` and more. Those are
+`TexModifier`s, the UV/colour modifier branch of the class tree, **not** textures. A rule of "any
+object property is a texture" would bind seven animators as textures on one `FluidShader` alone.
+
+`DiffuseTexture` — which of the bound slots is the base colour — tries the known names above in
+order, then any slot whose name contains "Diffuse". **There is deliberately no "first texture"
+fallback**: a `LightBeamShader` binds `FalloffMap` and `DustMap` and has no base colour, and picking
+one arbitrarily would put a normal map on a mesh as its colour, which renders as a blue-purple
+surface and passes every count.
+
+## A `Texture` named in a material slot is a material, and draws as itself
+
+`CONFIRMED_EXTERNAL`. The class tree has three branches, and one of them is `BitmapMaterial →
+Texture`: a texture *is* a material, drawn by `MaterialFactory_BitmapMaterial`, which the note
+describes as "diffuse + alpha straight from one texture". **162 meshes name one in a material slot
+instead of a shader** — `Rock_A` uses `SmallRock`, `newspaper_old_05` uses `newspaper_diffuse` — and
+reading those as if they were a `Shader` finds no `Object` properties at all, so the material
+reported that it bound nothing while its texture sat there as the object itself.
+
+The reader now binds such a material to itself, under the slot name `Self`. That name is not a
+property the data declares, and is called `Self` rather than `Diffuse` for exactly that reason: the
+binding is the object, not a slot it names.
+
+**Rendered and checked**, which is the only way this class of fault shows: `kelp_01` (a `PlantShader`)
+draws as green-gold seaweed fronds and `newspaper_old_05` (a `Texture` material) as three crumpled
+newspapers with legible print. Both drew flat grey before. `StaticMeshRenderingTests.Static_Snapshot`
+writes them.
+
 ## A Shader is an ordinary property list
 
 `CONFIRMED_BYTES`. `Shader` needed no new container work. Its payload is the same tagged Unreal
@@ -81,7 +137,14 @@ whichever slot the shader class puts them in, so callers do not have to know abo
 
 ## Coverage
 
-Measured against the installed game:
+**Whole game, from `diagnose` (`docs/QUALITY.md`):** 13,545 material objects, **0 partial** and 0
+unreadable — the table below predates the nested-struct-size fix and is kept for the record. Of
+9,684 mesh exports, **8,822 (91.1%) draw with a base colour**; of the 862 that do not, **522 resolve
+a material of a class this reader does not know** — `FluidShader`, `PlantShader`, `LightBeamShader`,
+`MaterialSwitch`, `MaterialSequence`, `LayeredShader` — and so find none of its properties. That is
+open question 11b and the largest remaining gap in materials.
+
+Measured against the installed game, before that sweep:
 
 | Package | Meshes resolving to a material | Material objects decoding |
 |---|---|---|
@@ -109,7 +172,56 @@ HkMeshProxy HkMeshProxy0  [11336] 136 bytes  outer=export StaticMesh 'Wasp'
 
 They are collision proxies. Nothing in the material path uses them.
 
-## The partial decodes
+## The partial decodes — CLOSED
+
+`CONFIRMED_BYTES`. **A struct property's declared size omits the size-encoding bytes of its own
+nested properties.** A nested property with an explicit size — encoding 5, 6 or 7 — costs 1, 2 or 4
+bytes on the wire that the declared size does not count. The outer walk therefore advanced that many
+bytes too few, landed inside the next property's name and stopped.
+
+The two shaders the rule was read off, one on each side:
+
+```
+PistolShader.SpecularMask          declared 20, content 20
+  26 00000000  05 00               Material, size encoding 0 — implicit size, no size byte
+  4D01 00000000  01 01             Channel
+  00 00000000                      None
+                                   5+1+1 + 6+1+1 + 5 = 20   exact
+
+Resurrection_Shader.Opacity        declared 22, content 23
+  36 00000000  55 03 7EA301        Material, size encoding 5 — one size byte, uncounted
+  6B01 00000000  01 01             Channel
+  00 000000                        None, its number field one byte short
+                                   5+5 + 6+2 + 5 = 23   declared 22
+```
+
+**Census of every struct-valued property on every material in the game:** of **14,610
+`MaskMaterial` structs, 9,152 declare their size exactly — every one of them having no nested
+property with an explicit size — and the remaining 5,458 are short by exactly the number of
+size-encoding bytes their nested properties carry. There are no other cases.**
+
+Not every struct is a property list. `Color` is a plain four-byte BGRA value with no nested list at
+all, and the game ships 6,329 of them. So `UnrealPropertyReader` does **not** correct on the strength
+of the rule: it corrects only when walking the nested list **lands exactly on a terminator** at the
+corrected length, and the declared length does not contain one. A struct that is not a property list
+cannot satisfy that and is returned untouched.
+
+| | before | after |
+|---|---|---|
+| Materials decoding | 13,532 | 13,532 |
+| **Partial** | ~half in the larger packages (432 of 819 in `1-Medical`) | **0** |
+| Binding at least one texture | — | 13,304 |
+
+`StructSizeTests` holds it: both shaders above field by field, a game-wide sweep asserting no
+material is partial, and a check that no property name or texture slot reported by any material is
+absent from the package's own name table — because a wrong correction resumes the outer walk
+mid-property and produces plausible rubbish.
+
+This also closes the second instance of the same shape recorded below, and it is the same family of
+off-by-one as the `Materials` array's cut-off terminator, though that one has a different cause: the
+array's own declared size is short, not its elements'.
+
+## The partial decodes — how it looked before (kept for the record)
 
 `UNKNOWN`, with the byte evidence recorded here so it can be closed rather than guessed at.
 
@@ -180,6 +292,18 @@ Materials   Array, size 23 on ConeDrill
 ```
 
 For `ConeDrill` the `Material` reference is 10571, which is `ConeDrillRimShader`, a `FacingShader`.
+
+### A slot may be empty, and its position is load-bearing
+
+`CONFIRMED_BYTES`. Since the section table chooses a material by ordinal, the `Materials` list must
+be exactly as long as the array's own count, with unread or null entries kept in place. Forty of the
+game's 10,198 slots are empty, from two distinct causes — a declared null reference with an implicit
+size, and a reference truncated by the one-byte-short array size. Both are shown byte by byte in
+[staticmesh.md](staticmesh.md).
+
+`ReadMeshMaterialSlots` is the slot-ordered list and is what `MeshSurfaceResolver` indexes.
+`ReadMeshMaterialReferences` compacts it to what resolves and **must not** be indexed by a section
+ordinal: closing up one empty slot shifts every later section onto the wrong material.
 
 **The array's declared size is one byte short of its content**, so the final terminator is cut off.
 That is the same off-by-one `MaskMaterial` shows below, and this is a second independent case of it:
