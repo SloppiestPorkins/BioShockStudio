@@ -7,6 +7,7 @@ using BioShockStudio.Core.Havok.Packfile;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
 
 if (args.Length == 0)
@@ -45,6 +46,8 @@ try
         "animation" => AnimationInspect(root, args),
         "export-firstperson" => ExportFirstPerson(root, args),
         "audit-animations" => AuditAnimations(root, args),
+        "diagnose" => Diagnose(root, args),
+        "names" => Names(root, args),
         _ => Usage(),
     };
 }
@@ -83,6 +86,9 @@ static int Usage()
                                         Write FBX (mesh, skeleton, one file per animation) plus a
                                         manifest for the Unreal importer.
           audit-animations [out.csv]    Decode every animation in the game and report coverage.
+          diagnose [package] [--animations] [--code C] [--out report.csv]
+                                        Report every asset this tool knows is broken or degraded,
+                                        with the evidence. One package, or the whole game.
           export-firstperson <weapon> <out-dir> [--fbx] [--preview=<animation>]
                                         Assemble the hands, the weapon and both animation sets.
                                         --preview also writes a mesh-plus-animation file to look at.
@@ -461,6 +467,29 @@ static int AuditAnimations(string root, string[] args)
     foreach (float threshold in new[] { 10f, 25f, 50f, 100f })
         Console.WriteLine($"  animations with a bone jumping >= {threshold,3:0} cm in one frame  {report.Discontinuous(threshold)}");
 
+    // A skeleton is rigid, so a bone sitting on its parent is provably a decode fault — unlike a
+    // large frame step, which a snappy performance can produce honestly. This is the check that
+    // would have caught the arms-inside-the-chest fire animations; see docs/HANDOFF.md §6.0c.
+    Console.WriteLine($"\nanimations folding a bone into its parent    {report.WithCollapsedBones()}");
+    foreach (int bones in new[] { 5, 10, 20 })
+        Console.WriteLine($"  animations folding >= {bones,2} bones in one frame      {report.WithCollapsedBones(bones)}");
+
+    var collapses = report.Rows
+        .Where(r => r.WorstCollapsedBones > 0)
+        .OrderByDescending(r => r.WorstCollapsedBones)
+        .Take(15)
+        .ToList();
+
+    if (collapses.Count > 0)
+    {
+        Console.WriteLine("\nworst collapses:");
+        foreach (var r in collapses)
+        {
+            Console.WriteLine($"  {r.WorstCollapsedBones,3} bones  {r.Wrapper}/{r.Name} " +
+                              $"({r.TrackCount} tracks) frame {r.WorstCollapseFrame} e.g. {r.WorstCollapseBone}");
+        }
+    }
+
     var worst = report.Rows.OrderByDescending(r => r.WorstFrameStep).Take(15).ToList();
     Console.WriteLine("\nlargest single-frame bone jumps:");
     foreach (var r in worst)
@@ -514,6 +543,154 @@ static int AuditAnimations(string root, string[] args)
         value.Contains(',') || value.Contains('"')
             ? '"' + value.Replace("\"", "\"\"") + '"'
             : value;
+}
+
+/// <summary>
+/// The health report — every diagnostic the tool can produce, with its evidence.
+/// </summary>
+/// <remarks>
+/// The animation half is opt-in because it decodes all 16,031 animations and costs minutes; the
+/// summary always states what was examined, so a short run cannot be mistaken for a clean game.
+/// </remarks>
+static int Diagnose(string root, string[] args)
+{
+    string? packageName = null, codeFilter = null, csvPath = null;
+    bool animations = false;
+
+    for (int i = 1; i < args.Length; i++)
+    {
+        string arg = args[i];
+        if (arg == "--animations") animations = true;
+        else if (arg == "--code" && i + 1 < args.Length) codeFilter = args[++i];
+        else if (arg == "--out" && i + 1 < args.Length) csvPath = args[++i];
+        else if (!arg.StartsWith("--", StringComparison.Ordinal)) packageName = arg;
+    }
+
+    // The same two sources the exporter uses. Without them every import-named shader and every
+    // stripped texture would be reported as a fault the export pipeline does not actually have.
+    var external = new PackageMaterialSource(root);
+    var bulk = BulkTextureCatalog.Load(root);
+
+    var report = DiagnosticReport.Empty;
+
+    if (packageName is not null)
+    {
+        string file = GameLocator.EnumeratePackages(root)
+                          .Concat(GameLocator.EnumerateScriptPackages(root))
+                          .FirstOrDefault(p => string.Equals(
+                              Path.GetFileNameWithoutExtension(p), packageName,
+                              StringComparison.OrdinalIgnoreCase))
+                      ?? throw new FileNotFoundException($"no shipped package named '{packageName}'");
+
+        using var package = BioShockPackage.Open(file);
+        report = AssetDiagnostics.ScanPackage(package, packageName, external, bulk);
+    }
+    else
+    {
+        Console.WriteLine("scanning every mesh, material and texture in the game. this takes a while.\n");
+        report = AssetDiagnostics.Run(root, external, bulk, m => Console.Error.WriteLine($"  {m}"));
+    }
+
+    if (animations)
+    {
+        Console.WriteLine("\ndecoding every animation in the game. this takes a few minutes.\n");
+        report = report.Merge(AssetDiagnostics.FromAnimationAudit(
+            AnimationAudit.Run(root, m => Console.Error.WriteLine($"  {m}"))));
+    }
+
+    var rows = report.Diagnostics
+        .Where(d => codeFilter is null || string.Equals(d.Code, codeFilter, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(d => d.Severity)
+        .ThenBy(d => d.Code, StringComparer.Ordinal)
+        .ThenBy(d => d.Package, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(d => d.Asset, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    Console.WriteLine();
+    Console.WriteLine(report.Summarise());
+
+    if (codeFilter is not null)
+    {
+        Console.WriteLine($"\n{rows.Count:N0} matching '{codeFilter}':\n");
+        foreach (var diagnostic in rows.Take(200))
+        {
+            Console.WriteLine(diagnostic.ToReport());
+            Console.WriteLine();
+        }
+        if (rows.Count > 200) Console.WriteLine($"... and {rows.Count - 200:N0} more");
+    }
+    else if (rows.Count > 0)
+    {
+        // One worked example per code, so the report shows what the evidence looks like rather than
+        // only how many there are. --code lists them all.
+        Console.WriteLine("\none example of each:\n");
+        foreach (var group in rows.GroupBy(d => d.Code, StringComparer.Ordinal))
+        {
+            Console.WriteLine(group.First().ToReport());
+            Console.WriteLine();
+        }
+    }
+
+    if (csvPath is not null)
+    {
+        using var writer = new StreamWriter(csvPath);
+        writer.WriteLine("code,severity,subsystem,package,group,asset,class,exportIndex,summary,evidence,reference");
+        foreach (var d in rows)
+        {
+            writer.WriteLine($"{DiagnoseCsv(d.Code)},{d.Severity},{d.Subsystem},{DiagnoseCsv(d.Package)}," +
+                             $"{DiagnoseCsv(d.Group)},{DiagnoseCsv(d.Asset)},{DiagnoseCsv(d.ClassName)}," +
+                             $"{d.ExportIndex},{DiagnoseCsv(d.Summary)},{DiagnoseCsv(d.Evidence)}," +
+                             $"{DiagnoseCsv(d.Reference)}");
+        }
+        Console.WriteLine($"wrote {csvPath}");
+    }
+
+    return 0;
+}
+
+static string DiagnoseCsv(string value) =>
+    value.Contains(',') || value.Contains('"') || value.Contains('\n')
+        ? '"' + value.Replace("\"", "\"\"").Replace("\r", " ").Replace("\n", " ") + '"'
+        : value;
+
+/// <summary>
+/// Prints entries from a package's name table, by index range or by pattern.
+/// </summary>
+/// <remarks>
+/// A research tool. Several of this game's binary blobs hold what look like name-table indices —
+/// <c>EventResponse_SoundEffectsSubsystem.Specification</c> is the current example — and the only way
+/// to test that reading is to resolve the index and see whether the answer is meaningful.
+/// </remarks>
+static int Names(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: names <package> [pattern | index [count]]"); return 1; }
+
+    string file = GameLocator.EnumeratePackages(root)
+                      .Concat(GameLocator.EnumerateScriptPackages(root))
+                      .FirstOrDefault(p => string.Equals(
+                          Path.GetFileNameWithoutExtension(p), args[1], StringComparison.OrdinalIgnoreCase))
+                  ?? throw new FileNotFoundException($"no shipped package named '{args[1]}'");
+
+    using var package = BioShockPackage.Open(file);
+    Console.WriteLine($"{args[1]}: {package.Names.Count} names");
+
+    if (args.Length < 3) return 0;
+
+    if (int.TryParse(args[2], out int index))
+    {
+        int count = args.Length > 3 && int.TryParse(args[3], out int c) ? c : 1;
+        for (int i = index; i < index + count && i < package.Names.Count; i++)
+            if (i >= 0) Console.WriteLine($"  [{i,6}] {package.Names[i].Name}");
+        return 0;
+    }
+
+    for (int i = 0; i < package.Names.Count; i++)
+    {
+        if (package.Names[i].Name.Contains(args[2], StringComparison.OrdinalIgnoreCase))
+            Console.WriteLine($"  [{i,6}] {package.Names[i].Name}");
+    }
+
+    return 0;
 }
 
 static int Textures(string root, string[] args)
