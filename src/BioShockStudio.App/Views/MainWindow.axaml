@@ -125,8 +125,48 @@
 
                 <GridSplitter Grid.Column="1" Background="Transparent" />
 
+                <!-- ===== walk through it =====
+
+                     Separate from selecting a map: preparing a level decodes every mesh, material
+                     and texture it uses and takes about five seconds, so doing it on selection
+                     would make browsing the list feel broken. -->
+                <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto" Margin="6,0,4,0"
+                      IsVisible="{Binding HasLevelView}">
+
+                    <Border Grid.Row="0" Background="#14FFFFFF" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <TextBlock Text="W A S D  ·  Q E up/down  ·  drag to look  ·  Shift to sprint"
+                                       Opacity="0.75" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Text="Speed" Opacity="0.7" VerticalAlignment="Center" />
+                                <Slider Width="110" Minimum="0.2" Maximum="8" Value="{Binding LevelCameraSpeed}"
+                                        VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Text="Detail" Opacity="0.7" VerticalAlignment="Center"
+                                           ToolTip.Tip="How many triangles a frame may draw. Higher looks better and costs more." />
+                                <Slider Width="110" Minimum="25000" Maximum="600000"
+                                        Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Content="Close view" Command="{Binding CloseLevelViewCommand}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Focusable so the movement keys reach it, and the pointer events drive the
+                         look. The image is stretched to fill: while the camera moves it is rendered
+                         at half size, so the surface and the bitmap are deliberately not the same
+                         resolution. -->
+                    <Border Grid.Row="1" Name="LevelSurface" Background="#FF202020"
+                            Focusable="True" ClipToBounds="True" CornerRadius="4">
+                        <Image Source="{Binding LevelImage}" Stretch="Fill" />
+                    </Border>
+
+                    <TextBlock Grid.Row="2" Text="{Binding LevelViewStatus}" Opacity="0.75"
+                               Margin="2,6,0,0" TextWrapping="Wrap" />
+                </Grid>
+
                 <!-- what it holds, and getting it out -->
-                <ScrollViewer Grid.Column="2" Margin="6,0,4,0">
+                <ScrollViewer Grid.Column="2" Margin="6,0,4,0" IsVisible="{Binding !HasLevelView}">
                     <StackPanel Spacing="12">
 
                         <TextBlock Text="{Binding LevelStatus}" TextWrapping="Wrap" Opacity="0.85" />
@@ -196,9 +236,20 @@
                                 <TextBlock Text="{Binding LevelSizeWarning}" Opacity="0.8" TextWrapping="Wrap"
                                            IsVisible="{Binding LevelSizeWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
-                                <Button Content="Extract this level…" HorizontalAlignment="Left"
-                                        Command="{Binding ExtractLevelCommand}"
-                                        IsEnabled="{Binding CanExtractLevel}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Extract this level…"
+                                            Command="{Binding ExtractLevelCommand}"
+                                            IsEnabled="{Binding CanExtractLevel}" />
+                                    <Button Content="Walk through it…"
+                                            Command="{Binding OpenLevelViewCommand}"
+                                            IsEnabled="{Binding !IsLevelViewLoading}"
+                                            ToolTip.Tip="Loads the level's geometry and textures — about five seconds — and lets you fly through it." />
+                                </StackPanel>
+
+                                <ProgressBar IsIndeterminate="True" Height="3"
+                                             IsVisible="{Binding IsLevelViewLoading}" />
+                                <TextBlock Text="{Binding LevelViewStatus}" Opacity="0.8" TextWrapping="Wrap"
+                                           IsVisible="{Binding IsLevelViewLoading}" />
 
                                 <ItemsControl ItemsSource="{Binding LevelOutputs}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>

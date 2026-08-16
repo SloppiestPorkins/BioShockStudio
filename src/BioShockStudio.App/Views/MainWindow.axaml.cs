@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 
         HookViewport();
         HookShortcuts();
+        HookLevelCamera();
 
         // Settings are written on the way out rather than on every change, so a session's fiddling
         // costs one write instead of dozens.
