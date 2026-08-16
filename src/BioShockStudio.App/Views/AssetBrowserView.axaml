@@ -1,0 +1,342 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BioShockStudio.App.ViewModels"
+             xmlns:diag="using:BioShockStudio.Core.Diagnostics"
+             xmlns:services="using:BioShockStudio.Core.Services"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="700"
+             x:Class="BioShockStudio.App.Views.AssetBrowserView"
+             x:DataType="vm:MainViewModel">
+
+    <!--
+        The asset browser: categories, the list, and the details panel.
+
+        Extracted from MainWindow so the Animated and Static workspaces can each host an instance
+        without duplicating three hundred lines of markup. Both instances bind to the SAME
+        MainViewModel, so the selection, the details panel and the preview are shared and cannot
+        drift apart — which is the whole reason this is one browser filtered two ways rather than
+        two browsers.
+
+        Nothing here changed when it moved: same columns, same bindings, same shortcuts.
+    -->
+    <UserControl.Resources>
+        <!-- Transparency is shown against a checkerboard so an alpha channel is visible as one. -->
+        <DrawingBrush x:Key="Checkerboard" TileMode="Tile"
+                      SourceRect="0,0,16,16" DestinationRect="0,0,16,16">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#FF6E6E6E" Geometry="M0,0 L16,0 16,16 0,16Z" />
+                    <GeometryDrawing Brush="#FF9A9A9A" Geometry="M0,0 L8,0 8,8 0,8Z M8,8 L16,8 16,16 8,16Z" />
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+    </UserControl.Resources>
+
+        <Grid ColumnDefinitions="196,4,*,4,452">
+
+            <!-- categories -->
+            <DockPanel Grid.Column="0" Margin="10">
+                <TextBlock DockPanel.Dock="Top" Text="Browse" FontWeight="SemiBold" Margin="4,0,0,8" />
+                <ComboBox DockPanel.Dock="Bottom" Margin="0,8,0,0" HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding Packages}" SelectedItem="{Binding SelectedPackage}" />
+                <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CategoryRow">
+                            <TextBlock Text="{Binding Display}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Background="Transparent" />
+
+            <!-- asset list -->
+            <DockPanel Grid.Column="2" Margin="0,10,0,10">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                    <TextBox Grid.Column="0" Name="SearchBox" Text="{Binding Search}"
+                             Watermark="Search (Ctrl+F) — try Pistol, BigDaddy, Hand_DIFF, FastReload" />
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="10,0,4,0" Opacity="0.7"
+                               Text="{Binding ResultSummary}" />
+                </Grid>
+
+                <DataGrid ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedAsset}"
+                          IsReadOnly="True" GridLinesVisibility="Horizontal" CanUserSortColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="170" />
+                        <DataGridTextColumn Header="Kind" Binding="{Binding Category}" Width="102" />
+                        <!-- Details carries what the asset actually is — a texture's format and size,
+                             a shader's type and how many maps it binds — so it gets the room. The
+                             group and the Unreal class are in the details panel; repeating them here
+                             squeezed this column to nothing. -->
+                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="3*" MinWidth="150" />
+                        <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="130" MinWidth="110" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="3" Background="Transparent" />
+
+            <!-- details -->
+            <Border Grid.Column="4" Margin="0,10,10,10" Padding="14" CornerRadius="6" Background="#18FFFFFF">
+                <ScrollViewer>
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Select an asset to see its skeleton, animations, materials and textures."
+                                   Opacity="0.6" TextWrapping="Wrap"
+                                   IsVisible="{Binding DetailsTitle, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                        <TextBlock Text="{Binding DetailsTitle}" FontSize="18" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DetailsSubtitle}" Opacity="0.7" />
+
+                        <Border Background="#33B86B6B" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding DetailsProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding DetailsProblem}" TextWrapping="Wrap" />
+                        </Border>
+
+                        <!-- ==================================== the inspector
+
+                             What this is, and where it is. Every asset kind answers both, because
+                             they are filled from the catalogue row in one place rather than by each
+                             reader — which is why a texture used to state its group and an animation
+                             stated neither.
+
+                             "Also in" is the one that earns its space: every map embeds its own copy
+                             of what it uses, so the package a row reports is one of many, and not
+                             saying so has already cost a click that silently did nothing. -->
+                        <Border Background="#14FFFFFF" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding IdentityFields.Count}">
+                            <StackPanel Spacing="2">
+                                <ItemsControl ItemsSource="{Binding IdentityFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="92,*" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.6" FontSize="12" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Separator Margin="0,6" Opacity="0.25" />
+
+                                <ItemsControl ItemsSource="{Binding LocationFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="92,*" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.6" FontSize="12" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- What is measurably wrong with this asset. The evidence line is the whole
+                             point: "draws untextured" is a symptom, "slot 0 names nothing" is a
+                             thing a person can act on. -->
+                        <ItemsControl ItemsSource="{Binding AssetProblems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="diag:Diagnostic">
+                                    <Border Background="#26D8A657" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Evidence}" TextWrapping="Wrap"
+                                                       FontFamily="Consolas" FontSize="11" Opacity="0.8" />
+                                            <TextBlock Text="{Binding Code}" FontSize="10" Opacity="0.5" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+
+                        <!-- 3D preview -->
+                        <StackPanel Spacing="6" IsVisible="{Binding HasViewport}">
+                            <Border Name="ViewportHost" Background="#FF202020" CornerRadius="4"
+                                    Height="360" ClipToBounds="True" Cursor="Hand"
+                                    ToolTip.Tip="Drag to orbit · Shift-drag or middle-drag to pan · Wheel to zoom · Space plays">
+                                <Panel>
+                                    <Image Source="{Binding Viewport}" Stretch="Uniform" />
+                                    <!-- A blank panel while a heavy mesh loads reads as a failure. -->
+                                    <TextBlock Text="Loading…" Foreground="#FFBBBBBB" FontSize="13"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsVisible="{Binding IsPreviewLoading}" />
+                                </Panel>
+                            </Border>
+
+                            <!-- What to draw on the left, where to look from on the right, so the two
+                                 kinds of control are not one undifferentiated row of boxes. -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <CheckBox Content="Textured" IsChecked="{Binding ShowTextures}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Normal + spec" IsChecked="{Binding ShowShading}" Margin="0,0,10,0"
+                                              ToolTip.Tip="Apply the material's normal and specular maps, not just its base colour." />
+                                    <CheckBox Content="Transparency" IsChecked="{Binding ShowTransparency}" Margin="0,0,10,0"
+                                              ToolTip.Tip="Cut out the holes in an alpha texture and blend what is translucent." />
+                                    <CheckBox Content="Wireframe" IsChecked="{Binding ShowWireframe}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Skeleton" IsChecked="{Binding ShowSkeleton}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Sockets" IsChecked="{Binding ShowSockets}" Margin="0,0,10,0" />
+                                    <CheckBox Content="Highlight problems" IsChecked="{Binding HighlightProblems}"
+                                              Margin="0,0,10,0"
+                                              ToolTip.Tip="Tint the triangles whose material did not resolve. Grey paint and a missing material look identical without this." />
+                                </WrapPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="−" Command="{Binding ZoomOutCommand}" Padding="10,2"
+                                            ToolTip.Tip="Zoom out" />
+                                    <Button Content="+" Command="{Binding ZoomInCommand}" Padding="10,2" Margin="4,0"
+                                            ToolTip.Tip="Zoom in" />
+                                    <Button Content="Reset view" Command="{Binding ResetCameraCommand}" Padding="8,2" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- a group is often several meshes on one skeleton -->
+                            <StackPanel Spacing="3" IsVisible="{Binding HasMeshVariants}">
+                                <TextBlock Text="MESH" FontSize="10" Opacity="0.5" />
+                                <ComboBox ItemsSource="{Binding PreviewMeshes}"
+                                          SelectedItem="{Binding SelectedPreviewMesh}"
+                                          HorizontalAlignment="Stretch"
+                                          ToolTip.Tip="This asset has more than one mesh on the same skeleton." />
+                            </StackPanel>
+
+                            <!-- attachments: what hangs off this asset's sockets -->
+                            <StackPanel Spacing="3" IsVisible="{Binding HasAttachments}">
+                                <TextBlock Text="ATTACHMENT" FontSize="10" Opacity="0.5" />
+                                <ComboBox ItemsSource="{Binding Attachments}"
+                                          SelectedItem="{Binding SelectedAttachment}"
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="Attach a weapon to a socket" />
+                                <TextBlock Text="{Binding AttachmentEvidence}" Opacity="0.65" FontSize="11"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding AttachmentEvidence, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <!-- animation transport -->
+                            <StackPanel Spacing="6" IsVisible="{Binding PreviewAnimations.Count}">
+                                <StackPanel Spacing="3" IsVisible="{Binding HasAnimationSets}">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="ANIMATION SET" FontSize="10" Opacity="0.5" />
+                                        <TextBlock Grid.Column="1" Text="{Binding AnimationSetSummary}"
+                                                   FontSize="10" Opacity="0.5" />
+                                    </Grid>
+                                    <ComboBox ItemsSource="{Binding AnimationSets}"
+                                              SelectedItem="{Binding SelectedAnimationSet}"
+                                              HorizontalAlignment="Stretch"
+                                              ToolTip.Tip="Animation sets, as the game groups them" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="ANIMATION" FontSize="10" Opacity="0.5" />
+                                    <ComboBox ItemsSource="{Binding PreviewAnimations}"
+                                              SelectedItem="{Binding SelectedAnimation}"
+                                              HorizontalAlignment="Stretch"
+                                              PlaceholderText="Choose an animation to play" />
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto"
+                                      IsVisible="{Binding SelectedAnimation, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Button Grid.Column="0" Content="⏮" Command="{Binding PreviousFrameCommand}"
+                                            Padding="8,2" ToolTip.Tip="Previous frame" />
+                                    <Button Grid.Column="1" Content="▶" Command="{Binding TogglePlayCommand}"
+                                            Padding="8,2" Margin="4,0" ToolTip.Tip="Play or pause" />
+                                    <Button Grid.Column="2" Content="⏭" Command="{Binding NextFrameCommand}"
+                                            Padding="8,2" ToolTip.Tip="Next frame" />
+                                    <Slider Grid.Column="3" Margin="10,0" Minimum="0" Maximum="{Binding LastFrame}"
+                                            Value="{Binding Frame}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="4" ItemsSource="{Binding PlaybackSpeeds}"
+                                              SelectedItem="{Binding PlaybackSpeed}" MinWidth="76" />
+                                </Grid>
+
+                                <TextBlock Opacity="0.7" FontSize="12"
+                                           IsVisible="{Binding AnimationSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Run Text="Frame" />
+                                    <Run Text="{Binding Frame}" />
+                                    <Run Text="·" />
+                                    <Run Text="{Binding AnimationSummary}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Background="#33B86B6B" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding ViewportProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding ViewportProblem}" TextWrapping="Wrap" FontSize="12" />
+                        </Border>
+
+                        <!-- texture preview -->
+                        <StackPanel Spacing="6" IsVisible="{Binding TexturePreview, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <Border Background="{StaticResource Checkerboard}" CornerRadius="4"
+                                    Padding="0" MaxHeight="340">
+                                <Image Source="{Binding TexturePreview}" Stretch="Uniform"
+                                       RenderOptions.BitmapInterpolationMode="HighQuality" />
+                            </Border>
+                            <TextBlock Text="{Binding TexturePreviewCaption}" Opacity="0.7" FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding DetailFields}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="130,*" Margin="0,3">
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.7" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl ItemsSource="{Binding DetailSections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Expander Header="{Binding Title}" Margin="0,6,0,0" IsExpanded="False">
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <!-- The relationship tree: every related asset is a
+                                                         way in. Before this the panel listed what an
+                                                         asset used and gave no way to go there, so
+                                                         following a material to its texture meant
+                                                         retyping the name into the search box. -->
+                                                    <Button Classes="link" Padding="0,2" Margin="0"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenRelatedCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Open this asset">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding Name}" />
+                                                                <TextBlock Text="{Binding Detail}" Opacity="0.6" FontSize="11" />
+                                                            </StackPanel>
+                                                            <!-- How the link was established, never left implied. -->
+                                                            <TextBlock Grid.Column="1" Text="{Binding Confidence}"
+                                                                       Opacity="0.5" FontSize="10" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Expander Header="Format detail" IsVisible="{Binding ResearchMode}" Margin="0,6,0,0">
+                            <ItemsControl ItemsSource="{Binding ResearchFields}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="150,*" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.7" FontSize="12" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" FontFamily="Consolas"
+                                                       FontSize="12" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+</UserControl>

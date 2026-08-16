@@ -43,20 +43,6 @@ public partial class MainViewModel
     /// <summary>Files the last extraction wrote, so the result is visible rather than merely claimed.</summary>
     public ObservableCollection<string> LevelOutputs { get; } = [];
 
-    /// <summary>Which workspace is showing. 0 = Assets, 1 = Level.</summary>
-    /// <remarks>
-    /// Held here because the asset extraction bar at the foot of the window has to disappear on the
-    /// Level tab. Rendering the tab the first time showed that bar under the level panel, offering
-    /// "Extract selected" and "Extract all shown" — which reads as though those buttons extract the
-    /// level. They do not, and the level has its own button.
-    /// </remarks>
-    [ObservableProperty] private int _selectedTabIndex;
-
-    /// <summary>True while the asset browser is the visible workspace.</summary>
-    public bool IsAssetsTab => SelectedTabIndex == 0;
-
-    partial void OnSelectedTabIndexChanged(int value) => OnPropertyChanged(nameof(IsAssetsTab));
-
     [ObservableProperty] private LevelEntry? _selectedLevel;
     [ObservableProperty] private LevelSummary? _levelSummary;
     [ObservableProperty] private string _levelStatus = "Choose a map to see what it holds.";

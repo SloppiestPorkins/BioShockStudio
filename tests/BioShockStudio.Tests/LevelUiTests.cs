@@ -84,9 +84,16 @@ public sealed class LevelUiTests
         Assert.True(model.CanExtractLevel);
 
         // The tab has to be the visible one or the snapshot shows the asset browser — which is how
-        // the first capture of this test "passed" while showing nothing it was testing.
-        var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-        tabs.SelectedIndex = 1;
+        // the first capture of this test "passed" while showing nothing it was testing. Selected by
+        // header rather than index, so adding a workspace does not silently point this at the
+        // wrong tab: it already did once, when the browser split into Animated and Static.
+        var tabs = window.GetVisualDescendants().OfType<TabControl>().First();
+        int Index(string header) => tabs.Items
+            .OfType<TabItem>()
+            .Select((t, i) => (t, i))
+            .First(x => (string?)x.t.Header == header).i;
+
+        tabs.SelectedIndex = Index("Level");
         Pump(() => false, attempts: 10, delayMs: 20);
 
         Assert.Equal("Level", ((TabItem)tabs.SelectedItem!).Header);
@@ -95,9 +102,9 @@ public sealed class LevelUiTests
         // selected" and "Extract all shown", which on this tab reads as though they extract the
         // level. Found by rendering the tab and looking at it; the numbers were all green.
         Assert.False(model.IsAssetsTab);
-        tabs.SelectedIndex = 0;
+        tabs.SelectedIndex = Index("Animated");
         Assert.True(model.IsAssetsTab);
-        tabs.SelectedIndex = 1;
+        tabs.SelectedIndex = Index("Level");
 
         // The empty-state prompt must be hidden once a map is chosen. It was bound with "!" on a
         // non-boolean, which does not negate, so it rendered on top of a fully-loaded level.

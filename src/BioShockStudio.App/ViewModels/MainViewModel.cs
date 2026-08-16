@@ -59,6 +59,48 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _progressText = "";
     [ObservableProperty] private bool _researchMode;
 
+    /// <summary>
+    /// Which workspace is showing: rigged assets, static assets, or the level.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two asset workspaces are a <b>top-level filter over one browser</b> rather than two
+    /// browsers. That keeps a single selection, a single details panel and a single preview — the
+    /// alternative duplicates all three and lets them drift, which this project has already paid for
+    /// once with the material resolver.
+    /// </para>
+    /// <para>
+    /// It also drives the asset extraction bar's visibility: that bar belongs to the asset browser,
+    /// and under the level panel its "Extract selected" / "Extract all shown" buttons read as though
+    /// they extract the level.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty] private int _selectedTabIndex;
+
+    public AssetWorkspace Workspace => (AssetWorkspace)Math.Clamp(SelectedTabIndex, 0, 2);
+
+    /// <summary>True while an asset workspace is showing, rather than the level.</summary>
+    public bool IsAssetsTab => Workspace != AssetWorkspace.Level;
+
+    private IReadOnlySet<AssetCategory>? _workspaceCategories;
+
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(Workspace));
+        OnPropertyChanged(nameof(IsAssetsTab));
+
+        var categories = AssetWorkspaces.For(Workspace);
+        _workspaceCategories = categories.Count > 0 ? categories.ToHashSet() : null;
+
+        if (!_catalog.IsLoaded || Workspace == AssetWorkspace.Level) return;
+
+        // Switching workspace re-lists the categories and re-runs the filter. The search text is
+        // deliberately kept: a user who typed "pistol" and switched wants the other half of that
+        // search, not an empty box.
+        RefreshCategories();
+        ApplyFilter();
+    }
+
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private CategoryRow? _selectedCategory;
     [ObservableProperty] private string _selectedPackage = AllPackages;
@@ -294,6 +336,7 @@ public partial class MainViewModel : ViewModelBase
             foreach (string name in _catalog.Packages.Order(StringComparer.OrdinalIgnoreCase)) Packages.Add(name);
             SelectedPackage = AllPackages;
 
+            _workspaceCategories = AssetWorkspaces.For(Workspace).ToHashSet();
             RefreshCategories();
             TotalCount = _catalog.Entries.Count;
             ApplyFilter();
@@ -320,22 +363,27 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Rebuilds the category list for the workspace showing.
+    /// </summary>
+    /// <remarks>
+    /// The count on the "all" row is the workspace's own total, not the catalogue's. Showing 14,380
+    /// beside a list that can only reach half of them states something untrue about what the browser
+    /// is offering.
+    /// </remarks>
     private void RefreshCategories()
     {
         var counts = _catalog.CategoryCounts();
-        Categories.Clear();
-        Categories.Add(new CategoryRow(null, "Everything", _catalog.Entries.Count));
+        var categories = AssetWorkspaces.For(Workspace);
 
-        // Fixed order: the things a user comes here for first.
-        foreach (var category in new[]
-                 {
-                     AssetCategory.FirstPerson, AssetCategory.Characters, AssetCategory.Weapons,
-                     AssetCategory.Props, AssetCategory.SkeletalMeshes, AssetCategory.StaticMeshes,
-                     AssetCategory.Animations, AssetCategory.Textures, AssetCategory.Materials,
-                 })
-        {
+        Categories.Clear();
+        Categories.Add(new CategoryRow(
+            null,
+            AssetWorkspaces.EverythingLabel(Workspace),
+            categories.Sum(c => counts.GetValueOrDefault(c))));
+
+        foreach (var category in categories)
             Categories.Add(new CategoryRow(category, Label(category), counts.GetValueOrDefault(category)));
-        }
 
         SelectedCategory = Categories[0];
     }
@@ -358,20 +406,28 @@ public partial class MainViewModel : ViewModelBase
     {
         if (!_catalog.IsLoaded) return;
 
+        // The workspace bounds the search even when no category is chosen, so "all rigged assets"
+        // cannot return a texture and a search inside one workspace cannot reach into the other.
         var results = _catalog.Search(
             Search,
             SelectedCategory?.Category,
             SelectedPackage == AllPackages ? null : SelectedPackage,
-            SearchLimit);
+            SearchLimit,
+            _workspaceCategories);
 
         Assets.Clear();
         foreach (var entry in results.OrderBy(e => e.Category).ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
             Assets.Add(entry);
 
         ShownCount = Assets.Count;
+
+        // Counted against the WORKSPACE, not the whole catalogue. "1,889 of 14,380" beside a list
+        // that can only ever reach the rigged half reads as a filter that found 1,889 matches out
+        // of everything, which is not what happened — the same untruth the category row had.
+        int available = Categories.Count > 0 ? Categories[0].Count : TotalCount;
         ResultSummary = ShownCount >= SearchLimit
-            ? $"first {ShownCount:N0} of {TotalCount:N0} — narrow the search to see the rest"
-            : $"{ShownCount:N0} of {TotalCount:N0}";
+            ? $"first {ShownCount:N0} of {available:N0} — narrow the search to see the rest"
+            : $"{ShownCount:N0} of {available:N0}";
     }
 
     partial void OnSelectedAssetChanged(CatalogEntry? value)

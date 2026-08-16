@@ -16,6 +16,58 @@ public sealed record PreviewCamera
     public Vector3 Target { get; init; } = Vector3.Zero;
     public float FieldOfView { get; init; } = 45f * MathF.PI / 180f;
 
+    /// <summary>
+    /// Explicit near and far planes. Null lets the renderer derive them from the subject's size,
+    /// which is right for a single asset and wrong for a level.
+    /// </summary>
+    /// <remarks>
+    /// A level is hundreds of thousands of units across while the camera stands a few metres from a
+    /// wall, so the derived planes put the near plane metres away — clipping the room the camera is
+    /// standing in — and the far plane far enough to wreck depth precision. A walkable view has to
+    /// state both.
+    /// </remarks>
+    public float? NearPlane { get; init; }
+    public float? FarPlane { get; init; }
+
+    /// <summary>
+    /// A camera standing at a point and looking along a heading, rather than orbiting a subject.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the whole of the "ghost camera": the renderer needs no free-camera mode, because an
+    /// orbit camera whose target sits one step ahead of the eye <i>is</i> a free camera. The eye is
+    /// derived as <c>Target + direction × Distance</c>, so a heading of <paramref name="yaw"/> /
+    /// <paramref name="pitch"/> means the orbit direction is its opposite — hence the half turn and
+    /// the negated pitch, which is the one place this is easy to get backwards.
+    /// </para>
+    /// <para>
+    /// Keeping one camera type matters: the level viewport and the asset preview then go through
+    /// exactly the same projection, so a level cannot be drawn with a subtly different view matrix
+    /// from everything else in the application.
+    /// </para>
+    /// </remarks>
+    public static PreviewCamera LookFrom(
+        Vector3 position, float yaw, float pitch, float near, float far, float step = 100f)
+    {
+        var forward = Forward(yaw, pitch);
+        return new PreviewCamera
+        {
+            Target = position + forward * step,
+            Distance = step,
+            Yaw = yaw + MathF.PI,
+            Pitch = -pitch,
+            NearPlane = near,
+            FarPlane = far,
+        };
+    }
+
+    /// <summary>The unit heading for a yaw and pitch, in the studio's +Z-up basis.</summary>
+    public static Vector3 Forward(float yaw, float pitch)
+    {
+        float cos = MathF.Cos(pitch);
+        return new Vector3(cos * MathF.Cos(yaw), cos * MathF.Sin(yaw), MathF.Sin(pitch));
+    }
+
     public PreviewCamera Orbit(float deltaYaw, float deltaPitch) => this with
     {
         Yaw = Yaw + deltaYaw,
@@ -157,10 +209,14 @@ public static class SoftwareRenderer
         foreach (var instance in instances) radius = MathF.Max(radius, instance.Model.Radius);
 
         var view = LookAt(camera.Eye, camera.Target);
+
+        // The derived planes size themselves to the subject, which is right for one asset and wrong
+        // for a level: standing a few metres from a wall inside a 300,000-unit map, the derived near
+        // plane would clip the room the camera is in. A camera that states its planes keeps them.
         var projection = Perspective(
             camera.FieldOfView, (float)width / height,
-            MathF.Max(0.0005f, MathF.Min(camera.Distance, radius) * 0.01f),
-            (camera.Distance + radius) * 4f);
+            camera.NearPlane ?? MathF.Max(0.0005f, MathF.Min(camera.Distance, radius) * 0.01f),
+            camera.FarPlane ?? (camera.Distance + radius) * 4f);
         var viewProjection = view * projection;
 
         foreach (var instance in instances)

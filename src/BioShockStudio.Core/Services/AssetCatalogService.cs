@@ -530,11 +530,17 @@ public sealed class AssetCatalogService
     /// A linear pass over an in-memory list. At the scale this reaches — tens of thousands of
     /// entries — that is well under a frame, and it avoids a second index to keep in step.
     /// </remarks>
+    /// <param name="categories">
+    /// Restricts the result to a group of categories, which is what the browser's two workspaces
+    /// are: "Everything" inside the rigged workspace means everything rigged, not everything in the
+    /// game. Ignored when <paramref name="category"/> names one.
+    /// </param>
     public IReadOnlyList<CatalogEntry> Search(
         string? query,
         AssetCategory? category = null,
         string? package = null,
-        int limit = 2000)
+        int limit = 2000,
+        IReadOnlySet<AssetCategory>? categories = null)
     {
         // One read of the field, then walk that array. The build thread may publish a new one
         // meanwhile; this call finishes against the catalogue it started with.
@@ -547,6 +553,7 @@ public sealed class AssetCatalogService
         foreach (var entry in entries)
         {
             if (category is not null && entry.Category != category) continue;
+            if (category is null && categories is not null && !categories.Contains(entry.Category)) continue;
             // A collapsed row belongs to every package that carries it, not only the one it is read
             // from, or filtering by map would hide assets that map genuinely contains.
             if (package is not null && !InPackage(entry, package)) continue;
