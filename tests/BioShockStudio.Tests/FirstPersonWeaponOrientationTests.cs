@@ -376,9 +376,27 @@ public sealed class FirstPersonWeaponOrientationTests(GameFixture game)
             var named = host.Sockets.FirstOrDefault(s =>
                 string.Equals(s.Name, attachment.Socket, StringComparison.OrdinalIgnoreCase));
 
-            Assert.True(named is not null,
-                $"'{attachment.Socket}' names no socket on the rig, so the attachment cannot be "
-                + "placed on the transform the game gives it");
+            if (named is null)
+            {
+                // The one legitimate case: a weapon the hands have animations for but declare no
+                // socket for — the shotgun. It is placed on the weapon bone and must say that its
+                // attach point is inferred, so it can never be mistaken for a socketed placement.
+                Assert.Equal("Likely", attachment.Confidence);
+                Assert.Contains("inferred", attachment.Evidence, StringComparison.OrdinalIgnoreCase);
+
+                int inferredBone = BoneNamed(host, attachment.SocketBone);
+                Assert.True(inferredBone >= 0,
+                    $"'{attachment.Socket}' names neither a socket nor a bone on the rig");
+
+                // With no socket of that name, the placement is the bone frame — never a neighbour's
+                // socket, which is the fault this whole test exists for.
+                Assert.True(
+                    host.PlacementFor(attachment.Socket, inferredBone) == host.Bones[inferredBone].RestGlobal,
+                    $"'{attachment.Socket}' has no socket of its own, so it must be placed on bone "
+                    + $"'{attachment.SocketBone}' exactly, not on another socket sharing it");
+
+                continue;
+            }
 
             // What picking by bone would have produced. Same expression the viewport used to use.
             var byBone = host.Sockets.FirstOrDefault(s => s.Bone == named!.Bone);
@@ -427,6 +445,178 @@ public sealed class FirstPersonWeaponOrientationTests(GameFixture game)
 
         // And the two really are distinguishable, so the assertion above cannot pass by coincidence.
         Assert.False(wrench.On(boneFrame) == boneFrame);
+    }
+
+    /// <summary>
+    /// The shotgun is offered, and it says honestly how it was resolved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is one of the seven weapons the player carries and it used to be offered nowhere, because
+    /// both routes to it are absent: the hands declare <b>no <c>Shotgun</c> socket</b> (identical
+    /// 19-socket table on all twenty shipped copies of the mesh) and <c>WP_Shotgun</c>'s rig is
+    /// rooted at <b><c>SG_Body</c></b> rather than <c>R_grip</c>, so the root-bone match that
+    /// promotes every other weapon to <c>Confirmed</c> cannot fire. Six of seven worked and nothing
+    /// failed — the picker simply had one fewer entry.
+    /// </para>
+    /// <para>
+    /// The confidence is asserted as much as the presence. The link is stated by the game (the hands
+    /// carry their own <c>Shotgun</c> animation set) but the attach point is inferred from where the
+    /// rig's other weapons attach, so <c>Likely</c> is the honest label and <c>Confirmed</c> would be
+    /// a claim the data does not make.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheShotgunIsOfferedAndSaysHowItWasResolved()
+    {
+        var catalog = new AssetCatalogService();
+        catalog.RegisterInstall(game.RequireRoot);
+
+        using var package = Core.Packages.BioShockPackage.Open(game.LighthousePackage);
+        var entry = AssetCatalogService.Catalogue(package, "0-Lighthouse")
+            .Single(e => e.Name == "NEWPlayerHands" && e.Category == AssetCategory.FirstPerson);
+
+        var attachments = new AssetContextService(catalog).Attachments(entry);
+
+        var shotgun = attachments.FirstOrDefault(a =>
+            a.Group.Contains("Shotgun", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(shotgun is not null,
+            "the shotgun is not offered on the hands. It is one of the seven player weapons; the "
+            + "hands carry a Shotgun animation set and WP_Shotgun ships a viewmodel with a rig. "
+            + $"Offered: {string.Join(", ", attachments.Select(a => a.Socket))}");
+
+        Assert.Equal("WP_Shotgun", shotgun!.Group);
+
+        // Never Confirmed: that word is reserved for the root-bone match, and this weapon's rig is
+        // rooted at SG_Body so it cannot satisfy it.
+        Assert.Equal("Likely", shotgun.Confidence);
+
+        // The evidence has to separate what is stated from what is inferred, or the panel would
+        // present a guess as a fact — which is how a wrong answer gets believed here.
+        Assert.Contains("animation set", shotgun.Evidence, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("inferred", shotgun.Evidence, StringComparison.OrdinalIgnoreCase);
+
+        // And it lands on the bone the rig's other weapons use.
+        Assert.Equal("R_Grip", shotgun.SocketBone, ignoreCase: true);
+    }
+
+    /// <summary>
+    /// Every weapon group that carries a rig, and the bone its skeleton is rooted at.
+    /// </summary>
+    /// <remarks>
+    /// The shotgun ships a viewmodel and a rig but the hands declare no <c>Shotgun</c> socket, so the
+    /// socket-driven sweep never offers it. The root bone is the evidence that would let it be
+    /// offered without inventing anything: <c>Assess</c> already treats "the weapon's skeleton is
+    /// rooted at the host's socket bone" as a <i>stated</i> relationship worth <c>Confirmed</c>.
+    /// </remarks>
+    [RequiresGameFact]
+    public void Print_WeaponRigRoots()
+    {
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is null) return;
+
+        var files = Core.Game.GameLocator.EnumeratePackages(game.RequireRoot).ToList();
+        if (Core.Game.GameLocator.WeaponPackage(game.RequireRoot) is { } weapons) files.Add(weapons);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Log("=== weapon groups carrying a rig, and their skeleton's root bone");
+
+        foreach (string file in files)
+        {
+            using var package = Core.Packages.BioShockPackage.Open(file);
+            string packageName = Path.GetFileNameWithoutExtension(file);
+
+            foreach (var wrapper in package.Exports.Where(e =>
+                         package.GetClassName(e) == "AnimationPackageWrapper" && e.SerialSize > 0))
+            {
+                string group = Core.Assets.AssetContextResolver.TopLevelGroup(package, wrapper);
+                if (!group.StartsWith("WP_", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!seen.Add(group)) continue;
+
+                try
+                {
+                    var animations = Core.Assets.AnimationPackage.Load(package, wrapper);
+                    var root = animations.Skeleton.Bones.FirstOrDefault(b => b.IsRoot);
+
+                    bool hasMesh = package.Exports.Any(e =>
+                        package.GetClassName(e) == "SkeletalMesh" && e.SerialSize > 0
+                        && string.Equals(Core.Assets.AssetContextResolver.TopLevelGroup(package, e), group,
+                            StringComparison.OrdinalIgnoreCase));
+
+                    Log($"    {group,-26} in {packageName,-14} root '{root?.Name ?? "<none>"}'  "
+                        + $"{animations.Skeleton.BoneCount,3} bones  {animations.Animations.Count,3} anims  "
+                        + $"mesh={hasMesh}");
+                    Log($"        bones: {string.Join(", ", animations.Skeleton.Bones.Select(b => b.Name))}");
+                    Log($"        anims: {string.Join(", ", animations.Animations.Select(a => a.Name).Take(8))}");
+                }
+                catch (Exception ex)
+                {
+                    Log($"    {group,-26} in {packageName,-14} would not load: {ex.GetType().Name}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The socket table of every shipped copy of the hands, compared.
+    /// </summary>
+    /// <remarks>
+    /// <c>NEWPlayerHands</c> is embedded in all twenty maps and <b>the copies are not byte-identical</b>
+    /// — payload sizes differ between maps, which is already recorded in <c>docs/HANDOFF.md</c> §4.
+    /// Everything this project knows about the hands' sockets was read from one copy, so a socket
+    /// that only some maps declare would never have been seen. This prints them all.
+    /// </remarks>
+    [RequiresGameFact]
+    public void Print_SocketTableOfEveryCopyOfTheHands()
+    {
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is null) return;
+
+        var files = Core.Game.GameLocator.EnumeratePackages(game.RequireRoot).ToList();
+        if (Core.Game.GameLocator.WeaponPackage(game.RequireRoot) is { } weapons) files.Add(weapons);
+
+        var everySocket = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var byPackage = new List<(string Package, int Size, List<string> Sockets)>();
+
+        foreach (string file in files)
+        {
+            using var package = Core.Packages.BioShockPackage.Open(file);
+            string name = Path.GetFileNameWithoutExtension(file);
+
+            foreach (var export in package.Exports.Where(e =>
+                         e.ObjectName == "NEWPlayerHands"
+                         && package.GetClassName(e) == "SkeletalMesh"
+                         && e.SerialSize > 0))
+            {
+                var sockets = Core.Mesh.SkeletalMeshReader.ReadSockets(
+                    package.ReadExportData(export), package.Names);
+
+                var names = sockets.Select(s => $"{s.Name}->{s.BoneName}").OrderBy(s => s).ToList();
+                byPackage.Add((name, export.SerialSize, names));
+                foreach (var s in sockets) everySocket.Add(s.Name);
+            }
+        }
+
+        Log($"=== NEWPlayerHands: {byPackage.Count} copies across {files.Count} packages");
+        Log($"    union of all socket names ({everySocket.Count}): {string.Join(", ", everySocket)}");
+
+        foreach (var (package, size, sockets) in byPackage.OrderBy(p => p.Package, StringComparer.OrdinalIgnoreCase))
+        {
+            var absent = everySocket.Where(s => !sockets.Any(x =>
+                x.StartsWith(s + "->", StringComparison.OrdinalIgnoreCase))).ToList();
+
+            Log($"    {package,-22} {size,8:N0} bytes  {sockets.Count,2} sockets"
+                + (absent.Count == 0 ? "  (all)" : $"  MISSING: {string.Join(", ", absent)}"));
+        }
+
+        // Distinct socket tables, so a difference between copies is impossible to miss.
+        foreach (var group in byPackage
+                     .GroupBy(p => string.Join("|", p.Sockets), StringComparer.Ordinal)
+                     .OrderByDescending(g => g.Count()))
+        {
+            Log($"    --- table shared by {group.Count()} copies: "
+                + $"{string.Join(", ", group.Select(g => g.Package))}");
+            foreach (string s in group.First().Sockets) Log($"          {s}");
+        }
     }
 
     /// <summary>

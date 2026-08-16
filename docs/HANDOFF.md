@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **329 passed, 0 failed, 0 skipped** — 10m16s. Measured 16 Aug 2026, after the asset inspector. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **332 passed, 0 failed, 0 skipped** — 10m32s. Measured 16 Aug 2026, after the shotgun attachment. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -863,6 +863,19 @@ so a slot machine and a flower vase are listed as characters; the row's detail s
 qualified on rather than asserting the category as fact. *Consequence:* the old size bar is kept as
 a second path, because `Ryan` has 131 bones and no ragdoll.
 
+**A weapon the hands have animations for is offered even with no socket, at `Likely`.** *Evidence:*
+the shotgun is one of the seven player weapons and was reachable by neither existing route — the
+hands declare no `Shotgun` socket (identical 19-socket table on all twenty shipped copies) and
+`WP_Shotgun` is rooted at `SG_Body`, not `R_grip`, so the root-bone match that confirms every other
+weapon cannot fire. What the game does state is that the hands carry their own `Shotgun` animation
+set. *Alternative:* leave it unreachable, which is what six-of-seven meant in practice, or invent a
+socket. *Rejected because* the first hides a shipped weapon the tool can otherwise handle, and the
+second would fabricate data. *Cost, accepted deliberately:* the attach point is **inferred** from
+where the rig's other weapon sockets sit, so the candidate is `Likely` and its evidence says which
+half is stated and which is inferred — it is never `Confirmed`. *Scope:* first-person hosts only, and
+only where the host's own animation sets name the weapon, so it cannot hand an NPC a viewmodel.
+*Verified by render:* the shotgun sits in both hands, right on the stock and left at the pump.
+
 **An NPC is not offered the player's viewmodel on a name match.** *Evidence:* `WP_AI_*` static
 meshes are the NPC-carried weapons and are a different asset from the `WP_*` viewmodel rigs.
 *Alternative:* match any `WP_` group by name, which is what happened before. *Rejected because* it
@@ -1251,8 +1264,23 @@ finding ported from either may need the record widening.
   hands' forward axis, on several weapons — not one screenshot of the pistol, which is the asset
   this project has repeatedly over-generalised from (§4, "the first-person rig is not a
   representative sample").
-- **The shotgun cannot be attached at all, and it is one of the seven player weapons.**
-  `CONFIRMED_BYTES`, 16 Aug 2026. Checked against the game's own weapon list (wrench, pistol, machine
+- ~~**The shotgun cannot be attached at all, and it is one of the seven player weapons.**~~
+  **FIXED, 16 Aug 2026 — and the route first proposed for it was wrong.** The handoff suggested
+  offering it on the root-bone test that promotes every other weapon to `Confirmed`. **Measured, and
+  that is dead:** `WP_Shotgun`'s rig is rooted at **`SG_Body`**, and its three bones are
+  `SG_Body, SG_Pump, SG_Shell` — there is no `R_grip` in it at all, where every other weapon has one
+  as its root. So the shotgun has *neither* a socket naming it *nor* the root-bone match.
+
+  What resolves it is a third relationship the game does state: **the hands carry their own
+  `Shotgun` animation set**, and `WP_Shotgun` is the only shotgun viewmodel.
+  `AssetContextService.WeaponsNamedByAnAnimationSet` offers it on that, at the bone the rig's other
+  weapon sockets use, and reports it **`Likely` — never `Confirmed`**, with evidence separating the
+  stated half (the animation set) from the inferred half (the attach point). Rendered and looked at:
+  the shotgun sits in both hands, right hand on the stock and left at the pump.
+
+  The original account follows, because its *evidence* stands and only its proposed fix was wrong.
+
+  Checked against the game's own weapon list (wrench, pistol, machine
   gun, shotgun, grenade launcher, chemical thrower, crossbow):
   - the hands carry its animation set — `USharedSkeletonAnimationMetadata_EmptyFidgetShotgun`, beside
     `...Pistol`, `...Crossbow`, `...Chem`, `...Launcher`, `...TommyGun`;
@@ -1272,7 +1300,13 @@ finding ported from either may need the record widening.
   is a stated relationship rather than a name match, and `WP_Shotgun` is rooted at `R_grip` like its
   siblings. Offering weapon groups by that test — for a first-person host only — would reach the
   shotgun without weakening the rule that keeps NPCs from being handed viewmodels. Not implemented;
-  it changes attachment resolution and wants its own measurement.
+  it changes attachment resolution and wants its own measurement.~~
+
+  **That proposal was wrong and the clause "`WP_Shotgun` is rooted at `R_grip` like its siblings" was
+  an assumption written down as a fact.** It is rooted at `SG_Body`, and one probe settled it.
+  **The rig roots are worth having:** every weapon viewmodel is rooted at `R_grip` — `WP_Pistol`,
+  `WP_TommyGun`, `WP_Crossbow`, `WP_GrenadeLauncher`, `WP_ChemicalThrower`, `WP_PlasmidEquip`,
+  `WP_GathererGun` — and `WP_Shotgun` alone is not.
 - **`PlayerGathererGun` is not a player weapon**, and the socket of that name should not be read as
   one. "Gatherer" is the developers' own name for a **Little Sister** — the hands also carry
   `GathererAttach` and `GatherSave` sockets and `Gatherer` notifies. It is listed among the hands'

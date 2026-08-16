@@ -119,6 +119,10 @@ public sealed class AssetContextService(AssetCatalogService catalog)
             }
         }
 
+        // Kind five: a weapon the host has animations for but no socket named after. Only the
+        // first-person rig, and only on the host's own animation sets — see WeaponsNamedByAnAnimationSet.
+        if (isFirstPerson) results.AddRange(WeaponsNamedByAnAnimationSet(host, sockets, results, cancellation));
+
         return results
             .GroupBy(r => r.Socket, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderBy(Rank).First())
@@ -134,6 +138,113 @@ public sealed class AssetContextService(AssetCatalogService catalog)
             : c.IsNpcWeapon ? 1
             : c.IsStatic ? 2
             : 3;
+    }
+
+    /// <summary>
+    /// A weapon the host has an animation set for but declares no socket for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This exists for the shotgun, and the shotgun is the only asset in the game that needs it.</b>
+    /// It is one of the seven weapons the player carries, and every other route to it is absent:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><c>NEWPlayerHands</c> declares <b>no <c>Shotgun</c> socket</b> — measured on all twenty
+    /// shipped copies of the mesh, which carry an identical table of 19.</item>
+    /// <item><c>WP_Shotgun</c>'s rig is rooted at <b><c>SG_Body</c></b>, not <c>R_grip</c>: its three
+    /// bones are <c>SG_Body, SG_Pump, SG_Shell</c>. Every other weapon is rooted at <c>R_grip</c> and
+    /// is promoted to <c>Confirmed</c> by that name matching the socket's bone. The shotgun cannot
+    /// be, so it was offered nowhere and six of the seven weapons worked.</item>
+    /// </list>
+    /// <para>
+    /// <b>What is stated, and what is inferred.</b> The link itself is stated by the game: the hands
+    /// carry a <c>Shotgun</c> animation set of their own
+    /// (<c>USharedSkeletonAnimationMetadata_EmptyFidgetShotgun</c> and its siblings), and
+    /// <c>WP_Shotgun</c> is the only shotgun viewmodel. What is <i>inferred</i> is the attach point:
+    /// every weapon socket on this rig sits on <c>R_grip</c>, so that is where this puts it. So the
+    /// candidate is <c>Likely</c> and its evidence says which half is which. It is never
+    /// <c>Confirmed</c> — that word is reserved for the root-bone match this weapon cannot satisfy.
+    /// </para>
+    /// <para>
+    /// <b>Deliberately narrow.</b> First-person hosts only, weapon groups only, and only where the
+    /// host's own animation sets name the weapon — so it cannot hand an NPC a viewmodel, which is the
+    /// decision this project made after every splicer was offered the player's pistol.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<AttachmentCandidate> WeaponsNamedByAnAnimationSet(
+        CatalogEntry host,
+        IReadOnlyList<MeshSocket> sockets,
+        IReadOnlyList<AttachmentCandidate> already,
+        CancellationToken cancellation)
+    {
+        // The bone every weapon socket on this rig uses. Without one there is nowhere to infer.
+        string? weaponBone = sockets
+            .GroupBy(s => s.BoneName, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .FirstOrDefault()
+            ?.Key;
+
+        if (weaponBone is null) return [];
+
+        IReadOnlyList<string> owners;
+        try { owners = HostAnimationSets(host); }
+        catch (Exception ex) when (ex is InvalidDataException or IOException) { return []; }
+
+        if (owners.Count == 0) return [];
+
+        var results = new List<AttachmentCandidate>();
+
+        foreach (string packageName in catalog.Packages)
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            using var package = BioShockPackage.Open(catalog.PackageFile(packageName));
+            var groups = GroupsWithSkeletons(package);
+            if (groups.Count == 0) continue;
+
+            foreach (string owner in owners)
+            {
+                // A set already served by a socket is not this method's business.
+                if (already.Any(a => string.Equals(AnimationSetFor(a, owners), owner, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                if (results.Any(r => string.Equals(r.Socket, owner, StringComparison.OrdinalIgnoreCase))) continue;
+                if (sockets.Any(s => string.Equals(NormaliseSocket(s.Name), Normalise(owner), StringComparison.Ordinal)))
+                    continue;
+
+                if (BestGroupFor(owner, groups) is not { } candidate) continue;
+
+                results.Add(new AttachmentCandidate(
+                    owner, weaponBone, packageName, candidate.Group,
+                    candidate.Mesh, candidate.Wrapper, "Likely",
+                    $"the hands carry a '{owner}' animation set of their own and '{candidate.Group}' is "
+                    + $"the weapon of that name, but this rig declares no '{owner}' socket and the "
+                    + $"weapon's skeleton is not rooted at '{weaponBone}', so the link is stated by "
+                    + $"the animation set while the attach point is inferred from where this rig's "
+                    + "other weapons attach"));
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>The animation sets a host's own animation package declares.</summary>
+    private IReadOnlyList<string> HostAnimationSets(CatalogEntry host)
+    {
+        using var package = BioShockPackage.Open(catalog.PackageFile(host.Package));
+
+        var wrapper = package.Exports
+            .Where(e => package.GetClassName(e) == AssetClasses.AnimationPackageWrapper
+                        && string.Equals(AssetContextResolver.TopLevelGroup(package, e), host.Group,
+                            StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+
+        if (wrapper is null) return [];
+
+        return AnimationPackage.Load(package, wrapper).Owners
+            .Where(o => o.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>Group prefix for the weapon an NPC carries, as opposed to the player's viewmodel.</summary>
