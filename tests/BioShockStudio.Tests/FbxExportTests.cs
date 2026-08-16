@@ -19,6 +19,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class FbxExportTests(GameFixture game)
 {
     private AnimationScene HandsScene(string owner = "Pistol")

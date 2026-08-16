@@ -20,6 +20,7 @@ namespace BioShockStudio.Tests;
 /// and a panel that is always empty is worse than no panel: it reads as a clean bill of health.
 /// This project has shipped three features that were implemented, tested and invisible.
 /// </remarks>
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class DiagnosticsUiTests
 {
     private static async Task<bool> WaitFor(Func<bool> condition, int seconds = 900)

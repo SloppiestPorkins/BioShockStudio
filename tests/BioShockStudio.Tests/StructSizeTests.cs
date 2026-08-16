@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// half the shaders in the larger packages decoded partially.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class StructSizeTests(GameFixture game)
 {
     private BioShockPackage Map(string name) => BioShockPackage.Open(

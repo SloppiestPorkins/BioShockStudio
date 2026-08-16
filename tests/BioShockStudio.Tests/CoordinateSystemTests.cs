@@ -21,6 +21,7 @@ namespace BioShockStudio.Tests;
 /// project's no-synthetic-fixtures rule does not apply to them.</para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class CoordinateSystemTests(GameFixture game)
 {
     private const float Tolerance = 1e-5f;

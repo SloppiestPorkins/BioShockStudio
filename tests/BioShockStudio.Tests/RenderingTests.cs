@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class RenderingTests(GameFixture game)
 {
     private const int Width = 320;

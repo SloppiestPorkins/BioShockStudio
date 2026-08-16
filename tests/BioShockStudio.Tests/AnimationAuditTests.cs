@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// produce a dirty one.
 /// </para>
 /// </summary>
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class AnimationAuditTests
 {
     [Fact]

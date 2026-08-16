@@ -30,6 +30,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SkeletonPartitionTests(GameFixture game)
 {
     private (AnimationPackage Pack, BioShockPackage Owner) Open(string map, string wrapper)

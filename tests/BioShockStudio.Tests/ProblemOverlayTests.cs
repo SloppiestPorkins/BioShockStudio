@@ -22,6 +22,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class ProblemOverlayTests(GameFixture game)
 {
     private const int Width = 320;

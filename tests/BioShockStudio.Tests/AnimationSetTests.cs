@@ -16,6 +16,7 @@ namespace BioShockStudio.Tests;
 /// with Melee, Pistol, smg and Ceiling.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class AnimationSetTests(GameFixture game)
 {
     private (MeshPreviewService Preview, CatalogEntry Entry) BabyJane()

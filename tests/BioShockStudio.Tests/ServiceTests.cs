@@ -12,6 +12,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class ServiceTests(GameFixture game)
 {
     private AssetCatalogService Catalog()

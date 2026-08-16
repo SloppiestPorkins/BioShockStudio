@@ -11,6 +11,7 @@ namespace BioShockStudio.Tests;
 /// surface drew solid — the lighthouse kelp, which is alpha cards, came out as rectangular slabs.
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class TransparencyTests(GameFixture game)
 {
     private (MeshPreviewService Preview, CatalogEntry Entry) Load(string name)

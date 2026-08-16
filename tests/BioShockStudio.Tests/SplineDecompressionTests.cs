@@ -6,6 +6,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SplineDecompressionTests(GameFixture game)
 {
     private static AnimationPackage Load(string file, string objectName)

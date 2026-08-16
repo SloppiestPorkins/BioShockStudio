@@ -5,6 +5,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SkeletalMeshTests(GameFixture game)
 {
     private (byte[] Payload, IReadOnlyList<NameEntry> Names) Load(string objectName)

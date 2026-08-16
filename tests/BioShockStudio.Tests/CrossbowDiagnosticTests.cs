@@ -7,6 +7,7 @@ namespace BioShockStudio.Tests;
 
 /// <summary>Scratch diagnostic for the crossbow reload. Delete once the pairing question is settled.</summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class CrossbowDiagnosticTests(GameFixture game)
 {
     [RequiresGameFact]

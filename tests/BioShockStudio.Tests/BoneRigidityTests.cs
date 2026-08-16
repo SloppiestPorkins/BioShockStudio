@@ -21,6 +21,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class BoneRigidityTests(GameFixture game)
 {
     private (Core.Assets.AnimationPackage Package, BioShockPackage Owner) BabyJane()

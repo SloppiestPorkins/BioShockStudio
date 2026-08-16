@@ -18,6 +18,7 @@ namespace BioShockStudio.Tests;
 /// export that invented a root joint would look more like the skinned files and would be wrong.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class StaticMeshExportTests(GameFixture game)
 {
     private AnimationScene DrillScene()

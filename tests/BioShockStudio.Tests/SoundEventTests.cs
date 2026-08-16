@@ -20,6 +20,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SoundEventTests(GameFixture game)
 {
     private string Map(string name) =>

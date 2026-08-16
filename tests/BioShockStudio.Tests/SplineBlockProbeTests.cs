@@ -8,6 +8,7 @@ namespace BioShockStudio.Tests;
 
 /// <summary>Scratch probe: what the shipped data says about a field before code is written for it.</summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class SplineBlockProbeTests(GameFixture game)
 {
     private static readonly string LogPath =

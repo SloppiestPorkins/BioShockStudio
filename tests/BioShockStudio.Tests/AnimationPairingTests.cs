@@ -15,6 +15,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class AnimationPairingTests(GameFixture game)
 {
     [Fact]

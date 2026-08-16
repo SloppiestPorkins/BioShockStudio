@@ -13,6 +13,7 @@ namespace BioShockStudio.Tests;
 /// borrowed one: the sections are checked against geometry decoded independently of them.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class StaticMeshSectionTests(GameFixture game)
 {
     private string Map(string name) =>

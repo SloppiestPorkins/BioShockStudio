@@ -6,6 +6,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class PackageParsingTests(GameFixture game)
 {
     [RequiresGameFact]

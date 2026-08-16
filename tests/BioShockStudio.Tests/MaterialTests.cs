@@ -12,6 +12,7 @@ namespace BioShockStudio.Tests;
 /// Covers the material link: how a mesh names its shader, and what that shader binds.
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed partial class MaterialTests(GameFixture game)
 {
     /// <summary>A name the property walk invented, rather than one the name table really holds.</summary>

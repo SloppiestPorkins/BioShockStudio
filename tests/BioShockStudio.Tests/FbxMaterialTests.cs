@@ -23,6 +23,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class FbxMaterialTests(GameFixture game)
 {
     private AnimationScene BuildScene(string map, string mesh, string outputDirectory)

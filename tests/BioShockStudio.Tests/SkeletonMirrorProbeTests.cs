@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// rather than from the decoder's own output.
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SkeletonMirrorProbeTests(GameFixture game)
 {
     private static readonly string LogPath =

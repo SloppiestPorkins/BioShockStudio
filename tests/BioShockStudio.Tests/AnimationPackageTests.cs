@@ -6,6 +6,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class AnimationPackageTests(GameFixture game)
 {
     private AnimationPackage Hands()

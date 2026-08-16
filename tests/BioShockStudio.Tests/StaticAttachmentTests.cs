@@ -15,6 +15,7 @@ namespace BioShockStudio.Tests;
 /// the static-mesh reader existed it could not have been drawn even once resolved.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class StaticAttachmentTests(GameFixture game)
 {
     private AssetCatalogService Catalog()

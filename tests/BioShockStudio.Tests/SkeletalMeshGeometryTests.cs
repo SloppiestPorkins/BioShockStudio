@@ -6,6 +6,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class SkeletalMeshGeometryTests(GameFixture game)
 {
     private byte[] Payload(string objectName)

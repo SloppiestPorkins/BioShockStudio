@@ -17,6 +17,7 @@ namespace BioShockStudio.Tests;
 /// 2.8 MB apart, so every size and format check passed on the wrong texture.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class BulkTextureGroupTests(GameFixture game)
 {
     private string BossFight => Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "7-BossFight.bsm");

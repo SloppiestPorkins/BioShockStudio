@@ -15,6 +15,7 @@ namespace BioShockStudio.Tests;
 /// together, so every single-threaded test passed throughout.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class CatalogConcurrencyTests(GameFixture game)
 {
     [RequiresGameFact]

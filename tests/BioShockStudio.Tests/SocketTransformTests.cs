@@ -21,6 +21,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SocketTransformTests(GameFixture game)
 {
     private IReadOnlyList<MeshSocket> Sockets(string map, string mesh)

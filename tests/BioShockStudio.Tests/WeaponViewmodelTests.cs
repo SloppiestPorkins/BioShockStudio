@@ -6,6 +6,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class WeaponViewmodelTests(GameFixture game)
 {
     private static ObjectExport Find(BioShockPackage package, string group, string className) =>

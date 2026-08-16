@@ -11,6 +11,7 @@ namespace BioShockStudio.Tests;
 /// What the browser calls a character, and what a character is offered to hold.
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class CharacterCategoryTests(GameFixture game)
 {
     private string Map(string name) =>

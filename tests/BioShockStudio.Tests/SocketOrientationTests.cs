@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class SocketOrientationTests(GameFixture game)
 {
     private static readonly string LogPath =

@@ -16,6 +16,7 @@ namespace BioShockStudio.Tests;
 /// project has shipped three features that were implemented, tested and invisible, and a command
 /// that never runs looks exactly like a broken extractor.
 /// </remarks>
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class ExtractionUiTests
 {
     /// <summary>Pumps the dispatcher until a condition holds, so a fire-and-forget task can finish.</summary>

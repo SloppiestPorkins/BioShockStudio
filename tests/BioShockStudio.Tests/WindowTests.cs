@@ -31,6 +31,7 @@ public sealed class HeadlessApp
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }
 
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class WindowTests
 {
     /// <summary>

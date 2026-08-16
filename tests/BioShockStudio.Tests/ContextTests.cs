@@ -10,6 +10,7 @@ namespace BioShockStudio.Tests;
 /// Covers asset context: what attaches to what, and drawing a host with its attachment.
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class ContextTests(GameFixture game)
 {
     private AssetCatalogService Catalog()

@@ -17,6 +17,7 @@ namespace BioShockStudio.Tests;
 /// of a real animation and requires it to have moved.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class AttachmentPlacementTests(GameFixture game)
 {
     private AssetCatalogService Catalog()

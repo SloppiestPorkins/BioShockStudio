@@ -15,6 +15,7 @@ namespace BioShockStudio.Tests;
 /// against real shipped bytes.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class MeshSurfaceTests(GameFixture game)
 {
     private string Map(string name) =>

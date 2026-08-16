@@ -19,6 +19,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class AnimationContinuityTests(GameFixture game)
 {
     private string RyanPackage => Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "5-Ryan.bsm");

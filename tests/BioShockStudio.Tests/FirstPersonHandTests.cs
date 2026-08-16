@@ -28,6 +28,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </summary>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class FirstPersonHandTests(GameFixture game)
 {
     private static int IndexOf(BioShockSkeleton skeleton, string name)

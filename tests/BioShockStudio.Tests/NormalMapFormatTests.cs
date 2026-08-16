@@ -22,6 +22,7 @@ namespace BioShockStudio.Tests;
 /// </para>
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class NormalMapFormatTests(GameFixture game)
 {
     private BioShockTexture Read(string map, string name)

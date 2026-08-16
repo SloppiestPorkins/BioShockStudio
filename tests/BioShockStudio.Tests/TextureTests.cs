@@ -5,6 +5,7 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class TextureTests(GameFixture game)
 {
     private static BioShockTexture Load(BioShockPackage package, string name) =>

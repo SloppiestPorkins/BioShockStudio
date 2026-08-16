@@ -15,6 +15,7 @@ namespace BioShockStudio.Tests;
 /// <c>BulkContent</c>, indexed by <c>Catalog.bdc</c>.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class BulkTextureTests(GameFixture game)
 {
     private BulkTextureCatalog Catalog() =>

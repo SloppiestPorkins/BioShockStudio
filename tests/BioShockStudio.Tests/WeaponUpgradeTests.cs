@@ -14,6 +14,7 @@ namespace BioShockStudio.Tests;
 /// why upgrades appeared on some weapons and not others.
 /// </remarks>
 [Collection(GameCollection.Name)]
+[Trait(Tiers.Name, Tiers.Fast)]
 public sealed class WeaponUpgradeTests(GameFixture game)
 {
     private BioShockPackage Weapons() =>
