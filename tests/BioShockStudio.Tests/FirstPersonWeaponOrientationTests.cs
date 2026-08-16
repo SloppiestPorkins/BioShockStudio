@@ -108,6 +108,7 @@ public sealed class FirstPersonWeaponOrientationTests(GameFixture game)
         var owners = subject.AnimationSets.Select(s => s.Owner).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         Log($"=== NEWPlayerHands: {host.Bones.Count} bones, root '{host.Bones[rootBone].Name}'");
+        Log($"    animation sets: {string.Join(", ", owners.Select(o => o.Length == 0 ? "<none>" : o))}");
 
         // Every socket the rig declares, with what it carries. The point of interest is how many of
         // them share one bone: the placement code picks a socket by BONE, so if several sit on the
@@ -426,6 +427,97 @@ public sealed class FirstPersonWeaponOrientationTests(GameFixture game)
 
         // And the two really are distinguishable, so the assertion above cannot pass by coincidence.
         Assert.False(wrench.On(boneFrame) == boneFrame);
+    }
+
+    /// <summary>
+    /// Prints every weapon's placement — sockets, rotations, and the direction measurements.
+    /// </summary>
+    /// <remarks>
+    /// A probe, in the same shape as <c>SocketOrientationTests.Print_StaticPropPlacement</c>: it
+    /// asserts nothing and runs only when <c>BIOSHOCK_PROBE_LOG</c> is set. It is kept because the
+    /// numbers it prints are what identified the socket fault, and because both direction metrics in
+    /// it are worth having on record as ones that <b>passed the broken pistol</b> — see
+    /// <see cref="EachWeaponIsPlacedOnTheSocketItNames"/> for why the real check is structural.
+    /// </remarks>
+    [RequiresGameFact]
+    public void Print_WeaponPlacement()
+    {
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is null) return;
+        Measure();
+    }
+
+    /// <summary>
+    /// The export carries each socket's own transform, so Blender puts an attachment where the
+    /// viewport does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The scene JSON used to carry a socket's <i>name and bone only</i>. The viewport applied the
+    /// socket transform and the export did not, so the two disagreed about where every attachment
+    /// goes — by up to 84.8 cm (<c>GathererAttach</c>), and by a 180 degree rotation on the wrench.
+    /// A viewport that is right while the export is wrong is the disagreement this project has
+    /// already paid for once, with materials.
+    /// </para>
+    /// <para>
+    /// Asserted against the socket table the mesh actually declares, and required to find at least
+    /// one socket that is <b>not</b> identity — otherwise the whole check would pass on a scene that
+    /// carried nothing at all.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheExportCarriesEachSocketsOwnTransform()
+    {
+        using var package = Core.Packages.BioShockPackage.Open(game.LighthousePackage);
+
+        var export = package.Exports
+            .Where(e => e.ObjectName == "NEWPlayerHands" && package.GetClassName(e) == "SkeletalMesh")
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(export);
+
+        byte[] payload = package.ReadExportData(export!);
+        var sockets = Core.Mesh.SkeletalMeshReader.ReadSockets(payload, package.Names);
+        Assert.NotEmpty(sockets);
+
+        var wrapper = package.Exports
+            .Where(e => package.GetClassName(e) == "AnimationPackageWrapper"
+                        && e.ObjectName.Contains("NEWPlayerHands", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(wrapper);
+
+        var animations = Core.Assets.AnimationPackage.Load(package, wrapper!);
+        var scene = Core.Export.AnimationSceneExporter.Build(animations, null, sockets);
+
+        Assert.Equal(sockets.Count, scene.Sockets.Count);
+
+        // The check would be vacuous on a rig whose sockets are all identity, and this one's are not:
+        // Wrench carries 180 degrees about Z and GathererAttach an 84.8 cm offset.
+        int moved = 0;
+
+        foreach (var source in sockets)
+        {
+            var written = scene.Sockets.Single(s =>
+                string.Equals(s.Name, source.Name, StringComparison.OrdinalIgnoreCase));
+
+            Assert.Equal(source.BoneName, written.BoneName);
+
+            Matrix4x4.Decompose(source.Transform, out _, out var rotation, out var translation);
+
+            Assert.Equal(translation.X, written.Translation[0], 3);
+            Assert.Equal(translation.Y, written.Translation[1], 3);
+            Assert.Equal(translation.Z, written.Translation[2], 3);
+
+            // A quaternion and its negation are the same rotation, so compare on that basis rather
+            // than component by component.
+            var q = new Quaternion(written.Rotation[0], written.Rotation[1], written.Rotation[2], written.Rotation[3]);
+            Assert.True(MathF.Abs(Quaternion.Dot(rotation, q)) > 0.999f,
+                $"socket '{source.Name}' exported a different rotation from the one it carries");
+
+            if (!source.Transform.IsIdentity) moved++;
+        }
+
+        Assert.True(moved > 0,
+            "no socket on this rig carries a transform, so this test cannot show that the export "
+            + "preserves one");
     }
 
     /// <summary>

@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **324 passed, 0 failed, 0 skipped** — 10m12s. Measured 16 Aug 2026, after the socket fix. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **329 passed, 0 failed, 0 skipped** — 10m16s. Measured 16 Aug 2026, after the asset inspector. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1251,6 +1251,34 @@ finding ported from either may need the record widening.
   hands' forward axis, on several weapons — not one screenshot of the pistol, which is the asset
   this project has repeatedly over-generalised from (§4, "the first-person rig is not a
   representative sample").
+- **The shotgun cannot be attached at all, and it is one of the seven player weapons.**
+  `CONFIRMED_BYTES`, 16 Aug 2026. Checked against the game's own weapon list (wrench, pistol, machine
+  gun, shotgun, grenade launcher, chemical thrower, crossbow):
+  - the hands carry its animation set — `USharedSkeletonAnimationMetadata_EmptyFidgetShotgun`, beside
+    `...Pistol`, `...Crossbow`, `...Chem`, `...Launcher`, `...TommyGun`;
+  - its viewmodel ships with a rig — `WP_ShotgunMesh`, `UAPW_WP_Shotgun`,
+    `USharedSkeletonDataMetadata_WP_Shotgun`;
+  - **but `NEWPlayerHands` declares no `Shotgun` socket.** The nine sockets on `R_grip` are `Pistol`,
+    `Wrench`, `Crossbow`, `Chem`, `TommyGun`, `Launcher`, `IrritantBall`, `WrenchRibbonSocket` and
+    `PlayerGathererGun`.
+
+  `AssetContextService` drives its weapon sweep from the host's sockets, so with no socket naming it
+  the shotgun is never offered — it cannot be previewed with the hands, and it never reaches the
+  export as a two-rig set. **Six of seven weapons work and the seventh is invisible**, which is why
+  this went unnoticed: nothing fails, the picker simply has one fewer entry.
+
+  **Do not fix it by inventing a socket.** The evidence-backed route already exists: `Assess`
+  promotes a candidate to `Confirmed` when *the weapon's own skeleton is rooted at the bone*, which
+  is a stated relationship rather than a name match, and `WP_Shotgun` is rooted at `R_grip` like its
+  siblings. Offering weapon groups by that test — for a first-person host only — would reach the
+  shotgun without weakening the rule that keeps NPCs from being handed viewmodels. Not implemented;
+  it changes attachment resolution and wants its own measurement.
+- **`PlayerGathererGun` is not a player weapon**, and the socket of that name should not be read as
+  one. "Gatherer" is the developers' own name for a **Little Sister** — the hands also carry
+  `GathererAttach` and `GatherSave` sockets and `Gatherer` notifies. It is listed among the hands'
+  attachments because it hangs off `R_grip` like the weapons do, and it resolves no animation set of
+  its own, so anything that poses it borrows another weapon's clip. Corrected on the user's word,
+  16 Aug 2026, after it was described here as one of the guns.
 - **The `Melee` socket** — could be the wrench, pipe, machete, rake or shovel. Left unresolved
   rather than given whichever sorted first.
 - **Splicer variant ↔ animation set** — nothing in the data links a *particular* variant to a

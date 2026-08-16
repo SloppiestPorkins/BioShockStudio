@@ -150,7 +150,7 @@ public static class AnimationSceneExporter
             Animations = animations,
             Failures = failures,
             Sockets = (sockets ?? [])
-                .Select(s => new SceneSocket { Name = s.Name, BoneName = s.BoneName })
+                .Select(ToSceneSocket)
                 .ToList(),
             Mesh = geometry is null ? null : BuildMesh(geometry, triangleMaterials),
             Material = material ?? materials?.FirstOrDefault(),
@@ -218,6 +218,27 @@ public static class AnimationSceneExporter
         JsonSerializer.Serialize(stream, scene, readable ? ReadableOptions : Options);
     }
 
+    /// <summary>
+    /// A socket with its own transform, decomposed the same way a bone's is.
+    /// </summary>
+    /// <remarks>
+    /// A transform that will not decompose yields identity rather than a guess, and the socket then
+    /// marks its bone — which is what every socket did before this and is honest about what is known.
+    /// </remarks>
+    private static SceneSocket ToSceneSocket(MeshSocket socket)
+    {
+        if (!Matrix4x4.Decompose(socket.Transform, out _, out var rotation, out var translation))
+            return new SceneSocket { Name = socket.Name, BoneName = socket.BoneName };
+
+        return new SceneSocket
+        {
+            Name = socket.Name,
+            BoneName = socket.BoneName,
+            Translation = [translation.X, translation.Y, translation.Z],
+            Rotation = [rotation.X, rotation.Y, rotation.Z, rotation.W],
+        };
+    }
+
     private static float[] ToArray(Vector3 value) => [value.X, value.Y, value.Z];
     private static float[] ToArray(Quaternion value) => [value.X, value.Y, value.Z, value.W];
 }
@@ -266,6 +287,31 @@ public sealed record SceneAttachment
 
     /// <summary>Bone the socket hangs off, e.g. <c>R_Grip</c>.</summary>
     public required string SocketBone { get; init; }
+
+    /// <summary>
+    /// Where the socket sits relative to its bone — the socket's own offset.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The export used to drop this entirely</b>, parenting an attachment to the bone and nothing
+    /// more, while the viewport applied the socket transform. So the two disagreed about where a
+    /// prop goes, and the disagreement is not small: <c>FireballSocket</c> is 65.8 cm from its bone
+    /// and <c>GathererAttach</c> 84.8 cm, and 200 of the game's 332 sockets carry a real offset.
+    /// </para>
+    /// <para>
+    /// Written as translation and rotation in the same form as a bone's, so the consumer composes it
+    /// with the same code path rather than needing a second matrix convention.
+    /// </para>
+    /// </remarks>
+    public float[] SocketTranslation { get; init; } = [0f, 0f, 0f];
+
+    /// <summary>The socket's rotation relative to its bone, <c>(x, y, z, w)</c> as a bone's is.</summary>
+    /// <remarks>
+    /// Not identity as often as the name suggests: on the first-person hands, <c>Wrench</c> carries
+    /// 180° about Z, <c>Launcher</c> 30.5° and <c>TommyGun</c> 20.5°, while <c>Pistol</c> and
+    /// <c>Chem</c> are identity. See <c>docs/HANDOFF.md</c> §4.
+    /// </remarks>
+    public float[] SocketRotation { get; init; } = [0f, 0f, 0f, 1f];
 
     public required AnimationScene Scene { get; init; }
 }
@@ -336,6 +382,19 @@ public sealed record SceneSocket
 {
     public required string Name { get; init; }
     public required string BoneName { get; init; }
+
+    /// <summary>
+    /// The socket's own offset from its bone, as translation and an <c>(x, y, z, w)</c> rotation.
+    /// </summary>
+    /// <remarks>
+    /// A socket marker placed on the bone alone marks the wrong place for 200 of the game's 332
+    /// sockets — <c>GathererAttach</c> is 84.8 cm out and <c>FireballSocket</c> 65.8 cm. The export
+    /// used to carry only the name and the bone, so every socket in a <c>.blend</c> sat on its bone
+    /// head regardless of what the game says.
+    /// </remarks>
+    public float[] Translation { get; init; } = [0f, 0f, 0f];
+
+    public float[] Rotation { get; init; } = [0f, 0f, 0f, 1f];
 }
 
 public sealed record SceneBone

@@ -353,9 +353,15 @@ def build_sockets(armature, scene):
         empty.parent = armature
         empty.parent_type = "BONE"
         empty.parent_bone = target
-        # Bone parenting places children at the bone tail; cancel that so the socket sits on the head.
+        # Bone parenting places children at the bone tail; cancel that so the socket sits on the head,
+        # then apply the socket's own offset — it is not the bone, and most of them are not identity.
         empty.matrix_parent_inverse = Matrix.Translation(
             (0.0, -armature.data.bones[target].length, 0.0))
+        empty.matrix_basis = socket_matrix(
+            {
+                "socketTranslation": socket.get("translation", (0.0, 0.0, 0.0)),
+                "socketRotation": socket.get("rotation", (0.0, 0.0, 0.0, 1.0)),
+            })
 
         empty["bioshock_socket"] = socket["name"]
         empty["bioshock_socket_bone"] = socket["boneName"]
@@ -616,6 +622,34 @@ def assign_default_actions(armature, scene, attachments):
     return chosen
 
 
+def socket_matrix(attachment):
+    """The socket's own offset from its bone, in Blender's convention.
+
+    A socket is not just a bone: 200 of the game's 332 sockets carry a real offset and 246 carry a
+    rotation, and ignoring them puts a prop up to 84 cm from where the game holds it. The export used
+    to drop this entirely, so the viewport and the .blend disagreed about where an attachment goes.
+
+    Built exactly as a bone's local matrix is, from a translation and an (x, y, z, w) quaternion, so
+    there is no second matrix convention to get wrong.
+    """
+    translation = Vector(attachment.get("socketTranslation", (0.0, 0.0, 0.0))) * SCENE_SCALE
+    x, y, z, w = attachment.get("socketRotation", (0.0, 0.0, 0.0, 1.0))
+    return Matrix.Translation(translation) @ Quaternion((w, x, y, z)).to_matrix().to_4x4()
+
+
+def parent_to_socket(obj, host_armature, attachment, target):
+    """Parent an object to a host bone, placed at the socket rather than on the bone itself."""
+    obj.parent = host_armature
+    obj.parent_type = "BONE"
+    obj.parent_bone = target
+
+    # Bone parenting places children at the bone TAIL; cancel that, then apply the socket's own
+    # offset from the bone head.
+    obj.matrix_parent_inverse = Matrix.Translation(
+        (0.0, -host_armature.data.bones[target].length, 0.0))
+    obj.matrix_basis = socket_matrix(attachment)
+
+
 def build_static_attachment(host_armature, attachment, scene, target):
     """Parent a prop to the host's socket bone.
 
@@ -631,12 +665,7 @@ def build_static_attachment(host_armature, attachment, scene, target):
         return None
 
     obj.name = f"{attachment['socketName']}_{scene['sourceObject']}"
-    obj.parent = host_armature
-    obj.parent_type = "BONE"
-    obj.parent_bone = target
-    # Bone parenting places children at the bone tail; cancel that so the prop sits on the socket.
-    obj.matrix_parent_inverse = Matrix.Translation(
-        (0.0, -host_armature.data.bones[target].length, 0.0))
+    parent_to_socket(obj, host_armature, attachment, target)
 
     obj["bioshock_socket"] = attachment["socketName"]
     obj["bioshock_socket_bone"] = attachment["socketBone"]
@@ -677,12 +706,7 @@ def build_attachment(host_armature, attachment):
     for animation in scene["animations"]:
         build_action(armature, scene, animation, globals_)
 
-    armature.parent = host_armature
-    armature.parent_type = "BONE"
-    armature.parent_bone = target
-    # Bone parenting places children at the bone tail; cancel that so the weapon sits on the socket.
-    armature.matrix_parent_inverse = Matrix.Translation(
-        (0.0, -host_armature.data.bones[target].length, 0.0))
+    parent_to_socket(armature, host_armature, attachment, target)
 
     armature["bioshock_socket"] = attachment["socketName"]
     armature["bioshock_socket_bone"] = attachment["socketBone"]

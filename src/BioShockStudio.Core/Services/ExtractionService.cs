@@ -1,4 +1,5 @@
-﻿using BioShockStudio.Core.Assets;
+using System.Numerics;
+using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
@@ -380,7 +381,10 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             cancellation.ThrowIfCancellationRequested();
 
             var rig = RiggedAttachment(candidate, directory, cancellation);
-            if (rig is not null) attachments.Add(rig);
+            if (rig is null) continue;
+
+            var (offset, rotation) = SocketPlacement(sockets, candidate.Socket);
+            attachments.Add(rig with { SocketTranslation = offset, SocketRotation = rotation });
         }
 
         foreach (var candidate in candidates.Where(c => c.IsStatic))
@@ -408,16 +412,50 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             var (propMaterials, propTriangles) =
                 MaterialExporter.ResolveSurfaces(package, export, propGeometry, directory, catalog.Bulk);
 
+            var (propOffset, propRotation) = SocketPlacement(sockets, candidate.Socket);
+
             attachments.Add(new SceneAttachment
             {
                 SocketName = candidate.Socket,
                 SocketBone = candidate.SocketBone,
+                SocketTranslation = propOffset,
+                SocketRotation = propRotation,
                 Scene = AnimationSceneExporter.BuildStatic(
                     entry.Package, export.ObjectName, propGeometry, null, propMaterials, propTriangles),
             });
         }
 
         return attachments;
+    }
+
+    /// <summary>
+    /// The named socket's own offset from its bone, as translation and rotation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Matched by name, never by bone.</b> Several sockets routinely share one bone — nine of the
+    /// first-person hands' sit on <c>R_grip</c> — and picking by bone returns whichever was read
+    /// first. In the viewport that mistake drew every weapon in the game backwards; see
+    /// <c>PreviewModel.PlacementFor</c> and <c>docs/HANDOFF.md</c> §4.
+    /// </para>
+    /// <para>
+    /// A socket that cannot be found, or whose transform will not decompose, yields identity: the
+    /// attachment then sits on the bone alone, which is what the export did for every asset before
+    /// this and is honest rather than invented.
+    /// </para>
+    /// </remarks>
+    private static (float[] Translation, float[] Rotation) SocketPlacement(
+        IReadOnlyList<MeshSocket> sockets, string socketName)
+    {
+        var socket = sockets.FirstOrDefault(s =>
+            string.Equals(s.Name, socketName, StringComparison.OrdinalIgnoreCase));
+
+        if (socket is null || !Matrix4x4.Decompose(socket.Transform, out _, out var rotation, out var translation))
+            return ([0f, 0f, 0f], [0f, 0f, 0f, 1f]);
+
+        return (
+            [translation.X, translation.Y, translation.Z],
+            [rotation.X, rotation.Y, rotation.Z, rotation.W]);
     }
 
     /// <summary>
