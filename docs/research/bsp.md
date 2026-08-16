@@ -1,9 +1,10 @@
 # BSP — `Model` and `Polys`
 
-**Implementation:** `src/BioShockStudio.Core/Level/BspPolys.cs`, `BspGeometry.cs`
-**Tests:** `tests/BioShockStudio.Tests/BspGeometryTests.cs`, `BspRenderingTests.cs`
-**Status:** `Polys` / `FPoly` is **`CONFIRMED_BYTES`**. `Model`'s own binary body is
-**`CONFIRMED_EXTERNAL`, not implemented** — see §5.
+**Implementation:** `src/BioShockStudio.Core/Level/BspPolys.cs`, `BspGeometry.cs`, `ModelReader.cs`
+**Tests:** `BspGeometryTests.cs`, `BspRenderingTests.cs`, `ModelReaderTests.cs`
+**Status:** `Polys` / `FPoly` is **`CONFIRMED_BYTES`**. `Model` is `CONFIRMED_BYTES` **as far as its
+`Polys` reference** and `CONFIRMED_EXTERNAL` beyond it — the built world's node, surface and vertex
+arrays are skipped by length, not decoded. See §5.
 
 This is the container 230 actors in `0-Lighthouse` reference and nothing decoded, and the same one
 `AtlasLabsDoorAnim` ships in place of a drawable mesh (HANDOFF §6.2).
@@ -208,10 +209,55 @@ four axes zero — so a zero UV is real data, not a decode failure. How many is 
 
 ---
 
-## 5. `Model` — the built world. `CONFIRMED_EXTERNAL`, **not implemented**
+## 5. `Model` — the container walks; the built world is still not decoded
+
+**Status: `CONFIRMED_BYTES` as far as the `Polys` reference; `CONFIRMED_EXTERNAL` beyond it.**
 
 From Nyko's §C.1, validated there at 283/284 byte-exact on `0-Lighthouse` and cross-checked against
 his editor's own parser (`tools/level_editor/src/bsp_parser.cpp`), which renders it.
+
+### 5.0 What this project has now verified itself
+
+`ModelReader` walks the layout below **as far as the `Polys` object reference** and stops. That is
+enough to close actor → model → polygons, which is the link a level needs, and it is what promotes
+the front half of §C.1.1 from someone else's source to this project's own measurement.
+
+| measured across all 21 map packages | |
+|---|---|
+| `Model` exports walked | **16,926** |
+| …landing on a reference that resolves to a `Polys` export | **16,926 (100%)** |
+| Brush actors in `0-Lighthouse` reaching their polygons | **230 of 230** |
+
+**Why that is a decode and not a fit:** every array length ahead of the reference is read from the
+data, so one wrong field size puts the final read at an arbitrary offset. An arbitrary
+`FCompactIndex` resolving to an export of exactly the right class, 16,926 times, is not a
+coincidence available to a wrong layout.
+
+**The counts match Nyko's independently-measured figures exactly**, which is a second, stronger
+check — these are numbers neither project could have got right by accident:
+
+| map | this project | Nyko |
+|---|---|---|
+| `1-Medical` | 7,125 nodes, 3,386 surfs, 11,652 points | 7,125 nodes, 3,386 surfs, 11,652 points |
+| `2-Fisheries` | 3,724 surfs | 3,724 surfs |
+| `3-Arcadia` | 2,906 surfs | 2,906 surfs |
+
+**The export table does not state the model → polys link**, which is why this walk is necessary at
+all: of `0-Lighthouse`'s 285 `Polys` exports, only **60** have a `Model` as their outer, **54** have
+a `SkeletalMesh`, and **171** have none; no `Model` is immediately followed by its `Polys` either.
+
+**Identifying the built world is a comparison, not a threshold** — the rule is Nyko's own ("find the
+largest UModel by node count"). A first attempt here defined it as `NodeCount > 0` and was wrong: a
+source brush carries its own small node tree, six nodes for a six-sided box, so that test called all
+285 of Lighthouse's models the built world. The separation within a package is nonetheless enormous:
+
+| map | world | next largest |
+|---|---|---|
+| `0-Lighthouse` | 758 nodes | 6 |
+| `1-Medical` | 7,125 nodes | 6 |
+| `7-Science` | 7,951 nodes | 10 |
+
+### 5.1 The layout
 
 ```
 Super::Serialize                       // UObject — Vengeance header + tagged properties
@@ -231,7 +277,7 @@ int32 RootOutside, int32 Linked
 [lightmap arrays — FLightMapIndex, LightBits, LightMapTextures]
 ```
 
-### 5.1 `FBspNode` — 100 bytes, and one field is a landmine
+### 5.2 `FBspNode` — 100 bytes, and one field is a landmine
 
 ```
 +0   FPlane Plane (16)          +52  FVector BoundOrigin (12)   — Vengeance addition
@@ -260,7 +306,7 @@ distinguishing evidence is the field layout, not the score. This is the same sha
 
 Vengeance uses `MAX_ZONES = 128`, so `ZoneMask` is 128-bit where stock UE2.5 is 64.
 
-### 5.2 `FBspSurf`
+### 5.3 `FBspSurf`
 
 ```
 8 B    per-element Vengeance header (check=4, sub_ver=1)
@@ -283,11 +329,11 @@ editor's parser reads the same position as `iLightMap` and uses it as a lightmap
 lightmap note takes a third position, putting `iLightMap` on the *node* rather than the surface. The
 two sources disagree and this project has not measured it. `UNKNOWN`.
 
-### 5.3 `FVert` — 8 bytes
+### 5.4 `FVert` — 8 bytes
 
 `int32 pVertex` (index into `Points`) + `int32 iSide`. **Raw int32 where UE2.5 uses `FCompactIndex`.**
 
-### 5.4 Lightmaps
+### 5.5 Lightmaps
 
 `FLightMapIndex` is one descriptor per surface: `iSurf`, `SizeX`, `SizeY` (7..512), a 4×4
 `WorldToLightMap` matrix, and a list of `FLightMapLight` entries carrying `iAtlas`, `TileX`, `TileY`.
@@ -300,7 +346,7 @@ U = U' × (SizeX/1024) + (TileX + 0.5)/1024
 V = V' × (SizeY/1024) + (TileY + 0.5)/1024
 ```
 
-### 5.5 Surfaces that must not be drawn
+### 5.6 Surfaces that must not be drawn
 
 `PolyFlags` carries `PF_Invisible 0x1`, `PF_FakeBackdrop 0x80`, `PF_Portal 0x04000000`. Nyko's editor
 skips all three: they are zoning, portal and backdrop surfaces, not architecture. **Any level

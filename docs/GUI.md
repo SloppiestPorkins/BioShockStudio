@@ -19,6 +19,45 @@ The view model holds no parsing, no offsets and no output-path decisions. That i
 its own sake: the services are what the tests exercise, and it is what stops the browser and the
 command line from disagreeing about what an asset is.
 
+## Two workspaces
+
+The window is a `TabControl` with two tabs, added when Phase 2's level work landed:
+
+| Tab | What it is |
+|---|---|
+| **Assets** | The original browser — categories, search, the asset list, the details panel, the 3D preview and the extraction bar. Moved into a tab **unchanged**: same columns, same bindings, same shortcuts. |
+| **Level** | Pick a map, see what it holds, write it out. |
+
+Tabs rather than a mode switch, because the two hold independent selections and neither should reset
+the other. The asset extraction bar at the foot of the window **is hidden on the Level tab** — it
+offers "Extract selected" and "Extract all shown", which beneath the level panel reads as though
+those buttons extract the level. They do not; the level has its own.
+
+### The Level tab
+
+Everything it needs is in `LevelService`, so it holds no format knowledge and the tab can be tested
+without a window — the same rule the rest of the application follows.
+
+It lists every `.bsm` in the install, largest first, and **filters none of them by name**: which
+packages hold a level is decided by what is in them. Selecting one reads it on a background thread
+and reports actors, placed objects split into static meshes and BSP brushes, lights, triangles, the
+extent, and how many actors were skipped. **Skipped is stated even when it is zero**, because
+"nothing was skipped" and "nothing ran" otherwise render identically — the same correction the
+Problems panel needed.
+
+"Actors with no geometry" is an expander rather than a warning. A level is mostly triggers, volumes,
+sounds, spawn points and script, and presenting that as a deficiency would misread the data.
+
+**The size estimate is shown before the job, not after.** A level OBJ is over 100 MB; the estimate
+comes from a measured ~54 bytes per triangle, so `0-Lighthouse` reads "about 112 MB" and writes 112.
+Bulk extraction size has already been reported as a fault in this project when it was really an
+unstated cost.
+
+**Three faults in this tab were found by rendering it and looking, with every test green** — see
+`HANDOFF.md`. The one worth repeating here: **`IsVisible="{Binding !SomeObject}"` does not negate a
+non-boolean binding in Avalonia**, and silently renders the control always. Use
+`{Binding X, Converter={x:Static ObjectConverters.IsNull}}`.
+
 ## The services
 
 | Service | Responsibility |
@@ -29,6 +68,7 @@ command line from disagreeing about what an asset is.
 | `TexturePreviewService` | Decodes a texture for display, using the extractor's own decoder. |
 | `ExtractionService` | Runs extraction jobs with progress, cancellation and per-asset failures. |
 | `DiagnosticsService` | Scopes the diagnostic checks to one asset, one package or the install. The checks themselves are `Core.Diagnostics.AssetDiagnostics`, shared with the `diagnose` command. |
+| `LevelService` | Lists the maps, reads one into a `LevelScene` — placed meshes, BSP brushes and lights — and writes it out. Everything the Level tab needs, so the tab holds no format knowledge. |
 
 ## One row per asset
 

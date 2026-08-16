@@ -261,6 +261,10 @@ public partial class MainViewModel : ViewModelBase
         InstallSummary = $"{path}  ·  {report.Packages.Count} map packages";
         _catalog.RegisterInstall(path);
 
+        // The map list is a directory listing, so it is ready immediately — the Level tab is usable
+        // while the asset catalogue is still being built behind it.
+        LoadLevels();
+
         await BuildCatalogAsync(path);
     }
 

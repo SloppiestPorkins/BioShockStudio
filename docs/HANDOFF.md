@@ -9,14 +9,14 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **340 passed, 0 failed, 0 skipped** — 11m09s. Fast tier **171 / 34s**. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **352 passed, 0 failed, 0 skipped** — 11m58s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
 | **Reference projects** | **`docs/research/reference-comparison.md`** — what each of the four says about the structures we read, where they disagree, and which the bytes side with. Two contests settled this session; `UModel-master` went from "nothing mined" to the source of two findings. |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
-| **Phase 2** | **Started, and its hardest item is done.** The `Core/Level` actor layer measured clean on its first run (`0-Lighthouse`: **1,877 actors, 0 failures, 0 unresolved**). **BSP source brushes are now decoded** — 16,926 `Polys` exports across all 21 map packages walk to the exact byte, 93,264 polygons, rendered and looked at. `docs/research/bsp.md`. What is left is a consumer for a `LevelContext`. See §"Phase 2 — where it actually stands". |
+| **Phase 2** | **All four items done.** BSP source brushes decoded (16,926 `Polys` exports across 21 maps walk to the exact byte, 93,264 polygons); `Model` walks to its `Polys` reference; a level assembles into a `LevelScene` and exports as scene JSON + OBJ; 465 lights read; the world-bounds sentinel identified. **`0-Lighthouse`: 1,141 placed objects, 2,181,021 triangles, 465 lights, 0 skipped — rendered, and it is Rapture's skyline.** A **Level tab** drives it in the application. `docs/research/bsp.md`. |
 
 **All tests pass against the installed game, none skipped.** For the current count see the table
 above; it is stated in one place on purpose, because it was previously written in three and went
@@ -1188,16 +1188,68 @@ its state was unknown rather than good. `LevelAnalysisTests` now runs it on a sh
 material overrides, attachment parents and BSP brush references all resolve, and nothing is silently
 truncated.
 
-**What Phase 2 actually needs, in order:**
+**All four of Phase 2's items are now done.**
 
-1. ~~**BSP geometry.**~~ **The source brushes are DECODED — `docs/research/bsp.md`.** See below.
-2. **A level scene exporter.** There is no consumer for a `LevelContext` at all — no scene JSON, no
-   FBX, nothing in the GUI. The actor list resolves and then goes nowhere. **This is now the top
-   item**, and it now has brush geometry to carry as well as meshes.
-3. **Lights.** 318 in one map. **The types are now known and it is a small job** — see below.
+1. ~~**BSP geometry.**~~ **Decoded** — `docs/research/bsp.md`. See below.
+2. ~~**A level scene exporter.**~~ **Done.** `LevelScene` / `LevelSceneBuilder` assemble a map;
+   `LevelSceneExporter` writes it; the **Level tab** in the application drives it.
+3. ~~**Lights.**~~ **Done.** 465 on `0-Lighthouse`, with colour, brightness and radius.
 4. ~~**A world-bounds sanity check.**~~ **Done, and the guess was right.**
 
 **Do not start by rewriting `Core/Level`.** It measured clean on its first run.
+
+### The level pipeline — what exists now
+
+```
+LevelAnalyzer  →  LevelContext   (actors, references — was already here)
+                        ↓
+LevelSceneBuilder → LevelScene   (placed geometry + lights, in the studio's basis)
+                        ↓
+LevelSceneExporter → .level.json + .obj        LevelService → the Level tab
+```
+
+`0-Lighthouse`, measured: **1,877 actors → 1,141 placed objects** (911 static meshes, 230 BSP
+brushes), **465 lights**, **2,181,021 triangles**, **0 skipped**. The OBJ is 112 MB; the scene JSON
+keeps instancing at **401 assets for 1,141 instances**.
+
+**Rendered and looked at, and this is the load-bearing verification:** the placed static meshes
+assemble into **Rapture's skyline** — recognisable art-deco towers, upright, correctly spaced.
+
+**That render promoted `ActorTransform.ToMatrix` from `LIKELY` to `CORROBORATED`.** Its own remarks
+said it was "not yet checked against a rendered level, which is the evidence that would raise it";
+a level is the first thing this project has built that composes actor transforms at all. It is
+**not** `CONFIRMED_BYTES`: 1,223 Lighthouse actors carry a rotation, but a mostly-yaw level would
+look right under several conventions.
+
+**`LevelSceneBuilder.BrushPlacement` is the weakest claim in the pipeline and is labelled `LIKELY`.**
+A brush is placed by `Location − PrePivot` with no rotation or scale. **0 of Lighthouse's 230 brush
+actors carry a rotation or a scale**, so "the level assembles" is *not* evidence for the composition
+order — the test records that count precisely so a future session does not read confidence into a
+green result.
+
+### The GUI — two tabs now
+
+The window is a `TabControl`: **Assets** is the original browser moved across unchanged (same
+columns, bindings and shortcuts), **Level** is new. Tabs rather than a mode switch because the two
+hold independent selections.
+
+**Three faults were found by rendering the tab and looking at it, with every test green:**
+
+- The empty-state prompt bound `IsVisible="{Binding !SelectedLevel}"`. **`!` does not negate a
+  non-boolean binding in Avalonia**, so "Choose a map on the left" rendered on top of a fully-loaded
+  level. Use `ObjectConverters.IsNull`.
+- The **asset** extraction bar sat under the level panel offering "Extract selected" / "Extract all
+  shown", which reads as though those buttons extract the level. It is hidden on the Level tab now.
+  *A control that is merely irrelevant still makes a claim.*
+- The level's own Extract button was below the fold.
+
+All three are pinned by `LevelUiTests`, which also had to be corrected: its first snapshot captured
+the **Assets** tab, because selecting a level in the view model does not change which tab is
+showing. A snapshot of the wrong tab proves nothing.
+
+The size estimate is stated before the job runs — measured at ~54 bytes per triangle, so Lighthouse
+reads "about 112 MB", which is what it writes. Bulk extraction size has been reported as a fault in
+this project once already when it was really an unstated cost.
 
 ### BSP — the source brushes are decoded, the built world is documented
 
@@ -1231,10 +1283,18 @@ winding must be reversed after the basis reflection. Meshes must not be — see 
 confirmed a second way by enclosed volume (254 positive, **0 negative**).
 `ANIMATION_COORDINATE_SYSTEM.md` §6.1 and §9, which now lists **five** conversion boundaries.
 
-**Not established, and stated so in the note:** the built world's own binary body (read from two
-external sources, verified against zero shipped bytes here), `FBspSurf +20` (three statements in
-Nyko's project and they disagree), how a brush actor's transform composes, and CSG — this reader
-returns each brush's raw solid, not the world that results from adding and subtracting them.
+**The `Model` container now walks too, as far as its `Polys` reference** — `ModelReader`. That is the
+link a level needs and the export table does not state it: of Lighthouse's 285 `Polys` exports only
+60 have a `Model` outer, 54 have a `SkeletalMesh` and 171 have none. All **16,926** `Model` exports
+in the game land on a reference that resolves to a `Polys` export, and **the node/surf/point counts
+match Nyko's independently-measured figures exactly** (`1-Medical` 7,125 / 3,386 / 11,652;
+`2-Fisheries` 3,724 surfs; `3-Arcadia` 2,906 surfs).
+
+**Not established, and stated so in the note:** the built world's node, surface and vertex arrays are
+**skipped by length, not decoded** — `FBspNode` and `FBspSurf` remain unread here; `FBspSurf +20`
+(three statements in Nyko's project and they disagree); and CSG — the reader returns each brush's
+raw solid, not the world that results from adding and subtracting them. **A level export therefore
+carries the designer's brushes, not the compiled world**, which is the next real piece of work.
 
 ### Lights — §C.6 of a file nobody had opened answers it
 
