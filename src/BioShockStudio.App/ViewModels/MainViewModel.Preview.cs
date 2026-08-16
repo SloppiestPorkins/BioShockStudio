@@ -657,6 +657,7 @@ public partial class MainViewModel
                 var attachmentModel = _attachmentModel;
                 var attachmentAnimation = _attachmentAnimation;
                 int socketBone = _socketBone;
+                string? attachmentSocket = _attachment?.Socket;
 
                 var image = await Task.Run(() =>
                 {
@@ -665,12 +666,11 @@ public partial class MainViewModel
 
                     if (attachmentModel is not null && socketBone >= 0)
                     {
-                        // A socket carries its own offset from the bone. Placing the attachment on
-                        // the bone alone is right only when that offset is identity, which is true
-                        // of every first-person weapon socket and false of several others.
-                        var boneMatrix = pose is null ? model.Bones[socketBone].RestGlobal : pose[socketBone];
-                        var socket = model.Sockets.FirstOrDefault(s => s.Bone == socketBone);
-                        var transform = socket is null ? boneMatrix : socket.On(boneMatrix);
+                        // The socket the attachment NAMES, never whichever socket shares its bone —
+                        // that mistake put every first-person weapon backwards. The rule lives in
+                        // PreviewModel so the viewport and the tests cannot disagree about where an
+                        // attachment goes; see PlacementFor for the evidence.
+                        var transform = model.PlacementFor(attachmentSocket, socketBone, pose);
 
                         // The two rigs agree on duration, not on frame count, so the attachment is
                         // sampled by normalised time. Posing it at the host's own frame index reads

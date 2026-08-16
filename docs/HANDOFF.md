@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **322 passed, 0 failed, 0 skipped** — 168 fast (28s), 154 sweep (9m32s), 10m02s together. Measured 16 Aug 2026. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **324 passed, 0 failed, 0 skipped** — 10m12s. Measured 16 Aug 2026, after the socket fix. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -370,6 +370,27 @@ Each of these produced a plausible, wrong result before it was understood.
   in `0-Lighthouse`, listed under another map) and the click silently did nothing. Use the
   catalogue's own `InPackage` rule. **Found by rendering the panel, not by a test** — the numbers
   were all green.
+- **Several sockets share one bone, so a socket must be chosen by NAME.** Nine of the first-person
+  hands' sockets sit on `R_grip` — `Pistol`, `Wrench`, `Crossbow`, `Chem`, `TommyGun`, `Launcher`,
+  `IrritantBall`, `WrenchRibbonSocket`, `PlayerGathererGun`. The viewport picked the attachment's
+  socket with `FirstOrDefault(s => s.Bone == socketBone)`, which always returns **`Wrench`**, and the
+  wrench's socket carries a **180° turn about Z** where the pistol's and the chemical thrower's are
+  identity. **Every first-person weapon in the game was therefore drawn backwards**, barrel pointing
+  back over the forearm at the player, for as long as socket transforms have been applied.
+  - **It was found by a user, not by the tool** — the same way the grey security cameras and the
+    armless splicer were. Nothing failed: every count agreed, the attachment resolved `Confirmed`,
+    and the hands gripped the weapon.
+  - **Two geometric metrics written to catch it both passed the broken pistol.** Extent along the
+    arm's reach scored it +19 (the reach axis on this rig runs largely *up the spine*, so a barrel
+    pointing back-and-up still scores positive); barrel-against-view scored it +0.24 (the direction
+    from the eye to the weapon is not the direction the player looks). **A wrong lookup is caught by
+    checking the lookup, not by measuring a direction** — `FirstPersonWeaponOrientationTests`
+    asserts the pistol's placement equals its bone frame exactly, and fails with the two matrices
+    printed side by side if the rule reverts.
+  - **The claim "every first-person weapon socket is identity" (§6.6b) was read too broadly.** It is
+    true of the socket *origins*, and of the pistol's rotation. It was never true of the wrench's.
+    Origin and rotation are separate fields and a note about one says nothing about the other.
+  - The rule now lives in `PreviewModel.PlacementFor`, so the viewport and the tests cannot disagree.
 - **Render everything.** Numeric validation has passed while the result was visibly wrong, more than
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
@@ -739,6 +760,13 @@ Why it survived so long: **every first-person weapon socket has a zero origin.**
 Tommy gun and crossbow all placed correctly on the bone alone, and the note in this file generalised
 from them to "no offset beyond the socket bone's global transform". That was true of the sockets
 checked and false of 60% of the game's.
+
+> **This table is about ORIGINS, and it was later misread as being about the whole transform.**
+> A zero origin does not mean an identity socket: on `R_grip`, `Wrench` and `IrritantBall` carry a
+> **180° rotation about Z**, `Launcher` 30.5°, `TommyGun` 20.5°, `PlayerGathererGun` 3° and
+> `Crossbow` 1°, while `Pistol` and `Chem` are genuinely identity. Reading "the first-person sockets
+> are identity" off this table is what let the viewport pick a socket by bone for months and draw
+> every weapon in the game backwards — see §4. **Origin and rotation are separate fields.**
 
 | socket | offset from its bone |
 |---|---|
@@ -1189,10 +1217,12 @@ finding ported from either may need the record widening.
   `reference-comparison.md` §1. **What remains under that heading is different**: the 46 exports
   carrying no `Format` property at all, whose 42 distinct names are all editor sprites and engine
   placeholders. Whether they hold pixels is `UNKNOWN`.
-- **Every weapon in the `NEWPlayerHands` animations is backwards.** `REPORTED, NOT YET REPRODUCED` —
-  raised by the user, 16 Aug 2026, and **not investigated in the session that recorded it**, which was
-  under an explicit instruction not to touch decoding or rendering. It is written down here so it
-  cannot be lost, not because anything about it has been established.
+- ~~**Every weapon in the `NEWPlayerHands` animations is backwards.** `REPORTED, NOT YET REPRODUCED`~~
+  **FIXED, 16 Aug 2026.** Cause: the viewport chose the attachment's socket **by bone**, and nine of
+  the hands' sockets share the bone `R_grip`, so every weapon got `Wrench` — which carries a 180°
+  turn about Z where `Pistol` and `Chem` carry identity. See §4 and
+  `docs/research/firstperson.md`. The account below is kept because its *reasoning* was wrong in an
+  instructive way.
 
   It matters more than its position in this list suggests: **the first-person pistol is this
   project's target case** (§1) and its hands-and-weapon set is the most-checked asset in the

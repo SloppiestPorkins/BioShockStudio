@@ -84,6 +84,50 @@ public sealed class PreviewModel
     /// <summary>Specular colour map of the first surface that binds one.</summary>
     public PreviewImage? SpecularMap => Surfaces.FirstOrDefault(s => s.SpecularMap is not null)?.SpecularMap;
 
+    /// <summary>
+    /// Where an attachment sits, given the socket it names and the host's current pose.
+    /// </summary>
+    /// <param name="socketName">
+    /// The socket the attachment declares — <c>AttachmentCandidate.Socket</c>. <b>Matched by name.</b>
+    /// </param>
+    /// <param name="socketBone">The bone that socket hangs off, used when the name resolves nothing.</param>
+    /// <param name="pose">The host's current pose, or null for its rest pose.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>By name, never by bone.</b> Several sockets commonly share one bone: nine of the
+    /// first-person hands' sockets sit on <c>R_grip</c> — <c>Pistol</c>, <c>Wrench</c>,
+    /// <c>Crossbow</c>, <c>Chem</c>, <c>TommyGun</c>, <c>Launcher</c>, <c>IrritantBall</c>,
+    /// <c>WrenchRibbonSocket</c> and <c>PlayerGathererGun</c>. Choosing by bone returns whichever was
+    /// read first, which is <c>Wrench</c>, and <c>Wrench</c> carries a <b>180 degree turn about Z</b>
+    /// while <c>Pistol</c> and <c>Chem</c> carry identity.
+    /// </para>
+    /// <para>
+    /// That is exactly what happened: every first-person weapon in the game was drawn with the
+    /// wrench's flip on it, barrel pointing back over the forearm at the player. It was reported by
+    /// a user, not caught by a test, and <b>two geometric metrics written to catch it both passed
+    /// the broken pistol</b> — the fault is a wrong lookup, so the check that finds it is a wrong
+    /// lookup, not a direction.
+    /// </para>
+    /// <para>
+    /// The handoff's note that "every first-person weapon socket is identity" is about the socket
+    /// <i>origin</i> and is true of it. The rotations are not identity, and the code was never
+    /// reading them off the right socket.
+    /// </para>
+    /// </remarks>
+    public Matrix4x4 PlacementFor(string? socketName, int socketBone, Matrix4x4[]? pose = null)
+    {
+        if (socketBone < 0 || socketBone >= Bones.Count) return Matrix4x4.Identity;
+
+        var boneMatrix = pose is null ? Bones[socketBone].RestGlobal : pose[socketBone];
+
+        var socket = Sockets.FirstOrDefault(s =>
+            string.Equals(s.Name, socketName, StringComparison.OrdinalIgnoreCase));
+
+        // No socket of that name: the bone alone, which is honest rather than borrowing a
+        // neighbouring socket's transform.
+        return socket is null ? boneMatrix : socket.On(boneMatrix);
+    }
+
     /// <summary>Centre of the geometry in its rest pose, used as the camera's orbit target.</summary>
     public required Vector3 Centre { get; init; }
 
