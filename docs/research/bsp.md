@@ -1,10 +1,10 @@
 # BSP — `Model` and `Polys`
 
-**Implementation:** `src/BioShockStudio.Core/Level/BspPolys.cs`, `BspGeometry.cs`, `ModelReader.cs`
-**Tests:** `BspGeometryTests.cs`, `BspRenderingTests.cs`, `ModelReaderTests.cs`
-**Status:** `Polys` / `FPoly` is **`CONFIRMED_BYTES`**. `Model` is `CONFIRMED_BYTES` **as far as its
-`Polys` reference** and `CONFIRMED_EXTERNAL` beyond it — the built world's node, surface and vertex
-arrays are skipped by length, not decoded. See §5.
+**Implementation:** `Core/Level/BspPolys.cs`, `BspWorld.cs`, `BspGeometry.cs`, `ModelReader.cs`
+**Tests:** `BspGeometryTests.cs`, `BspWorldTests.cs`, `BspUvTests.cs`, `BspRenderingTests.cs`, `ModelReaderTests.cs`
+**Status:** **Both containers are `CONFIRMED_BYTES`** — the designer's source brushes
+(`Polys`/`FPoly`, §2) and the compiled world (`Model`'s node tree, §5). What is still not read is
+lightmaps (§5.5) and CSG.
 
 This is the container 230 actors in `0-Lighthouse` reference and nothing decoded, and the same one
 `AtlasLabsDoorAnim` ships in place of a drawable mesh (HANDOFF §6.2).
@@ -14,7 +14,12 @@ This is the container 230 actors in `0-Lighthouse` reference and nothing decoded
 | | what it is | where | state |
 |---|---|---|---|
 | **Source brushes** | the designer's convex solids, as authored | a `Polys` export per brush | **decoded, §2** |
-| **The built world** | the compiled level — nodes, surfaces, a vertex pool, lightmaps | inside one large `Model` export | **documented, §5** |
+| **The compiled world** | the built level — nodes, surfaces, a vertex pool, lightmaps | inside one large `Model` export | **decoded, §5** (lightmaps are not) |
+
+**The compiled world is the one that matters for looking at a level.** It holds the floors, walls
+and ceilings a player stands on; the source brushes are what the designer drew before CSG. A level
+carrying only the brushes and the placed meshes reads as a skyline and props with the rooms missing,
+which is exactly how it looked before §5 was implemented.
 
 `0-Lighthouse` ships **285 `Model` exports and 285 `Polys` exports**. 284 of the models are about
 1,700 bytes — the source brushes — and **one, `Model1`, is 312,400 bytes**: the built world. On
@@ -200,18 +205,67 @@ and the engine **divides by the bound texture's own dimensions**. Nyko's editor 
 and does it at upload time (`viewport.cpp`: `invW = 1.0f/texW; v.u *= invW`), which is what confirms
 the two-stage shape rather than a single baked value.
 
-`BspGeometry.ToGeometry` emits the projection in **texels** and says so; `NormaliseUvs` divides.
-The split is deliberate: this layer does not resolve materials, so it cannot know the dimensions and
-does not invent them.
+The same applies to a compiled surface, except that its origin and axes are *indices* into the
+model's points and vectors rather than being carried on the polygon.
+
+`BspGeometry.ToGeometry` emits the projection in **texels** and says so; `NormaliseUvs` divides,
+once the material has resolved and the dimensions are known. The split is deliberate: the geometry
+layer does not resolve materials, so it cannot know the sizes and does not invent them.
+
+> **The division was written and then never called, and a user found it by looking at the render.**
+> Every BSP surface in the game drew with UVs in texel space — a 512-pixel texture on a wall tiling
+> 512 times — producing a dense moiré, while the static meshes beside them looked perfect because
+> their UVs come from their own vertex data and never went through this path.
+>
+> **Nothing in the suite could see it.** Counts agreed, surfaces bound textures, and the
+> textured-vs-untextured comparison passed at 51% — a wrong UV *scale* is still a texture reaching
+> every pixel. `BspUvTests` measures the quantity itself now: raw brush UVs peak at **348,160**, and
+> after normalisation the median is **0.68** with the 90th percentile at **1.0**. It also asserts
+> the *premise* — that the raw values are large — so that normalising twice, which would shrink
+> every surface to a single texel, fails rather than merely looking odd.
 
 **`TextureU` and `TextureV` are zero on some polygons** — the first brush in `0-Lighthouse` has all
 four axes zero — so a zero UV is real data, not a decode failure. How many is not yet counted.
 
 ---
 
-## 5. `Model` — the container walks; the built world is still not decoded
+## 5. `Model` — the compiled world. `CONFIRMED_BYTES`
 
-**Status: `CONFIRMED_BYTES` as far as the `Polys` reference; `CONFIRMED_EXTERNAL` beyond it.**
+**Status: `CONFIRMED_BYTES`.** Nodes, surfaces and the vertex pool are decoded and drawn;
+`BspWorldReader` reads them and `BspGeometry.ToGeometry(world)` triangulates them.
+
+### 5.-1 What it measures
+
+| | measured across all 21 maps |
+|---|---|
+| Compiled worlds read | **21** |
+| Polygons | **81,566** |
+| Triangles | **227,911** |
+| Polygons more than 1 cm off their own plane | **12 of 81,566 (0.015%)** |
+
+**The planarity check is what says the layout is right**, and it is three independent arrays — the
+nodes, the vertex pool and the points — having to agree. A wrong field offset cannot produce
+coplanar polygons by accident.
+
+**It matches Nyko's independently measured figures exactly.** `1-Medical`: **7,125 nodes, 3,386
+surfaces, worst plane distance 0.25, zero polygons off-plane** — the same numbers his editor
+prints, including the worst distance. `2-Fisheries` 3,724 surfaces and `3-Arcadia` 2,906 agree too.
+
+The 12 off-plane polygons are on two maps (`0-Lighthouse` 2, `7-Gauntlet` 10) and reach 7.4 cm.
+Recorded, not explained: at 80,000 units from the origin a float carries about 8 mm, so this is
+larger than precision alone accounts for. `UNKNOWN` whether they are authored that way.
+
+**The winding is the same as the source brushes'** — 0 of 758 polygons agree with their plane in
+stored order after conversion, so the emitted fan reverses, exactly as `Polys` does (§3). Normals
+come from the node's plane rather than from the winding, because a BSP polygon is planar by
+construction and the plane stays correct on slivers.
+
+**Surfaces the game does not draw are excluded** — `PF_Invisible`, `PF_FakeBackdrop`, `PF_Portal`.
+On `0-Lighthouse` that is 15 of 370. Including them fills the level with invisible walls.
+
+### 5.0 The container walk
+
+**Both halves are now `CONFIRMED_BYTES`.**
 
 From Nyko's §C.1, validated there at 283/284 byte-exact on `0-Lighthouse` and cross-checked against
 his editor's own parser (`tools/level_editor/src/bsp_parser.cpp`), which renders it.

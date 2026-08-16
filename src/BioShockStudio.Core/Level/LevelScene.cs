@@ -13,6 +13,12 @@ public enum LevelGeometryKind
 
     /// <summary>A BSP brush: the designer's convex solid, from a <c>Polys</c> export.</summary>
     Brush,
+
+    /// <summary>
+    /// The compiled world — the level's actual architecture, from the largest <c>Model</c>'s node
+    /// tree. One per map, already in world space.
+    /// </summary>
+    BuiltWorld,
 }
 
 /// <summary>
@@ -85,7 +91,20 @@ public sealed record LevelScene
     public int VertexCount => Instances.Sum(i => i.Geometry.Vertices.Count);
 
     public IEnumerable<LevelInstance> Brushes => Instances.Where(i => i.Kind == LevelGeometryKind.Brush);
-    public IEnumerable<LevelInstance> Meshes => Instances.Where(i => i.Kind != LevelGeometryKind.Brush);
+
+    /// <summary>The compiled world, if the map has one. At most one instance.</summary>
+    public IEnumerable<LevelInstance> World => Instances.Where(i => i.Kind == LevelGeometryKind.BuiltWorld);
+
+    /// <summary>
+    /// Placed meshes — <b>not</b> the compiled world, which is counted on its own.
+    /// </summary>
+    /// <remarks>
+    /// This was <c>Kind != Brush</c>, which quietly filed the compiled world as a static mesh the
+    /// moment one existed. A count that silently absorbs a new kind is how a number stops meaning
+    /// what its label says.
+    /// </remarks>
+    public IEnumerable<LevelInstance> Meshes => Instances.Where(
+        i => i.Kind is LevelGeometryKind.StaticMesh or LevelGeometryKind.SkeletalMesh);
 }
 
 /// <summary>
@@ -135,6 +154,12 @@ public static class LevelSceneBuilder
                 progress?.Report($"{instances.Count} instances, {lights.Count} lights");
         }
 
+        // The compiled world, which belongs to no actor: it is the level's own architecture, built
+        // by CSG from the source brushes, and it is where the floors and walls a player stands on
+        // actually live. Without it a map is its props and its skyline with the rooms missing.
+        progress?.Report("Reading the compiled world…");
+        AddBuiltWorld(package, instances, skipped);
+
         return new LevelScene
         {
             PackageName = context.PackageName,
@@ -169,6 +194,45 @@ public static class LevelSceneBuilder
                 Label = actor.Label,
             });
         }
+    }
+
+    /// <summary>
+    /// Adds the package's compiled world as a single instance, if it has one.
+    /// </summary>
+    /// <remarks>
+    /// <b>Its transform is identity</b>, because the compiled world's points are already absolute —
+    /// CSG produced them in world space. Giving it an actor's placement would move the level away
+    /// from the props standing in it.
+    /// </remarks>
+    private static void AddBuiltWorld(
+        BioShockPackage package, List<LevelInstance> instances, List<(SourceId, string)> skipped)
+    {
+        var model = ModelReader.BuiltWorld(package);
+        if (model is null) return;
+
+        BspWorld? world;
+        try { world = BspWorldReader.Read(package, package.Exports[model.Source.ExportIndex]); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException)
+        {
+            skipped.Add((model.Source, "the compiled world would not decode: " + ex.Message));
+            return;
+        }
+
+        if (world is null || world.PolygonCount == 0) return;
+
+        var geometry = BspGeometry.ToGeometry(world);
+        if (geometry.Indices.Count < 3) return;
+
+        instances.Add(new LevelInstance
+        {
+            Actor = world.Source,
+            Kind = LevelGeometryKind.BuiltWorld,
+            Asset = world.Source,
+            Transform = Matrix4x4.Identity,
+            Geometry = geometry,
+            Materials = [.. BspGeometry.Materials(world).Select(m => Describe(package, m))],
+            Label = "compiled world",
+        });
     }
 
     /// <summary>

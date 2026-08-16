@@ -19,6 +19,9 @@ public sealed record LevelSummary
     public required int Instances { get; init; }
     public required int Brushes { get; init; }
     public required int Meshes { get; init; }
+
+    /// <summary>Triangles in the compiled world — the level's own architecture. 0 if it has none.</summary>
+    public required int WorldTriangles { get; init; }
     public required int Lights { get; init; }
     public required int Triangles { get; init; }
     public required int Skipped { get; init; }
@@ -82,6 +85,7 @@ public sealed class LevelService
         Instances = scene.Instances.Count,
         Brushes = scene.Brushes.Count(),
         Meshes = scene.Meshes.Count(),
+        WorldTriangles = scene.World.Sum(i => i.Geometry.TriangleCount),
         Lights = scene.Lights.Count,
         Triangles = scene.TriangleCount,
         Skipped = scene.Skipped.Count,

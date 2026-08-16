@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **363 passed, 0 failed, 0 skipped** — 12m01s. Fast tier **176 / 29s**. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **369 passed, 0 failed, 0 skipped** — 12m10s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1255,10 +1255,19 @@ columns and therefore sees `Mᵀ`, and `Mᵀ · v` equals `v · M`. The companio
 transposing on upload as well — the intuitive move — gives a *different* answer, so the pair is not
 vacuous. Getting it wrong turns the level inside out and looks like a camera bug.
 
-**Textures work.** Resolved per asset rather than per instance (401 distinct assets against 1,141
+**Textures work.** Resolved per asset rather than per instance (402 distinct assets against 1,142
 placements) and capped at **256** rather than the preview's 1024, because a level holds hundreds at
-once and the sum is what matters. Measured on `0-Lighthouse`: **145 textures over 298 of 520
+once and the sum is what matters. Measured on `0-Lighthouse`: **145 textures over 309 of 535
 surfaces**.
+
+**A texture fault shipped and a user found it by looking.** BSP parameterises its surfaces in
+*texels* and the engine divides by the bound texture's size; `NormaliseUvs` was written to do that
+and **was never called**, so every brush and every compiled surface drew with UVs running 0→512
+instead of 0→1 and tiled hundreds of times — a dense moiré on all BSP geometry, while the static
+meshes beside it looked perfect because their UVs come from their own vertex data. **Nothing in the
+suite could see it:** counts agreed, surfaces bound textures, and the textured-vs-untextured check
+passed at 51%, because a wrong UV *scale* is still a texture reaching every pixel. `BspUvTests`
+measures the magnitude directly now — raw UVs peak at 348,160, normalised median 0.68.
 
 **A test assertion here was wrong and is recorded as such.** It asserted "more than 15% of drawn
 pixels carry a colour cast" and failed at 11% on a render that is visibly correct — Rapture's
@@ -1327,18 +1336,38 @@ winding must be reversed after the basis reflection. Meshes must not be — see 
 confirmed a second way by enclosed volume (254 positive, **0 negative**).
 `ANIMATION_COORDINATE_SYSTEM.md` §6.1 and §9, which now lists **five** conversion boundaries.
 
-**The `Model` container now walks too, as far as its `Polys` reference** — `ModelReader`. That is the
-link a level needs and the export table does not state it: of Lighthouse's 285 `Polys` exports only
-60 have a `Model` outer, 54 have a `SkeletalMesh` and 171 have none. All **16,926** `Model` exports
-in the game land on a reference that resolves to a `Polys` export, and **the node/surf/point counts
-match Nyko's independently-measured figures exactly** (`1-Medical` 7,125 / 3,386 / 11,652;
-`2-Fisheries` 3,724 surfs; `3-Arcadia` 2,906 surfs).
+**The `Model` container now walks too** — `ModelReader`. That is the link a level needs and the
+export table does not state it: of Lighthouse's 285 `Polys` exports only 60 have a `Model` outer, 54
+have a `SkeletalMesh` and 171 have none. All **16,926** `Model` exports in the game land on a
+reference that resolves to a `Polys` export.
 
-**Not established, and stated so in the note:** the built world's node, surface and vertex arrays are
-**skipped by length, not decoded** — `FBspNode` and `FBspSurf` remain unread here; `FBspSurf +20`
-(three statements in Nyko's project and they disagree); and CSG — the reader returns each brush's
-raw solid, not the world that results from adding and subtracting them. **A level export therefore
-carries the designer's brushes, not the compiled world**, which is the next real piece of work.
+### The compiled world is decoded — this is what a level actually is
+
+**`BspWorldReader`, `CONFIRMED_BYTES`.** `FBspNode`, `FBspSurf` and the vertex pool are read and
+drawn. Before this a level carried only source brushes and placed meshes, so a map was a skyline and
+props **with the rooms missing** — which is what a user reported as "floor bsps aren't working".
+
+| across all 21 maps | |
+|---|---|
+| Compiled worlds | **21** |
+| Polygons / triangles | **81,566 / 227,911** |
+| Polygons >1 cm off their own plane | **12 (0.015%)** |
+
+**Planarity is the check that proves the layout**, because three independent arrays — nodes, vertex
+pool, points — have to agree, and a wrong offset cannot make polygons coplanar by accident. **The
+figures match Nyko's exactly:** `1-Medical` gives 7,125 nodes, 3,386 surfaces and worst distance
+**0.25** with zero off-plane, which is his number to the digit.
+
+**The landmine, recorded:** `NumVertices` is a **byte at +78**, not the int32 at +88 an initial
+reading suggests (+88 gives 64% planarity failures). Note that **+97 also scores 100%** on the
+offset probe — the score does not choose between them, the field layout does.
+
+Winding is the same as the source brushes' (0 of 758 agree in stored order), and
+`PF_Invisible`/`PF_FakeBackdrop`/`PF_Portal` surfaces are excluded — 15 of 370 on Lighthouse —
+because they are zoning and portal geometry the game never draws.
+
+**Still not read:** lightmaps (§5.5 of the note has the full descriptor chain), CSG, and
+`FBspSurf +20`, where Nyko's spec, his parser and his lightmap note give three different answers.
 
 ### Lights — §C.6 of a file nobody had opened answers it
 

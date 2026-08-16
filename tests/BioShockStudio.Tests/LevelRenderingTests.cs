@@ -111,7 +111,8 @@ public sealed class LevelRenderingTests(GameFixture game)
                  {
                      ("all", null),
                      ("brushes", i => i.Kind == LevelGeometryKind.Brush),
-                     ("meshes", i => i.Kind != LevelGeometryKind.Brush),
+                     ("meshes", i => i.Kind == LevelGeometryKind.StaticMesh),
+                     ("world", i => i.Kind == LevelGeometryKind.BuiltWorld),
                  })
         {
             var geometry = Flatten(scene, filter);

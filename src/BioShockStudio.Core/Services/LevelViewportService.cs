@@ -76,7 +76,19 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     var surfaces = Surfaces(package, instance, textures, borrowed);
                     totalSurfaces += surfaces.Count;
                     withoutTexture += surfaces.Count(s => s.Texture is null);
-                    models[instance.Asset.Key] = model = PreviewModel.Build(instance.Geometry, null, null, surfaces);
+
+                    // BSP parameterises its surfaces in TEXELS — dot(v - Base, TextureU) — and the
+                    // engine divides by the bound texture's size. That division can only happen once
+                    // the material has resolved, which is here and not in the geometry layer.
+                    // Skipping it tiles every wall hundreds of times; see BspGeometry.NormaliseUvs.
+                    // It applies to the compiled world exactly as it does to a source brush.
+                    var geometry = instance.Kind is LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld
+                        ? BspGeometry.NormaliseUvs(
+                            instance.Geometry,
+                            [.. surfaces.Select(s => s.Texture is { } t ? ((int, int)?)(t.Width, t.Height) : null)])
+                        : instance.Geometry;
+
+                    models[instance.Asset.Key] = model = PreviewModel.Build(geometry, null, null, surfaces);
 
                     if (models.Count % 50 == 0) progress?.Report($"{models.Count} assets prepared…");
                 }
@@ -145,7 +157,9 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         var geometry = instance.Geometry;
         if (geometry.Indices.Count < 3) return [];
 
-        if (instance.Kind == LevelGeometryKind.Brush)
+        // A brush and the compiled world both carry their materials on the instance already, one per
+        // section, resolved by the BSP readers. Only a static mesh needs the section table walked.
+        if (instance.Kind is LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld)
         {
             var result = new List<PreviewSurface>();
             for (int i = 0; i < geometry.Sections.Count; i++)
