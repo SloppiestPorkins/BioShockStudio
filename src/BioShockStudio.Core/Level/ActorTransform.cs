@@ -89,10 +89,23 @@ public sealed record ActorTransform
     /// The actor's local-to-world matrix, row-vector convention (a point is multiplied on the left).
     /// </summary>
     /// <remarks>
-    /// LIKELY, for the same reason as <see cref="UnrealRotator.ToQuaternion"/>: the order — subtract
-    /// the pre-pivot, scale, rotate, translate — is Unreal's, and it is not yet checked against a
-    /// rendered level. The raw fields are kept alongside so a caller can compose them differently
-    /// without re-reading the package.
+    /// <para>
+    /// <b>CORROBORATED, upgraded from LIKELY by a rendered level.</b> The order — subtract the
+    /// pre-pivot, scale, rotate, translate — is Unreal's, inherited rather than derived from
+    /// BioShock's bytes, and this note previously said it was "not yet checked against a rendered
+    /// level, which is the evidence that would raise it". <c>LevelRenderingTests</c> is now that
+    /// evidence: <c>0-Lighthouse</c>'s 911 placed static meshes assemble into Rapture's skyline —
+    /// recognisable art-deco towers, standing upright, correctly spaced — which a wrong rotation
+    /// order or composition sequence would not produce.
+    /// </para>
+    /// <para>
+    /// <b>What that does and does not establish.</b> It exercises real data: 1,223 of Lighthouse's
+    /// actors carry a rotation and 1,171 a scale. It does <i>not</i> pin the rotation order to the
+    /// exclusion of every alternative — a level whose actors are mostly yaw-only would look right
+    /// under several conventions — so this is CORROBORATED rather than CONFIRMED_BYTES, and the raw
+    /// fields are kept alongside so a caller can compose them differently without re-reading the
+    /// package.
+    /// </para>
     /// </remarks>
     public Matrix4x4 ToMatrix() =>
         Matrix4x4.CreateTranslation(-PrePivot)
