@@ -54,6 +54,48 @@ public partial class MainViewModel
     /// <summary>Movement multiplier, so a map can be crossed without waiting.</summary>
     [ObservableProperty] private double _levelCameraSpeed = 1.0;
 
+    /// <summary>
+    /// Draw zones, triggers and the other volumes the game never renders. <b>Off by default.</b>
+    /// </summary>
+    /// <remarks>
+    /// A blocking volume, trigger or water volume is a region the engine tests against; its brush is
+    /// a box the size of a room and it is never drawn. Shown, they are the enormous grey slabs that
+    /// swallow a level view. Kept as an option because seeing where they are is useful in itself.
+    /// </remarks>
+    [ObservableProperty] private bool _showLevelVolumes;
+
+    /// <summary>
+    /// Draw the designer's source brushes as well as the compiled world. <b>Off by default.</b>
+    /// </summary>
+    /// <remarks>
+    /// A source brush is the <i>input</i> to CSG and the compiled world is its <i>output</i> — the
+    /// solid block a designer drew, against the room carved out of it. Drawing both stacks the
+    /// uncarved blocks on top of the rooms, which is most of what "weird boxes covering everything"
+    /// turns out to be.
+    /// </remarks>
+    [ObservableProperty] private bool _showSourceBrushes;
+
+    /// <summary>Light the level with its own lights rather than the fixed studio lighting.</summary>
+    /// <remarks>
+    /// Off by default, and that is a claim about honesty rather than taste: this is <b>not</b> the
+    /// game's lighting model. BioShock bakes its static lighting into lightmap atlases, which this
+    /// project reads no part of; what a light actor carries is a colour, a brightness and a radius,
+    /// applied here as simple point lights. The result looks like the level, not like the game.
+    /// </remarks>
+    [ObservableProperty] private bool _useLevelLights;
+
+    partial void OnUseLevelLightsChanged(bool value) => SettleLevelCamera();
+
+    partial void OnShowLevelVolumesChanged(bool value) => SettleLevelCamera();
+    partial void OnShowSourceBrushesChanged(bool value) => SettleLevelCamera();
+
+    /// <summary>What the viewport draws. Read by both renderers.</summary>
+    public LevelViewFilter ViewFilter => new()
+    {
+        ShowVolumes = ShowLevelVolumes,
+        ShowSourceBrushes = ShowSourceBrushes,
+    };
+
     private GhostCamera _levelCamera = new();
 
     /// <summary>
@@ -214,15 +256,21 @@ public partial class MainViewModel
             int budget = moving ? LevelTriangleBudget / 2 : LevelTriangleBudget;
 
             var camera = _levelCamera;
+            var filter = ViewFilter;
+            var lights = UseLevelLights ? prepared.Lights : [];
             var timer = Stopwatch.StartNew();
 
             var (image, selection) = await Task.Run(() =>
             {
-                var chosen = prepared.Viewport.Select(camera, (float)width / height, budget);
+                var chosen = prepared.Viewport.Select(camera, (float)width / height, budget, filter);
                 var rendered = SoftwareRenderer.Render(
                     chosen.Instances,
                     camera.ToPreviewCamera(),
-                    new RenderOptions { ShowSkeleton = false, ShowSockets = false, Textured = true },
+                    new RenderOptions
+                    {
+                        ShowSkeleton = false, ShowSockets = false, Textured = true,
+                        Lights = lights,
+                    },
                     width, height);
                 return (rendered, chosen);
             });

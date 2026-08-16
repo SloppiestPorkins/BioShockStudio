@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **369 passed, 0 failed, 0 skipped** — 12m10s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **371 passed, 0 failed, 0 skipped** — 11m38s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1260,14 +1260,23 @@ placements) and capped at **256** rather than the preview's 1024, because a leve
 once and the sum is what matters. Measured on `0-Lighthouse`: **145 textures over 309 of 535
 surfaces**.
 
-**A texture fault shipped and a user found it by looking.** BSP parameterises its surfaces in
-*texels* and the engine divides by the bound texture's size; `NormaliseUvs` was written to do that
-and **was never called**, so every brush and every compiled surface drew with UVs running 0→512
-instead of 0→1 and tiled hundreds of times — a dense moiré on all BSP geometry, while the static
-meshes beside it looked perfect because their UVs come from their own vertex data. **Nothing in the
-suite could see it:** counts agreed, surfaces bound textures, and the textured-vs-untextured check
-passed at 51%, because a wrong UV *scale* is still a texture reaching every pixel. `BspUvTests`
-measures the magnitude directly now — raw UVs peak at 348,160, normalised median 0.68.
+**A texture fault shipped twice, and a user found it both times by looking.** BSP parameterises its
+surfaces in *texels* and the engine divides by the bound texture's size.
+
+1. `NormaliseUvs` was written to do that and **was never called** — every BSP surface drew with UVs
+   running 0→512 and tiled hundreds of times.
+2. Wiring it up, the division used **the loaded mip's size, not the texture's authored size**. A
+   level caps textures at 256, so a 2048-pixel wall divided by 256 still tiled **eight times too
+   often**. A mip is a scaled copy and does not change the parameterisation; the authored
+   `USize`/`VSize` is what UVs are relative to.
+
+**Nothing in the suite could see either**, and the *test* was wrong too: it averaged over two
+million static-mesh vertices, which are known-good and never take this path, so it reported an
+unchanged median while the fix it was checking made no difference to it. It measures **textured BSP
+surfaces only** now — median **6.2**, against a raw peak of 348,160.
+
+**The lesson worth keeping: a wrong UV *scale* is still a texture on every pixel.** Counts, coverage
+and even a textured-vs-untextured comparison all pass. Only the magnitude itself shows it.
 
 **A test assertion here was wrong and is recorded as such.** It asserted "more than 15% of drawn
 pixels carry a colour cast" and failed at 11% on a render that is visibly correct — Rapture's

@@ -148,6 +148,12 @@
                                 <Slider Width="110" Minimum="25000" Maximum="600000"
                                         Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
                             </StackPanel>
+                            <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
+                                      ToolTip.Tip="Light the level with its own 465 lights instead of the fixed studio lighting. Not the game's lighting model — BioShock bakes its static light into lightmaps, which this tool does not read." />
+                            <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"
+                                      ToolTip.Tip="Blocking volumes, triggers, water and zone markers. The game never draws these — their brushes are room-sized boxes." />
+                            <CheckBox Content="Source brushes" IsChecked="{Binding ShowSourceBrushes}"
+                                      ToolTip.Tip="The designer's original solids, before CSG carved the rooms out of them. The compiled world is the result; showing both stacks the uncarved blocks on top of the rooms." />
                             <Button Content="Close view" Command="{Binding CloseLevelViewCommand}" />
                         </StackPanel>
                     </Border>

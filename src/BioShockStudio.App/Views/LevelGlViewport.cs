@@ -75,6 +75,9 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
     public int TriangleBudget { get; set; } = 1_500_000;
 
+    /// <summary>What to draw. Shared with the software path so the two cannot disagree.</summary>
+    public LevelViewFilter Filter { get; set; } = new();
+
     public void Show(PreparedLevel level, GhostCamera camera)
     {
         _level = level;
@@ -188,7 +191,7 @@ public sealed class LevelGlViewport : OpenGlControlBase
             // The budget here is far larger than the software path's, because the cost that made
             // one necessary is not the cost the GPU pays. Culling is kept: it is nearly free and it
             // still removes most of a map.
-            var selection = level.Viewport.Select(_camera, (float)width / height, TriangleBudget);
+            var selection = level.Viewport.Select(_camera, (float)width / height, TriangleBudget, Filter);
             LastSelection = selection;
 
             foreach (var instance in selection.Instances)

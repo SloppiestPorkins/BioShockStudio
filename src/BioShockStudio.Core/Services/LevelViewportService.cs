@@ -17,6 +17,27 @@ public sealed record PreparedLevel
     /// <summary>Where the camera starts: inside the level, at the densest part of it.</summary>
     public required GhostCamera Start { get; init; }
 
+    /// <summary>
+    /// The level's lights, as a renderer wants them: defaults resolved, and the ones that cannot
+    /// light anything left out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Resolving the defaults is this layer's job, not the rasteriser's.</b> A
+    /// <see cref="LevelLight"/> reports what the package said, and 156 of Lighthouse's 465 lights
+    /// state no brightness while 165 state no radius — the class default applies and this layer does
+    /// not know it. Rather than inventing one silently, a light with no radius is <b>dropped</b>:
+    /// its reach is genuinely unknown, and picking a number would put light in the level that the
+    /// game may not have.
+    /// </para>
+    /// <para>
+    /// A missing <i>brightness</i> is different and defaults to 1.0 — that is the median of the
+    /// values that are stated (§C.6 gives the range as 0.0–3.1, median 1.0), so it is interpolation
+    /// within measured data rather than a guess.
+    /// </para>
+    /// </remarks>
+    public required IReadOnlyList<SceneLight> Lights { get; init; }
+
     public required int TexturesLoaded { get; init; }
     public required int SurfacesWithoutTexture { get; init; }
     public required int TotalSurfaces { get; init; }
@@ -73,7 +94,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             {
                 if (!models.TryGetValue(instance.Asset.Key, out var model))
                 {
-                    var surfaces = Surfaces(package, instance, textures, borrowed);
+                    var (surfaces, sizes) = Surfaces(package, instance, textures, borrowed);
                     totalSurfaces += surfaces.Count;
                     withoutTexture += surfaces.Count(s => s.Texture is null);
 
@@ -82,10 +103,11 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     // the material has resolved, which is here and not in the geometry layer.
                     // Skipping it tiles every wall hundreds of times; see BspGeometry.NormaliseUvs.
                     // It applies to the compiled world exactly as it does to a source brush.
+                    //
+                    // The size used is the texture's AUTHORED size, not the mip actually loaded —
+                    // see Surfaces. Dividing by the loaded mip is wrong by the mip factor.
                     var geometry = instance.Kind is LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld
-                        ? BspGeometry.NormaliseUvs(
-                            instance.Geometry,
-                            [.. surfaces.Select(s => s.Texture is { } t ? ((int, int)?)(t.Width, t.Height) : null)])
+                        ? BspGeometry.NormaliseUvs(instance.Geometry, sizes)
                         : instance.Geometry;
 
                     models[instance.Asset.Key] = model = PreviewModel.Build(geometry, null, null, surfaces);
@@ -94,7 +116,11 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                 }
 
                 var (centre, radius) = LevelViewport.BoundsOf(instance.Geometry.Vertices, instance.Transform);
-                items.Add(new ViewportItem(model, instance.Transform, centre, radius));
+                items.Add(new ViewportItem(model, instance.Transform, centre, radius)
+                {
+                    Kind = instance.Kind,
+                    ActorClass = instance.Actor.ClassName,
+                });
             }
         }
         finally
@@ -107,10 +133,40 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             Scene = scene,
             Viewport = new LevelViewport(items),
             Start = StartingCamera(items),
+            Lights = ToSceneLights(scene.Lights),
             TexturesLoaded = textures.Values.Count(t => t is not null),
             SurfacesWithoutTexture = withoutTexture,
             TotalSurfaces = totalSurfaces,
         };
+    }
+
+    /// <summary>
+    /// Turns decoded light actors into renderer lights, resolving what the package left unsaid.
+    /// </summary>
+    /// <remarks>
+    /// See <see cref="PreparedLevel.Lights"/> for why a missing radius drops the light while a
+    /// missing brightness defaults to 1.0. The white default for a missing colour is the same kind
+    /// of judgement: an uncoloured light is a white light, which is what <c>LightColor</c>'s absence
+    /// means in every engine of this family.
+    /// </remarks>
+    private static IReadOnlyList<SceneLight> ToSceneLights(IReadOnlyList<LevelLight> lights)
+    {
+        var result = new List<SceneLight>(lights.Count);
+
+        foreach (var light in lights)
+        {
+            // No radius, no light: its reach is genuinely unknown and choosing one would put
+            // illumination in the level that the game may not have.
+            if (light.Radius is not { } radius || radius <= 0f) continue;
+
+            result.Add(new SceneLight(
+                light.Location,
+                light.Color?.ToVector() ?? Vector3.One,
+                radius,
+                light.Brightness ?? 1f));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -148,14 +204,34 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
     /// that pairs a section with a material. Neither path invents one: a surface whose slot resolves
     /// to nothing gets a null texture and draws untextured, which is the honest signal.
     /// </remarks>
-    private IReadOnlyList<PreviewSurface> Surfaces(
+    /// <summary>
+    /// The surfaces an asset draws with, and the <b>authored</b> size of each one's texture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The size is the texture's own <c>USize</c>/<c>VSize</c>, not the dimensions of the mip
+    /// that was loaded, and the difference is the whole point of returning it separately.</b> A
+    /// level caps its textures at 256 (see <see cref="MaximumTexture"/>), so a 2048-pixel wall
+    /// texture arrives as a 256-pixel image — but the game's UVs are normalised against 2048.
+    /// Dividing by the loaded image's size instead tiles the surface <b>eight times too often</b>,
+    /// and that is exactly the fault the first attempt at this shipped with: the tiling improved
+    /// from "hundreds of times" to "several times" and still looked wrong.
+    /// </para>
+    /// <para>
+    /// A mip is a scaled copy of the same texture and does not change its parameterisation. This is
+    /// easy to get wrong precisely because the loaded image is right there and has a size on it.
+    /// </para>
+    /// </remarks>
+    private (IReadOnlyList<PreviewSurface> Surfaces, IReadOnlyList<(int Width, int Height)?> Sizes) Surfaces(
         BioShockPackage package,
         LevelInstance instance,
         Dictionary<string, PreviewImage?> textures,
         Dictionary<string, BioShockPackage> borrowed)
     {
         var geometry = instance.Geometry;
-        if (geometry.Indices.Count < 3) return [];
+        if (geometry.Indices.Count < 3) return ([], []);
+
+        var sizes = new List<(int, int)?>();
 
         // A brush and the compiled world both carry their materials on the instance already, one per
         // section, resolved by the BSP readers. Only a static mesh needs the section table walked.
@@ -172,17 +248,57 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     section.FirstIndex, section.IndexCount, decoded?.Name,
                     Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed),
                     null, null));
+
+                sizes.Add(AuthoredSize(package, decoded, decoded?.DiffuseTexture, borrowed));
             }
-            return result;
+            return (result, sizes);
         }
 
         var export = package.Exports[instance.Asset.ExportIndex];
         var surfaces = MeshSurfaceResolver.Resolve(package, export, geometry, catalog.ExternalMaterials);
 
-        return [.. surfaces.Select(s => new PreviewSurface(
+        return ([.. surfaces.Select(s => new PreviewSurface(
             s.FirstIndex, s.IndexCount, s.Material?.Name,
             Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed),
-            null, null))];
+            null, null))], sizes);
+    }
+
+    /// <summary>
+    /// The size a texture declares — <c>USize</c>/<c>VSize</c> — which is what UVs are relative to.
+    /// </summary>
+    /// <remarks>
+    /// Read from the header alone rather than by decoding the texture: the pixels are already
+    /// cached elsewhere and this only needs two properties, so a full decode here would double the
+    /// work for a level's several hundred textures.
+    /// </remarks>
+    private (int Width, int Height)? AuthoredSize(
+        BioShockPackage package, BioShockMaterial? material, string? name,
+        Dictionary<string, BioShockPackage> borrowed)
+    {
+        if (material is null || name is null) return null;
+
+        var source = package;
+        if (material.SourceFile is { } file
+            && !string.Equals(file, package.FilePath, StringComparison.OrdinalIgnoreCase)
+            && borrowed.TryGetValue(file, out var opened) && opened is not null)
+        {
+            source = opened;
+        }
+
+        var export = source.Exports
+            .Where(e => e.ObjectName == name && source.GetClassName(e) == TextureReader.ClassName)
+            .MaxBy(e => e.SerialSize);
+        if (export is null) return null;
+
+        try
+        {
+            var header = TextureReader.ReadHeader(source, export);
+            return header is { Width: > 0, Height: > 0 } ? (header.Value.Width, header.Value.Height) : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            return null;
+        }
     }
 
     private static BioShockMaterial? ReadMaterial(BioShockPackage package, SourceId material)

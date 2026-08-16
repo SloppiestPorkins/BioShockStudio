@@ -103,6 +103,17 @@ public sealed record PreviewInstance(PreviewModel Model, Matrix4x4[]? Pose = nul
     public Matrix4x4 Transform { get; init; } = Transform == default ? Matrix4x4.Identity : Transform;
 }
 
+/// <summary>
+/// A placed light, reduced to what a renderer needs.
+/// </summary>
+/// <remarks>
+/// Deliberately not <c>LevelLight</c>: that record carries nullable fields, the source object and
+/// the actor's class, because it reports what the <i>package</i> said. A renderer needs a position,
+/// a colour and a reach, with the defaults already decided — and deciding them is the level layer's
+/// job, not the rasteriser's.
+/// </remarks>
+public readonly record struct SceneLight(Vector3 Position, Vector3 Colour, float Radius, float Brightness);
+
 /// <summary>What to draw.</summary>
 public sealed record RenderOptions
 {
@@ -153,6 +164,29 @@ public sealed record RenderOptions
     /// </para>
     /// </remarks>
     public bool HighlightUnresolvedSurfaces { get; init; }
+
+    /// <summary>
+    /// Point lights to shade with, in the studio's basis. Empty means the fixed studio lighting.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is not the game's lighting model and does not claim to be.</b> BioShock bakes its
+    /// static lighting into lightmap atlases (<c>docs/research/bsp.md</c> §5.5), which this project
+    /// reads no part of; what a light actor carries is a colour, a brightness and a radius, and this
+    /// applies them as simple point lights with inverse-square-ish falloff. The result is
+    /// <i>plausible</i>, not authentic — a level lit this way looks like the level rather than like
+    /// the game.
+    /// </para>
+    /// <para>
+    /// It is worth doing anyway because the alternative is two fixed directions, under which every
+    /// room is lit identically and the level's own character is invisible. It is opt-in for exactly
+    /// that reason: a viewer should be able to see the geometry without a lighting model on top.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<SceneLight> Lights { get; init; } = [];
+
+    /// <summary>How strongly <see cref="Lights"/> contribute, against the fixed studio lighting.</summary>
+    public float LightIntensity { get; init; } = 1f;
 
     public byte BackgroundGrey { get; init; } = 32;
 }
@@ -270,6 +304,10 @@ public static class SoftwareRenderer
         RenderOptions options)
     {
         var eye = camera.Eye;
+
+        // Hoisted to an array: the shading lambda runs per pixel, and enumerating an interface
+        // there costs more than the lighting arithmetic it is fetching.
+        var lights = options.Lights as SceneLight[] ?? [.. options.Lights];
 
         // A mesh draws one run per material, so the maps are picked per triangle rather than once.
         // Resolved into arrays here so the inner loop indexes rather than walking the surface list.
@@ -429,6 +467,41 @@ public static class SoftwareRenderer
                     float red = r * shade;
                     float green = g * shade;
                     float blue = bl * shade;
+
+                    // The level's own lights, when a caller supplied them. They ADD to the headlamp
+                    // rather than replacing it, so a corner no light reaches is dim rather than
+                    // black — this is a viewer, and geometry nobody lit still has to be inspectable.
+                    if (lights.Length > 0)
+                    {
+                        float lr = 0f, lg = 0f, lb = 0f;
+
+                        foreach (var light in lights)
+                        {
+                            var toLight = light.Position - point;
+                            float distanceSquared = toLight.LengthSquared();
+                            if (distanceSquared > light.Radius * light.Radius) continue;
+
+                            float distance = MathF.Sqrt(distanceSquared);
+                            if (distance < 1e-3f) continue;
+
+                            // Linear falloff to the light's stated radius. Unreal's own attenuation
+                            // is not documented here and inverse-square alone leaves a level almost
+                            // black at these scales, where a radius is measured in thousands of
+                            // centimetres — so this is a readable approximation and is labelled one.
+                            float attenuation = 1f - distance / light.Radius;
+                            float facing = MathF.Max(0f, Vector3.Dot(normal, toLight / distance));
+                            float contribution = attenuation * attenuation * facing * light.Brightness;
+
+                            lr += light.Colour.X * contribution;
+                            lg += light.Colour.Y * contribution;
+                            lb += light.Colour.Z * contribution;
+                        }
+
+                        float strength = options.LightIntensity;
+                        red += r * lr * strength;
+                        green += g * lg * strength;
+                        blue += bl * lb * strength;
+                    }
 
                     if (specularMap is not null)
                     {

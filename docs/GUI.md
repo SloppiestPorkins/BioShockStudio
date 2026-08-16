@@ -111,10 +111,36 @@ Movement runs off a timer over a held-key set, not key-repeat: key-repeat is a t
 rather than diagonally. The step is scaled by real elapsed time, because the frame it triggers can
 take hundreds of milliseconds and the timer will not keep up.
 
-**The level's own lights are decoded but not applied.** There are 465 in one map, and using them
-would be a lighting model this project has not verified against anything. The viewport lights with
-two fixed directions and an ambient term, which is enough to read shape without claiming to be the
-game's lighting.
+### What the viewport draws, and what it hides
+
+Three switches, and two of them are **off by default** because what they show is not architecture:
+
+| | default | why |
+|---|---|---|
+| **Zones & triggers** | off | A blocking volume, trigger, water volume or zone marker is a region the engine tests against and never draws. Its brush is a room-sized box, so shown they are enormous grey slabs that swallow the view. |
+| **Source brushes** | off | A brush is the *input* to CSG; the compiled world is its *output*. Drawing both stacks the uncarved solids on top of the rooms carved from them — most of what "weird boxes covering everything" turns out to be. |
+| **Level lights** | off | See below. |
+
+Volumes are identified by the actor's class ending in `Volume`, `Trigger` or `ZoneInfo` — the game's
+own statement of what the thing is. A suffix test rather than a fixed list, because the game ships
+many and enumerating them would silently miss the ones nobody wrote down.
+
+### Lighting
+
+The level's own lights can be applied — **465 on `0-Lighthouse`, of which 298 are usable** — but the
+switch is off by default, and that is a claim about honesty rather than taste.
+
+**This is not the game's lighting model.** BioShock bakes its static lighting into lightmap atlases
+(`docs/research/bsp.md` §5.5), and this project reads no part of them. What a light actor carries is
+a colour, a brightness and a radius, applied here as simple point lights with a linear falloff to
+the stated radius. The result looks like the level; it does not look like the game.
+
+**A light with no stated radius is dropped rather than given one** — its reach is genuinely unknown,
+and choosing a number would put illumination in the level that the game may not have. A missing
+*brightness* defaults to 1.0, which is different: that is the median of the values that are stated,
+so it is interpolation inside measured data. `LevelLightingTests` pins both, and checks the lighting
+varies **between two places in the same map** — a bug that ignored light positions would still pass
+a test that only asked whether the image changed.
 
 ## The services
 

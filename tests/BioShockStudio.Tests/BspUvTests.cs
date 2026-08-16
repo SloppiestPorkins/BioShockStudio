@@ -93,18 +93,43 @@ public sealed class BspUvTests(GameFixture game)
 
         var magnitudes = new List<float>();
 
+        // BSP surfaces that actually bound a texture, and only those.
+        //
+        // Two filters, and both were learned the hard way. Including static meshes buries the
+        // measurement under two million known-good values — the first version of this test reported
+        // an unchanged median while the fix it was checking made no difference to it. And including
+        // BSP surfaces with NO texture is just as misleading in the other direction: nothing divides
+        // their UVs because there is no size to divide by, they are two thirds of the surfaces, and
+        // they held the median at 192 while the textured ones were already correct.
         foreach (var item in prepared.Viewport.Items)
         {
-            // Only the brushes: a static mesh's UVs come from its own vertex data and are already
-            // normalised, so including them would dilute the measurement with known-good values.
-            if (item.Model.Surfaces.Count == 0) continue;
+            if (item.Kind is not (LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld)) continue;
 
-            foreach (var vertex in item.Model.Vertices)
+            foreach (var surface in item.Model.Surfaces)
             {
-                if (vertex.Uv == Vector2.Zero) continue;
-                magnitudes.Add(MathF.Max(MathF.Abs(vertex.Uv.X), MathF.Abs(vertex.Uv.Y)));
+                if (surface.Texture is null) continue;
+
+                for (int i = surface.FirstIndex; i < surface.FirstIndex + surface.IndexCount; i++)
+                {
+                    if (i >= item.Model.Indices.Count) break;
+                    var uv = item.Model.Vertices[item.Model.Indices[i]].Uv;
+                    if (uv == Vector2.Zero) continue;
+                    magnitudes.Add(MathF.Max(MathF.Abs(uv.X), MathF.Abs(uv.Y)));
+                }
             }
         }
+
+        // How many BSP surfaces bound a texture at all. If this is near zero the UV measurement
+        // below is meaningless — there was nothing to divide by — and that distinction is worth
+        // reporting rather than inferring from a failure.
+        int bspSurfaces = 0, bspTextured = 0;
+        foreach (var item in prepared.Viewport.Items)
+        {
+            if (item.Kind is not (LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld)) continue;
+            bspSurfaces += item.Model.Surfaces.Count;
+            bspTextured += item.Model.Surfaces.Count(s => s.Texture is not null);
+        }
+        Log($"BSP surfaces: {bspTextured} of {bspSurfaces} bound a texture");
 
         Assert.NotEmpty(magnitudes);
         magnitudes.Sort();

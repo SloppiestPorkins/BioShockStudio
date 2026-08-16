@@ -143,11 +143,12 @@ public partial class MainWindow
             model.LevelOpened += (level, camera) =>
             {
                 gl.TriangleBudget = Math.Max(model.LevelTriangleBudget * 8, 1_500_000);
+                gl.Filter = model.ViewFilter;
                 gl.Show(level, camera);
                 Dispatcher.UIThread.Post(() => Confirm(model, gl), DispatcherPriority.Background);
             };
 
-            model.CameraMoved += camera => gl.Move(camera);
+            model.CameraMoved += camera => { gl.Filter = model.ViewFilter; gl.Move(camera); };
             model.LevelClosed += () => { gl.Clear(); model.UsingGpu = false; };
         };
     }

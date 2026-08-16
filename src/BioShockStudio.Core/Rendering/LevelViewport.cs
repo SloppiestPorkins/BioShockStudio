@@ -68,6 +68,72 @@ public sealed record GhostCamera
 public sealed record ViewportItem(PreviewModel Model, Matrix4x4 Transform, Vector3 Centre, float Radius)
 {
     public int TriangleCount => Model.Indices.Count / 3;
+
+    /// <summary>What kind of geometry this is — a mesh, a source brush, or the compiled world.</summary>
+    public Level.LevelGeometryKind Kind { get; init; }
+
+    /// <summary>The class of the actor that placed it, e.g. <c>StaticMeshActor</c> or <c>BlockingVolume</c>.</summary>
+    public string ActorClass { get; init; } = "";
+
+    /// <summary>
+    /// Whether this is a volume rather than something the game draws.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Decided by the actor's class, which is the game's own statement of what the thing is.</b>
+    /// A blocking volume, a trigger, a zone or a water volume is a region the engine tests against;
+    /// its brush is a box the size of a room and it is never rendered. Drawn anyway, they are the
+    /// enormous grey slabs that swallow a level view.
+    /// </para>
+    /// <para>
+    /// The suffix test is deliberate and covers the whole family — <c>BlockingVolume</c>,
+    /// <c>ShockDamageVolume</c>, <c>TriggerVolume</c>, <c>FluidVolume</c> and the rest — because the
+    /// game ships many and matching a fixed list would silently miss the ones nobody enumerated.
+    /// <c>ZoneInfo</c> is named separately: it is a zone marker that does not end in "Volume".
+    /// </para>
+    /// </remarks>
+    public bool IsVolume =>
+        ActorClass.EndsWith("Volume", StringComparison.Ordinal)
+        || ActorClass.EndsWith("Trigger", StringComparison.Ordinal)
+        || ActorClass.EndsWith("ZoneInfo", StringComparison.Ordinal);
+}
+
+/// <summary>What a level viewport should draw.</summary>
+/// <remarks>
+/// <para>
+/// <b>Source brushes are off by default, and that is a consequence of decoding the compiled
+/// world.</b> A brush is the <i>input</i> to CSG and the world is its <i>output</i>: the brush is
+/// the solid block a designer drew, and the world is the room carved out of it. Drawing both puts
+/// the uncarved blocks on top of the rooms — which is what a level view full of unexplained boxes
+/// actually is. They remain available because they are the authored source and worth seeing.
+/// </para>
+/// <para>
+/// <b>Volumes are off by default too.</b> A blocking volume or trigger is a region the engine tests
+/// against, never draws, and its brush is the size of a room.
+/// </para>
+/// </remarks>
+public sealed record LevelViewFilter
+{
+    public bool ShowWorld { get; init; } = true;
+    public bool ShowMeshes { get; init; } = true;
+    public bool ShowSourceBrushes { get; init; }
+    public bool ShowVolumes { get; init; }
+
+    /// <summary>Everything, including the things the game never draws.</summary>
+    public static readonly LevelViewFilter Everything =
+        new() { ShowSourceBrushes = true, ShowVolumes = true };
+
+    public bool Accepts(ViewportItem item)
+    {
+        if (item.IsVolume) return ShowVolumes;
+
+        return item.Kind switch
+        {
+            Level.LevelGeometryKind.BuiltWorld => ShowWorld,
+            Level.LevelGeometryKind.Brush => ShowSourceBrushes,
+            _ => ShowMeshes,
+        };
+    }
 }
 
 /// <summary>
@@ -116,8 +182,12 @@ public sealed class LevelViewport(IReadOnlyList<ViewportItem> items)
     /// the least visible thing rather than by getting slower, and what it dropped is reported so the
     /// window can say so instead of quietly showing a partial level.
     /// </remarks>
-    public Selection Select(GhostCamera camera, float aspect, int triangleBudget, float near = 4f, float far = 400_000f)
+    public Selection Select(
+        GhostCamera camera, float aspect, int triangleBudget,
+        LevelViewFilter? filter = null, float near = 4f, float far = 400_000f)
     {
+        filter ??= new LevelViewFilter();
+
         var view = camera.ToPreviewCamera(near, far);
         var viewProjection =
             Matrix4x4.CreateLookAt(view.Eye, view.Target, Vector3.UnitZ)
@@ -129,6 +199,7 @@ public sealed class LevelViewport(IReadOnlyList<ViewportItem> items)
         var visible = new List<(ViewportItem Item, float Importance)>();
         foreach (var item in Items)
         {
+            if (!filter.Accepts(item)) continue;
             if (!Inside(planes, item.Centre, item.Radius)) continue;
             float distance = MathF.Max(1f, Vector3.Distance(item.Centre, camera.Position));
             visible.Add((item, item.Radius / distance));
