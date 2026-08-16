@@ -10,7 +10,7 @@ other on a live question, and the disagreement was worth more than either source
 | `hk2012_2_0_r1` | Havok Physics/Animation 2012.2.0-r1 SDK. Headers and `.inl` only — "NO SOURCE PC DOWNLOAD", so no `.cpp`. |
 | `Bioshock1REMSDK-WIP--main` | Nyko's in-engine Remastered SDK/WIP. Knows the *engine's* structures. |
 | `UModel-master` | UEViewer source, with a real `#if BIOSHOCK` branch throughout. Knows the *shipped bytes* of the original game. |
-| `Unreal-Library-master` | UELib (C#). **Still unread.** |
+| `Unreal-Library-master` | UELib (C#). **Now mined for `UPolys`/`FPoly` — see §7.** |
 
 **Reading these first is project policy.** Three faults have been settled by them in minutes after
 long byte-level dead ends. Two more were settled this session.
@@ -229,6 +229,52 @@ tested against something that could fail.
 
 ---
 
+## 7. BSP — all four projects have something, and two of them disagree
+
+Full detail in `bsp.md`. Recorded here because this is the first structure where the *fourth*
+reference project contributed, and because two sources contradict each other on a live field.
+
+| source | what it gave |
+|---|---|
+| `Unreal-Library-master` | `UPolys.cs` / `Poly.cs` — the `FPoly` field list with version gates. Resolved against this game's file version 142 it is **correct but for one field**. First finding ever taken from this project. |
+| `Bioshock1REMSDK-WIP--main` §C.2 | The same layout derived independently from the shipped executable, **including the field UELib gets wrong**, and the reason for it. |
+| `Bioshock1REMSDK-WIP--main` §C.1 + `tools/level_editor/src/bsp_parser.cpp` | The **built world BSP** — `FBspNode`, `FBspSurf`, `FVert`, zones, leaves, lightmaps. A container this project had recorded as `UNKNOWN`. The editor renders it, so the layout is exercised rather than merely written down. |
+| `UModel-master` | Nothing for BSP. UEViewer is a model viewer and does not read levels. Checked, so the next session need not. |
+
+### 7a. `FPoly.ItemName` — UELib's gates are one field short, and the bytes say so first
+
+UELib reads `ItemName` as a bare name index. This game writes an `FCompactIndex` **plus a four-byte
+number**. Found by arithmetic before either reference was consulted on it — the polygon tail is 17
+bytes and the field list without the number totals 13 — and confirmed afterwards by Nyko's §C.2.2,
+which gives the cause: `sizeof(FPoly)` is `0x14C` here against UE2.5's `0x148`, the linker's `FName`
+operator widening at `Ar.Ver() >= 141`.
+
+**The useful part is that UELib was still worth reading.** It supplied the field list, the ordering
+and every version gate; one field was wrong and the exact-end arithmetic caught it in one run. That
+is the same pattern as the DXT5N contest in §1 — a reference gets you to the right structure, and
+the bytes settle the layer you actually depend on.
+
+### 7b. A contested field, left contested
+
+`FBspSurf +20`, in the built world:
+
+| source | claim |
+|---|---|
+| Nyko, `bioshock1-bsm.md` §C.1.3 | `int32 iBrushPoly`, version >= 101 |
+| Nyko, `tools/level_editor/src/bsp_parser.cpp` | `int32 iLightMap`, a lightmap atlas index, and uses it as one |
+| Nyko, `BioShock_Texture_Lightmap_Format.md` §5 | `iLightMap` is on the **node**, not the surface |
+
+Three statements from one project and they do not agree. This project has measured none of them —
+the built world is not implemented — so it stays `UNKNOWN` rather than being resolved by picking the
+most recent. **Recorded because the next session will otherwise re-derive the same contradiction.**
+
+### 7c. A count that does not reconcile
+
+Nyko reports `0-Lighthouse` as 284 `UPolys` exports / 1,687 `FPoly` elements. This project measures
+**285 / 1,717** — including one `Polys` export holding zero polygons. Both walk to the exact byte.
+Not reconciled; his note also says "Bioshock = 141" where these packages report file version **142**,
+which may or may not be the same difference.
+
 ## 6. Scorecard — where each project has paid off
 
 | finding | source | what it was worth |
@@ -242,6 +288,16 @@ tested against something that could fail.
 | Skeletal mesh **has** a section table | UModel | 153 meshes, not yet implemented |
 | `TRIBES_HDR` is a version header | UModel | not yet implemented |
 | `m_partitionIndices` / skeleton partitions | Havok SDK | a §6.0c lead, unmeasured |
+| `UPolys`/`FPoly` field list and version gates | **UELib**, corrected by bytes, confirmed by Nyko | 93,264 brush polygons across 21 maps |
+| The built world BSP layout | Nyko's SDK **and its level editor** | a container recorded as `UNKNOWN`; not yet implemented |
+| BioShock light property *types* | Nyko §C.6 | Phase 2 item 3, answered before it was started |
 
-**Two of the last four came from a project the handoff listed as "Nothing" mined.** `UModel-master`
-is now partly mined and `Unreal-Library-master` is still untouched.
+**Every one of the four projects has now paid off.** `Unreal-Library-master` was listed as
+"**Nothing**" mined until this session. Of Nyko's `bioshock1-bsm.md` only §C.4 had been read; §C.1,
+§C.2, §C.5 and §C.6 were unopened and all four turned out to be about Phase 2. **The pattern is now
+five for five: read the reference projects first.**
+
+**And read a project's *code* as well as its documents.** Nyko's `tools/level_editor/` renders BSP
+and its parser carries measurements his prose does not — the exhaustive offset probe that settled
+`FBspNode.NumVertices`, and the UV division at upload time. It also contradicts his own spec in one
+place (§7b), which is only visible if both are read.

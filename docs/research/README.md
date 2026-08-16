@@ -28,6 +28,7 @@ Every claim in these documents carries a confidence label:
 | [fbx.md](fbx.md) | The FBX the exporter writes, and what it cannot carry. |
 | [bulkcontent.md](bulkcontent.md) | The 8 GB of stripped texture mips, and the catalogue into them. |
 | [materials.md](materials.md) | `Shader` objects, and how a mesh names the one it uses. |
+| [bsp.md](bsp.md) | `Model` / `Polys` — the source brushes (decoded) and the built world (documented, not implemented). |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [reference-comparison.md](reference-comparison.md) | **What each reference project says about the structures we read, field by field, and where they disagree.** Read before deriving anything from bytes. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |

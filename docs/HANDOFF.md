@@ -9,14 +9,14 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **333 passed, 0 failed, 0 skipped** — 10m39s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **340 passed, 0 failed, 0 skipped** — 11m09s. Fast tier **171 / 34s**. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
 | **Reference projects** | **`docs/research/reference-comparison.md`** — what each of the four says about the structures we read, where they disagree, and which the bytes side with. Two contests settled this session; `UModel-master` went from "nothing mined" to the source of two findings. |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
-| **Phase 2** | **Started.** 1C is finished — the Asset Inspector landed 16 Aug 2026 — so the unlock is spent. The existing `Core/Level` analyzer has now been **run for the first time** and is in better shape than "groundwork" suggested: `0-Lighthouse` gives **1,877 actors, 0 that fail to walk, 0 unresolved references**. See §"Phase 2 — where it actually stands". |
+| **Phase 2** | **Started, and its hardest item is done.** The `Core/Level` actor layer measured clean on its first run (`0-Lighthouse`: **1,877 actors, 0 failures, 0 unresolved**). **BSP source brushes are now decoded** — 16,926 `Polys` exports across all 21 map packages walk to the exact byte, 93,264 polygons, rendered and looked at. `docs/research/bsp.md`. What is left is a consumer for a `LevelContext`. See §"Phase 2 — where it actually stands". |
 
 **All tests pass against the installed game, none skipped.** For the current count see the table
 above; it is stated in one place on purpose, because it was previously written in three and went
@@ -1190,19 +1190,71 @@ truncated.
 
 **What Phase 2 actually needs, in order:**
 
-1. **BSP geometry.** 230 actors reference a `Model`, and nothing decodes one. `Model`/`Polys` is the
-   container — the same one `AtlasLabsDoorAnim` ships, which is why that door has no drawable mesh
-   (§6.2). **This is the phase's real work.** `UModel-master/Unreal/` has BSP readers and
-   `Unreal-Library-master` is still entirely unmined; read both before deriving from bytes.
+1. ~~**BSP geometry.**~~ **The source brushes are DECODED — `docs/research/bsp.md`.** See below.
 2. **A level scene exporter.** There is no consumer for a `LevelContext` at all — no scene JSON, no
-   FBX, nothing in the GUI. The actor list resolves and then goes nowhere.
-3. **Lights.** 318 in one map, with `LightColor`, `LightBrightness` and `LightRadius` sitting in
-   `UninterpretedProperties`. Cheap to read and worth a great deal to anyone rebuilding a scene.
-4. **A world-bounds sanity check.** The measured bounds reach `Z = 262144` — exactly 2^18, which
-   smells like a default or a sentinel rather than a placed actor. Worth one look before any
-   exporter trusts the extents.
+   FBX, nothing in the GUI. The actor list resolves and then goes nowhere. **This is now the top
+   item**, and it now has brush geometry to carry as well as meshes.
+3. **Lights.** 318 in one map. **The types are now known and it is a small job** — see below.
+4. ~~**A world-bounds sanity check.**~~ **Done, and the guess was right.**
 
 **Do not start by rewriting `Core/Level`.** It measured clean on its first run.
+
+### BSP — the source brushes are decoded, the built world is documented
+
+**`docs/research/bsp.md` is the note; read it before touching any of this.** Two different things
+are called BSP here and confusing them wastes a session:
+
+| | where | state |
+|---|---|---|
+| **Source brushes** — the designer's convex solids | one `Polys` export per brush | **`CONFIRMED_BYTES`** |
+| **The built world** — nodes, surfaces, vertex pool, lightmaps | one large `Model` export | **`CONFIRMED_EXTERNAL`, not implemented** |
+
+`0-Lighthouse` ships 285 `Model` exports; 284 are ~1,700 bytes and **one, `Model1`, is 312,400** —
+that is the built world, and the size distribution is what separates them. On `1-Medical` it is
+8.6 MB.
+
+| measured | |
+|---|---|
+| Map packages containing brushes | **21 of 161** |
+| `Polys` exports walked | **16,926** |
+| …landing on the **exact** final byte | **16,926 (100%)** |
+| Polygons / vertices | **93,264 / 374,372** |
+| Polygons naming a material | **59,495 — every one resolves to a material class, none to an actor** |
+
+**A brush carries its own surface**, so brush geometry can be textured by the existing material
+resolver rather than drawing bare. Rendered and looked at: the Lighthouse rotunda comes out as a
+recognisable octagonal room shell.
+
+**BSP winds the OPPOSITE way from the game's meshes**, and this is the one decoded container whose
+winding must be reversed after the basis reflection. Meshes must not be — see §4. Measured over all
+21 maps (0 agree / 93,264 disagree in shipped order; 93,264 / 0 for what the reader emits) and
+confirmed a second way by enclosed volume (254 positive, **0 negative**).
+`ANIMATION_COORDINATE_SYSTEM.md` §6.1 and §9, which now lists **five** conversion boundaries.
+
+**Not established, and stated so in the note:** the built world's own binary body (read from two
+external sources, verified against zero shipped bytes here), `FBspSurf +20` (three statements in
+Nyko's project and they disagree), how a brush actor's transform composes, and CSG — this reader
+returns each brush's raw solid, not the world that results from adding and subtracting them.
+
+### Lights — §C.6 of a file nobody had opened answers it
+
+BioShock writes light parameters with **different types** from stock UE2.5, which is exactly why
+they sit unread in `UninterpretedProperties`:
+
+| field | BioShock | stock UE2.5 |
+|---|---|---|
+| `LightBrightness` | **FloatProperty**, 0.0–3.1, median 1.0 | byte 0–255 |
+| `LightColor` | **StructProperty `Color`** — FColor BGRA | `LightHue` + `LightSaturation` bytes |
+| `LightRadius` | **FloatProperty**, 0–120,000 units, median 2048 | byte, radius = 25 × (b+1) |
+
+`bStatic`/`bNoDelete` are never written to disk. Reading three properties is the whole job.
+
+### The world bounds — one actor, and it is a sentinel
+
+`Z = 262144` is Unreal's `HALF_WORLD_MAX`, and **exactly one actor of 1,874 is there**: a `Script`
+actor at `(496, 1088, 262144)`. Excluding it, the level's maximum Z is **12,288** — a twenty-fold
+difference. **An exporter that sizes a scene from the raw extents sizes it from a sentinel.**
+`BspGeometryTests.TheLevelsExtentIsSetByOneActorAtTheEngineWorldBoundary` pins it.
 
 ## The four reference projects in the repo root — how far each has been mined
 
@@ -1214,9 +1266,9 @@ project failed to find it from bytes alone.
 | folder | mined |
 |---|---|
 | `hk2012_2_0_r1` | **2 files of 114** in `Source/Animation`. `hkaSplineCompressedAnimation.h`/`.inl` only. |
-| `Bioshock1REMSDK-WIP--main` | `bioshock1-bsm.md` §C.4, and **`docs/reverse-engineering/BioShock_Materials_And_Shaders.md` in full** — it took 515 meshes from flat grey to textured in one sitting, and closed half of open question 11. `BioShock_Reading_Textures.md` and the lightmap/bulk notes in the same folder are still unread. |
+| `Bioshock1REMSDK-WIP--main` | `bioshock1-bsm.md` §C.1, §C.2, §C.4, §C.5, §C.6; `BioShock_Materials_And_Shaders.md` in full; `BioShock_Texture_Lightmap_Format.md` §5–§6; **and `tools/level_editor/src/bsp_parser.cpp` + `viewport.cpp`, which render BSP.** Four findings so far. **Read this project's code as well as its prose** — the editor carries measurements the documents do not, and contradicts them in one place. |
 | `UModel-master` | **`UnTexture2.cpp`, `UnMeshBioshock.cpp`, `UnMesh2.h`'s `FSkelMeshSection`, `UnCore.h`'s `TRIBES_HDR`.** Source of two findings this session — the DXT5N texture format and the skeletal section table. Its BioShock branches are extensive and the rest is still unread. |
-| `Unreal-Library-master` | **Nothing.** The only one of the four still completely untouched. |
+| `Unreal-Library-master` | **`Engine/Classes/UPolys.cs`, `Engine/Types/Poly.cs`, `Branch/PackageObjectLegacyVersion.cs`.** Source of the `FPoly` field list — the first finding ever taken from this project. The rest is unread. |
 
 **The policy paid again, and quickly.** `BioShock_Materials_And_Shaders.md` had never been opened; it
 was read this session and its first two sections settled the largest open item in materials in

@@ -158,6 +158,32 @@ exactly this and puts the geometry back the wrong way round. `CoordinateSystemTe
 agreement in both a synthetic clockwise triangle and every triangle of the shipped hands mesh, so
 this cannot regress silently.
 
+## 6.1 BSP brushes wind the OTHER way, and they are the exception that proves the rule
+
+`CONFIRMED_BYTES`. The derivation above is general; what differs between containers is which side
+of the agreement the shipped data starts on.
+
+A `Polys` brush polygon stores its own `Normal`, and Unreal computes that normal from the stored
+vertex order with its own left-handed cross product — so in the game's data the two **agree**, where
+a mesh's authored per-vertex normals **disagree** with its triangle winding. The reflection negates
+agreement in both cases, so it lands them in opposite places:
+
+| container | in the game's basis | after `C` | action |
+|---|---|---|---|
+| `StaticMesh`, `SkeletalMesh` | winding disagrees with normals | **agrees** | **none** |
+| `Polys` (BSP brushes) | winding agrees with normals | **disagrees** | **reverse the fan** |
+
+Measured across all 21 map packages: shipped order versus the polygon's own normal is **0 agree,
+93,264 disagree** after conversion; the fan `BspPolygon.TriangleIndices()` emits is **93,264 agree,
+0 disagree**. Confirmed a second way by enclosed volume — 254 of Lighthouse's 285 brushes enclose a
+**positive** volume and **none** a negative one, which only holds for consistently outward winding.
+
+**Measure this with the Newell normal, not one cross product.** The first attempt used the first
+three vertices and put 4 of 93,264 polygons on the wrong side — all slivers, where that probe reads
+its own noise.
+
+`docs/research/bsp.md` §3 has the full account.
+
 ## 7. Normals, tangents and binormals
 
 `C` is diagonal, orthogonal and symmetric, so `(C⁻¹)ᵀ = C`: a normal converts by the same map as a
@@ -196,15 +222,29 @@ conversion never introduces a negative scale factor of its own. No shipped bone 
 
 ## 9. Where the conversion is applied
 
-Four places, all of them the boundary where a raw decode becomes the studio's internal
-representation. There is no fifth, and adding one would be the bug this note exists to prevent.
+Five places, all of them the boundary where a raw decode becomes the studio's internal
+representation. **The rule is one conversion per decode, at the decode itself** — a second
+conversion anywhere downstream is the bug this note exists to prevent.
 
 ```
 StaticMeshReader.ReadGeometry        →  GameBasis.Convert(MeshGeometry)
 SkeletalMeshReader.ReadGeometry      →  GameBasis.Convert(MeshGeometry)
 HkaSkeletonReader.Read               →  GameBasis.Convert(BioShockSkeleton)
 AnimationPackage.Decode              →  GameBasis.Convert(DecodedAnimation)
+PolysReader.ReadPolygon              →  GameBasis.Convert(Vector3) per position and axis
 ```
+
+> **This note said "four" and "there is no fifth" until BSP brushes were decoded.** That wording was
+> guarding against a *second* conversion of already-converted data, which is the failure that cost
+> this project two years of mirrored assets. A new reader of a new container is a new decode
+> boundary and takes the conversion once, like every other. The count is updated rather than the
+> rule relaxed; if a sixth appears, it belongs in this list.
+
+### The brush containers wind the other way — see §6.1
+
+`Polys` is the one decoded container whose triangle winding **does** need reversing after the
+reflection. That is not an exception to the derivation below; it is the derivation applied to a
+source with the opposite convention. §6.1 has the measurement.
 
 ### The one place a double conversion could hide
 
