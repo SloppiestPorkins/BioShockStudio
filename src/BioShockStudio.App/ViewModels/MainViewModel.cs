@@ -100,6 +100,12 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<CategoryRow> Categories { get; } = [];
     public ObservableCollection<string> Packages { get; } = [AllPackages];
     public ObservableCollection<CatalogEntry> Assets { get; } = [];
+    /// <summary>What the selected asset is. Always present, whatever kind it is.</summary>
+    public ObservableCollection<DetailField> IdentityFields { get; } = [];
+
+    /// <summary>Where it lives — the package read from, and the others carrying it.</summary>
+    public ObservableCollection<DetailField> LocationFields { get; } = [];
+
     public ObservableCollection<DetailField> DetailFields { get; } = [];
     public ObservableCollection<DetailSection> DetailSections { get; } = [];
     public ObservableCollection<DetailField> ResearchFields { get; } = [];
@@ -373,6 +379,8 @@ public partial class MainViewModel : ViewModelBase
     private async Task ShowDetailsAsync(CatalogEntry? entry)
     {
         _detailsWork?.Cancel();
+        IdentityFields.Clear();
+        LocationFields.Clear();
         DetailFields.Clear();
         DetailSections.Clear();
         ResearchFields.Clear();
@@ -420,6 +428,8 @@ public partial class MainViewModel : ViewModelBase
             // where a user is looking when the viewport shows something odd.
             _ = ShowAssetProblemsAsync(entry, token);
 
+            foreach (var field in details.Identity) IdentityFields.Add(field);
+            foreach (var field in details.Location) LocationFields.Add(field);
             foreach (var field in details.Fields) DetailFields.Add(field);
             foreach (var section in details.Sections) DetailSections.Add(section);
             foreach (var field in details.Research) ResearchFields.Add(field);

@@ -140,6 +140,45 @@
                             <TextBlock Text="{Binding DetailsProblem}" TextWrapping="Wrap" />
                         </Border>
 
+                        <!-- ==================================== the inspector
+
+                             What this is, and where it is. Every asset kind answers both, because
+                             they are filled from the catalogue row in one place rather than by each
+                             reader — which is why a texture used to state its group and an animation
+                             stated neither.
+
+                             "Also in" is the one that earns its space: every map embeds its own copy
+                             of what it uses, so the package a row reports is one of many, and not
+                             saying so has already cost a click that silently did nothing. -->
+                        <Border Background="#14FFFFFF" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding IdentityFields.Count}">
+                            <StackPanel Spacing="2">
+                                <ItemsControl ItemsSource="{Binding IdentityFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="92,*" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.6" FontSize="12" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Separator Margin="0,6" Opacity="0.25" />
+
+                                <ItemsControl ItemsSource="{Binding LocationFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="92,*" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Opacity="0.6" FontSize="12" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <!-- What is measurably wrong with this asset. The evidence line is the whole
                              point: "draws untextured" is a symptom, "slot 0 names nothing" is a
                              thing a person can act on. -->

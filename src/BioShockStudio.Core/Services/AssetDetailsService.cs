@@ -31,6 +31,30 @@ public sealed record AssetDetails
     public required IReadOnlyList<DetailField> Fields { get; init; }
     public required IReadOnlyList<DetailSection> Sections { get; init; }
 
+    /// <summary>
+    /// What this asset is, in the user's terms and in the game's.
+    /// </summary>
+    /// <remarks>
+    /// Filled in one place for every asset kind rather than by each branch, because each branch used
+    /// to decide for itself and the answer was inconsistent: a texture said its group, a mesh said
+    /// its group and class, an animation said neither. "What is this" is the first question the panel
+    /// exists to answer and it should not depend on which reader happened to produce the row.
+    /// </remarks>
+    public IReadOnlyList<DetailField> Identity { get; init; } = [];
+
+    /// <summary>
+    /// Where the asset lives: the package it is read from, every other package that carries it, and
+    /// its export index.
+    /// </summary>
+    /// <remarks>
+    /// <b>The package count is load-bearing, not trivia.</b> Every map embeds its own copy of what it
+    /// uses, so a row's reported package is one of many — 71,106 rows collapse to 14,378 assets, and
+    /// <c>NEWPlayerHands</c> is in all twenty maps. A user looking at "0-Lighthouse" and wondering
+    /// why an asset is not in the map they are editing needs to see the rest of the list, and
+    /// matching on the reported package alone has already produced a click that silently did nothing.
+    /// </remarks>
+    public IReadOnlyList<DetailField> Location { get; init; } = [];
+
     /// <summary>Technical facts, shown only in research mode.</summary>
     public required IReadOnlyList<DetailField> Research { get; init; }
 
@@ -50,12 +74,14 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
 {
     public AssetDetails Describe(CatalogEntry entry, CancellationToken cancellation = default)
     {
+        AssetDetails details;
+
         try
         {
             using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
             cancellation.ThrowIfCancellationRequested();
 
-            return entry.Category switch
+            details = entry.Category switch
             {
                 AssetCategory.Textures => DescribeTexture(package, entry),
                 AssetCategory.Materials => DescribeMaterial(package, entry),
@@ -70,9 +96,78 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         }
         catch (Exception ex)
         {
-            return Failed(entry, ex.Message);
+            details = Failed(entry, ex.Message);
         }
+
+        // Identity and location come from the catalogue row, so an asset that could not be read
+        // still says what and where it is instead of showing only an error.
+        return details with { Identity = IdentityOf(entry), Location = LocationOf(entry) };
     }
+
+    /// <summary>What the asset is — the user's word for it, and the game's.</summary>
+    private static IReadOnlyList<DetailField> IdentityOf(CatalogEntry entry)
+    {
+        var fields = new List<DetailField>
+        {
+            new("Name", entry.Name),
+            new("Kind", Describe(entry.Category)),
+
+            // The Unreal class, always. It is what every resolver keys off — a row's bucket is a
+            // presentation choice and its class is what it actually is — and the two differ: a
+            // splicer variant is a SkeletalMesh filed under Characters.
+            new("Class", entry.ClassName),
+        };
+
+        if (entry.ObjectName.Length > 0 && !string.Equals(entry.ObjectName, entry.Name, StringComparison.Ordinal))
+            fields.Add(new DetailField("Object", entry.ObjectName));
+
+        if (entry.Group.Length > 0) fields.Add(new DetailField("Group", entry.Group));
+
+        // An animation belongs to the rig it was authored for, which is not always its group.
+        if (entry.OwnerGroup is { Length: > 0 } owner && !string.Equals(owner, entry.Group, StringComparison.Ordinal))
+            fields.Add(new DetailField("Belongs to", owner));
+
+        return fields;
+    }
+
+    /// <summary>Where the asset is: the copy being read, and every other copy of it.</summary>
+    private static IReadOnlyList<DetailField> LocationOf(CatalogEntry entry)
+    {
+        var fields = new List<DetailField> { new("Read from", entry.Package) };
+
+        if (entry.PackageCount > 1)
+        {
+            var others = entry.Packages
+                .Where(p => !string.Equals(p, entry.Package, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            fields.Add(new DetailField(
+                "Also in",
+                others.Count == 0
+                    ? $"{entry.PackageCount} packages"
+                    : $"{string.Join(", ", others)}  ({entry.PackageCount} in total)"));
+        }
+
+        if (entry.ExportIndex >= 0) fields.Add(new DetailField("Export", entry.ExportIndex.ToString()));
+        fields.Add(new DetailField("Payload", Size(entry.SerialSize)));
+
+        return fields;
+    }
+
+    /// <summary>The category in the user's terms, matching the browser's own labels.</summary>
+    private static string Describe(AssetCategory category) => category switch
+    {
+        AssetCategory.FirstPerson => "First-person rig",
+        AssetCategory.Characters => "Character",
+        AssetCategory.Weapons => "Weapon",
+        AssetCategory.Props => "Prop",
+        AssetCategory.SkeletalMeshes => "Skeletal mesh",
+        AssetCategory.StaticMeshes => "Static mesh",
+        AssetCategory.Animations => "Animation",
+        AssetCategory.Textures => "Texture",
+        AssetCategory.Materials => "Material",
+        _ => category.ToString(),
+    };
 
     private static AssetDetails Failed(CatalogEntry entry, string problem) => new()
     {
