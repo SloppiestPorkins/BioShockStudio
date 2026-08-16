@@ -56,6 +56,31 @@ public partial class MainViewModel
 
     private GhostCamera _levelCamera = new();
 
+    /// <summary>
+    /// Whether the GPU is drawing the level.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Set by the view once it knows whether a GL context came up, because whether a GPU is
+    /// available is a fact about the platform and the view model has no business asking.
+    /// </para>
+    /// <para>
+    /// When this is false the software rasteriser draws instead, at roughly half a frame a second
+    /// on a whole map — so the fallback is <b>reported</b> rather than merely taken. A viewport that
+    /// silently becomes twenty times slower reads as a broken feature.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty] private bool _usingGpu;
+
+    /// <summary>Raised when the camera moves, so the view can ask the GPU for a frame.</summary>
+    public event Action<GhostCamera>? CameraMoved;
+
+    /// <summary>Raised when a level is ready, so the view can hand it to the GPU.</summary>
+    public event Action<PreparedLevel, GhostCamera>? LevelOpened;
+
+    /// <summary>Raised when the level is closed, so the view can release its GPU resources.</summary>
+    public event Action? LevelClosed;
+
     /// <summary>Set by the view: the size of the viewport surface, in pixels.</summary>
     public int LevelViewWidth { get; set; } = 960;
     public int LevelViewHeight { get; set; } = 600;
@@ -94,6 +119,10 @@ public partial class MainViewModel
             HasLevelView = true;
             LevelViewStatus = $"{level.Name}: {prepared.TextureSummary}.";
 
+            LevelOpened?.Invoke(prepared, _levelCamera);
+
+            // The software path still draws the first frame even on the GPU, so that a GL context
+            // that comes up and then fails leaves a picture rather than a black rectangle.
             await RenderAsync(moving: false);
         }
         catch (OperationCanceledException)
@@ -124,6 +153,7 @@ public partial class MainViewModel
         _prepared = null;
         LevelImage = null;
         LevelViewStatus = "";
+        LevelClosed?.Invoke();
     }
 
     /// <summary>Turns the camera, in radians.</summary>
@@ -155,6 +185,14 @@ public partial class MainViewModel
     /// </remarks>
     private void Invalidate(bool moving)
     {
+        // On the GPU the camera is all the view needs: the geometry is already uploaded, so a frame
+        // is a draw call rather than a re-render, and none of the coalescing below applies.
+        if (UsingGpu)
+        {
+            CameraMoved?.Invoke(_levelCamera);
+            return;
+        }
+
         if (_levelRenderQueued) return;
         _levelRenderQueued = true;
         _ = RenderAsync(moving);

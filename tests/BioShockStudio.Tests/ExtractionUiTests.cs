@@ -48,7 +48,13 @@ public sealed class ExtractionUiTests
             $"the catalogue never loaded (status: {model.Status})");
         Assert.True(await WaitFor(() => !model.IsBusy), "the view model never stopped being busy");
 
-        // A small, fast slice: one package's textures.
+        // A small, fast slice: one package's textures. Textures live in the Static workspace, and
+        // the browser opens on Animated — so the workspace has to be switched before the category
+        // exists to select. This test used to pick it straight out of a single flat category list.
+        model.SelectedTabIndex = (int)AssetWorkspace.Static;
+        Assert.True(await WaitFor(() => model.Categories.Any(c => c.Category == Core.Services.AssetCategory.Textures)),
+            "the Static workspace never listed a Textures category");
+
         model.SelectedCategory = model.Categories.First(c => c.Category == Core.Services.AssetCategory.Textures);
         model.SelectedPackage = "0-Lighthouse";
         Assert.True(await WaitFor(() => model.Assets.Count > 0), "no assets shown to extract");

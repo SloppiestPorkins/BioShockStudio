@@ -19,19 +19,39 @@ The view model holds no parsing, no offsets and no output-path decisions. That i
 its own sake: the services are what the tests exercise, and it is what stops the browser and the
 command line from disagreeing about what an asset is.
 
-## Two workspaces
+## Three workspaces
 
-The window is a `TabControl` with two tabs, added when Phase 2's level work landed:
+The window is a `TabControl`:
 
 | Tab | What it is |
 |---|---|
-| **Assets** | The original browser — categories, search, the asset list, the details panel, the 3D preview and the extraction bar. Moved into a tab **unchanged**: same columns, same bindings, same shortcuts. |
-| **Level** | Pick a map, see what it holds, write it out. |
+| **Animated** | Rigged assets: the first-person set, characters, weapons, skeletal meshes, animations. |
+| **Static** | Static meshes, props, materials and textures. |
+| **Level** | Pick a map, see what it holds, walk through it, write it out. |
 
-Tabs rather than a mode switch, because the two hold independent selections and neither should reset
-the other. The asset extraction bar at the foot of the window **is hidden on the Level tab** — it
-offers "Extract selected" and "Extract all shown", which beneath the level panel reads as though
-those buttons extract the level. They do not; the level has its own.
+**The two asset tabs are one browser filtered two ways, not two browsers.** The distinction they
+split on is the one that actually changes how an asset is worked with — whether it carries a rig. A
+skinned mesh has a skeleton, animation sets, sockets, attachments and a transport; a static mesh's
+whole story is geometry and materials. Before the split those sat interleaved in one nine-category
+list.
+
+The markup lives in `AssetBrowserView` and each tab hosts an instance, but both bind to the **same**
+`MainViewModel`, so the selection, the details panel and the preview are shared and cannot drift.
+Two independent copies would be free to disagree, which this project has already paid for once with
+the material resolver.
+
+Textures and materials sit with the static assets rather than getting a workspace of their own. They
+are shared by both kinds, so any placement is a choice rather than a fact — this one is at least
+consistent, in that nothing under Animated is anything but a rig, its parts, or its motion.
+
+**Both totals count the workspace, not the catalogue.** The category row said "Everything (14,380)"
+and the result summary "1,889 of 14,380" beside a list that can only reach the rigged half; both
+stated something untrue about what was on offer. `EveryCategoryBelongsToExactlyOneWorkspace` guards
+the silent failure — a category in neither list is simply unreachable, with nothing to indicate it.
+
+The asset extraction bar at the foot of the window **is hidden on the Level tab** — it offers
+"Extract selected" and "Extract all shown", which beneath the level panel reads as though those
+buttons extract the level. They do not; the level has its own.
 
 ### The Level tab
 
@@ -57,6 +77,44 @@ unstated cost.
 `HANDOFF.md`. The one worth repeating here: **`IsVisible="{Binding !SomeObject}"` does not negate a
 non-boolean binding in Avalonia**, and silently renders the control always. Use
 `{Binding X, Converter={x:Static ObjectConverters.IsNull}}`.
+
+### Walking through a level
+
+"Walk through it" loads the map's geometry, materials and textures — about five seconds — and gives
+a ghost camera: **WASD**, **Q/E** for up and down, drag to look, the wheel for speed. It is separate
+from selecting a map because preparing a level decodes everything it uses, and doing that on
+selection would make browsing the map list feel broken.
+
+**Two renderers sit behind it.**
+
+| | |
+|---|---|
+| **GPU** (`LevelGlViewport`) | An `OpenGlControlBase` — no new dependency, `Avalonia.OpenGL` ships in the Avalonia package. Uploads each distinct asset once as a VAO plus its textures, then draws the culled set per frame. |
+| **CPU** (`SoftwareRenderer`) | The fallback, **and the tested path** — Avalonia's headless renderer has no GL context, so every snapshot and pixel check in the suite comes from this one. |
+
+Both consume the same `LevelViewport` selection and the same `GhostCamera`, so they draw the same
+scene. If the GL context, the shaders or the upload fail, the window falls back **and says so** in
+the status line — a viewport that silently becomes twenty times slower reads as a broken feature.
+
+**The frame budget is measured, not guessed.** Drawing all of `0-Lighthouse` on the CPU takes ~1.6 s;
+frustum culling alone reaches 1.15 s, because Rapture's backdrop city is entirely in view and is
+most of the map's geometry. And the frame is bounded by **pixels**, not triangles — 100,000
+triangles cost 423 ms at 960×600 and 147 ms at 480×300. So the viewport spends a triangle budget on
+whatever occupies the most screen, and halves resolution while the camera moves.
+`LevelViewportPerformanceTests` holds the figures.
+
+**It says what it left out** — "52 drawn · 149,883 triangles · 576 ms · 25 beyond the budget, not
+drawn". A viewport that quietly drops geometry shows a partial level while implying a whole one.
+
+Movement runs off a timer over a held-key set, not key-repeat: key-repeat is a text-entry feature
+(one event, a pause, then the platform's rate), so holding W stutters and two keys move in steps
+rather than diagonally. The step is scaled by real elapsed time, because the frame it triggers can
+take hundreds of milliseconds and the timer will not keep up.
+
+**The level's own lights are decoded but not applied.** There are 465 in one map, and using them
+would be a lighting model this project has not verified against anything. The viewport lights with
+two fixed directions and an ambient term, which is enough to read shape without claiming to be the
+game's lighting.
 
 ## The services
 

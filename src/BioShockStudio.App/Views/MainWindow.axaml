@@ -153,12 +153,24 @@
                     </Border>
 
                     <!-- Focusable so the movement keys reach it, and the pointer events drive the
-                         look. The image is stretched to fill: while the camera moves it is rendered
-                         at half size, so the surface and the bitmap are deliberately not the same
-                         resolution. -->
+                         look.
+
+                         Two renderers live here, one on top of the other. The GPU one is used when
+                         a GL context is available; the software one is the fallback, and is also
+                         the tested path — Avalonia's headless renderer has no GL context, so the
+                         snapshots and the pixel checks all come from the CPU rasteriser. Both
+                         consume the same culled selection and the same camera.
+
+                         The software image is stretched to fill: while the camera moves it renders
+                         at half size, so the surface and the bitmap are deliberately different
+                         resolutions. -->
                     <Border Grid.Row="1" Name="LevelSurface" Background="#FF202020"
                             Focusable="True" ClipToBounds="True" CornerRadius="4">
-                        <Image Source="{Binding LevelImage}" Stretch="Fill" />
+                        <Panel>
+                            <views:LevelGlViewport Name="LevelGl" IsVisible="{Binding UsingGpu}" />
+                            <Image Source="{Binding LevelImage}" Stretch="Fill"
+                                   IsVisible="{Binding !UsingGpu}" />
+                        </Panel>
                     </Border>
 
                     <TextBlock Grid.Row="2" Text="{Binding LevelViewStatus}" Opacity="0.75"

@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **352 passed, 0 failed, 0 skipped** — 11m58s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **363 passed, 0 failed, 0 skipped** — 12m01s. Fast tier **176 / 29s**. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1227,11 +1227,55 @@ actors carry a rotation or a scale**, so "the level assembles" is *not* evidence
 order — the test records that count precisely so a future session does not read confidence into a
 green result.
 
-### The GUI — two tabs now
+### The level viewport — walk through a map
 
-The window is a `TabControl`: **Assets** is the original browser moved across unchanged (same
-columns, bindings and shortcuts), **Level** is new. Tabs rather than a mode switch because the two
-hold independent selections.
+**`docs/GUI.md` §"Walking through a level" is the detail.** "Walk through it" prepares the map —
+about five seconds — and gives a ghost camera: WASD, Q/E, drag to look, wheel for speed.
+
+**The performance work here is the design, and it came from measurement.** Drawing all of
+`0-Lighthouse` on the CPU rasteriser takes **~1.6 s a frame**. Frustum culling alone only reaches
+1.15 s: it keeps 399 of 1,141 instances and 883,415 of 2,181,021 triangles, because Rapture's
+backdrop city is entirely in view and is most of the map's geometry. **And the frame is bounded by
+pixels, not triangles** — 100,000 triangles cost **423 ms at 960×600 and 147 ms at 480×300**. So the
+viewport spends a triangle budget on whatever occupies the most screen *and* halves resolution while
+moving. `LevelViewportPerformanceTests` holds all of it.
+
+**Culling must sit above the renderer.** `SoftwareRenderer` projects and buckets every triangle it
+is given before touching a pixel, so an off-screen triangle is not free.
+
+**There is a GPU path, and it is the one thing here no test covers.** `LevelGlViewport` is an
+Avalonia `OpenGlControlBase` — no new dependency; `Avalonia.OpenGL` ships inside the Avalonia
+package. Avalonia's headless renderer has no GL context, so **every snapshot and pixel check in the
+suite comes from the software path**, which is kept rather than replaced. Both consume the same
+culled selection and the same camera. If GL fails at any step the window falls back and *says so*.
+
+**What could be tested about it, was.** `GlMatrixConventionTests` pins the claim the whole GL path
+rests on: `Matrix4x4` is row-major and row-vector, GL with `transpose = false` reads those bytes as
+columns and therefore sees `Mᵀ`, and `Mᵀ · v` equals `v · M`. The companion test proves that
+transposing on upload as well — the intuitive move — gives a *different* answer, so the pair is not
+vacuous. Getting it wrong turns the level inside out and looks like a camera bug.
+
+**Textures work.** Resolved per asset rather than per instance (401 distinct assets against 1,141
+placements) and capped at **256** rather than the preview's 1024, because a level holds hundreds at
+once and the sum is what matters. Measured on `0-Lighthouse`: **145 textures over 298 of 520
+surfaces**.
+
+**A test assertion here was wrong and is recorded as such.** It asserted "more than 15% of drawn
+pixels carry a colour cast" and failed at 11% on a render that is visibly correct — Rapture's
+exterior is grey-green concrete under water, so that threshold measured the art direction rather
+than the pipeline. It compares a textured render against an untextured one now (**51% of drawn
+pixels differ**), which fails for the right reason.
+
+### The GUI — three tabs now
+
+**Animated**, **Static** and **Level**. The two asset tabs are **one browser filtered two ways**, not
+two browsers — they split on whether an asset carries a rig, which is the distinction that changes
+how it is worked with. The markup lives in `AssetBrowserView` and each tab hosts an instance, but
+both bind to the same view model, so selection, details and preview are shared and cannot drift.
+Textures and materials sit with the static assets.
+
+Both totals count the workspace rather than the catalogue: "Everything (14,380)" beside a list that
+can only reach the rigged half stated something untrue, and reads "All rigged assets (1,889)" now.
 
 **Three faults were found by rendering the tab and looking at it, with every test green:**
 

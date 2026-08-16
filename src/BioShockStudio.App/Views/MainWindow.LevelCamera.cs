@@ -40,6 +40,8 @@ public partial class MainWindow
         var surface = this.FindControl<Border>("LevelSurface");
         if (surface is null) return;
 
+        HookGpu();
+
         // Clicking the surface takes focus so the movement keys arrive, and starts the look drag.
         surface.PointerPressed += (_, e) =>
         {
@@ -111,6 +113,63 @@ public partial class MainWindow
             model.LevelViewHeight = Math.Max(64, (int)e.NewSize.Height);
             if (model.HasLevelView) model.SettleLevelCamera();
         };
+    }
+
+    /// <summary>
+    /// Connects the GPU viewport, and decides whether it can be used at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Whether a GPU is available is a fact about the platform, so the view decides it and tells
+    /// the view model</b> — the view model has no business asking. The GL control reports a reason
+    /// in <c>Failed</c> if the context, the shaders or the upload go wrong, and the window falls
+    /// back to the software rasteriser and <i>says</i> that it did. A viewport that silently becomes
+    /// twenty times slower reads as a broken feature.
+    /// </para>
+    /// <para>
+    /// The check is deferred rather than made up front: <c>OnOpenGlInit</c> does not run until the
+    /// control has been rendered once, so asking before that would always report failure.
+    /// </para>
+    /// </remarks>
+    private void HookGpu()
+    {
+        var gl = this.FindControl<LevelGlViewport>("LevelGl");
+        if (gl is null) return;
+
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is not MainViewModel model) return;
+
+            model.LevelOpened += (level, camera) =>
+            {
+                gl.TriangleBudget = Math.Max(model.LevelTriangleBudget * 8, 1_500_000);
+                gl.Show(level, camera);
+                Dispatcher.UIThread.Post(() => Confirm(model, gl), DispatcherPriority.Background);
+            };
+
+            model.CameraMoved += camera => gl.Move(camera);
+            model.LevelClosed += () => { gl.Clear(); model.UsingGpu = false; };
+        };
+    }
+
+    /// <summary>
+    /// Settles whether the GPU actually drew, once it has had a chance to.
+    /// </summary>
+    /// <remarks>
+    /// Runs a beat after the level opens, by which time the control has been asked for a frame. If
+    /// the GL path reported a fault the software renderer stays in charge and the status line
+    /// carries the reason, so the slowdown is explained rather than mysterious.
+    /// </remarks>
+    private static void Confirm(MainViewModel model, LevelGlViewport gl)
+    {
+        if (gl.Failed is { } reason)
+        {
+            model.UsingGpu = false;
+            model.LevelViewStatus = $"Drawing on the CPU — the GPU path could not start: {reason}";
+            return;
+        }
+
+        model.UsingGpu = true;
     }
 
     private static bool IsMovementKey(Key key) => key

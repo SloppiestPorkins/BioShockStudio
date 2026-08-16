@@ -4,6 +4,16 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      For the GPU viewport only. Uploading vertex buffers and matrices to OpenGL means handing it
+      pointers to pinned arrays, which is what glBufferData and glUniformMatrix4fv take.
+
+      Scoped to this project deliberately: BioShockStudio.Core does all the parsing, all the
+      geometry and all the decoding, and none of it needs unsafe. Every byte this project reads
+      from a shipped package is still bounds-checked.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
