@@ -34,9 +34,20 @@ Full text in `docs/ENGINEERING_RULES.md`; these are the ones worth having in fro
 
 ## Baseline
 
+The suite is split into two tiers, because a ten-minute suite changes how carefully changes get
+verified:
+
 ```bash
-dotnet build && dotnet test
+dotnet build
+dotnet test --filter Tier=Fast      # ~28s — run this constantly, while working
+dotnet test --filter Tier=Sweep     # ~10min — run this before you finish
+dotnet test                         # both; what a handover reports
 ```
 
-Tests read the installed game; there are no synthetic fixtures. Close the app before
-`dotnet publish` — a running instance locks the DLLs. Do not commit unless asked.
+**The split is by how much real data a test reads, never by faking any.** There are no synthetic
+fixtures and this does not introduce one: a fast test still reads real shipped bytes, just from one
+package instead of all 33. Every test class declares its tier and `TierCoverageTests` fails if one
+does not, so nothing can fall out of both tiers and stop running.
+
+Tests read the installed game. Close the app before `dotnet publish` — a running instance locks the
+DLLs. Do not commit unless asked.

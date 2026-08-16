@@ -159,10 +159,31 @@ is measuring the same game: the **18** `mesh-no-geometry` are precisely the 18 d
 `SkeletalMeshGeometryTests` names, and the **2** `mesh-uv-out-of-range` are `BatPath` and
 `Shadow_Scissors`, §4 below.
 
-**The headline "73.9% of meshes have a diffuse texture" above is stale and is superseded here.**
+**This section is where the base-colour figure is measured; the headline table quotes it.** The
+headline used to read "73.9% of meshes have a diffuse texture" and was stale — that figure was
+stated in three documents at once and was wrong in all three within a session, which is why the
+numbers here are now pinned by a test rather than maintained by hand (see
+[Keeping these figures honest](#keeping-these-figures-honest)).
+
 By this sweep, **347 of 9,684 meshes (3.6%) draw with no base colour at all** — 240 resolving a
 material that binds none, plus those whose every surface resolves nothing. So **96.4% carry a base
 colour**, against 91.1% before the material-class work below and 73.9% when that line was written.
+
+> **Correction, and a caveat on that 96.4%.** When the figures here were pinned by a test, the 347
+> could **not be reproduced from the `diagnose` output**, and its derivation had not been written
+> down anywhere. What the sweep reports is **240** `mesh-no-diffuse` and **123**
+> `mesh-material-slot-unresolved`, and those two are **disjoint** on the shipped game — no mesh
+> raises both — giving **363 distinct meshes with a base-colour fault, so 96.3% carry one**.
+>
+> The two numbers measure different things and both are defensible. 363 counts a mesh with *any*
+> unresolved slot, and a mesh with one unresolved slot out of three still has a base colour; 347
+> counts only meshes with **no base colour at all**, which is the more meaningful figure and the
+> smaller one. **363 is an upper bound and 96.3% a lower bound.**
+>
+> The test asserts 363, because that is what is reproducible today. Pinning 347 needs a per-mesh
+> surface measurement the report does not expose — recorded as open rather than asserted on a
+> derivation that cannot be checked. This is precisely the drift the test was added to catch, and it
+> was caught on its first run.
 
 ### `mesh-no-diffuse` was mostly material classes the reader did not know — 755 → 240
 
@@ -249,8 +270,16 @@ says why there is no geometry.
 
 **Half of this is fixed and the entry is narrowed accordingly.** A `StaticMesh` carries a section
 table, it is now consumed, and section *N* draws with `Materials[N]` on all 8,668 shipped static
-meshes. A `SkeletalMesh` carries no such table — whether the container has an equivalent is
-`UNKNOWN` — so one naming several materials still draws entirely in one of them.
+meshes. A `SkeletalMesh` naming several materials still draws entirely in one of them.
+
+~~A `SkeletalMesh` carries no such table — whether the container has an equivalent is `UNKNOWN`.~~
+**That was wrong and is corrected here: the table exists.** `UnMeshBioshock.cpp`'s
+`FStaticLODModelBio` opens with `TArray<FSkelMeshSection>`, nine `uint16`s each, commented
+"1 section = 1 material" — see open question 11d and
+[reference-comparison.md](research/reference-comparison.md) §3a. So these 153 meshes are open
+because **the work is not done, not because the data is missing**: it needs the payload walked from
+the front instead of the vertex chain being searched for, and UModel targets the original game, so
+every field needs checking against Remastered bytes first.
 
 The diagnostic sweep counts **153** exports in this state (`mesh-materials-without-sections`), which
 replaces the old "28 distinct" estimate. `WP_CrossbowMesh` names `Crossbow_Shader` and
@@ -305,6 +334,24 @@ Recorded so the next person does not chase them.
   candidates for "intended" — the other 704 are material classes the reader does not know, or slots
   naming a texture rather than a shader. See the diagnostic sweep above. The lesson stands: this code
   fires on correct data too, so it is `Degraded` and not `Broken`.
+
+## Keeping these figures honest
+
+**Every headline figure in this document is asserted by a test**, so a number that stops being true
+goes red instead of quietly rotting: `tests/BioShockStudio.Tests/DocumentedFiguresTests.cs`, in the
+sweep tier. It runs the same whole-game `diagnose` sweep the command below runs and asserts the
+coverage counts, the totals by severity, the per-code table and the base-colour share.
+
+This exists because measured numbers get copied into prose by hand and rot immediately: "73.9% of
+meshes have a diffuse texture" was stated in three documents and was wrong in all three within one
+session, and nothing anywhere could say so.
+
+**A failure there is not automatically a regression.** It means the game as measured no longer
+matches what this file claims, and there are two honest responses — the code improved and the figure
+should be updated, or the code regressed and the figure is telling you so. Classify it
+(`docs/ENGINEERING_RULES.md` §24) before changing either, and **never relax the assertion to make it
+pass**: that turns the one mechanism that notices drift into a rubber stamp. When a figure here
+changes, change it in the test in the same commit.
 
 ## How to re-run it
 

@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | 308 passed, 0 failed, **0 skipped** |
+| **Tests** | **322 passed, 0 failed, 0 skipped** — 168 fast (28s), 154 sweep (9m32s), 10m02s together. Measured 16 Aug 2026. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -18,17 +18,33 @@
 | **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
 | **Phase 2** | **Unlocked once 1C is finished** — confirmed by the user. 1C's last item is the Asset Inspector. Until it lands, do not begin level extraction. |
 
-**308 tests pass against the installed game, none skipped.**
+**All tests pass against the installed game, none skipped.** For the current count see the table
+above; it is stated in one place on purpose, because it was previously written in three and went
+stale in all of them.
 
 ```bash
-dotnet build && dotnet test
+dotnet test --filter Tier=Fast      # ~28s — run while working
+dotnet test --filter Tier=Sweep     # ~10min — run before finishing
+dotnet test                         # both
 ```
 
-**The suite still runs in about ten minutes** (9m42s with 308 tests, against 8m50s with 278). A cold
-run right after a large scan measured 19 minutes; that is the file cache, not the new tests. The
-diagnostic checks are cheap — scanning `0-Lighthouse` end to end is 1,866 assets in under five
-seconds — and the UI tests share one catalogue build and one package check across the class, which is
-why they add so little.
+**The suite is now split into two tiers.** The whole thing takes about ten minutes and that was
+visibly changing how carefully changes got verified — it was cheaper to reason about a change than
+to run the tests, which is the wrong way round. The fast tier is the classes that read one package
+or none; the sweep tier is the whole-game censuses, the bulk store, the whole-catalogue builds and
+the UI tests, which build a catalogue in order to have something to show.
+
+**Speed came from reading less real data, never from fabricating any.** There are still no synthetic
+fixtures. Nothing was dropped or weakened to hit the time: `TierCoverageTests` asserts that every
+test class declares exactly one tier, so a test cannot fall out of both and quietly stop running,
+and the two filtered runs add up to the unfiltered one.
+
+The split was made from measurement, not by inspection — a TRX run gave per-class cost and four
+classes that looked cheap turned out to read the whole install. Note that most classes share one
+xUnit collection and therefore run serially, so the fast tier's wall clock is close to the sum of
+its parts rather than the maximum.
+
+A cold run right after a large scan measured 19 minutes; that is the file cache, not the tests.
 
 Tests read the real install (auto-detected, or set `BIOSHOCK_REMASTERED_PATH`) and skip cleanly if
 it is absent. **No game data is in the repository**, and `/artifacts/` is gitignored.
@@ -66,7 +82,7 @@ The target case, and the thing to check after any change to the pipeline: **the 
 | `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **954/972 exports decode (98.1%)** — the 18 that do not are all doors. |
 | `StaticMesh` | Geometry, UV streams, indices, and the per-material **section table**. **All 8,668 shipped exports decode.** |
 | Per-section materials | **Consumed.** Section *N* draws with `Materials[N]`, in one resolver shared by the preview, scene JSON, FBX and Blender. 1,179 multi-material meshes stop being textured from their first material only. |
-| Material property walk | **Complete. 13,532 materials, 0 partial.** A struct's declared size omits its nested properties' size bytes; corrected only where the nested list lands on a terminator. Was ~half partial in the larger packages. |
+| Material property walk | **Complete. 13,545 materials, 0 partial.** A struct's declared size omits its nested properties' size bytes; corrected only where the nested list lands on a terminator. Was ~half partial in the larger packages. (This said 13,532 in three places here while `QUALITY.md` and `open-questions.md` said 13,545; the sweep measures 13,545 and it is now pinned by `DocumentedFiguresTests`.) |
 | Attachments in the export | Both kinds now travel with their host: static props (the Bouncer's drill, cage, backpack) and **weapon rigs loaded from another package** (the hands arrive holding all six viewmodels). |
 | Socket transforms | **Decoded.** A socket carries an `FCoords` — origin plus three axes — relative to its bone. **200 of 332 sockets carry an offset and 246 a rotation**, all previously ignored. Every first-person weapon socket is identity, which is why this went unnoticed. |
 | Weapon upgrades | **All six weapons' tiers resolve** — 13 meshes. Eleven are in the weapon's own group; `SG_UpgradeB` and `XB_UpgradeB_Mesh`, the two with their own rig, are not, which is why only some weapons showed them. |
@@ -227,7 +243,7 @@ Each of these produced a plausible, wrong result before it was understood.
   5,458 short by exactly their nested size bytes, no other cases.** Do not apply the rule blindly:
   `Color` is a plain four-byte BGRA value, not a property list, and there are 6,329 of them. The
   reader corrects only when the nested walk **lands exactly on a terminator** at the corrected
-  length. Result: **13,532 materials, 0 partial.**
+  length. Result: **13,545 materials, 0 partial.**
 - **"Unsupported format" is a diagnosis, and it was the wrong one.** The 18 `SkeletalMesh` exports
   that yield no geometry were described for several sessions as an unread vertex stride to be found.
   They are four door rigs that **carry no vertex data at all** — payload sizes separate cleanly
@@ -673,7 +689,7 @@ size — and the other 5,458 are short by exactly their nested size bytes. No ot
 on a terminator** at the corrected length, so a struct that is not a property list — `Color` is a
 plain four-byte BGRA value, and the game ships 6,329 — is returned untouched.
 
-**Every material in the game now decodes to its terminator: 13,532 materials, 0 partial**, where
+**Every material in the game now decodes to its terminator: 13,545 materials, 0 partial**, where
 `1-Medical` alone used to have 432 of 819 partial. 13,304 bind at least one texture.
 `StructSizeTests` holds it, including a check that no reported property name or texture slot is
 absent from the package's own name table — a wrong correction resumes the walk mid-property and
@@ -768,7 +784,10 @@ These are the project's, and they are why its claims have held up.
 
 ## 7b. Where the project actually stands
 
-`docs/QUALITY.md` is a sweep of all 9,672 mesh exports and all 16,025 animations:
+`docs/QUALITY.md` is a sweep of all 9,672 mesh exports and all 16,025 animations. **Two mesh totals
+appear in these notes and both are right:** 9,672 is the older probe over the map packages, and
+**9,684** is the `diagnose` sweep over all 33 packages including the script packages. Quote the
+sweep's figure for anything current — it is the one pinned by `DocumentedFiguresTests`.
 
 | | Total | Good |
 |---|---|---|
@@ -966,7 +985,8 @@ the sweep is measuring the same game. Start from the three leads under item 5 ra
 fresh survey: the survey has been run.
 
 1. Read this file, then `docs/research/ANIMATION_COORDINATE_SYSTEM.md`.
-2. `dotnet build && dotnet test` — expect **308 passed, 0 failed, 0 skipped**.
+2. `dotnet test --filter Tier=Fast` while working; the whole suite before finishing. For the
+   expected count see the state table at the top of this file — it is stated there and nowhere else.
 3. **The section table is now consumed** — that was the previous session's item 3 and it is done.
    `MeshSurfaceResolver` pairs section *N* with `Materials[N]` and is shared by the preview, scene
    JSON, FBX and Blender. Sections and material slots agree on **8,668 of 8,668** shipped static
@@ -1054,9 +1074,9 @@ fresh survey: the survey has been run.
    the relationship tree now share one implementation, so a click means the same thing wherever it
    comes from. `AssetNavigationTests` (5 tests) and `DiagnosticsUiTests` (6) pass.
 
-   **State this was left in:** `dotnet build` is clean and those two classes pass, but the **full
-   suite has not been run since the navigation change**. Run `dotnet test` first — the expected
-   figure is 308 plus the 5 navigation and 3 sound-event tests added since.
+   ~~**State this was left in:** the full suite has not been run since the navigation change.~~
+   **It has now.** The full suite was run on 16 Aug 2026 and is green — see the state table at the
+   top. All of the work above is committed, in fourteen commits, each of which builds on its own.
 
    The Asset Inspector is still to do, and is easier now, because it wants the evidence the
    diagnostics service already produces.
@@ -1132,10 +1152,13 @@ finding ported from either may need the record widening.
 
 ## Open, recorded, deliberately unfixed
 
-- **`smg/smg_fire`** — one animation of 16,031 where `Bip01_R_Forearm` and `Bip01_R_ForeTwist`
-  collapse. Their tracks store Y and Z and omit X on a bone whose bind is `(25.05, 0, 0)`; Havok
-  would collapse them too. Not additive — every animation in the game is `blendHint 0`, by census.
-  The answer is probably in `sampleTranslation`, which is not in this SDK build.
+- ~~**`smg/smg_fire`** — one animation of 16,031 where `Bip01_R_Forearm` and `Bip01_R_ForeTwist`
+  collapse.~~ **The "one animation" framing was wrong and is corrected in §6.0c**, which supersedes
+  this entry: it is a family of four — `PI_Fire`, `PI_Fire_B`, `PI_fire_C` and `smg_fire`, all on
+  `AggressorBabyJane`, all 54 tracks against her 73 bones, all worst on frame 0. The rest of the
+  entry still stands: not additive (every animation in the game is `blendHint 0`, by census), and the
+  answer is probably in `sampleTranslation`, which is not in this SDK build. Four candidate causes
+  have been eliminated with evidence; see §6.0c before proposing a fifth.
 - **Bulk extraction is ~140 GB and hours long, and that is a deliberate open item.** Reported as
   "extraction is not working"; it is not — `ExtractionUiTests` drives the real command and the
   pipeline writes correct output (a 49-asset sample produced 2,478 files, including 457 per-animation
@@ -1145,14 +1168,59 @@ finding ported from either may need the record widening.
   once as floats in the scene JSON, once in the per-animation FBX files. Omitting the tracks from the
   JSON when FBX is also selected is the obvious fix and was **explicitly deferred by the user**, not
   overlooked. So were a size warning before a large job, and keeping the UI responsive during one.
-- **Skeletal meshes cannot be split by material** — no section table in that container. See item 6
-  under NEXT CLAUDE SESSION. The diagnostic sweep counts **153** meshes in this state, so the
-  scale of it is now known rather than estimated.
-- **Five material classes are read as if they were `Shader`** — `FluidShader`, `PlantShader`,
+- **Skeletal meshes cannot be split by material** — ~~no section table in that container.~~
+  **That reason was wrong: the table exists.** `UnMeshBioshock.cpp`'s `FStaticLODModelBio` opens with
+  `TArray<FSkelMeshSection>`, nine `uint16`s each, commented "1 section = 1 material" — item 6 under
+  NEXT CLAUDE SESSION, open question 11d, `reference-comparison.md` §3a. So this is open because the
+  work is not done, **not** because the data is missing, and it needs the payload walked from the
+  front rather than the vertex chain searched for. The diagnostic sweep counts **153** meshes in this
+  state, so the scale of it is known rather than estimated.
+- ~~**Five material classes are read as if they were `Shader`** — `FluidShader`, `PlantShader`,
   `LightBeamShader`, `MaterialSwitch`, `MaterialSequence`, `LayeredShader`. 522 meshes resolve a
-  material binding zero textures because of it. Open question 11b; read Nyko's material note first.
-- **Texture `Format` ordinal 12 is undecoded** — 274 exports, 64 distinct names, every one a normal
-  map. Open question 11c. The four known ordinals were each measured, and this one has not been.
+  material binding zero textures because of it.~~ **Superseded — this was fixed.** A texture binding
+  is now an `Object` property resolving to a `Texture` rather than a slot name on a list, and a
+  `Texture` named in a slot is itself a material. `mesh-no-diffuse` fell 755 → 240. What is left is
+  not all fault: `LightBeamShader` (64) genuinely has no base colour, and `MaterialSwitch` (38) and
+  `MaterialSequence` (4) are Modifiers wrapping sub-materials that nothing follows yet — that is the
+  clearest remaining piece. Open question 11b.
+- ~~**Texture `Format` ordinal 12 is undecoded** — 274 exports, 64 distinct names, every one a normal
+  map.~~ **Superseded — it is decoded.** It is **DXT5N**, not the 3DC/BC5 one reference project calls
+  it; all 274 exports now decode and `texture-undecodable` fell 320 → 46. Open question 11c,
+  `reference-comparison.md` §1. **What remains under that heading is different**: the 46 exports
+  carrying no `Format` property at all, whose 42 distinct names are all editor sprites and engine
+  placeholders. Whether they hold pixels is `UNKNOWN`.
+- **Every weapon in the `NEWPlayerHands` animations is backwards.** `REPORTED, NOT YET REPRODUCED` —
+  raised by the user, 16 Aug 2026, and **not investigated in the session that recorded it**, which was
+  under an explicit instruction not to touch decoding or rendering. It is written down here so it
+  cannot be lost, not because anything about it has been established.
+
+  It matters more than its position in this list suggests: **the first-person pistol is this
+  project's target case** (§1) and its hands-and-weapon set is the most-checked asset in the
+  repository. If the weapons are oriented wrongly, then a great deal of validation that reads green
+  is green on a wrong result — which is the exact failure mode §4 exists to record, twice over
+  (the mirrored years, and the wrong section/material pairing).
+
+  **Do not fix this by rotating the weapon.** Candidate causes worth measuring before changing
+  anything, none of them established:
+  - **`FCoords` may be a world-to-local basis, not local-to-world.** Unreal's `FCoords` is
+    conventionally the *inverse* transform. `SkeletalMeshReader.ReadSocketCoords` builds the matrix
+    from the axes as rows and uses it directly. A transposed rotation looks exactly like "backwards"
+    for a 180° yaw. **Note the counter-evidence:** every first-person weapon socket is recorded as
+    identity, and a transpose of identity is identity, so this alone cannot explain the first-person
+    case — which is what makes it worth measuring rather than assuming.
+  - **The weapon rig's own root.** A weapon skeleton is rooted at `R_grip` and is drawn with the
+    host's socket-bone transform. Whether the weapon's root reference orientation is being composed
+    in or discarded has never been checked.
+  - **The basis conversion is not a candidate** without new evidence: `C = diag(1,-1,1)` reflects
+    left/right, and every mesh, skeleton and animation goes through it once at four boundaries. A
+    fault there would mirror the whole scene rather than turn one attached rig around. See
+    `docs/research/ANIMATION_COORDINATE_SYSTEM.md` before touching any transform.
+
+  **How to check it honestly:** render it and look. `BIOSHOCK_RENDER_SNAPSHOT` writes the viewport
+  offscreen. The measurement that would settle it is the weapon's muzzle-to-grip axis against the
+  hands' forward axis, on several weapons — not one screenshot of the pistol, which is the asset
+  this project has repeatedly over-generalised from (§4, "the first-person rig is not a
+  representative sample").
 - **The `Melee` socket** — could be the wrench, pipe, machete, rake or shovel. Left unresolved
   rather than given whichever sorted first.
 - **Splicer variant ↔ animation set** — nothing in the data links a *particular* variant to a
