@@ -9,14 +9,14 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **332 passed, 0 failed, 0 skipped** — 10m32s. Measured 16 Aug 2026, after the shotgun attachment. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **333 passed, 0 failed, 0 skipped** — 10m39s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
 | **Reference projects** | **`docs/research/reference-comparison.md`** — what each of the four says about the structures we read, where they disagree, and which the bytes side with. Two contests settled this session; `UModel-master` went from "nothing mined" to the source of two findings. |
 | **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
 | **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
-| **Phase 2** | **Unlocked once 1C is finished** — confirmed by the user. 1C's last item is the Asset Inspector. Until it lands, do not begin level extraction. |
+| **Phase 2** | **Started.** 1C is finished — the Asset Inspector landed 16 Aug 2026 — so the unlock is spent. The existing `Core/Level` analyzer has now been **run for the first time** and is in better shape than "groundwork" suggested: `0-Lighthouse` gives **1,877 actors, 0 that fail to walk, 0 unresolved references**. See §"Phase 2 — where it actually stands". |
 
 **All tests pass against the installed game, none skipped.** For the current count see the table
 above; it is stated in one place on purpose, because it was previously written in three and went
@@ -1108,12 +1108,21 @@ fresh survey: the survey has been run.
    less than one that can also say "not this".** `ProblemOverlayTests` asserts both directions,
    including that a mesh whose materials all resolve renders byte-identical with the overlay on.
 
-   **The relationship tree is navigable — done, but NOT fully verified.** The details panel already
-   listed what an asset relates to and gave no way to go there. Every related asset is now a button
-   that opens it. The rule that turns a name into a browsable row moved out of the view model into
-   `AssetCatalogService.Resolve`, because it had already been duplicated once — the Problems panel and
-   the relationship tree now share one implementation, so a click means the same thing wherever it
-   comes from. `AssetNavigationTests` (5 tests) and `DiagnosticsUiTests` (6) pass.
+   **The relationship tree is navigable — done, and now verified by the full suite.** The details
+   panel already listed what an asset relates to and gave no way to go there. Every related asset is
+   now a button that opens it. The rule that turns a name into a browsable row moved out of the view
+   model into `AssetCatalogService.Resolve`, because it had already been duplicated once — the
+   Problems panel and the relationship tree now share one implementation, so a click means the same
+   thing wherever it comes from.
+
+   **The Asset Inspector is done, and with it Phase 1C.** Every asset kind now states what it is
+   (name, kind, Unreal class, export object, group, owning rig) and where it lives (package read
+   from, **every other package carrying it**, export index, payload). Both are built from the
+   catalogue row in one place in `AssetDetailsService`, so no kind can be missed and an asset that
+   fails to decode still says what and where it is instead of showing only an error. `Also in` is the
+   field that earns its place: `NEWPlayerHands` reports `5-Ryan` and is in twenty packages, and
+   treating a reported package as the only one has already made a click do nothing.
+   `AssetInspectorTests`; rendered and looked at.
 
    ~~**State this was left in:** the full suite has not been run since the navigation change.~~
    **It has now.** The full suite was run on 16 Aug 2026 and is green — see the state table at the
@@ -1153,6 +1162,47 @@ fresh survey: the survey has been run.
    which is the precondition for walking it. `docs/research/skeletalmesh.md`, open question 11d,
    `docs/research/reference-comparison.md` §3–§4. **This is the biggest single piece of work left in
    Phase 1.**
+
+## Phase 2 — where it actually stands
+
+**Measured 16 Aug 2026, on the first run the level analyzer has ever had.** `Core/Level` was written
+in an earlier session and had **no test and no caller** — nothing in the repository executed it — so
+its state was unknown rather than good. `LevelAnalysisTests` now runs it on a shipped map.
+
+`0-Lighthouse` — 22,780 exports, 596 imports:
+
+| | |
+|---|---|
+| Actors | **1,877** |
+| Actors whose property walk failed | **0** |
+| Unresolved references | **0** |
+| External references | 1 |
+| Actors with a static mesh | 912 (171 distinct meshes) |
+| Actors with a skeletal mesh | 132 (20 distinct) |
+| **BSP brushes** | **230** |
+| Lights | 318 |
+| Volumes | 137 |
+| Actors with geometry of any kind | 1,274 |
+
+**The actor layer is in good shape and is not the work.** Placement, class defaults, mesh references,
+material overrides, attachment parents and BSP brush references all resolve, and nothing is silently
+truncated.
+
+**What Phase 2 actually needs, in order:**
+
+1. **BSP geometry.** 230 actors reference a `Model`, and nothing decodes one. `Model`/`Polys` is the
+   container — the same one `AtlasLabsDoorAnim` ships, which is why that door has no drawable mesh
+   (§6.2). **This is the phase's real work.** `UModel-master/Unreal/` has BSP readers and
+   `Unreal-Library-master` is still entirely unmined; read both before deriving from bytes.
+2. **A level scene exporter.** There is no consumer for a `LevelContext` at all — no scene JSON, no
+   FBX, nothing in the GUI. The actor list resolves and then goes nowhere.
+3. **Lights.** 318 in one map, with `LightColor`, `LightBrightness` and `LightRadius` sitting in
+   `UninterpretedProperties`. Cheap to read and worth a great deal to anyone rebuilding a scene.
+4. **A world-bounds sanity check.** The measured bounds reach `Z = 262144` — exactly 2^18, which
+   smells like a default or a sentinel rather than a placed actor. Worth one look before any
+   exporter trusts the extents.
+
+**Do not start by rewriting `Core/Level`.** It measured clean on its first run.
 
 ## The four reference projects in the repo root — how far each has been mined
 
