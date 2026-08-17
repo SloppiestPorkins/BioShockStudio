@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using System.Linq;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using BioShockStudio.App.ViewModels;
 using BioShockStudio.App.Views;
 using BioShockStudio.Core.Services;
@@ -71,6 +72,65 @@ public sealed class WindowTests
         Assert.Empty(model.Assets);
 
         Assert.NotNull(window.CaptureRenderedFrame());
+    }
+
+    /// <summary>
+    /// Every control in the level viewport's toolbar is inside the window at the smallest size the
+    /// window allows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A user reported the toolbar cut off at the right edge, and it was: the controls sat in one
+    /// horizontal <c>StackPanel</c>, which lays out at its desired width and lets the excess run
+    /// past the window. Four toggles and the close button were unreachable at 1280 wide, and
+    /// nothing failed — a clipped control is still a laid-out control.
+    /// </para>
+    /// <para>
+    /// So this measures the geometry rather than the render: every leaf control's right edge,
+    /// translated into window coordinates, must fall inside the window. It is checked at
+    /// <c>MinWidth</c>, because that is the narrowest the window can legally be and therefore the
+    /// worst case the layout has to survive.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLevelToolbarFitsInsideTheWindowAtItsSmallest()
+    {
+        var model = new MainViewModel { HasLevelView = true };
+        var window = new MainWindow { DataContext = model, Width = 960, Height = 600 };
+        window.Show();
+
+        var tabs = window.GetVisualDescendants().OfType<TabControl>().First();
+        tabs.SelectedIndex = tabs.Items.OfType<TabItem>()
+            .Select((t, i) => (t, i)).First(x => (string?)x.t.Header == "Level").i;
+
+        Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame();
+
+        var toolbar = window.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Name == "LevelToolbar");
+        Assert.NotNull(toolbar);
+
+        var controls = toolbar!.GetVisualDescendants()
+            .OfType<Control>()
+            .Where(c => c is CheckBox or Button or Slider)
+            .ToList();
+
+        // Not vacuous: if the toolbar were not laid out at all, there would be nothing to measure.
+        Assert.True(controls.Count >= 6, $"only {controls.Count} controls were found in the toolbar");
+
+        var overflowing = new List<string>();
+
+        foreach (var control in controls)
+        {
+            if (control.TranslatePoint(new Avalonia.Point(control.Bounds.Width, 0), window) is not { } corner)
+                continue;
+            if (corner.X > window.Width + 0.5)
+                overflowing.Add($"{control.GetType().Name} '{(control as ContentControl)?.Content}' "
+                                + $"reaches x={corner.X:0} of {window.Width:0}");
+        }
+
+        Assert.True(overflowing.Count == 0,
+            "controls run past the right edge of the window and cannot be reached:"
+            + Environment.NewLine + string.Join(Environment.NewLine, overflowing));
     }
 
     /// <summary>Renders the window to a PNG so a human can look at the layout.</summary>

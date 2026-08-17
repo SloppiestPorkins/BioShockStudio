@@ -133,31 +133,54 @@
                 <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto" Margin="6,0,4,0"
                       IsVisible="{Binding HasLevelView}">
 
-                    <Border Grid.Row="0" Background="#14FFFFFF" CornerRadius="4" Padding="10" Margin="0,0,0,6">
-                        <StackPanel Orientation="Horizontal" Spacing="14">
-                            <TextBlock Text="W A S D  ·  Q E up/down  ·  drag to look  ·  Shift to sprint"
-                                       Opacity="0.75" VerticalAlignment="Center" />
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <TextBlock Text="Speed" Opacity="0.7" VerticalAlignment="Center" />
-                                <Slider Width="110" Minimum="0.2" Maximum="8" Value="{Binding LevelCameraSpeed}"
-                                        VerticalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <TextBlock Text="Detail" Opacity="0.7" VerticalAlignment="Center"
-                                           ToolTip.Tip="How many triangles a frame may draw. Higher looks better and costs more." />
-                                <Slider Width="110" Minimum="25000" Maximum="600000"
-                                        Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <CheckBox Content="Unpainted surfaces" IsChecked="{Binding ShowLevelUnpainted}"
-                                      ToolTip.Tip="Surfaces that resolve no base colour — light shafts, the ocean plane, glow cards, and materials that did not resolve. They draw as flat pale sheets that swallow the view." />
-                            <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
-                                      ToolTip.Tip="Light the level with its own 465 lights instead of the fixed studio lighting. Not the game's lighting model — BioShock bakes its static light into lightmaps, which this tool does not read." />
-                            <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"
-                                      ToolTip.Tip="Blocking volumes, triggers, water and zone markers. The game never draws these — their brushes are room-sized boxes." />
-                            <CheckBox Content="Source brushes" IsChecked="{Binding ShowSourceBrushes}"
-                                      ToolTip.Tip="The designer's original solids, before CSG carved the rooms out of them. The compiled world is the result; showing both stacks the uncarved blocks on top of the rooms." />
-                            <Button Content="Close view" Command="{Binding CloseLevelViewCommand}" />
-                        </StackPanel>
+                    <!-- ===== the viewport's controls =====
+
+                         A WrapPanel, not a row. As a single StackPanel this ran off the right edge
+                         of a 1280-wide window: the movement hint, two sliders and four toggles are
+                         wider than the space beside a 320-wide map list, so "Level lights", "Zones
+                         & triggers", "Source brushes" and "Close view" were clipped away and could
+                         not be reached at all. A control that cannot be reached is not a control.
+
+                         "Close view" is docked right and outside the wrap, so it keeps one place
+                         rather than moving as the rows reflow. -->
+                    <Border Grid.Row="0" Name="LevelToolbar" Background="#14FFFFFF" CornerRadius="4"
+                            Padding="10" Margin="0,0,0,6">
+                        <DockPanel LastChildFill="True">
+                            <Button DockPanel.Dock="Right" Content="Close view" VerticalAlignment="Center"
+                                    Margin="10,0,0,0" Command="{Binding CloseLevelViewCommand}" />
+
+                            <!-- Spacing is per-child margins: this Avalonia's WrapPanel has no
+                                 ItemSpacing or LineSpacing property. -->
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="W A S D  ·  Q E up/down  ·  drag to look  ·  Shift to sprint"
+                                           Opacity="0.75" VerticalAlignment="Center" Margin="0,0,14,6" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                            Margin="0,0,14,6">
+                                    <TextBlock Text="Speed" Opacity="0.7" VerticalAlignment="Center" />
+                                    <Slider Width="110" Minimum="0.2" Maximum="8" Value="{Binding LevelCameraSpeed}"
+                                            VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                            Margin="0,0,14,6">
+                                    <TextBlock Text="Detail" Opacity="0.7" VerticalAlignment="Center"
+                                               ToolTip.Tip="How many triangles a frame may draw. Higher looks better and costs more." />
+                                    <Slider Width="110" Minimum="25000" Maximum="600000"
+                                            Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <CheckBox Content="Unpainted surfaces" IsChecked="{Binding ShowLevelUnpainted}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Surfaces that resolve no base colour — light shafts, the ocean plane, glow cards, and materials that did not resolve. They draw as flat pale sheets that swallow the view." />
+                                <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Light the level with its own lights instead of the fixed studio lighting. Not the game's lighting model — BioShock bakes its static light into lightmaps, which this tool does not read." />
+                                <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Blocking volumes, triggers, water and zone markers. The game never draws these — their brushes are room-sized boxes." />
+                                <CheckBox Content="Source brushes" IsChecked="{Binding ShowSourceBrushes}"
+                                          Margin="0,0,0,6"
+                                          ToolTip.Tip="The designer's original solids, before CSG carved the rooms out of them. The compiled world is the result; showing both stacks the uncarved blocks on top of the rooms." />
+                            </WrapPanel>
+                        </DockPanel>
                     </Border>
 
                     <!-- Focusable so the movement keys reach it, and the pointer events drive the
