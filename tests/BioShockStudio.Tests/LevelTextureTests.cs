@@ -65,6 +65,17 @@ public sealed class LevelTextureTests(GameFixture game)
         Log($"prepared {level.Scene.PackageName} in {prepared.ElapsedMilliseconds} ms");
         Log($"  {level.Viewport.Items.Count} items, {level.Viewport.TotalTriangles:N0} triangles");
         Log($"  {level.TextureSummary}");
+
+        // What the texture cap actually costs, measured rather than assumed. Raising it from 256 to
+        // 1024 is sixteen times the pixels per texture, and the total is what decides whether that
+        // is affordable — for the level's own memory and for what is uploaded to the GPU.
+        long bytes = level.Viewport.Items
+            .SelectMany(i => i.Model.Surfaces)
+            .Select(s => s.Texture)
+            .Where(t => t is not null)
+            .Distinct()
+            .Sum(t => (long)t!.Rgba.Length);
+        Log($"  decoded texture memory: {bytes / 1024 / 1024:N0} MB (cap {LevelViewportService.MaximumTexture})");
         Log($"  camera starts at {level.Start.Position:0}");
 
         Assert.NotEmpty(level.Viewport.Items);

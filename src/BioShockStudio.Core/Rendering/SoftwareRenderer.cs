@@ -188,6 +188,16 @@ public sealed record RenderOptions
     /// <summary>How strongly <see cref="Lights"/> contribute, against the fixed studio lighting.</summary>
     public float LightIntensity { get; init; } = 1f;
 
+    /// <summary>
+    /// Draw volumetric-effect surfaces — light shafts and glow cards. <b>Off by default.</b>
+    /// </summary>
+    /// <remarks>
+    /// They bind no base colour and are meant to be blended additively through a falloff map, so
+    /// drawn as ordinary geometry they are flat opaque white sheets across the view. See
+    /// <see cref="EffectMaterials"/>.
+    /// </remarks>
+    public bool ShowEffects { get; init; }
+
     public byte BackgroundGrey { get; init; } = 32;
 }
 
@@ -405,6 +415,12 @@ public static class SoftwareRenderer
                 if (!ok) continue;
 
                 int surface = index < model.TriangleSurface.Count ? model.TriangleSurface[index] : -1;
+
+                // A light shaft or glow card, which has no base colour and is meant to be blended
+                // additively. Drawn as a surface it is an opaque white sheet across the view.
+                if (!options.ShowEffects && surface >= 0 && surface < model.Surfaces.Count
+                    && model.Surfaces[surface].IsEffect) continue;
+
                 var texture = surface >= 0 ? textures[surface] : null;
                 var normalMap = surface >= 0 ? normalMaps[surface] : null;
                 var specularMap = surface >= 0 ? specularMaps[surface] : null;

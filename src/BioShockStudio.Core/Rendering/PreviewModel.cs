@@ -43,6 +43,16 @@ public sealed record PreviewSurface(
     PreviewImage? SpecularMap = null)
 {
     public int TriangleCount => IndexCount / 3;
+
+    /// <summary>
+    /// True when this run is a volumetric effect rather than a surface — a light shaft or glow card.
+    /// </summary>
+    /// <remarks>
+    /// These are drawn additively through a falloff map by the engine and bind no base colour at
+    /// all, so drawn as ordinary geometry they are flat opaque white sheets. See
+    /// <see cref="EffectMaterials"/> for how they are identified and what they measured.
+    /// </remarks>
+    public bool IsEffect { get; init; }
 }
 
 /// <summary>

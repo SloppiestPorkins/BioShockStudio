@@ -65,10 +65,23 @@ public sealed record PreparedLevel
 public sealed class LevelViewportService(AssetCatalogService catalog)
 {
     /// <summary>
-    /// The largest texture edge kept for a level. See the class remarks — this is deliberately
-    /// smaller than <c>MeshPreviewService</c>'s cap.
+    /// The largest texture edge kept for a level.
     /// </summary>
-    public const int MaximumTexture = 256;
+    /// <remarks>
+    /// <para>
+    /// <b>Raised from 256 to 1024 after a user reported the level looking soft.</b> 256 was chosen
+    /// when the level viewport drew on the CPU, where every sample is a cache miss and the whole
+    /// working set has to stay small. The GPU changed that arithmetic: the textures are uploaded
+    /// once and sampled by hardware, and 256 was throwing away most of the detail the game ships —
+    /// its art is mostly 1024 and 2048.
+    /// </para>
+    /// <para>
+    /// 1024 matches <c>MeshPreviewService</c>'s cap, which is the point where more stops being
+    /// visible. <c>LevelTextureTests</c> reports the total decoded size so the cost of this is a
+    /// measured number rather than an assumption.
+    /// </para>
+    /// </remarks>
+    public const int MaximumTexture = 1024;
 
     public PreparedLevel Prepare(string packageFile, IProgress<string>? progress = null)
     {
@@ -247,7 +260,10 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                 result.Add(new PreviewSurface(
                     section.FirstIndex, section.IndexCount, decoded?.Name,
                     Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed),
-                    null, null));
+                    null, null)
+                {
+                    IsEffect = EffectMaterials.IsEffect(decoded?.ClassName),
+                });
 
                 sizes.Add(AuthoredSize(package, decoded, decoded?.DiffuseTexture, borrowed));
             }
@@ -260,7 +276,10 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         return ([.. surfaces.Select(s => new PreviewSurface(
             s.FirstIndex, s.IndexCount, s.Material?.Name,
             Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed),
-            null, null))], sizes);
+            null, null)
+        {
+            IsEffect = EffectMaterials.IsEffect(s.Material?.ClassName),
+        })], sizes);
     }
 
     /// <summary>

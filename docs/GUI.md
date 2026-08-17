@@ -92,6 +92,16 @@ selection would make browsing the map list feel broken.
 | **GPU** (`LevelGlViewport`) | An `OpenGlControlBase` — no new dependency, `Avalonia.OpenGL` ships in the Avalonia package. Uploads each distinct asset once as a VAO plus its textures, then draws the culled set per frame. |
 | **CPU** (`SoftwareRenderer`) | The fallback, **and the tested path** — Avalonia's headless renderer has no GL context, so every snapshot and pixel check in the suite comes from this one. |
 
+**The GL shader discards on alpha**, and its absence was a real fault: a great deal of BioShock's
+detail is a masked decal on a quad — blood splatter, grime, posters, gratings — where the alpha
+channel is what makes the quad invisible around the mark. Without the discard every one of them drew
+as an opaque rectangle. The geometry and the texture were both correct; the shader ignored alpha.
+
+**Level textures are capped at 1024**, matching the asset preview. It was 256 while the viewport
+drew on the CPU, where every sample is a cache miss and the working set has to stay small; the GPU
+changed that arithmetic, and 256 was discarding most of the detail the game ships (its art is mostly
+1024 and 2048). Measured cost on `0-Lighthouse`: **8 MB** of decoded texture for the whole level.
+
 Both consume the same `LevelViewport` selection and the same `GhostCamera`, so they draw the same
 scene. If the GL context, the shaders or the upload fail, the window falls back **and says so** in
 the status line — a viewport that silently becomes twenty times slower reads as a broken feature.
@@ -119,7 +129,15 @@ Three switches, and two of them are **off by default** because what they show is
 |---|---|---|
 | **Zones & triggers** | off | A blocking volume, trigger, water volume or zone marker is a region the engine tests against and never draws. Its brush is a room-sized box, so shown they are enormous grey slabs that swallow the view. |
 | **Source brushes** | off | A brush is the *input* to CSG; the compiled world is its *output*. Drawing both stacks the uncarved solids on top of the rooms carved from them — most of what "weird boxes covering everything" turns out to be. |
+| **Light beams** | off | Light shafts and glow cards — `LightBeamShader`. They bind **no base colour** and the engine blends them additively through a falloff map, so drawn as ordinary surfaces they are flat opaque white sheets. 19 instances / 1,338 triangles on `0-Lighthouse`. |
 | **Level lights** | off | See below. |
+
+The beam filter works per **surface** rather than per instance. On Lighthouse that turns out not to
+matter — all 19 beam instances are beams throughout, so the shafts are authored as their own meshes
+— but a fixture that mixed a shade with its shaft would otherwise vanish entirely, and per-surface
+cannot go wrong. All three filters key off the **game's own statement**: an actor's class for the
+volumes, a material's class for the beams. Never a name; `HANDOFF.md` §4 records what a name-based
+allowlist cost this project once already.
 
 Volumes are identified by the actor's class ending in `Volume`, `Trigger` or `ZoneInfo` — the game's
 own statement of what the thing is. A suffix test rather than a fixed list, because the game ships

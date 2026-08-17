@@ -52,7 +52,9 @@ public sealed class LevelGlViewport : OpenGlControlBase
     private const int GlTextureWrapT = 0x2803;
     private const int GlRepeat = 0x2901;
 
-    private sealed record Batch(int Vao, int Vbo, int Ebo, int IndexCount, List<(int First, int Count, int Texture)> Runs);
+    private sealed record Batch(
+        int Vao, int Vbo, int Ebo, int IndexCount,
+        List<(int First, int Count, int Texture, bool IsEffect)> Runs);
 
     private readonly Dictionary<PreviewModel, Batch> _batches = [];
     private readonly Dictionary<PreviewImage, int> _textures = [];
@@ -204,8 +206,12 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
                 gl.BindVertexArray(batch.Vao);
 
-                foreach (var (first, count, texture) in batch.Runs)
+                foreach (var (first, count, texture, isEffect) in batch.Runs)
                 {
+                    // Light shafts and glow cards: no base colour, meant to be blended additively.
+                    // Drawn as surfaces they are opaque white sheets across the view.
+                    if (isEffect && !Filter.ShowEffects) continue;
+
                     gl.ActiveTexture(GL_TEXTURE0);
                     gl.BindTexture(GL_TEXTURE_2D, texture == 0 ? _white : texture);
                     gl.Uniform1f(_texturedUniform, texture == 0 ? 0f : 1f);
@@ -289,13 +295,13 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
         // One draw per surface, so a mesh with several materials draws with all of them rather than
         // with its first — the same rule MeshSurfaceResolver enforces everywhere else.
-        var runs = new List<(int, int, int)>();
+        var runs = new List<(int, int, int, bool)>();
         foreach (var surface in model.Surfaces)
         {
             int texture = surface.Texture is null ? 0 : Texture(gl, surface.Texture);
-            runs.Add((surface.FirstIndex, surface.IndexCount, texture));
+            runs.Add((surface.FirstIndex, surface.IndexCount, texture, surface.IsEffect));
         }
-        if (runs.Count == 0) runs.Add((0, indices.Length, 0));
+        if (runs.Count == 0) runs.Add((0, indices.Length, 0, false));
 
         return new Batch(vao, vbo, ebo, indices.Length, runs);
     }
@@ -395,12 +401,20 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
         void main()
         {
+            vec4 albedo = texture(uTexture, vUv);
+
+            // Cut out the holes. A great deal of BioShock's detail is a masked decal on a quad —
+            // blood splatter, grime, posters, gratings — and the alpha channel is what makes the
+            // quad invisible around the mark. Without this discard every one of them draws as an
+            // opaque rectangle, which is what "blood splatters are bugged entirely" turned out to
+            // be: the geometry and the texture were both correct and the shader ignored alpha.
+            if (uTextured > 0.5 && albedo.a < 0.35) discard;
+
             vec3 normal = normalize(vNormal);
             float key = max(dot(normal, normalize(vec3(0.4, 0.6, 0.8))), 0.0);
             float fill = max(dot(normal, normalize(vec3(-0.5, -0.3, 0.2))), 0.0) * 0.35;
             float ambient = 0.35;
 
-            vec4 albedo = texture(uTexture, vUv);
             vec3 base = mix(vec3(0.72), albedo.rgb, uTextured);
 
             fragColour = vec4(base * (ambient + key * 0.75 + fill), 1.0);

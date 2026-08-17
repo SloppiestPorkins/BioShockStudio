@@ -98,6 +98,43 @@ public sealed record ViewportItem(PreviewModel Model, Matrix4x4 Transform, Vecto
         || ActorClass.EndsWith("ZoneInfo", StringComparison.Ordinal);
 }
 
+/// <summary>
+/// Material classes that describe a <b>volumetric effect</b> rather than a surface.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A light shaft, a corona or a glow card is geometry the engine draws <i>additively</i> through a
+/// falloff map, so it reads as light in the air. This project reads the falloff and dust maps but
+/// has no additive path and no volumetric model, and these materials bind <b>no base colour at
+/// all</b> — so drawn as ordinary surfaces they come out as flat opaque white sheets. A user
+/// photographed a chandelier surrounded by exactly that.
+/// </para>
+/// <para>
+/// <b>Measured on <c>0-Lighthouse</c>: 34 surfaces and 8,264 triangles</b> of
+/// <c>Light_Beam_01</c>, <c>VolumeLight_Undewater</c>, <c>MidTown_ShaderBeams</c> and
+/// <c>CityGlowBkd</c>, on <c>StaticMeshActor</c> and <c>NonPhysicalReactiveActor</c>.
+/// </para>
+/// <para>
+/// <b>Keyed on the material's class, never on its name.</b> The class is the game's own statement of
+/// what a material is; a name test would both miss beams that are not called "beam" and catch walls
+/// that are. <c>docs/HANDOFF.md</c> §4 records what an allowlist of names cost this project the last
+/// time one was used to decide what a material was.
+/// </para>
+/// </remarks>
+public static class EffectMaterials
+{
+    /// <summary>
+    /// The classes treated as effects. <c>LightBeamShader</c> is the one the handoff already
+    /// records as having no base colour by design — "reporting one would be an invention".
+    /// </summary>
+    public static readonly IReadOnlySet<string> ClassNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "LightBeamShader",
+    };
+
+    public static bool IsEffect(string? className) => className is not null && ClassNames.Contains(className);
+}
+
 /// <summary>What a level viewport should draw.</summary>
 /// <remarks>
 /// <para>
@@ -119,9 +156,19 @@ public sealed record LevelViewFilter
     public bool ShowSourceBrushes { get; init; }
     public bool ShowVolumes { get; init; }
 
+    /// <summary>
+    /// Draw light shafts and glow cards. <b>Off by default</b> — see <see cref="EffectMaterials"/>.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the other two this is a <b>per-surface</b> filter, not a per-instance one: a light
+    /// fixture is one mesh whose shade is architecture and whose shafts are not, so hiding the whole
+    /// instance would take the lamp with the beam.
+    /// </remarks>
+    public bool ShowEffects { get; init; }
+
     /// <summary>Everything, including the things the game never draws.</summary>
     public static readonly LevelViewFilter Everything =
-        new() { ShowSourceBrushes = true, ShowVolumes = true };
+        new() { ShowSourceBrushes = true, ShowVolumes = true, ShowEffects = true };
 
     public bool Accepts(ViewportItem item)
     {

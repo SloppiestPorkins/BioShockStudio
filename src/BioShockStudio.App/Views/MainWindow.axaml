@@ -148,6 +148,8 @@
                                 <Slider Width="110" Minimum="25000" Maximum="600000"
                                         Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
                             </StackPanel>
+                            <CheckBox Content="Light beams" IsChecked="{Binding ShowLevelEffects}"
+                                      ToolTip.Tip="Light shafts and glow cards. They bind no base colour and the engine blends them additively through a falloff map, so drawn as ordinary surfaces they are opaque white sheets." />
                             <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
                                       ToolTip.Tip="Light the level with its own 465 lights instead of the fixed studio lighting. Not the game's lighting model — BioShock bakes its static light into lightmaps, which this tool does not read." />
                             <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"
