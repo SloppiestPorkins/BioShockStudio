@@ -1,36 +1,41 @@
 # BioShock 1 Remastered Model Studio
 
 A Windows reverse-engineering and asset-extraction tool for **BioShock 1 Remastered only**, aimed at
-recovering skeletal meshes, skeletons, skinning, Havok animation data and first-person viewmodel
-assets in a form Blender and Unreal Engine 5 can use.
+recovering skeletal meshes, skeletons, skinning, Havok animation data, materials, textures, whole
+levels and first-person viewmodel assets in a form Blender and other DCC tools can use.
 
 The target case is the first-person pistol: find it, resolve its hands, skeleton, animation package,
 animations, sockets and materials automatically, decode the Havok data, bind it correctly, and
-export something that plays back correctly in UE5.
+export something that plays back correctly.
 
 ## Status
 
 **A shipped package goes in and a skinned, textured, animated Blender file or FBX set comes out.**
 The first-person hands mesh, its skeleton, its weapon sockets, its material and all 130 animations
 extract and play correctly. The FBX is validated by importing it back and comparing against the
-game's own transforms; it has not yet been imported into Unreal.
+game's own transforms.
 
 | Area | State |
 |---|---|
-| `.bsm` package format | Complete. All 21 shipped packages parse byte-exact. |
-| Asset index | Complete: 812,435 exports indexed. |
+| `.bsm` package format | Complete. All 21 map packages plus the script packages parse byte-exact. |
+| Asset index | Complete: 812,435 exports indexed, 14,378 distinct assets browsable. |
 | Havok packfile, fixups, object graph | Complete. |
 | `AnimationPackageRoot` | Complete — the class UEViewer reports as unknown. |
 | `hkaSkeleton` | Complete, original bone indices preserved. |
 | `hkaAnimationBinding` | Complete, from Havok's own track-to-bone array. |
-| Spline decompression | Complete. 130/130 animations decode, zero failures. |
-| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights. ~40% of meshes decode. |
-| Materials | `Shader` and `FacingShader` decode; a mesh names its own shader in its payload. |
+| Spline decompression | Complete. **16,031 of 16,031 animations decode**, zero failures, 47,560 events. |
+| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis, per-material sections. **954 of 972 exports decode (98.1%)** — the 18 that do not are all doors. |
+| `StaticMesh` | Complete: all 8,668 shipped exports, including the section table. |
+| Materials | 13,545 walked with none partial; **96.4% of meshes carry a base colour**. |
+| Textures | DXT1/3/5 and DXT5N, PNG + DDS. The 8 GB bulk mip store is indexed and resolved per group. |
+| Levels | Actors, BSP source brushes and the compiled world assemble into a scene: `0-Lighthouse` is 1,141 placed objects, 2,181,021 triangles and 465 lights. Scene JSON + OBJ out. |
 | Blender export | Complete: skinned mesh, armature, actions, sockets, materials. |
 | FBX export | Complete: binary 7.4, validated by round trip through Blender. |
-| UE5 import | Files written and a helper script exists; **nothing has been imported into UE5 yet**. |
-| Application | Avalonia: discovery, browse 71,106 assets, search, details, texture preview, extraction. See [docs/GUI.md](docs/GUI.md). |
-| 3D preview | Not started. |
+| 3D preview | Complete: asset viewport with animation playback and weapon attachment, plus a **walkable level viewport** (GPU, with a tested software fallback). |
+| Diagnostics | `AssetDiagnostics` in Core, shared by the `diagnose` command and the window's Problems panel. |
+| Lightmaps | **Not started.** The descriptor chain is documented; levels draw flat-lit. |
+| UE5 import | **Out of scope, never attempted.** The tool does not offer a UE5 export, because that would claim a verification nobody has done. |
+| Audio | Event → sound-name chain decoded. **Where sample data lives is `UNKNOWN`**, and the investigation is closed. |
 
 
 See [docs/research/](docs/research/) for the evidence behind every claim and
@@ -69,6 +74,15 @@ dotnet run --project src/BioShockStudio.Cli -- scan
 | `export-blender <package> <object> <out-dir> [owner]` | Write the Blender scene JSON. |
 | `export-fbx <package> <object> <out-dir> [owner]` | Write FBX plus the Unreal manifest. |
 | `export-firstperson <weapon> <out-dir> [--fbx]` | Assemble the hands, the weapon and both animation sets. |
+| `meshes <package> [pattern]` | Decode each mesh's geometry and report what it carries. |
+| `textures <package> [pattern]` | Resolve textures, including the ones whose mips live in the bulk store. |
+| `export-textures <package> <out-dir> [pattern]` | Write PNG and DDS. |
+| `characters <package>` | Group meshes into characters by the ragdoll their packfile declares. |
+| `context <package> <object>` | An asset with everything it depends on resolved. |
+| `animation <package> <object> <name>` | One animation's tracks, frame by frame. |
+| `audit-animations` | Whole-game animation sweep: decode, binding, events, bone rigidity. |
+| `diagnose [package]` | Every diagnostic the tool can produce, with its evidence. |
+| `names <package> [pattern]` | The package's name table. |
 
 Example — the first-person hands animation package:
 
@@ -142,7 +156,13 @@ src/BioShockStudio.Core/
 ├── Skeleton/     internal skeleton representation
 ├── Animation/    internal animation, tracks and binding
 ├── Export/       Blender scene JSON, and Fbx/ the binary FBX writer
-├── Mesh/         SkeletalMesh header and sockets
+├── Mesh/         SkeletalMesh and StaticMesh readers, sockets, section tables
+├── Materials/    shader walk, texture binding, per-section resolution
+├── Textures/     DXT decode, bulk mip resolution, PNG/DDS writers
+├── Level/        actors, BSP source brushes, the compiled world, scene assembly
+├── Rendering/    software rasteriser, camera, preview models
+├── Services/     catalogue, preview, extraction, level services — no window
+├── Diagnostics/  one list of everything the tool knows is wrong
 ├── Assets/       whole-game export index, AnimationPackage
 └── Game/         install detection
 src/BioShockStudio.Cli/
