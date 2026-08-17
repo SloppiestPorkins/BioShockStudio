@@ -78,6 +78,18 @@ public sealed record BspSurface
     /// </remarks>
     public required int Unknown20 { get; init; }
 
+    /// <summary>
+    /// The brush actor CSG built this surface from, as the surface itself names it.
+    /// </summary>
+    /// <remarks>
+    /// Read rather than skipped because it is the only stated link between the compiled world and
+    /// the source brushes, and therefore the only ground truth available for how a brush actor's
+    /// transform composes: the same polygon exists twice, once in brush space and once in world
+    /// space, and the placement rule is whatever maps one onto the other.
+    /// <c>BrushPlacementTests</c> is that measurement.
+    /// </remarks>
+    public required PackageIndex Actor { get; init; }
+
     public required float LightMapScale { get; init; }
 
     /// <summary>Whether this surface is architecture rather than a zone, portal or backdrop pane.</summary>
@@ -342,7 +354,7 @@ public static class BspWorldReader
             int unknown = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 20));
             offset += 24;
 
-            PropertyValues.ReadCompactIndex(data, ref offset);               // Actor
+            var actor = new PackageIndex(PropertyValues.ReadCompactIndex(data, ref offset));
 
             if (offset + 20 > data.Length)
                 throw new InvalidDataException($"{source}: surface {i} of {count} ran past the payload.");
@@ -359,6 +371,7 @@ public static class BspWorldReader
                 TextureU = textureU,
                 TextureV = textureV,
                 Unknown20 = unknown,
+                Actor = actor,
                 LightMapScale = lightMapScale,
             });
         }

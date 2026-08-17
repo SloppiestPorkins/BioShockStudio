@@ -225,7 +225,14 @@ layer does not resolve materials, so it cannot know the sizes and does not inven
 > every surface to a single texel, fails rather than merely looking odd.
 
 **`TextureU` and `TextureV` are zero on some polygons** — the first brush in `0-Lighthouse` has all
-four axes zero — so a zero UV is real data, not a decode failure. How many is not yet counted.
+four axes zero — so a zero UV is real data, not a decode failure.
+
+**Counted, across every shipped map: 17,802 of 93,264 brush polygons (19.1%) carry no texture axes**,
+and the two axes are always absent *together* — no polygon carries half a parameterisation. **None of
+the 17,802 names a material.** So the brush set has no polygon that would be drawn with a collapsed
+UV: missing axes and missing texture are the same polygons, which is what makes this content rather
+than a decode gap. `BspGeometryTests.HowManyBrushPolygonsCarryNoTextureAxesIsCounted`, which asserts
+both halves.
 
 ---
 
@@ -406,21 +413,54 @@ V = V' × (SizeY/1024) + (TileY + 0.5)/1024
 skips all three: they are zoning, portal and backdrop surfaces, not architecture. **Any level
 exporter has to honour these or the level comes out full of invisible walls.**
 
+### 5.7 The surface's `Actor` is the link back to the source brush — and it settles the placement
+
+`FBspSurf.Actor` was read and discarded until now. It is the only stated correspondence between the
+compiled world and the brushes it was built from, and it turns a question that had no ground truth
+into a measurement: **the same polygon exists twice**, once in brush space in a `Polys` export and
+once in world space in the `Model`, so the placement rule is whatever maps one onto the other.
+
+The metric is the **plane**, not the vertices: CSG clips a brush against its neighbours, so vertices
+do not survive and areas do not match, but a clipped polygon stays in the plane it was cut from.
+
+Measured over six maps — `0-Lighthouse`, `1-Medical`, `2-Fisheries`, `3-Arcadia`, `6-Slums`,
+`7-Science` — **33,632 world polygons**, each matched against the planes of the brush its surface
+names:
+
+| candidate placement | polygons within 1 cm of a plane of their own brush |
+|---|---|
+| **`Location − PrePivot`, no rotation or scale** | **33,631 / 33,632 = 100.0%** |
+| the full actor transform | 33,631 / 33,632 = 100.0% |
+| `Location` alone | 982 / 33,632 = 2.9% |
+| no placement at all | 297 / 33,632 = 0.9% |
+
+Worst matched offset **0.82 cm**. The single miss is `0-Lighthouse Brush12`, whose nearest parallel
+plane sits **2.09 cm** away — unexplained, and recorded rather than tuned away.
+
+**So the translation is `CONFIRMED_BYTES`**, and the pre-pivot is load-bearing: dropping it costs
+97% of the match. **The rotation and the scale are not**, because the first two rows are identical
+for a reason — *no CSG brush carries either*. Across all shipped maps, **0 of 13,443 brush actors are
+scaled and 17 are rotated**, and all 17 are `ShockDamageVolume`s: gameplay regions, never drawn,
+never in the built world. For those 17 the composition order stays `UNKNOWN`, and no shipped byte
+distinguishes it.
+
+**A subtracted brush's face points the other way.** 25,726 of the 33,632 matched polygons oppose the
+normal of the source poly they came from and 7,905 agree with it — Rapture is mostly carved out of
+solid, and the match is made on the plane precisely so that this does not look like a failure.
+
 ---
 
 ## 6. What is NOT established
 
-- **The built world is not implemented.** §5 is read from two external sources and has not been
-  verified against a single shipped byte by this project. It stays `CONFIRMED_EXTERNAL` until it is.
 - **`FBspSurf +20`** — `iBrushPoly` or `iLightMap`. The references disagree. `UNKNOWN`.
-- **How a brush actor's transform composes.** A `Polys` holds brush-local geometry; the `Brush`
-  actor carries `Location`, `Rotation`, `PrePivot` and scale, and the order they compose in has not
-  been measured. Nothing in this project places a brush in the world yet.
+- **How a rotated or scaled brush actor's transform composes.** The translation is settled — §5.7,
+  `CONFIRMED_BYTES` against the compiled world — but rotation and scale are not, because no brush
+  that reaches the built world carries either. The 17 rotated brushes in the game are all damage
+  volumes and there is no shipped geometry to check them against. `UNKNOWN`.
 - **Whether the 27 sheet brushes and 4 non-manifold brushes are content or a decode gap.** They walk
   to the exact byte, so the bytes are read correctly; what they *are* is unmeasured.
 - **CSG.** A level is brushes added and subtracted. This reader returns each brush's raw solid, which
   is the source geometry, not the resulting world. `CsgOper` sits in `UninterpretedProperties`.
-- **How many polygons carry zero texture axes**, and therefore how much of the brush set has no UV.
 
 ---
 

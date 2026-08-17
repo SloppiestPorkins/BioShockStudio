@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using BioShockStudio.Core.Export;
+using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
 using Xunit;
@@ -194,6 +195,76 @@ public sealed class LevelSceneTests(GameFixture game)
         Log($"brush actors {brushes.Count}: {rotated} rotated, {scaled} scaled, {prePivoted} with a PrePivot");
 
         Assert.NotEmpty(brushes);
+    }
+
+    /// <summary>
+    /// Every shipped map, swept for a brush actor that carries a rotation or a scale.
+    /// </summary>
+    /// <remarks>
+    /// The Lighthouse census above says 0 of that map's 230 brush actors is rotated or scaled, which
+    /// is why <see cref="LevelSceneBuilder.BrushPlacement"/> is barely exercised. One rotated brush
+    /// anywhere in the game is the sample that would settle the composition order, so this asks the
+    /// whole game rather than the one map, and logs the map, actor and rotation of anything it finds.
+    /// </remarks>
+    [RequiresGameFact]
+    public void EveryMapIsSweptForABrushActorThatIsRotatedOrScaled()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm")
+            .OrderBy(f => f, StringComparer.Ordinal).ToList();
+
+        int brushes = 0, rotated = 0, scaled = 0, prePivoted = 0;
+        var found = new List<string>();
+        var classes = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var context = LevelAnalyzer.Analyze(package);
+
+            var mapBrushes = context.Brushes.ToList();
+            int mapRotated = 0, mapScaled = 0;
+
+            foreach (var actor in mapBrushes)
+            {
+                bool isRotated = !actor.Transform.Rotation.IsIdentity;
+                bool isScaled = actor.Transform.Scale != Vector3.One;
+
+                if (isRotated) mapRotated++;
+                if (isScaled) mapScaled++;
+                if (actor.Transform.PrePivot != Vector3.Zero) prePivoted++;
+
+                if (isRotated || isScaled)
+                {
+                    found.Add($"{Path.GetFileNameWithoutExtension(map)} {actor.Source.ObjectName}: "
+                              + $"{actor.Transform}");
+                    classes.Add(actor.Source.ClassName);
+                }
+            }
+
+            brushes += mapBrushes.Count;
+            rotated += mapRotated;
+            scaled += mapScaled;
+
+            Log($"{Path.GetFileNameWithoutExtension(map),-20} brushes {mapBrushes.Count,5}, "
+                + $"rotated {mapRotated,4}, scaled {mapScaled,4}");
+        }
+
+        Log($"ALL MAPS: {maps.Count} maps, {brushes} brush actors, {rotated} rotated, {scaled} scaled, "
+            + $"{prePivoted} with a PrePivot");
+        foreach (string line in found.Take(40)) Log("  " + line);
+
+        // Not vacuous: the sweep has to have read a real population of brushes for its answer to
+        // mean anything.
+        Assert.True(maps.Count >= 20, $"only {maps.Count} maps were swept");
+        Assert.True(brushes > 1_000, $"only {brushes} brush actors across the whole game");
+
+        // The answer, as an assertion that can fail. No brush actor in the shipped game is scaled,
+        // and every rotated one is a VOLUME — a gameplay region, never drawn — so no visible brush
+        // anywhere exercises the rotation or scale part of the placement rule. A future session
+        // that finds this red has found the sample that would settle it.
+        Assert.Equal(0, scaled);
+        Assert.All(classes, name => Assert.EndsWith("Volume", name, StringComparison.Ordinal));
+        Assert.True(rotated > 0, "no brush actor is rotated at all, so even the volumes stopped being read");
     }
 
     [RequiresGameFact]

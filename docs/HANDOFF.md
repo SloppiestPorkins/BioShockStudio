@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **378 passed, 0 failed, 0 skipped** — 13m (19m48s on a cold run; that is the file cache, not the tests). Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **381 passed, 0 failed, 0 skipped** — 19m25s. Measured 17 Aug 2026, at the end of the brush-placement session; it was 378 in 13m before it. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1205,6 +1205,72 @@ that is the test that would have caught two of these.
 - **25 rows preview a mesh with a different name** — `Int_Seagrass` → `IntSeagrass_Mesh`,
   `FlowerVase` → `flower_vase_mesh`. All checked; all the game's own naming. No rule distinguishes
   them from a real fault by name alone, so the sweep asserts a ceiling rather than zero.
+
+## Session of 17 Aug 2026 (later) — brush placement, settled against the compiled world
+
+The handover's first Phase 2 polish item was: `LevelSceneBuilder.BrushPlacement` is `LIKELY` and
+barely exercised, 0 of Lighthouse's 230 brush actors is rotated, **sweep the other maps for one that
+is** — because that would be the sample that settles the composition order.
+
+**Both halves of that were answered, and the second one only because the ground truth turned out to
+be sitting in a field this project read and threw away.**
+
+### The sweep: 17 rotated brushes in the whole game, and every one is a volume
+
+All shipped maps, every brush actor: **13,443 brushes, 0 scaled, 17 rotated, 13,255 with a
+PrePivot**. The 17 are on `6-Resi` (2), `6-Slums` (3) and `ChallengeRoomCombat` (12), and all 17 are
+`ShockDamageVolume`s — gameplay regions, never drawn.
+
+So **no visible brush anywhere in BioShock exercises the rotation or scale part of the placement
+rule**, and no rendered evidence can ever settle it. `LevelSceneTests` asserts that as a fact that
+can fail: 0 scaled, and every rotated brush a `Volume`. If a future session finds it red, it has
+found the sample this one could not.
+
+### The ground truth: `FBspSurf.Actor`, which was being read and discarded
+
+CSG built the compiled world **from these same brushes**, and every surface names the brush actor it
+came from. So the same polygon exists twice — once in brush space in a `Polys`, once in world space
+in the `Model` — and the placement rule is whatever maps one onto the other. That field was already
+being parsed for its length and dropped; it is now on `BspSurface`.
+
+Matching on the **plane** rather than the vertices, because CSG clips a brush against its neighbours
+but a clipped polygon stays in the plane it was cut from. Six maps, **33,632 world polygons**:
+
+| candidate | within 1 cm of a plane of its own brush |
+|---|---|
+| **`Location − PrePivot`** (the rule in use) | **33,631 / 33,632 = 100.0%** |
+| the full actor transform | 33,631 / 33,632 = 100.0% |
+| `Location` alone | 982 = 2.9% |
+| no placement | 297 = 0.9% |
+
+Worst matched offset **0.82 cm**. `BrushPlacementTests`. **The translation is now `CONFIRMED_BYTES`**
+and the pre-pivot is load-bearing — dropping it costs 97% of the match, which is what makes the pass
+a measurement rather than a wide tolerance.
+
+**The rotation and the scale are still `UNKNOWN`**, and the first two rows say why: they are
+identical because no brush that reaches the built world carries either. This is the honest limit of
+what shipped data can say.
+
+Two things fell out that are worth keeping:
+
+- **`0-Lighthouse Brush12` is the one polygon that misses**, by 2.09 cm — an order of magnitude past
+  the tolerance and unexplained. Recorded, not tuned away. It may be the same effect as the 12
+  world polygons that sit >1 cm off their own plane.
+- **A subtracted brush's face points the other way.** 25,726 of the matched polygons oppose the
+  normal of the source poly they came from and 7,905 agree. Rapture is mostly carved out of solid.
+  The first attempt matched only same-facing planes and scored 23.5%, which looked like a broken
+  placement rule and was a broken *metric*.
+
+`docs/research/bsp.md` §5.7 has the full write-up; §6 loses the brush-transform entry and the stale
+"the built world is not implemented" line, which the previous session had already falsified.
+
+### The other polish item, closed by counting: brush polygons with no UV
+
+`bsp.md` §4 said a zero texture axis is real data and "how many is not yet counted". Counted:
+**17,802 of 93,264 brush polygons (19.1%) carry no texture axes**, `TextureU` and `TextureV` always
+absent together, and **none of the 17,802 names a material**. Missing axes and missing texture are
+the same polygons, so nothing in the brush set would ever be drawn with a collapsed UV — content,
+not a decode gap. Both halves are asserted.
 
 ## Phase 2 — where it actually stands
 

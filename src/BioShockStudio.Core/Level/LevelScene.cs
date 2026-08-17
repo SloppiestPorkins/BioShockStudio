@@ -258,12 +258,23 @@ public static class LevelSceneBuilder
     /// takes.
     /// </para>
     /// <para>
-    /// <b>Status: <c>LIKELY</c>, and it is the weakest claim in this file.</b> It is what makes the
-    /// shipped brushes assemble into a coherent level rather than a heap at the origin, which is
-    /// evidence, but "the rooms line up" is not the same as "the composition order is right" — a
-    /// level whose brushes are all unrotated would look identical under several wrong rules.
-    /// <c>LevelGeometryPlacementTests</c> records how many brush actors carry a rotation or a scale
-    /// at all, which is the measurement that says how much this claim is actually being exercised.
+    /// <b>Status: <c>CONFIRMED_BYTES</c> for the translation, measured against the compiled world.</b>
+    /// CSG built the world from these same brushes and every <c>FBspSurf</c> names the brush actor it
+    /// came from, so the same polygon exists twice — once in brush space, once in world space.
+    /// <c>33,631 of 33,632</c> world polygons across six maps land in a plane of the brush they name,
+    /// within 1 cm, once placed by this rule; the worst matched offset is 0.82 cm and the one that
+    /// misses (<c>0-Lighthouse Brush12</c>) misses by 2.1 cm. Dropping the pre-pivot drops the match
+    /// to <c>2.9%</c>, so the comparison distinguishes the rules rather than accepting anything.
+    /// <c>BrushPlacementTests</c>.
+    /// </para>
+    /// <para>
+    /// <b>What is still not established is the rotation and the scale.</b> This rule discards both,
+    /// and the full actor transform scores identically above — because <b>no CSG brush carries
+    /// either</b>. A sweep of all shipped maps finds <c>0 of 13,443</c> brush actors scaled and
+    /// <c>17</c> rotated, and every one of the 17 is a <c>ShockDamageVolume</c>: a gameplay region,
+    /// never drawn, never part of the built world. So nothing visible in the shipped game
+    /// distinguishes this rule from the full transform, and for those 17 volumes the composition
+    /// order remains <c>UNKNOWN</c>. <c>LevelSceneTests</c> holds both censuses.
     /// </para>
     /// </remarks>
     public static Matrix4x4 BrushPlacement(ActorTransform transform) =>

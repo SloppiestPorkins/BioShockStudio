@@ -40,7 +40,7 @@ verified:
 ```bash
 dotnet build
 dotnet test --filter Tier=Fast      # ~28s — run this constantly, while working
-dotnet test --filter Tier=Sweep     # ~10min — run this before you finish
+dotnet test --filter Tier=Sweep     # ~19min — run this before you finish
 dotnet test                         # both; what a handover reports
 ```
 

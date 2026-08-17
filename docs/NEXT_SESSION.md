@@ -26,10 +26,11 @@ repository; this file only tells it where to look and what not to re-derive.
 ```bash
 dotnet build
 dotnet test --filter Tier=Fast     # ~30s; run this constantly
-dotnet test                        # ~13 min; the figure to report
+dotnet test                        # ~20 min; the figure to report
 ```
 
-Expect **378 passed, 0 failed, 0 skipped** (~13 min). Record what you actually get. If anything
+Expect **381 passed, 0 failed, 0 skipped** (~19m25s; it was 13 min before the brush-placement
+sweeps, which read every map). Record what you actually get. If anything
 fails, classify per §24 before touching code. `DocumentedFiguresTests` asserts the headline numbers
 in `docs/QUALITY.md` — if it goes red the *documentation* may be what is wrong. Never relax it.
 
@@ -61,17 +62,17 @@ whatever is in front and has caught the user's browser before.
 
 ## What to do, in priority order
 
-1. **Finish Phase 2 polish** — the only item from the user's list not started.
-   - `LevelSceneBuilder.BrushPlacement` is `LIKELY` and **barely exercised**: 0 of Lighthouse's 230
-     brush actors carry a rotation or scale, so "the level assembles" is not evidence for the
-     composition order. Sweep the other 20 maps for a brush actor that *is* rotated — if one exists,
-     it is the test that would settle it.
+1. **Finish Phase 2 polish** — two of the four items are now closed; these two are not.
    - **12 world polygons sit >1 cm off their own plane** (worst 7.4), on `0-Lighthouse` and
-     `7-Gauntlet`. Unexplained; float precision at 80,000 units accounts for ~8 mm, not 7 cm.
-   - **How many brush polygons carry zero texture axes** is still uncounted, so how much of the BSP
-     set has no UV at all is unknown.
+     `7-Gauntlet`. Unexplained; float precision at 80,000 units accounts for ~8 mm, not 7 cm. It may
+     be the same effect as the one brush polygon that misses its own plane by 2.09 cm
+     (`0-Lighthouse Brush12`, `BrushPlacementTests`) — that is a lead, not an established link.
    - **4 skeletal meshes' sections overrun the index buffer** by 2, 5, 5 and 8 faces. The table is
      right; something is short at the end of a buffer this project locates *by search*. `UNKNOWN`.
+   - ~~Brush placement~~ — **settled**. `Location − PrePivot` is `CONFIRMED_BYTES` against the
+     compiled world; rotation and scale stay `UNKNOWN` because no brush in the built world carries
+     either. `bsp.md` §5.7, and the HANDOFF section for 17 Aug (later).
+   - ~~Brush polygons with no texture axes~~ — **counted**: 17,802 of 93,264, none of them textured.
 
 2. **Lightmaps** — the largest remaining piece, and the one that would make a level look like
    BioShock rather than like flat-lit geometry. The whole descriptor chain is documented in

@@ -271,6 +271,68 @@ public sealed class BspGeometryTests(GameFixture game)
     }
 
     /// <summary>
+    /// How many brush polygons carry no texture axes, and therefore have no UV at all.
+    /// </summary>
+    /// <remarks>
+    /// A polygon's UV is <c>dot(v − Base, TextureU/V)</c>. A zero axis is not a small UV, it is no
+    /// parameterisation: every vertex collapses to the same coordinate on that axis, and whatever is
+    /// bound is sampled at a single texel. This was recorded as uncounted in <c>bsp.md</c> §6 —
+    /// "how much of the brush set has no UV at all is unknown" — so this counts it, and counts how
+    /// many of those name a material, because a polygon with no texture is entitled to no axes.
+    /// </remarks>
+    [RequiresGameFact]
+    public void HowManyBrushPolygonsCarryNoTextureAxesIsCounted()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int polygons = 0, noU = 0, noV = 0, noneAtAll = 0, noneAndTextured = 0;
+        var examples = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+
+            foreach (var export in PolysReader.Enumerate(package))
+            {
+                foreach (var polygon in PolysReader.Read(package, export).Polygons)
+                {
+                    polygons++;
+
+                    bool flatU = polygon.TextureU.LengthSquared() < 1e-12f;
+                    bool flatV = polygon.TextureV.LengthSquared() < 1e-12f;
+                    if (flatU) noU++;
+                    if (flatV) noV++;
+                    if (!flatU && !flatV) continue;
+
+                    noneAtAll++;
+                    if (!polygon.Material.IsNull)
+                    {
+                        noneAndTextured++;
+                        if (examples.Count < 10)
+                            examples.Add($"{Path.GetFileNameWithoutExtension(map)} {export.ObjectName} "
+                                         + $"'{polygon.ItemName}' U {polygon.TextureU:0.##} V {polygon.TextureV:0.##}");
+                    }
+                }
+            }
+        }
+
+        Log($"brush polygons {polygons}: {noU} with no TextureU, {noV} with no TextureV, "
+            + $"{noneAtAll} missing at least one ({100.0 * noneAtAll / polygons:0.###}%), "
+            + $"of which {noneAndTextured} name a material");
+        foreach (string line in examples) Log("  " + line);
+
+        Assert.True(polygons > 50_000, $"only {polygons} brush polygons were read");
+
+        // The two axes are always absent together — a polygon never carries half a parameterisation.
+        Assert.Equal(noU, noV);
+
+        // And nothing that is textured is missing them: every one of the 17,802 names no material,
+        // so the brush set has no polygon that would be drawn with a collapsed UV. This is the
+        // assertion that would fail if the missing axes were a decode gap rather than content.
+        Assert.Equal(0, noneAndTextured);
+    }
+
+    /// <summary>
     /// What sits at the extremes of the level's measured bounds.
     /// </summary>
     /// <remarks>
