@@ -282,17 +282,45 @@ The 35% is a property of the route, not a failure: a mesh whose socket table doe
 cannot be reached this way and draws in one material exactly as before. `WP_CrossbowMesh` and
 `TommyGunMESH` — both named in the handoff — now report 2 sections each, materials 0 and 1.
 
-### An unexplained discrepancy, clamped rather than hidden
+### ~~An unexplained discrepancy~~ — CLOSED. Nothing was short; `FirstFace` is not where a section starts
 
-**4 meshes of 331 have sections reaching past the end of the index buffer this project found**, by
-**2, 5, 5 and 8 faces** on meshes of 7,000 to 19,600 triangles: `WP_CrossbowMesh`, `TommyGunMESH`,
-`TunnelCollapse_Mesh`, `SubAnim_Mesh`.
+The note here used to read: *"4 meshes of 331 have sections reaching past the end of the index buffer
+this project found, by 2, 5, 5 and 8 faces… `UNKNOWN` which side is short. This project locates the
+index buffer by search rather than by walking the payload, which makes it the more likely
+candidate."*
 
-A misread table would be wildly wrong rather than off by two, so the table is being read correctly
-and the disagreement is at the very end of the index buffer. **`UNKNOWN` which side is short.** This
-project locates the index buffer by *search* rather than by walking the payload, which makes it the
-more likely candidate — and that is a suspicion, not a finding.
+**That suspicion is refuted, and the index buffer was never short.** Swept over every shipped section
+table — the 21 map packages plus `ShockGame.U`:
 
-The overshoot is **clamped, not rejected**. Rejecting the table over eight faces would put a
-12,592-face mesh back to a single material, and the pairing for every face this project actually has
-is unaffected — the overshoot addresses triangles that are not in the index buffer to draw.
+| claim, over 337 tables | agrees | disagrees |
+|---|---|---|
+| The sections' `NumFaces` add up to **exactly** the index buffer's face count | **337** | **0** |
+| `MinStreamIndex` equals the running index total (sections are contiguous) | 336 | 1 |
+| `FirstFace` equals the running face total | 333 | **4** |
+| The largest `MaxWedgeIndex` is the vertex pool's last index | 337 | 0 |
+
+The first row settles it. If a buffer were short by 8 faces, the section counts could not add up to
+its length; they do, on every mesh in the game. **The sections tile the buffer with no gaps**, and
+the four "overrunning" meshes are the ones whose stored `FirstFace` is a few faces larger than where
+the section actually begins:
+
+| mesh | `FirstFace` | where the section starts | drift |
+|---|---|---|---|
+| `TommyGunMESH` | 4,926 | 4,924 | 2 |
+| `TunnelCollapse_Mesh` | 14,493 | 14,487 | 6 |
+| `SubAnim_Mesh` | 9,525 | 9,519 | 6 |
+| `WP_CrossbowMesh` | 7,148 | 7,140 | 8 |
+
+`MinStreamIndex` confirms the true position independently: on `WP_CrossbowMesh` it is 21,420, which
+is 7,140 × 3, not 7,148 × 3. Its single exception is arithmetic rather than semantic —
+`CoreTop_Mesh`'s second section stores 10,244 where the running index total is 75,780, and
+**75,780 − 65,536 = 10,244**: the field is a `uint16` and it wrapped.
+
+**What `FirstFace` means on those four is `UNKNOWN`** and it is preserved rather than corrected —
+plausibly a face index in a pre-optimisation triangle list, which is a hypothesis with no evidence
+behind it yet.
+
+**The clamp is gone.** A section is now placed at the running total of the sections before it, which
+cannot overrun by construction, and the reader instead asserts the sum identity above. A table that
+fails it is reported as no table rather than clamped into agreement: a wrong material pairing is
+invisible to every count, while drawing in one material is a visible, honest degradation.

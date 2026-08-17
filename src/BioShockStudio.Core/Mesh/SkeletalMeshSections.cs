@@ -23,8 +23,37 @@ public readonly record struct SkeletalMeshSection(
     ushort FirstFace,
     ushort NumFaces)
 {
+    /// <summary>
+    /// Where this section actually begins in the index buffer, in faces: the running total of the
+    /// sections stored before it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not <see cref="FirstFace"/>, and that is measured.</b> Across all 337 shipped section
+    /// tables the sections' <c>NumFaces</c> add up to <b>exactly</b> the index buffer's face count —
+    /// 337 of 337, no exceptions — so the sections tile the buffer with no gaps. <c>FirstFace</c>
+    /// agrees with that running total on 333 of them and disagrees on four, by 2, 5, 6 and 8 faces:
+    /// <c>TommyGunMESH</c>, <c>WP_CrossbowMesh</c>, <c>TunnelCollapse_Mesh</c>,
+    /// <c>SubAnim_Mesh</c>. Those four are the meshes previously recorded as "sections overrun the
+    /// index buffer".
+    /// </para>
+    /// <para>
+    /// <b>Nothing was ever short.</b> The note in <c>skeletalmesh.md</c> suspected the index buffer,
+    /// because this project locates it by search — that suspicion is refuted by the sum identity
+    /// above. <see cref="MinStreamIndex"/> confirms it independently: it equals the running index
+    /// total on 336 of 337, and the one exception, <c>CoreTop_Mesh</c>, is a <c>uint16</c> wrap —
+    /// 25,260 faces × 3 = 75,780, and 75,780 − 65,536 = 10,244, which is the value stored.
+    /// </para>
+    /// <para>
+    /// What <c>FirstFace</c> means on those four is <b>UNKNOWN</b>; it is preserved rather than
+    /// corrected. Placing a section by the running total cannot overrun by construction, which is
+    /// why the clamp this reader used to apply is gone.
+    /// </para>
+    /// </remarks>
+    public int FirstFaceInBuffer { get; init; }
+
     /// <summary>The section's triangles as a range into the index buffer.</summary>
-    public int FirstIndex => FirstFace * 3;
+    public int FirstIndex => FirstFaceInBuffer * 3;
 
     public int IndexCount => NumFaces * 3;
 
@@ -141,45 +170,41 @@ public static class SkeletalMeshSectionReader
             if (end != geometry.BoneMapOffset - CompactIndexWidth(payload, geometry.BoneMapOffset)) return null;
 
             var sections = new SkeletalMeshSection[sectionCount];
+            int runningFace = 0;
+
             for (int i = 0; i < sectionCount; i++)
             {
                 int at = offset + i * SectionStride;
                 sections[i] = new SkeletalMeshSection(
                     Read16(payload, at), Read16(payload, at + 2), Read16(payload, at + 4),
                     Read16(payload, at + 6), Read16(payload, at + 8), Read16(payload, at + 10),
-                    Read16(payload, at + 12), Read16(payload, at + 14), Read16(payload, at + 16));
+                    Read16(payload, at + 12), Read16(payload, at + 14), Read16(payload, at + 16))
+                {
+                    // Sections tile the buffer in stored order. See FirstFaceInBuffer.
+                    FirstFaceInBuffer = runningFace,
+                };
+                runningFace += sections[i].NumFaces;
             }
 
             if (!validateAgainstGeometry) return sections;
 
-            // A few meshes' sections reach past the end of the index buffer this project found.
+            // The table has to describe THIS index buffer, and the test of that is arithmetic: the
+            // sections' face counts must add up to exactly the buffer's faces. Measured across every
+            // shipped table, 337 of 337 do.
             //
-            // Measured: 4 of 331 do, by 2, 5, 5 and 8 faces on meshes of 7,000 to 19,600 —
-            // WP_CrossbowMesh, TommyGunMESH, TunnelCollapse_Mesh, SubAnim_Mesh. A misread table
-            // would be wildly wrong, not off by two, so the table is being read correctly and the
-            // disagreement is at the very end of the index buffer. UNKNOWN which side is short;
-            // this project locates the index buffer by SEARCH rather than by walking the payload,
-            // which makes it the more likely candidate.
+            // This replaces a clamp. The clamp existed because four meshes' sections appeared to
+            // reach past the end of the buffer — they do not, and never did: FirstFace is simply not
+            // where a section starts. Placing sections by their running total makes an overrun
+            // impossible by construction, and the sum below is what makes that safe rather than
+            // assumed.
             //
-            // Clamped, not rejected. Rejecting the whole table over eight faces would put a
-            // 12,592-face mesh back to drawing in a single material, and the pairing for every face
-            // this project actually has is unaffected — the overshoot addresses triangles that are
-            // not in the index buffer to draw. A section starting entirely beyond the end is
-            // dropped, because nothing can be said about it at all.
+            // A table that fails it is not clamped into agreement: nothing can be said about which
+            // triangles it means, and a wrong material pairing is invisible to every count. So it is
+            // reported as no table, which degrades the mesh to one material — visible and honest.
             int triangles = geometry.IndexCount / 3;
-            var clamped = new List<SkeletalMeshSection>(sections.Length);
+            if (runningFace != triangles) return null;
 
-            foreach (var section in sections)
-            {
-                if (section.FirstFace >= triangles) continue;
-
-                int available = triangles - section.FirstFace;
-                clamped.Add(section.NumFaces <= available
-                    ? section
-                    : section with { NumFaces = (ushort)available });
-            }
-
-            return clamped.Count > 0 ? clamped : null;
+            return sections;
         }
         catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException)
         {

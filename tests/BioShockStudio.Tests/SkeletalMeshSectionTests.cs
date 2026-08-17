@@ -41,6 +41,7 @@ public sealed class SkeletalMeshSectionTests(GameFixture game)
 
         int meshes = 0, withSections = 0, sectionsTotal = 0, multiMaterial = 0;
         var mismatches = new List<string>();
+        var firstFaceDisagrees = new List<string>();
 
         foreach (string file in packages)
         {
@@ -63,16 +64,33 @@ public sealed class SkeletalMeshSectionTests(GameFixture game)
                 if (sections.Count > 1) multiMaterial++;
 
                 // Every section the reader RETURNS must lie inside the index buffer the geometry
-                // reader found independently. The reader clamps the four meshes whose raw table
-                // reaches past it, so this asserts the guarantee rather than measuring raw data —
-                // the overshoots are reported by the weapon-package test, which logs them.
+                // reader found independently.
                 int triangles = geometry.IndexCount / 3;
                 foreach (var section in sections)
                 {
-                    if (section.FirstFace + section.NumFaces > triangles)
+                    if (section.FirstFaceInBuffer + section.NumFaces > triangles)
                         mismatches.Add(
                             $"{export.ObjectName}: section covers faces "
-                            + $"{section.FirstFace}..{section.FirstFace + section.NumFaces - 1} of {triangles}");
+                            + $"{section.FirstFaceInBuffer}..{section.FirstFaceInBuffer + section.NumFaces - 1} "
+                            + $"of {triangles}");
+                }
+
+                // The identity the placement rests on: the sections tile the buffer exactly. This is
+                // what makes "place each section after the one before it" a decode rather than a
+                // convenient assumption, and it is the assertion that can fail.
+                int covered = sections.Sum(s => (int)s.NumFaces);
+                if (covered != triangles)
+                    mismatches.Add($"{export.ObjectName}: sections total {covered} faces, "
+                                   + $"the index buffer has {triangles}");
+
+                // And the raw field that does NOT place a section, recorded rather than hidden:
+                // FirstFace agrees with the running total on all but four meshes in the game.
+                if (sections.Any(s => s.FirstFace != s.FirstFaceInBuffer))
+                {
+                    firstFaceDisagrees.Add($"{export.ObjectName}: "
+                        + string.Join(", ", sections
+                            .Where(s => s.FirstFace != s.FirstFaceInBuffer)
+                            .Select(s => $"FirstFace {s.FirstFace} against {s.FirstFaceInBuffer}")));
                 }
             }
         }
@@ -89,10 +107,22 @@ public sealed class SkeletalMeshSectionTests(GameFixture game)
         // The yield is a measurement of how far the fix goes, not a target to hit.
         Log($"  yield: {withSections} of {meshes} ({(double)withSections / meshes:P0})");
 
-        // Nothing may address triangles the mesh does not have.
+        Log($"  meshes where the raw FirstFace disagrees with the running total: {firstFaceDisagrees.Count}");
+        foreach (string line in firstFaceDisagrees) Log("    " + line);
+
+        // Nothing may address triangles the mesh does not have, and every table must tile its own
+        // buffer exactly.
         Assert.True(mismatches.Count == 0,
             $"{mismatches.Count} sections fall outside their mesh's own index buffer:"
             + Environment.NewLine + string.Join(Environment.NewLine, mismatches.Take(5)));
+
+        // Four meshes in the game store a FirstFace that is not where the section begins —
+        // TommyGunMESH, WP_CrossbowMesh, TunnelCollapse_Mesh, SubAnim_Mesh. What the field means on
+        // those is UNKNOWN. A ceiling rather than an equality: this sweep covers the map packages,
+        // and the weapon package's two are counted by the test below.
+        Assert.True(firstFaceDisagrees.Count <= 4,
+            $"{firstFaceDisagrees.Count} meshes disagree, up from the 4 measured:"
+            + Environment.NewLine + string.Join(Environment.NewLine, firstFaceDisagrees.Take(8)));
     }
 
     /// <summary>
@@ -117,17 +147,19 @@ public sealed class SkeletalMeshSectionTests(GameFixture game)
             try { payload = package.ReadExportData(export); }
             catch { continue; }
 
-            // Diagnostic: what the raw table says against what the geometry reader found, for the
-            // meshes the reader rejects. Two independent walks disagreeing by a small constant is a
-            // finding; a wild disagreement is a misread.
+            // Diagnostic: the raw FirstFace against where the section actually begins. Where these
+            // differ, FirstFace used to be read as the section's position and made the table look
+            // as though it overran the index buffer. It never did — the sections' face counts add
+            // up to the buffer exactly. See SkeletalMeshSection.FirstFaceInBuffer.
             if (SkeletalMeshSectionReader.ReadUnvalidated(payload, package.Names) is { } raw
                 && SkeletalMeshReader.DescribeGeometry(payload) is { } g)
             {
                 int faces = g.IndexCount / 3;
                 int reach = raw.Max(s => s.FirstFace + s.NumFaces);
                 if (reach > faces)
-                    Log($"  CLAMPED {export.ObjectName}: sections reach face {reach}, mesh has {faces} "
-                        + $"(over by {reach - faces}), {raw.Count} sections");
+                    Log($"  RAW FirstFace {export.ObjectName}: reaches face {reach} against {faces} in the "
+                        + $"buffer (by {reach - faces}); the sections total "
+                        + $"{raw.Sum(s => (int)s.NumFaces)} faces, which is the buffer exactly");
             }
 
             var sections = SkeletalMeshSectionReader.Read(payload, package.Names);

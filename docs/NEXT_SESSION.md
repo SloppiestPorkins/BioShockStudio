@@ -66,8 +66,9 @@ whatever is in front and has caught the user's browser before.
    - ~~12 world polygons off their own plane~~ — **explained**: snapped corners on oblique planes,
      shipped data, `bsp.md` §5.6b. The deviation is the plane's slope times the distance travelled,
      and all twelve keep a vertex exactly on plane.
-   - **4 skeletal meshes' sections overrun the index buffer** by 2, 5, 5 and 8 faces. The table is
-     right; something is short at the end of a buffer this project locates *by search*. `UNKNOWN`.
+   - ~~4 skeletal meshes' sections overrun the index buffer~~ — **closed, and nothing was short**.
+     The sections' face counts add up to the buffer exactly on 337 of 337 tables; `FirstFace` is
+     simply not where a section begins. `skeletalmesh.md`, and the clamp is gone.
    - ~~Brush placement~~ — **settled**. `Location − PrePivot` is `CONFIRMED_BYTES` against the
      compiled world; rotation and scale stay `UNKNOWN` because no brush in the built world carries
      either. `bsp.md` §5.7, and the HANDOFF section for 17 Aug (later).
