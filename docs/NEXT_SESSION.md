@@ -29,7 +29,7 @@ dotnet test --filter Tier=Fast     # ~30s; run this constantly
 dotnet test                        # ~20 min; the figure to report
 ```
 
-Expect **387 passed, 0 failed, 0 skipped** (~19m31s; it was 13 min at the start of 17 Aug, before
+Expect **388 passed, 0 failed, 0 skipped** (~19m23s; it was 13 min at the start of 17 Aug, before
 the whole-game sweeps that settled brush placement and the section tables). Record what you actually get. If anything
 fails, classify per §24 before touching code. `DocumentedFiguresTests` asserts the headline numbers
 in `docs/QUALITY.md` — if it goes red the *documentation* may be what is wrong. Never relax it.
