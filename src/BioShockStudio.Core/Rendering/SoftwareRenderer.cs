@@ -189,14 +189,14 @@ public sealed record RenderOptions
     public float LightIntensity { get; init; } = 1f;
 
     /// <summary>
-    /// Draw volumetric-effect surfaces — light shafts and glow cards. <b>Off by default.</b>
+    /// Draw surfaces that resolve no base colour. <b>Off by default</b> in a level view.
     /// </summary>
     /// <remarks>
-    /// They bind no base colour and are meant to be blended additively through a falloff map, so
-    /// drawn as ordinary geometry they are flat opaque white sheets across the view. See
-    /// <see cref="EffectMaterials"/>.
+    /// An unpainted surface draws as a flat pale sheet — a light shaft, the ocean plane, a glow
+    /// card, or a material that did not resolve. See <c>LevelViewFilter.ShowUnpainted</c>, which
+    /// records how little architecture hiding them actually costs.
     /// </remarks>
-    public bool ShowEffects { get; init; }
+    public bool ShowUnpainted { get; init; } = true;
 
     public byte BackgroundGrey { get; init; } = 32;
 }
@@ -416,12 +416,13 @@ public static class SoftwareRenderer
 
                 int surface = index < model.TriangleSurface.Count ? model.TriangleSurface[index] : -1;
 
-                // A light shaft or glow card, which has no base colour and is meant to be blended
-                // additively. Drawn as a surface it is an opaque white sheet across the view.
-                if (!options.ShowEffects && surface >= 0 && surface < model.Surfaces.Count
-                    && model.Surfaces[surface].IsEffect) continue;
-
                 var texture = surface >= 0 ? textures[surface] : null;
+
+                // A surface with no base colour draws as a flat pale sheet — a light shaft, the
+                // ocean plane, or a material that did not resolve. At a level's scale those are what
+                // swallow a view.
+                if (!options.ShowUnpainted && texture is null) continue;
+
                 var normalMap = surface >= 0 ? normalMaps[surface] : null;
                 var specularMap = surface >= 0 ? specularMaps[surface] : null;
 

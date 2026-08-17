@@ -85,9 +85,9 @@ public partial class MainViewModel
     [ObservableProperty] private bool _useLevelLights;
 
     /// <summary>Draw light shafts and glow cards. Off by default — they have no base colour.</summary>
-    [ObservableProperty] private bool _showLevelEffects;
+    [ObservableProperty] private bool _showLevelUnpainted;
 
-    partial void OnShowLevelEffectsChanged(bool value) => SettleLevelCamera();
+    partial void OnShowLevelUnpaintedChanged(bool value) => SettleLevelCamera();
 
     partial void OnUseLevelLightsChanged(bool value) => SettleLevelCamera();
 
@@ -99,7 +99,7 @@ public partial class MainViewModel
     {
         ShowVolumes = ShowLevelVolumes,
         ShowSourceBrushes = ShowSourceBrushes,
-        ShowEffects = ShowLevelEffects,
+        ShowUnpainted = ShowLevelUnpainted,
     };
 
     private GhostCamera _levelCamera = new();
@@ -276,7 +276,7 @@ public partial class MainViewModel
                     {
                         ShowSkeleton = false, ShowSockets = false, Textured = true,
                         Lights = lights,
-                        ShowEffects = filter.ShowEffects,
+                        ShowUnpainted = filter.ShowUnpainted,
                     },
                     width, height);
                 return (rendered, chosen);

@@ -44,41 +44,50 @@ public sealed class LightBeamProbeTests(GameFixture game)
     /// </para>
     /// </remarks>
     [RequiresGameFact]
-    public void LightBeamSurfacesAreExcludedWithoutTakingTheirFixtures()
+    public void HidingUnpaintedSurfacesCostsAlmostNoArchitecture()
     {
-        var prepared = new LevelViewportService(new AssetCatalogService()).Prepare(game.LighthousePackage);
+        var service = new LevelViewportService(new AssetCatalogService());
 
-        int effectSurfaces = 0, effectTriangles = 0;
-        int instancesWithBeams = 0, instancesEntirelyBeams = 0;
-
-        foreach (var item in prepared.Viewport.Items)
+        foreach (string map in new[] { "0-Lighthouse", "1-Medical" })
         {
-            int beams = item.Model.Surfaces.Count(s => s.IsEffect);
-            if (beams == 0) continue;
+            var prepared = service.Prepare(
+                Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), map + ".bsm"));
 
-            instancesWithBeams++;
-            if (beams == item.Model.Surfaces.Count) instancesEntirelyBeams++;
+            int byDesign = 0, unresolved = 0;
+            int worldTriangles = 0, worldHidden = 0;
 
-            effectSurfaces += beams;
-            effectTriangles += item.Model.Surfaces.Where(s => s.IsEffect).Sum(s => s.IndexCount / 3);
+            foreach (var item in prepared.Viewport.Items)
+            {
+                bool isWorld = item.Kind == LevelGeometryKind.BuiltWorld;
+
+                foreach (var surface in item.Model.Surfaces)
+                {
+                    int triangles = surface.IndexCount / 3;
+                    if (isWorld) worldTriangles += triangles;
+                    if (surface.Texture is not null) continue;
+
+                    if (surface.NoBaseColourByDesign) byDesign++; else unresolved++;
+                    if (isWorld) worldHidden += triangles;
+                }
+            }
+
+            // Triangles, not surface count. A surface is a whole material run, so on a small map a
+            // single unpainted run is a large share of very few runs while being almost none of the
+            // geometry — Lighthouse's compiled world is 15 runs, and counting runs made 4 of them
+            // look like 27% when it is a ninth of the triangles.
+            double share = worldTriangles == 0 ? 0 : (double)worldHidden / worldTriangles;
+
+            Log($"{map}: unpainted surfaces — {byDesign} by design, {unresolved} unresolved");
+            Log($"  compiled world: {worldHidden:N0} of {worldTriangles:N0} triangles hidden ({share:P1})");
+
+            Assert.True(byDesign > 0, $"{map}: nothing was recognised as having no base colour by design");
+
+            // The claim the filter rests on: hiding unpainted surfaces removes flat sheets, not
+            // rooms. If this ever climbs, the filter starts punching holes in architecture.
+            Assert.True(share < 0.25,
+                $"{map}: {share:P0} of the compiled world's triangles are unpainted, so hiding them "
+                + "would remove real architecture rather than flat sheets");
         }
-
-        Log($"light-beam surfaces: {effectSurfaces} over {instancesWithBeams} instances, "
-            + $"{effectTriangles:N0} triangles; {instancesEntirelyBeams} instances are beams throughout");
-
-        Assert.True(effectSurfaces > 0, "no light-beam surfaces were identified at all");
-
-        // The classification keys off the material class, so every flagged surface must actually be
-        // one — a name-based rule would drift into walls, which is the failure §4 records.
-        Assert.All(
-            prepared.Viewport.Items.SelectMany(i => i.Model.Surfaces).Where(s => s.IsEffect),
-            s => Assert.True(s.Texture is null,
-                $"a light-beam surface ({s.MaterialName}) bound a base colour, so it is probably not one"));
-
-        // Recorded, not asserted either way: on this map every beam instance is beams throughout,
-        // so a per-instance filter would be equivalent. Pinning that as a requirement would be
-        // pinning an accident of how Lighthouse is authored.
-        Assert.Equal(instancesWithBeams, instancesEntirelyBeams);
     }
 
     [RequiresGameFact]

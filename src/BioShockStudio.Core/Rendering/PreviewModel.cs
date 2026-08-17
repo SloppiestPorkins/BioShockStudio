@@ -45,14 +45,15 @@ public sealed record PreviewSurface(
     public int TriangleCount => IndexCount / 3;
 
     /// <summary>
-    /// True when this run is a volumetric effect rather than a surface — a light shaft or glow card.
+    /// True when this run's material has no base colour <b>by design</b> rather than by failure.
     /// </summary>
     /// <remarks>
-    /// These are drawn additively through a falloff map by the engine and bind no base colour at
-    /// all, so drawn as ordinary geometry they are flat opaque white sheets. See
-    /// <see cref="EffectMaterials"/> for how they are identified and what they measured.
+    /// Reporting only — the renderer hides an unpainted surface on whether it has a
+    /// <see cref="Texture"/>, not on this. It separates "the game never gave this one a colour"
+    /// (a light shaft, water) from "the material did not resolve", which are the same pixels and
+    /// very different facts. See <see cref="UnpaintedMaterials"/>.
     /// </remarks>
-    public bool IsEffect { get; init; }
+    public bool NoBaseColourByDesign { get; init; }
 }
 
 /// <summary>

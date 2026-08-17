@@ -262,7 +262,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed),
                     null, null)
                 {
-                    IsEffect = EffectMaterials.IsEffect(decoded?.ClassName),
+                    NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(decoded?.ClassName),
                 });
 
                 sizes.Add(AuthoredSize(package, decoded, decoded?.DiffuseTexture, borrowed));
@@ -278,7 +278,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed),
             null, null)
         {
-            IsEffect = EffectMaterials.IsEffect(s.Material?.ClassName),
+            NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(s.Material?.ClassName),
         })], sizes);
     }
 

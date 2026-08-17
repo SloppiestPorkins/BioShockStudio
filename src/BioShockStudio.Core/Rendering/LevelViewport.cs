@@ -99,40 +99,45 @@ public sealed record ViewportItem(PreviewModel Model, Matrix4x4 Transform, Vecto
 }
 
 /// <summary>
-/// Material classes that describe a <b>volumetric effect</b> rather than a surface.
+/// Material classes known to carry <b>no base colour by design</b>, rather than by failure.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A light shaft, a corona or a glow card is geometry the engine draws <i>additively</i> through a
-/// falloff map, so it reads as light in the air. This project reads the falloff and dust maps but
-/// has no additive path and no volumetric model, and these materials bind <b>no base colour at
-/// all</b> — so drawn as ordinary surfaces they come out as flat opaque white sheets. A user
-/// photographed a chandelier surrounded by exactly that.
+/// Kept as documentation and for reporting, <b>not</b> as the filter's rule — the filter hides any
+/// surface with no base colour, whatever the reason (see <c>LevelViewFilter.ShowUnpainted</c>).
+/// This records <i>why</i> the largest groups have none, which is the part a future session would
+/// otherwise have to re-derive.
 /// </para>
+/// <list type="bullet">
+///   <item><description>
+///     <c>LightBeamShader</c> — light shafts and glow cards. The engine blends them additively
+///     through a falloff map; there is no base colour to report and the handoff already records
+///     that "reporting one would be an invention". <b>19 instances, 1,338 triangles</b> on
+///     <c>0-Lighthouse</c>: <c>Light_Beam_01</c>, <c>VolumeLight_Undewater</c>,
+///     <c>MidTown_ShaderBeams</c>.
+///   </description></item>
+///   <item><description>
+///     <c>FluidShader</c> / <c>FluidSurfaceShader</c> — water. <c>OilyOcean_Shader</c>,
+///     <c>OceanUnderwater_Shader</c>, <c>RoundPuddleCalm</c>. The handoff records 83 of these, of
+///     which 63 bind textures but none a <c>WaterDiffuseMap</c>. These are <i>real geometry</i>,
+///     unlike a light shaft — the ocean surface genuinely exists — so hiding them is a rendering
+///     decision, not a claim that they are not there.
+///   </description></item>
+/// </list>
 /// <para>
-/// <b>Measured on <c>0-Lighthouse</c>: 34 surfaces and 8,264 triangles</b> of
-/// <c>Light_Beam_01</c>, <c>VolumeLight_Undewater</c>, <c>MidTown_ShaderBeams</c> and
-/// <c>CityGlowBkd</c>, on <c>StaticMeshActor</c> and <c>NonPhysicalReactiveActor</c>.
-/// </para>
-/// <para>
-/// <b>Keyed on the material's class, never on its name.</b> The class is the game's own statement of
-/// what a material is; a name test would both miss beams that are not called "beam" and catch walls
-/// that are. <c>docs/HANDOFF.md</c> §4 records what an allowlist of names cost this project the last
-/// time one was used to decide what a material was.
+/// <b>Classes, never names.</b> A material's class is the game's own statement of what it is;
+/// <c>docs/HANDOFF.md</c> §4 records what a name allowlist cost the material reader once already.
 /// </para>
 /// </remarks>
-public static class EffectMaterials
+public static class UnpaintedMaterials
 {
-    /// <summary>
-    /// The classes treated as effects. <c>LightBeamShader</c> is the one the handoff already
-    /// records as having no base colour by design — "reporting one would be an invention".
-    /// </summary>
-    public static readonly IReadOnlySet<string> ClassNames = new HashSet<string>(StringComparer.Ordinal)
+    public static readonly IReadOnlySet<string> ByDesign = new HashSet<string>(StringComparer.Ordinal)
     {
-        "LightBeamShader",
+        "LightBeamShader", "FluidShader", "FluidSurfaceShader",
     };
 
-    public static bool IsEffect(string? className) => className is not null && ClassNames.Contains(className);
+    public static bool HasNoBaseColourByDesign(string? className) =>
+        className is not null && ByDesign.Contains(className);
 }
 
 /// <summary>What a level viewport should draw.</summary>
@@ -157,18 +162,32 @@ public sealed record LevelViewFilter
     public bool ShowVolumes { get; init; }
 
     /// <summary>
-    /// Draw light shafts and glow cards. <b>Off by default</b> — see <see cref="EffectMaterials"/>.
+    /// Draw surfaces that resolve <b>no base colour</b>. <b>Off by default.</b>
     /// </summary>
     /// <remarks>
-    /// Unlike the other two this is a <b>per-surface</b> filter, not a per-instance one: a light
-    /// fixture is one mesh whose shade is architecture and whose shafts are not, so hiding the whole
-    /// instance would take the lamp with the beam.
+    /// <para>
+    /// An unpainted surface draws as a flat pale sheet, and at the scale a level uses that is what
+    /// swallows a view: light shafts, the ocean plane, glow cards, and the surfaces whose material
+    /// simply did not resolve. <see cref="UnpaintedMaterials"/> records which of those have no base
+    /// colour <i>by design</i>.
+    /// </para>
+    /// <para>
+    /// <b>Hiding them costs almost no architecture, and that is measured rather than hoped.</b> On
+    /// <c>0-Lighthouse</c> the compiled world has only <b>4</b> unpainted surfaces of 221 triangles;
+    /// the rest are effects, water, and brushes that are already hidden. If that ever stops being
+    /// true this filter would start punching holes in a level, so
+    /// <c>UnpaintedSurfaceTests</c> pins the share.
+    /// </para>
+    /// <para>
+    /// A <b>per-surface</b> filter, not a per-instance one: a mesh can be part painted and part not,
+    /// and hiding the instance would take the painted half with it.
+    /// </para>
     /// </remarks>
-    public bool ShowEffects { get; init; }
+    public bool ShowUnpainted { get; init; }
 
     /// <summary>Everything, including the things the game never draws.</summary>
     public static readonly LevelViewFilter Everything =
-        new() { ShowSourceBrushes = true, ShowVolumes = true, ShowEffects = true };
+        new() { ShowSourceBrushes = true, ShowVolumes = true, ShowUnpainted = true };
 
     public bool Accepts(ViewportItem item)
     {

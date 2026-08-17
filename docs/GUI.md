@@ -129,15 +129,31 @@ Three switches, and two of them are **off by default** because what they show is
 |---|---|---|
 | **Zones & triggers** | off | A blocking volume, trigger, water volume or zone marker is a region the engine tests against and never draws. Its brush is a room-sized box, so shown they are enormous grey slabs that swallow the view. |
 | **Source brushes** | off | A brush is the *input* to CSG; the compiled world is its *output*. Drawing both stacks the uncarved solids on top of the rooms carved from them — most of what "weird boxes covering everything" turns out to be. |
-| **Light beams** | off | Light shafts and glow cards — `LightBeamShader`. They bind **no base colour** and the engine blends them additively through a falloff map, so drawn as ordinary surfaces they are flat opaque white sheets. 19 instances / 1,338 triangles on `0-Lighthouse`. |
+| **Unpainted surfaces** | off | Anything that resolves **no base colour**, whatever the reason. They draw as flat pale sheets and at a level's scale that is what swallows a view. |
 | **Level lights** | off | See below. |
 
-The beam filter works per **surface** rather than per instance. On Lighthouse that turns out not to
-matter — all 19 beam instances are beams throughout, so the shafts are authored as their own meshes
-— but a fixture that mixed a shade with its shaft would otherwise vanish entirely, and per-surface
-cannot go wrong. All three filters key off the **game's own statement**: an actor's class for the
-volumes, a material's class for the beams. Never a name; `HANDOFF.md` §4 records what a name-based
-allowlist cost this project once already.
+An unpainted surface is one of two very different things, and the viewport keeps them apart even
+though they are the same pixels:
+
+- **No base colour by design** — `LightBeamShader` (light shafts and glow cards, blended additively
+  through a falloff map) and `FluidShader`/`FluidSurfaceShader` (water: the ocean plane, puddles).
+  These are the game's own design, not a decode failure. 38 such surfaces on `0-Lighthouse`.
+- **Unresolved** — the material did not resolve to a texture. 214 on `0-Lighthouse`.
+
+`UnpaintedMaterials` records which classes are which; the *filter* hides both, because visually they
+are identical and both are flat sheets.
+
+**Hiding them costs almost no architecture, and that is measured rather than hoped.** Of the
+compiled world's triangles — the actual rooms — only **11.7% on `0-Lighthouse` and 4.5% on
+`1-Medical`** are unpainted. `LightBeamProbeTests` pins the share on both maps, because if it ever
+climbs this filter starts punching holes in rooms instead of removing sheets.
+
+It works per **surface**, not per instance: a mesh can be part painted and part not, and hiding the
+instance would take the painted half with it.
+
+Both the volume and the by-design classifications key off the **game's own statement** — an actor's
+class, a material's class. Never a name; `HANDOFF.md` §4 records what a name-based allowlist cost
+the material reader once already.
 
 Volumes are identified by the actor's class ending in `Volume`, `Trigger` or `ZoneInfo` — the game's
 own statement of what the thing is. A suffix test rather than a fixed list, because the game ships
