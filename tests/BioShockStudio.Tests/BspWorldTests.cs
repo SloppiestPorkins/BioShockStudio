@@ -92,6 +92,93 @@ public sealed class BspWorldTests(GameFixture game)
     }
 
     /// <summary>
+    /// What the twelve off-plane polygons actually are: corners snapped to round coordinates on
+    /// planes that are slightly oblique. Shipped data, not a decode fault.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every one of the twelve has the same shape. Part of the polygon sits <b>exactly</b> on its
+    /// plane — 0.000 cm, not nearly — and the rest sits off it by exactly the plane's off-axis slope
+    /// times the distance travelled. <c>7-Gauntlet</c> node 755: the plane's normal is
+    /// <c>(−0.9966, 0.0819, 0)</c>, a wall 4.7° off the Y axis, and all four corners are stored at
+    /// <c>x = 32</c>; the two at <c>y = −2252</c> are exact and the two at <c>y = −2208</c> are
+    /// 3.603 cm out, which is <c>0.0822 × 44</c> to three decimals. <c>0-Lighthouse</c> node 360:
+    /// slope <c>0.000459</c> across 8,704 units gives 4.00 cm, and the polygon is 4.001 cm out.
+    /// </para>
+    /// <para>
+    /// <b>The off-plane corners are the round ones.</b> On <c>7-Gauntlet</c> node 591 the exact
+    /// vertices sit at <c>x = −107.43</c> and the 7.38 cm ones at <c>x = −96</c>. That is the
+    /// signature of the editor snapping a brush corner to the grid, after which CSG's fragment no
+    /// longer lies on the face it was cut from.
+    /// </para>
+    /// <para>
+    /// <b>What it is not.</b> Not precision — a float at 5,000 units resolves to under a
+    /// millimetre, not 7 cm. Not the basis conversion, which is a sign flip and exact. Not the
+    /// decode: the same three arrays produce 81,554 polygons that are exactly on plane, and a wrong
+    /// offset cannot be selective. <c>HIGH CONFIDENCE</c>, from the arithmetic above.
+    /// </para>
+    /// <para>
+    /// The assertion that can fail is the last one: <b>every off-plane polygon must still have a
+    /// vertex exactly on its plane.</b> A decode fault — a wrong pool offset, a wrong plane field —
+    /// moves the whole polygon off, not two corners of it.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheOffPlanePolygonsAreSnappedCornersAndKeepAVertexOnTheirPlane()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int examined = 0, withAnExactVertex = 0;
+        float worst = 0f;
+        var wholePolygonsOff = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.PolygonCount == 0) continue;
+
+            foreach (var node in world.Nodes)
+            {
+                if (!node.IsPolygon) continue;
+
+                var polygon = world.PolygonOf(node);
+                if (polygon.Count < 3) continue;
+
+                var distances = polygon
+                    .Select(v => MathF.Abs(Plane.DotCoordinate(node.Plane, v)))
+                    .ToList();
+
+                if (distances.Max() <= 1f) continue;
+
+                examined++;
+                worst = MathF.Max(worst, distances.Max());
+
+                if (distances.Min() <= 0.01f) withAnExactVertex++;
+                else
+                    wholePolygonsOff.Add($"{Path.GetFileNameWithoutExtension(map)}: every vertex is "
+                                         + $"{distances.Min():0.###}..{distances.Max():0.###} cm off its plane");
+            }
+        }
+
+        Log($"off-plane polygons {examined}, worst {worst:0.###} cm, "
+            + $"{withAnExactVertex} still have a vertex exactly on their plane");
+
+        // Not vacuous: if the reader stopped finding them the shape of the finding would be gone.
+        Assert.True(examined > 0, "no off-plane polygons at all — this check has nothing to measure");
+
+        // A ceiling rather than an equality: shipped data does not change, but a decoder change that
+        // creates more of these is exactly what this is here to catch.
+        Assert.True(examined <= 12, $"{examined} polygons are off their own plane, up from the 12 measured");
+        Assert.True(worst < 8f, $"worst deviation is now {worst:0.###} cm, up from 7.381");
+
+        // The discriminator. Snapping moves corners; a decode fault moves polygons.
+        Assert.True(wholePolygonsOff.Count == 0,
+            "a polygon is off its plane at every vertex, which snapping does not do:"
+            + Environment.NewLine + string.Join(Environment.NewLine, wholePolygonsOff));
+    }
+
+    /// <summary>
     /// The compiled world winds the same way the source brushes do, and the emitted fan corrects it.
     /// </summary>
     /// <remarks>

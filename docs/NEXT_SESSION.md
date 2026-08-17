@@ -63,10 +63,9 @@ whatever is in front and has caught the user's browser before.
 ## What to do, in priority order
 
 1. **Finish Phase 2 polish** — two of the four items are now closed; these two are not.
-   - **12 world polygons sit >1 cm off their own plane** (worst 7.4), on `0-Lighthouse` and
-     `7-Gauntlet`. Unexplained; float precision at 80,000 units accounts for ~8 mm, not 7 cm. It may
-     be the same effect as the one brush polygon that misses its own plane by 2.09 cm
-     (`0-Lighthouse Brush12`, `BrushPlacementTests`) — that is a lead, not an established link.
+   - ~~12 world polygons off their own plane~~ — **explained**: snapped corners on oblique planes,
+     shipped data, `bsp.md` §5.6b. The deviation is the plane's slope times the distance travelled,
+     and all twelve keep a vertex exactly on plane.
    - **4 skeletal meshes' sections overrun the index buffer** by 2, 5, 5 and 8 faces. The table is
      right; something is short at the end of a buffer this project locates *by search*. `UNKNOWN`.
    - ~~Brush placement~~ — **settled**. `Location − PrePivot` is `CONFIRMED_BYTES` against the

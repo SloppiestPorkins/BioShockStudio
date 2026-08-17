@@ -413,6 +413,35 @@ V = V' × (SizeY/1024) + (TileY + 0.5)/1024
 skips all three: they are zoning, portal and backdrop surfaces, not architecture. **Any level
 exporter has to honour these or the level comes out full of invisible walls.**
 
+### 5.6b The twelve off-plane polygons are snapped corners. `HIGH CONFIDENCE`, and not a decode fault
+
+Twelve of 81,566 compiled polygons (0.015%) sit more than 1 cm off their own node's plane, worst
+7.381 cm, all on `0-Lighthouse` (2) and `7-Gauntlet` (10). Every one has the same shape:
+
+- **Part of the polygon is exactly on the plane** — 0.000 cm, not nearly — and the rest is off it.
+  All twelve keep at least one exact vertex, which is the measurement that exonerates the decode.
+- **The deviation equals the plane's off-axis slope times the distance travelled.** `7-Gauntlet`
+  node 755: the normal is `(−0.9966, 0.0819, 0)`, a wall 4.7° off the Y axis, and all four corners
+  are stored at `x = 32`; the two at `y = −2252` are exact and the two at `y = −2208` are 3.603 cm
+  out — `0.0822 × 44 = 3.61`. `0-Lighthouse` node 360: slope `0.000459` across 8,704 units of
+  polygon gives 4.00 cm, and it is 4.001 cm out.
+- **The off-plane corners are the round ones.** On `7-Gauntlet` node 591 the exact vertices sit at
+  `x = −107.43` and the 7.38 cm ones at `x = −96`.
+
+That is the editor's grid snap: a brush corner moved to a round coordinate, after which the CSG
+fragment no longer lies on the face it was cut from. It is shipped data.
+
+**What it is not.** Not float precision — a float at 5,000 units resolves under a millimetre, not
+7 cm. Not the basis conversion, which is a sign flip and exact. Not the node layout: the same three
+arrays produce 81,554 polygons that are exactly on plane, and a wrong offset cannot be selective.
+
+**Rejected on the way:** that the polygon belongs to its *surface's* plane rather than its node's.
+Measured — the surface normal is within 0.04° of the node normal, and `pBase` is a texture origin
+that is itself up to 1,433 cm off the polygon, so it is not a point on the plane at all.
+
+`BspWorldTests.TheOffPlanePolygonsAreSnappedCornersAndKeepAVertexOnTheirPlane` holds the ceiling and
+the discriminator: snapping moves corners, a decode fault moves whole polygons.
+
 ### 5.7 The surface's `Actor` is the link back to the source brush — and it settles the placement
 
 `FBspSurf.Actor` was read and discarded until now. It is the only stated correspondence between the
