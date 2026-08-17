@@ -17,6 +17,9 @@ public sealed class BioShockPackage : IDisposable
     private readonly FileStream _stream;
     private readonly StreamReaderLE _reader;
 
+    /// <summary>Guards the reader's position, so a cached package can serve several threads.</summary>
+    private readonly object _readGate = new();
+
     public string FilePath { get; }
     public PackageSummary Summary { get; }
     public IReadOnlyList<NameEntry> Names { get; }
@@ -204,13 +207,34 @@ public sealed class BioShockPackage : IDisposable
     }
 
     /// <summary>Reads the serialised payload of an export.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Locked, so several threads may read one package at once.</b> Seeking a shared reader and
+    /// then reading from it is a race the moment two callers hold the same instance — and holding
+    /// one instance is the whole point of <see cref="PackageCache"/>, because opening
+    /// <c>1-Medical.bsm</c> parses its tables in 46 ms while reading a payload out of it costs a
+    /// thousandth of that.
+    /// </para>
+    /// <para>
+    /// <b>A lock rather than a positionless read, and that was measured.</b> Reading at an absolute
+    /// offset through <c>RandomAccess</c> needs no lock at all, but it also bypasses the stream's
+    /// 64 KB buffer — and this is called once per export, thousands of times in a row, by anything
+    /// that walks a package. <c>LevelAnalyzer.Analyze</c> went from <b>107.6 ms to 217.7 ms</b> that
+    /// way, so the lock is the cheaper of the two: a read is microseconds and the packages a
+    /// contended one would be serialising are the ones already in cache.
+    /// </para>
+    /// </remarks>
     public byte[] ReadExportData(ObjectExport export)
     {
         if (export.SerialSize == 0) return [];
         if (export.SerialOffset < 0 || export.SerialOffset + (long)export.SerialSize > _stream.Length)
             throw new InvalidDataException($"Export '{export.ObjectName}' payload lies outside the file.");
-        _reader.Position = export.SerialOffset;
-        return _reader.ReadBytes(export.SerialSize);
+
+        lock (_readGate)
+        {
+            _reader.Position = export.SerialOffset;
+            return _reader.ReadBytes(export.SerialSize);
+        }
     }
 
     /// <summary>Opens a read-only view over an export's payload without copying it.</summary>

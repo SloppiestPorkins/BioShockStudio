@@ -136,6 +136,25 @@ public sealed class AssetCatalogService
     public bool IsLoaded => _entries.Length > 0;
 
     /// <summary>Resolves a package name back to the file it was read from.</summary>
+    /// <summary>
+    /// Opened packages, kept so that asking for the same one twice does not parse its tables twice.
+    /// </summary>
+    /// <remarks>
+    /// It lives here because this is what already maps a package name to its file, so every service
+    /// that borrows a package goes through one place. See <see cref="PackageCache"/> for the
+    /// measurement that justifies it.
+    /// </remarks>
+    private readonly PackageCache _packages = new();
+
+    /// <summary>Cache hits and misses since start-up, for diagnostics.</summary>
+    public (int Hits, int Misses) PackageCacheCounters => (_packages.Hits, _packages.Misses);
+
+    /// <summary>
+    /// Borrows an opened package by name. Dispose the lease as usual — it returns the package to
+    /// the cache rather than closing it.
+    /// </summary>
+    public PackageCache.Lease OpenShared(string packageName) => _packages.Rent(PackageFile(packageName));
+
     public string PackageFile(string packageName) =>
         _packageFiles.TryGetValue(packageName, out string? file)
             ? file

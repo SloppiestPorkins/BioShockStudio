@@ -92,6 +92,99 @@ public sealed class PerformanceBaselineTests(GameFixture game)
     }
 
     /// <summary>
+    /// The cache turns a repeat open into nothing, and several threads may read one package at once.
+    /// </summary>
+    /// <remarks>
+    /// Two claims, both of which can fail. The saving is asserted as a ratio against the measured
+    /// cost of opening the same file, not as an absolute time, so it means the same thing on a
+    /// slower machine. The concurrency claim matters because the cache is what makes two threads
+    /// hold one instance — <see cref="BioShockPackage.ReadExportData"/> was made positionless for
+    /// exactly this, and before that change this test would race.
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheCacheRemovesTheRepeatOpenAndSurvivesConcurrentReads()
+    {
+        string medical = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+
+        double uncached = Median(10, () => BioShockPackage.Open(medical).Dispose());
+
+        using var cache = new PackageCache();
+        cache.Rent(medical).Dispose();                                   // the one open it must do
+
+        double cached = Median(200, () => cache.Rent(medical).Dispose());
+
+        Log($"  package open {uncached:0.###} ms uncached against {cached:0.####} ms from the cache "
+            + $"({cache.Hits} hits, {cache.Misses} misses)");
+
+        Assert.Equal(1, cache.Misses);
+        Assert.True(cached < uncached / 20,
+            $"a cached open costs {cached:0.###} ms against {uncached:0.###} ms uncached, which is "
+            + "not the saving the cache exists for");
+
+        // Concurrent reads of one shared package. The payloads must be identical to what a private
+        // instance reads — a torn read from a shared position would differ, and used to be possible.
+        using var reference = BioShockPackage.Open(medical);
+        var exports = reference.Exports.Where(e => e.SerialSize is > 1024 and < 4_000_000).Take(24).ToList();
+        Assert.NotEmpty(exports);
+
+        var expected = exports.ToDictionary(e => e.Index, e => reference.ReadExportData(e).Length);
+        var failures = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+        Parallel.ForEach(Enumerable.Range(0, 8), _ =>
+        {
+            using var lease = cache.Rent(medical);
+            foreach (var export in exports)
+            {
+                byte[] data = lease.Package.ReadExportData(export);
+                if (data.Length != expected[export.Index])
+                    failures.Add($"{export.ObjectName}: read {data.Length} bytes, expected {expected[export.Index]}");
+            }
+        });
+
+        Assert.True(failures.IsEmpty,
+            "concurrent reads of one cached package disagreed with a private read:"
+            + Environment.NewLine + string.Join(Environment.NewLine, failures.Take(5)));
+    }
+
+    /// <summary>
+    /// A package that is still leased stays readable after the cache evicts it.
+    /// </summary>
+    /// <remarks>
+    /// The cache holds four packages, and a service can hold a lease across a long operation — the
+    /// details panel does. Closing an evicted package while somebody is reading it is a crash, not
+    /// a slowdown, so eviction only removes the entry and the file closes when the last lease comes
+    /// back. This is the test that would fail if that reference counting were dropped.
+    /// </remarks>
+    [RequiresGameFact]
+    public void AnEvictedPackageStaysReadableWhileItIsStillLeased()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm")
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .Take(PackageCache.Capacity + 2)
+            .ToList();
+
+        Assert.True(maps.Count > PackageCache.Capacity, "not enough maps to overflow the cache");
+
+        using var cache = new PackageCache();
+
+        // Hold the first one, then touch enough others to push it out.
+        using var held = cache.Rent(maps[0]);
+        var export = held.Package.Exports.First(e => e.SerialSize is > 512 and < 2_000_000);
+        int expected = held.Package.ReadExportData(export).Length;
+
+        foreach (string other in maps.Skip(1)) cache.Rent(other).Dispose();
+
+        // Evicted — the cache is full of the others — but still open, because it is still leased.
+        Assert.Equal(PackageCache.Capacity, cache.Count);
+
+        int afterEviction = held.Package.ReadExportData(export).Length;
+        Assert.Equal(expected, afterEviction);
+
+        Log($"  cache: {cache.Hits} hits, {cache.Misses} misses, {cache.Count} held; "
+            + $"an evicted package still read {afterEviction} bytes while leased");
+    }
+
+    /// <summary>
     /// How much of a package selection's cost is re-parsing the package's tables.
     /// </summary>
     /// <remarks>

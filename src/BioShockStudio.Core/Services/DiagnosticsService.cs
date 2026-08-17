@@ -34,7 +34,8 @@ public sealed class DiagnosticsService(AssetCatalogService catalog)
     /// </remarks>
     public DiagnosticReport ScanAsset(CatalogEntry entry, CancellationToken cancellation = default)
     {
-        using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
+        using var lease = catalog.OpenShared(entry.Package);
+        BioShockPackage package = lease;
 
         var found = new List<Diagnostic>();
         var coverage = new DiagnosticCoverage { Packages = 1 };
@@ -104,7 +105,8 @@ public sealed class DiagnosticsService(AssetCatalogService catalog)
     public DiagnosticReport ScanPackage(
         string packageName, CancellationToken cancellation = default, Action<string>? progress = null)
     {
-        using var package = BioShockPackage.Open(catalog.PackageFile(packageName));
+        using var lease = catalog.OpenShared(packageName);
+        BioShockPackage package = lease;
 
         return AssetDiagnostics.ScanPackage(
             package, packageName, catalog.ExternalMaterials, catalog.Bulk, cancellation,

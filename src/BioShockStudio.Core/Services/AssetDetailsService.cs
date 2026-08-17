@@ -78,7 +78,8 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
 
         try
         {
-            using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
+            using var lease = catalog.OpenShared(entry.Package);
+            BioShockPackage package = lease;
             cancellation.ThrowIfCancellationRequested();
 
             details = entry.Category switch

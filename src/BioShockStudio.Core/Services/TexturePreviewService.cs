@@ -65,7 +65,8 @@ public sealed class TexturePreviewService(AssetCatalogService catalog)
 
     public TexturePreview? Describe(CatalogEntry entry)
     {
-        using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
+        using var lease = catalog.OpenShared(entry.Package);
+        BioShockPackage package = lease;
         var texture = Read(package, entry);
         if (texture is null) return null;
 
@@ -85,7 +86,8 @@ public sealed class TexturePreviewService(AssetCatalogService catalog)
     /// </summary>
     public PreviewImage? Decode(CatalogEntry entry, int mip = -1)
     {
-        using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
+        using var lease = catalog.OpenShared(entry.Package);
+        BioShockPackage package = lease;
         var texture = Read(package, entry);
         if (texture is null || texture.Mips.Count == 0) return null;
 
