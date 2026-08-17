@@ -424,6 +424,18 @@ U = U' × (SizeX/1024) + (TileX + 0.5)/1024
 V = V' × (SizeY/1024) + (TileY + 0.5)/1024
 ```
 
+**Where the index is not: the surface.** §5.3 settles `FBspSurf +20` as `iBrushPoly`, so the
+editor's reading of it as a lightmap atlas index is wrong and this is one fewer place to look. The
+remaining candidate from the same reference is the **node**.
+
+**A lead, recorded as a lead.** A scan of every int32-aligned field of `0-Lighthouse`'s 100-byte node
+record found two index-shaped fields the reader does not interpret: **+92** (0..1,619, 539 distinct
+over 758 nodes) and **+96** (0..369, exactly 370 distinct against 370 surfaces). Neither is confirmed
+as anything. **The scan does not yet generalise** — it locates the node array by searching for an
+`FCompactIndex` equal to the node count, and on `1-Medical` that lands on a false positive, so the
+Medical columns are not comparable. Fixing the locator, so the same field can be read on several
+maps at once, is the first step of the lightmap work rather than part of it.
+
 ### 5.6 Surfaces that must not be drawn
 
 `PolyFlags` carries `PF_Invisible 0x1`, `PF_FakeBackdrop 0x80`, `PF_Portal 0x04000000`. Nyko's editor

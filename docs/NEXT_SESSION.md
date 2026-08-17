@@ -78,10 +78,11 @@ whatever is in front and has caught the user's browser before.
      either. `bsp.md` §5.7, and the HANDOFF section for 17 Aug (later).
    - ~~Brush polygons with no texture axes~~ — **counted**: 17,802 of 93,264, none of them textured.
 
-2. **Lightmaps** — the largest remaining piece, and the one that would make a level look like
-   BioShock rather than like flat-lit geometry. The whole descriptor chain is documented in
-   `bsp.md` §5.5 (`FLightMapIndex`, `FLightMapLight`, atlas packing, the UV maths) and the atlases
-   are ordinary DXT textures in `LightMaps_BSP`, which this project already reads.
+2. **Lightmaps** — now the largest remaining piece, and unblocked: §5.3 rules the surface out as the
+   home of the index, so the node is the candidate. `bsp.md` §5.5 has the descriptor chain and a
+   recorded LEAD — two index-shaped node fields on Lighthouse, +92 and +96 — plus the reason the
+   scan does not yet generalise: it locates the node array by search and misfires on 1-Medical.
+   Fix that first, then read the same field across every map.
 
 3. ~~`FBspSurf +20`~~ — **settled: it is `iBrushPoly`**, 6,372 of 6,372 surfaces naming a polygon of
    their own brush whose normal matches. So the lightmap index is NOT on the surface, and the
