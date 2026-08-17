@@ -83,9 +83,9 @@ whatever is in front and has caught the user's browser before.
    `bsp.md` §5.5 (`FLightMapIndex`, `FLightMapLight`, atlas packing, the UV maths) and the atlases
    are ordinary DXT textures in `LightMaps_BSP`, which this project already reads.
 
-3. **`FBspSurf +20`** — Nyko's spec, his parser and his lightmap note give three different answers
-   (`iBrushPoly` vs `iLightMap`, on the surf vs on the node). Nobody has measured it. Doing so is
-   probably a precondition for lightmaps.
+3. ~~`FBspSurf +20`~~ — **settled: it is `iBrushPoly`**, 6,372 of 6,372 surfaces naming a polygon of
+   their own brush whose normal matches. So the lightmap index is NOT on the surface, and the
+   reference note putting it on the node is where to look. `bsp.md` §5.3.
 
 4. **A level FBX exporter.** The scene JSON and OBJ exist; FBX is what the rest of the project
    exports and what a user would expect.

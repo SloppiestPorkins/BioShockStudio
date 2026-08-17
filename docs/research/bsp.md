@@ -385,10 +385,27 @@ float  LightMapScale (4)   // version >= 106 — 8.0 / 16.0 / 32.0
 
 **PanU/PanV are not serialised** at version >= 78; the pan offsets are baked into `pBase`.
 
-**A contested field, recorded rather than resolved.** Nyko's spec calls +20 `iBrushPoly`; his own
-editor's parser reads the same position as `iLightMap` and uses it as a lightmap atlas index. His
-lightmap note takes a third position, putting `iLightMap` on the *node* rather than the surface. The
-two sources disagree and this project has not measured it. `UNKNOWN`.
+**+20 is `iBrushPoly`. `CONFIRMED_BYTES`, and it settles a three-way contest.** Nyko's spec called it
+`iBrushPoly`; his own editor's parser reads the same position as `iLightMap` and picks a lightmap
+atlas with it; his lightmap note puts `iLightMap` on the *node* instead. **The spec is right.**
+
+The discriminator is the normal. A surface names the brush actor it was cut from (§5.7), and that
+brush's `Polys` export holds its faces with their own normals — so if +20 indexes those faces, the
+face it names must be the one this surface came from.
+
+| measured over `0-Lighthouse`, `1-Medical`, `3-Arcadia` | |
+|---|---|
+| surfaces resolving to a brush actor | **6,372** |
+| …whose +20 is inside that brush's polygon list | **6,372 (100%)** |
+| …**and names a polygon whose normal matches the surface's** | **6,372 (100%)** |
+
+An unrelated index would agree by chance about a sixth of the time on a six-sided brush. The value
+range says the same from the other side: `0..31` on Lighthouse, `0..9` on Medical, **ten distinct
+values across 3,386 surfaces**. A lightmap index needs roughly one value per surface; a
+brush-polygon index needs one per face of a brush.
+
+**So the lightmap index is not on the surface**, and the note that puts it on the node is where to
+look next. `SurfaceBrushPolyTests`.
 
 ### 5.4 `FVert` — 8 bytes
 
@@ -481,7 +498,6 @@ solid, and the match is made on the plane precisely so that this does not look l
 
 ## 6. What is NOT established
 
-- **`FBspSurf +20`** — `iBrushPoly` or `iLightMap`. The references disagree. `UNKNOWN`.
 - **How a rotated or scaled brush actor's transform composes.** The translation is settled — §5.7,
   `CONFIRMED_BYTES` against the compiled world — but rotation and scale are not, because no brush
   that reaches the built world carries either. The 17 rotated brushes in the game are all damage

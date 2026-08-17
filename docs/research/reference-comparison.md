@@ -254,19 +254,28 @@ and every version gate; one field was wrong and the exact-end arithmetic caught 
 is the same pattern as the DXT5N contest in §1 — a reference gets you to the right structure, and
 the bytes settle the layer you actually depend on.
 
-### 7b. A contested field, left contested
+### 7b. A contested field — SETTLED by the bytes, and the spec won
 
 `FBspSurf +20`, in the built world:
 
-| source | claim |
-|---|---|
-| Nyko, `bioshock1-bsm.md` §C.1.3 | `int32 iBrushPoly`, version >= 101 |
-| Nyko, `tools/level_editor/src/bsp_parser.cpp` | `int32 iLightMap`, a lightmap atlas index, and uses it as one |
-| Nyko, `BioShock_Texture_Lightmap_Format.md` §5 | `iLightMap` is on the **node**, not the surface |
+| source | claim | verdict |
+|---|---|---|
+| Nyko, `bioshock1-bsm.md` §C.1.3 | `int32 iBrushPoly`, version >= 101 | **correct** |
+| Nyko, `tools/level_editor/src/bsp_parser.cpp` | `int32 iLightMap`, a lightmap atlas index, and uses it as one | **wrong** |
+| Nyko, `BioShock_Texture_Lightmap_Format.md` §5 | `iLightMap` is on the **node**, not the surface | not contradicted; where to look next |
 
-Three statements from one project and they do not agree. This project has measured none of them —
-the built world is not implemented — so it stays `UNKNOWN` rather than being resolved by picking the
-most recent. **Recorded because the next session will otherwise re-derive the same contradiction.**
+Three statements from one project that did not agree, and the reason this mattered is that a project
+taking the editor's reading would go hunting for lightmap atlases with a brush-polygon index.
+
+**Measured.** A surface names the brush actor it was cut from, and that brush's `Polys` holds its
+faces with their own normals — so the reading is testable: **6,372 surfaces across three maps, and
+in every one, +20 names a polygon of its own brush whose normal matches the surface's.** 100%, with
+values ranging 0..31 where a lightmap index would need one per surface. `bsp.md` §5.3,
+`SurfaceBrushPolyTests`.
+
+**This is the fourth contest between this project's bytes and a reference's code**, and the third
+where the reference's *documentation* was right and its *implementation* was not. The pattern is
+worth carrying: read both, and believe neither until the bytes agree with one of them.
 
 ### 7c. A count that does not reconcile
 

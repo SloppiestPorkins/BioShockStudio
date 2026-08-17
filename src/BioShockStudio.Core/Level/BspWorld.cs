@@ -67,16 +67,30 @@ public sealed record BspSurface
     public required int TextureV { get; init; }
 
     /// <summary>
-    /// The int32 at +20. <b>Contested and therefore not interpreted.</b>
+    /// <c>iBrushPoly</c>: which polygon of the source brush this surface was cut from.
     /// </summary>
     /// <remarks>
-    /// Nyko's spec §C.1.3 calls it <c>iBrushPoly</c>; his own level editor reads the same position as
-    /// <c>iLightMap</c> and uses it to pick a lightmap atlas; his lightmap note puts <c>iLightMap</c>
-    /// on the <i>node</i> instead. Three statements from one project that do not agree, and this one
-    /// has measured none of them — so it is preserved under a neutral name rather than given a
-    /// meaning. <c>docs/research/bsp.md</c> §5.3.
+    /// <para>
+    /// <b>`CONFIRMED_BYTES`, and it settles a three-way contest.</b> Nyko's spec §C.1.3 calls the
+    /// int32 at +20 <c>iBrushPoly</c>; his own level editor's parser reads the same position as
+    /// <c>iLightMap</c> and picks a lightmap atlas with it; his lightmap note puts <c>iLightMap</c>
+    /// on the <i>node</i> instead. The spec is right.
+    /// </para>
+    /// <para>
+    /// Measured over <c>0-Lighthouse</c>, <c>1-Medical</c> and <c>3-Arcadia</c>: of 6,662 surfaces,
+    /// <b>6,372 resolve to a brush actor and every one of them names a polygon inside that brush's
+    /// own polygon list — and the named polygon's normal matches the surface's normal, 6,372 of
+    /// 6,372.</b> An unrelated index would agree by chance about a sixth of the time on a box brush.
+    /// </para>
+    /// <para>
+    /// The value range says the same thing from the other side: 0..31 on Lighthouse and 0..9 on
+    /// Medical, with ten distinct values across 3,386 surfaces. A lightmap index needs roughly one
+    /// value per surface; a brush-polygon index needs one per face of a brush, which is what this is.
+    /// So <b>the lightmap index is not here</b>, and the note that puts it on the node is where to
+    /// look next. <c>docs/research/bsp.md</c> §5.3.
+    /// </para>
     /// </remarks>
-    public required int Unknown20 { get; init; }
+    public required int BrushPoly { get; init; }
 
     /// <summary>
     /// The brush actor CSG built this surface from, as the surface itself names it.
@@ -351,7 +365,7 @@ public static class BspWorldReader
             int normal = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 8));
             int textureU = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 12));
             int textureV = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 16));
-            int unknown = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 20));
+            int brushPoly = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 20));
             offset += 24;
 
             var actor = new PackageIndex(PropertyValues.ReadCompactIndex(data, ref offset));
@@ -370,7 +384,7 @@ public static class BspWorldReader
                 Normal = normal,
                 TextureU = textureU,
                 TextureV = textureV,
-                Unknown20 = unknown,
+                BrushPoly = brushPoly,
                 Actor = actor,
                 LightMapScale = lightMapScale,
             });
