@@ -70,7 +70,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
     /// </param>
     public PreviewSubject Load(CatalogEntry entry, string? meshName = null, CancellationToken cancellation = default)
     {
-        using var package = BioShockPackage.Open(catalog.PackageFile(entry.Package));
+        using var package = BioShockPackage.Open(catalog.PackageFile(BestPackage(entry, meshName)));
         cancellation.ThrowIfCancellationRequested();
 
         var siblings = MeshesInGroup(package, entry.Group);
@@ -300,6 +300,63 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             animation.Name, animations.Decode(animation), animation.FrameCount, animation.FrameDuration);
     }
 
+    /// <summary>
+    /// Which of a row's packages to read it from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A catalogue row spans packages, and they do not all carry the same thing.</b> Every map
+    /// embeds its own copy of what it uses, so a collapsed row lists twenty — and a <i>group</i> row
+    /// is only as complete as the map it is read from. <c>AggressorBabyJane</c> owns thirteen meshes
+    /// across the game, but the package its row resolves to holds exactly one of them,
+    /// <c>CorpseMale</c>. Selecting the character showed a corpse, and no amount of choosing better
+    /// among that package's meshes could fix it: there was only ever one to choose.
+    /// </para>
+    /// <para>
+    /// So the package is chosen too. A package carrying a mesh whose name shares more with the row's
+    /// wins; the row's own package is the fallback and the tie-break, so nothing changes for the
+    /// overwhelming majority of rows where it already holds the right mesh.
+    /// </para>
+    /// <para>
+    /// <b>Bounded deliberately.</b> It opens the row's other packages only when the default is
+    /// unrelated to the row's name, and stops at the first clear improvement — a row that already
+    /// matches costs one package open, exactly as before.
+    /// </para>
+    /// </remarks>
+    private string BestPackage(CatalogEntry entry, string? meshName)
+    {
+        // An explicit mesh request, or a row that is itself a mesh, is already unambiguous.
+        if (meshName is not null || entry.Packages.Count <= 1) return entry.Package;
+        if (entry.ClassName is AssetClasses.SkeletalMesh or AssetClasses.StaticMesh) return entry.Package;
+
+        int best = Score(entry.Package);
+        if (best > 0) return entry.Package;
+
+        foreach (string candidate in entry.Packages)
+        {
+            if (string.Equals(candidate, entry.Package, StringComparison.OrdinalIgnoreCase)) continue;
+            if (Score(candidate) > 0) return candidate;
+        }
+
+        return entry.Package;
+
+        int Score(string packageName)
+        {
+            try
+            {
+                using var package = BioShockPackage.Open(catalog.PackageFile(packageName));
+                return MeshesInGroup(package, entry.Group)
+                    .Select(e => SharedNameLength(entry.Name, e.ObjectName))
+                    .DefaultIfEmpty(0)
+                    .Max() >= 4 ? 1 : 0;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
+            {
+                return 0;
+            }
+        }
+    }
+
     private static ObjectExport? FindMesh(
         BioShockPackage package, CatalogEntry entry, string? meshName, List<ObjectExport> siblings)
     {
@@ -321,7 +378,50 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
             if (direct is not null) return direct;
         }
 
-        return siblings.FirstOrDefault();
+        // A group row — a character, not one of its meshes. AggressorBabyJane owns thirteen, and
+        // this used to return siblings.FirstOrDefault(): whichever the package happened to store
+        // first, which is CorpseMale. Selecting "AggressorBabyJane" showed a corpse.
+        //
+        // Ordered by how much of its name the mesh shares with the row, then by size. That picks
+        // Agg_BabyJane over CorpseMale on the strength of the eight characters they have in common,
+        // and falls back to the largest mesh when nothing shares anything — which is the old
+        // behaviour for every group whose meshes are named unrelatedly, minus the arbitrariness of
+        // storage order.
+        //
+        // A name heuristic, and it is confined to a presentation choice on purpose: it decides which
+        // of a group's own meshes to show FIRST, never what an asset is. The user can pick any of
+        // the thirteen, and PreviewSubject.SelectedMesh reports which one is showing.
+        return siblings
+            .OrderByDescending(e => SharedNameLength(entry.Name, e.ObjectName))
+            .ThenByDescending(e => e.SerialSize)
+            .FirstOrDefault();
+    }
+
+    /// <summary>The length of the longest run of characters two names have in common.</summary>
+    /// <remarks>
+    /// Case-insensitive and cheap — asset names are short. Used only to rank a group's own meshes
+    /// for display, never to decide identity.
+    /// </remarks>
+    private static int SharedNameLength(string a, string b)
+    {
+        if (a.Length == 0 || b.Length == 0) return 0;
+
+        var previous = new int[b.Length + 1];
+        int best = 0;
+
+        for (int i = 1; i <= a.Length; i++)
+        {
+            var current = new int[b.Length + 1];
+            for (int j = 1; j <= b.Length; j++)
+            {
+                if (char.ToUpperInvariant(a[i - 1]) != char.ToUpperInvariant(b[j - 1])) continue;
+                current[j] = previous[j - 1] + 1;
+                if (current[j] > best) best = current[j];
+            }
+            previous = current;
+        }
+
+        return best;
     }
 
     private static ObjectExport? FindAnimationPackage(BioShockPackage package, string group) =>

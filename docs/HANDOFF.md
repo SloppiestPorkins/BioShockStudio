@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **376 passed, 0 failed, 0 skipped** — 12m51s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **378 passed, 0 failed, 0 skipped** — 13m (19m48s on a cold run; that is the file cache, not the tests). Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1162,6 +1162,49 @@ fresh survey: the survey has been run.
    which is the precondition for walking it. `docs/research/skeletalmesh.md`, open question 11d,
    `docs/research/reference-comparison.md` §3–§4. **This is the biggest single piece of work left in
    Phase 1.**
+
+## Session of 17 Aug 2026 — the viewport session
+
+Everything below in "Phase 2" still holds. This is what changed after it, and the through-line is
+worth stating once: **six faults shipped in this session and a user found five of them by looking at
+the screen.** Every one passed the whole suite. They are listed here because the *pattern* is the
+finding, not the individual bugs.
+
+| what shipped broken | what the tests could see |
+|---|---|
+| Every BSP surface tiled its texture hundreds of times | Counts, coverage and a textured-vs-untextured check all passed — a wrong UV **scale** is still a texture on every pixel |
+| Then tiled **8×** too often, because the fix divided by the loaded 256 mip rather than the authored 2048 size | The test averaged over 2M static-mesh vertices that never take that path, and reported an unchanged median |
+| Rooms missing — only source brushes and props were drawn | A scene with no compiled world is still a complete, self-consistent scene |
+| Blood splatters, grime and posters as opaque rectangles | The GL shader ignored alpha; geometry and textures were both correct |
+| Light shafts as flat white sheets across the view | They bind no base colour **by design** — nothing was failing |
+| Level textures soft | The 256 cap was correct for the CPU renderer it was chosen for, and never revisited |
+
+**The lesson to carry forward: a numeric check cannot see a wrong quantity that is still present.**
+Where a value has a magnitude, measure the magnitude — `BspUvTests` measures UV size directly, and
+that is the test that would have caught two of these.
+
+### What was built
+
+- **The compiled world** (`BspWorldReader`) — the level's actual architecture. 81,566 polygons /
+  227,911 triangles across 21 maps, **12 polygons off-plane (0.015%)**, and the figures match Nyko's
+  independent measurement exactly. `docs/research/bsp.md` §5.
+- **A walkable, textured level viewport** with a ghost camera, on the **GPU** (`LevelGlViewport`,
+  Avalonia `OpenGlControlBase`, no new dependency) with the software rasteriser as a tested fallback.
+- **Lights applied** — 465 decoded, 298 usable on Lighthouse. Off by default: this is *not* the
+  game's lighting model, which is baked into lightmaps this project does not read.
+- **Filters**, all off by default: zones & triggers, source brushes, unpainted surfaces.
+- **The `SkeletalMesh` section table** — 331 of 944 meshes, 61 multi-material. `skeletalmesh.md`.
+- **Three GUI tabs** — Animated / Static / Level.
+
+### Two limitations found late and left open
+
+- **`AggressorBabyJane` previews `CorpseMale`.** Not a selection bug: the package that row resolves
+  to contains **exactly one** mesh in that group. Every map embeds only what it uses, so a group row
+  is only as complete as the map it is read from. The choice among a group's meshes and the choice
+  of package are both improved, and neither can help here. `PreviewIdentityTests`.
+- **25 rows preview a mesh with a different name** — `Int_Seagrass` → `IntSeagrass_Mesh`,
+  `FlowerVase` → `flower_vase_mesh`. All checked; all the game's own naming. No rule distinguishes
+  them from a real fault by name alone, so the sweep asserts a ceiling rather than zero.
 
 ## Phase 2 — where it actually stands
 
