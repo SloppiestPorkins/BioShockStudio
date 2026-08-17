@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **383 passed, 0 failed, 0 skipped** — 20m32s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **387 passed, 0 failed, 0 skipped** — 19m31s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1252,12 +1252,28 @@ snapping moves corners, a decode fault moves whole polygons.
 | decode that mesh's geometry | 17.3 ms |
 | `LevelAnalyzer.Analyze` | 107.6 ms |
 
-**Opening a package parses its whole name, import and export table.** Every service opens one for
+**Opening a package parses its whole name, import and export table.** Every service opened one for
 itself — `TexturePreviewService.Describe` then `Decode` is two opens for one selection, so a texture
-click pays ~92 ms of table parsing to do 0.002 ms of reading. That is the largest single
-optimisation available, and it is **not implemented**: a shared handle is unsafe today because
-`ReadExportData` moves the position of a stream the instance owns. Caching the parsed tables while
-payload reads take their own view is the shape that works.
+click paid ~92 ms of table parsing to do 0.002 ms of reading.
+
+### `PackageCache` — fixed, and the measurement chose the design
+
+Four opened packages, least-recently-used. **45.46 ms uncached against 0.0004 ms from the cache**,
+asserted as a ratio so it means the same on a slower machine. Wired into texture preview, asset
+details and diagnostics; the other ~40 call sites are one-shot and still open their own.
+
+Two things had to be true first, and both are now tested:
+
+- **A shared package must tolerate concurrent readers.** `ReadExportData` seeked a reader the
+  instance owns. It now takes a lock — **and a positionless `RandomAccess` read was tried first**,
+  which needs no lock but bypasses the stream's 64 KB buffer. This is called once per export,
+  thousands of times in a row, by anything that walks a package: `LevelAnalyzer.Analyze` went
+  **107.6 ms → 217.7 ms** that way, and **97.8 ms** with the lock. The faster-looking design was the
+  slower one, and only measuring it said so.
+- **Eviction must not close a package somebody is holding.** The details panel holds a lease across
+  a long operation, so evicting four packages under it would turn a slowdown into a crash. Entries
+  are reference-counted: eviction removes the entry, the file closes when the last lease returns.
+  `AnEvictedPackageStaysReadableWhileItIsStillLeased`.
 
 ### Documentation drift, corrected
 
