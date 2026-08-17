@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **374 passed, 0 failed, 0 skipped** — 13m05s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **376 passed, 0 failed, 0 skipped** — 12m51s. Measured 16 Aug 2026, at the end of the session. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |

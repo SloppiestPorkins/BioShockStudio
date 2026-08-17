@@ -229,3 +229,70 @@ detail one.
 - Whether other meshes use additional vertex strides. The reader validates each block's tangent,
   binormal and normal before accepting it, so an unknown stride yields no geometry rather than
   garbage.
+
+---
+
+## Section table — `CONFIRMED_BYTES`
+
+**Implementation:** `Core/Mesh/SkeletalMeshSections.cs` · **Tests:** `SkeletalMeshSectionTests.cs`
+
+A skeletal mesh **does** carry a table pairing triangle runs with material slots, and it is now
+read. 153 meshes were drawing entirely in their first material because it was not.
+
+```
+AttachCoords            // the socket table, already decoded
+CI  LODCount
+8 B TRIBES_HDR          // int32 check = 4, int32 subversion
+CI  SectionCount
+18 B x SectionCount     // FSkelMeshSection: nine uint16
+CI  BoneMapCount        // ← the geometry chain this project already reads
+```
+
+`FSkelMeshSection` is UModel's, from `UnMeshBioshock.cpp`'s `FStaticLODModelBio`, commented there as
+"1 section = 1 material":
+
+```
+uint16 MaterialIndex, MinStreamIndex, MinWedgeIndex, MaxWedgeIndex,
+       NumStreamIndices, BoneIndex, fE, FirstFace, NumFaces
+```
+
+### Why it was reachable after all
+
+The handoff called this "the biggest single piece of work left in Phase 1" and said it needed the
+payload walked from the front. It turned out to be much shorter: **the socket table already sits
+immediately before it**, and the socket reader already walks there. `RefSkeleton` — the record this
+project has never decoded — is empty in every shipped mesh, because BioShock keeps its skeletons in
+Havok packfiles, and the existing reader steps over it as a run of zeros.
+
+### What makes it a decode
+
+**The section array must end exactly where the bone map begins**, and the bone map is found by a
+completely unrelated route: `SkeletalMeshReader.DescribeGeometry` searches for the vertex chain from
+the other end of the payload. Two independent walks agreeing on one byte offset is the evidence; a
+wrong section count lands anywhere else.
+
+| measured over all 21 map packages | |
+|---|---|
+| Skeletal meshes with geometry | **944** |
+| …yielding a section table | **331 (35%)** |
+| Sections | **392** |
+| Meshes with more than one material | **61** |
+
+The 35% is a property of the route, not a failure: a mesh whose socket table does not validate
+cannot be reached this way and draws in one material exactly as before. `WP_CrossbowMesh` and
+`TommyGunMESH` — both named in the handoff — now report 2 sections each, materials 0 and 1.
+
+### An unexplained discrepancy, clamped rather than hidden
+
+**4 meshes of 331 have sections reaching past the end of the index buffer this project found**, by
+**2, 5, 5 and 8 faces** on meshes of 7,000 to 19,600 triangles: `WP_CrossbowMesh`, `TommyGunMESH`,
+`TunnelCollapse_Mesh`, `SubAnim_Mesh`.
+
+A misread table would be wildly wrong rather than off by two, so the table is being read correctly
+and the disagreement is at the very end of the index buffer. **`UNKNOWN` which side is short.** This
+project locates the index buffer by *search* rather than by walking the payload, which makes it the
+more likely candidate — and that is a suspicion, not a finding.
+
+The overshoot is **clamped, not rejected**. Rejecting the table over eight faces would put a
+12,592-face mesh back to a single material, and the pairing for every face this project actually has
+is unaffected — the overshoot addresses triangles that are not in the index buffer to draw.
