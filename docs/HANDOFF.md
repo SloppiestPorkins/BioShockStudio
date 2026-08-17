@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **381 passed, 0 failed, 0 skipped** — 19m25s. Measured 17 Aug 2026, at the end of the brush-placement session; it was 378 in 13m before it. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **383 passed, 0 failed, 0 skipped** — 20m32s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1205,6 +1205,66 @@ that is the test that would have caught two of these.
 - **25 rows preview a mesh with a different name** — `Int_Seagrass` → `IntSeagrass_Mesh`,
   `FlowerVase` → `flower_vase_mesh`. All checked; all the game's own naming. No rule distinguishes
   them from a real fault by name alone, so the sweep asserts a ceiling rather than zero.
+
+## Session of 17 Aug 2026 (audit) — two P0 unknowns closed, and the first timings
+
+Ran as a full repository audit against a master engineering prompt. Three things changed and one
+thing was measured for the first time.
+
+### The four "section overruns" were a misread field, not missing data
+
+`skeletalmesh.md` recorded four meshes whose sections reached past the index buffer by 2, 5, 5 and 8
+faces, and suspected the buffer — "this project locates the index buffer by *search*, which makes it
+the more likely candidate". **Refuted.** Over all 337 shipped section tables:
+
+| claim | agrees | disagrees |
+|---|---|---|
+| the sections' `NumFaces` add up to exactly the buffer's faces | **337** | **0** |
+| `MinStreamIndex` is the running index total | 336 | 1 |
+| `FirstFace` is the running face total | 333 | **4** |
+
+A buffer short by 8 faces could not have its sections sum to its length. **The sections tile the
+buffer; `FirstFace` is simply not where a section starts.** `MinStreamIndex` says the same
+independently, and its one exception is a `uint16` wrap: `CoreTop_Mesh` stores 10,244 where the
+running total is 75,780, and 75,780 − 65,536 = 10,244. **The clamp is gone**; a section is placed at
+the running total, which cannot overrun by construction, and the reader asserts the sum identity
+instead. What `FirstFace` means on those four is `UNKNOWN` and it is preserved.
+
+### The twelve off-plane world polygons are snapped corners
+
+Every one has a vertex **exactly** on its plane and the rest off it by the plane's off-axis slope
+times the distance travelled — `7-Gauntlet` node 755 is 0.0822 × 44 = 3.60 cm against a measured
+3.603, and the off-plane corners are the round coordinates while the exact ones are fractional. The
+editor's grid snap, in shipped data. Not precision, not the basis conversion, not the decode — the
+same arrays produce 81,554 exact polygons. `bsp.md` §5.6b, and the test asserts the discriminator:
+snapping moves corners, a decode fault moves whole polygons.
+
+### The first performance numbers this project has ever had
+
+`PerformanceBaselineTests`, medians after a warm-up:
+
+| operation | median |
+|---|---|
+| open `1-Medical.bsm` (204 MB) | **46.2 ms** |
+| open `0-Lighthouse.bsm` (187 MB) | 21.6 ms |
+| read one texture payload | **0.001 ms** |
+| read one large mesh payload | 0.048 ms |
+| decode that mesh's geometry | 17.3 ms |
+| `LevelAnalyzer.Analyze` | 107.6 ms |
+
+**Opening a package parses its whole name, import and export table.** Every service opens one for
+itself — `TexturePreviewService.Describe` then `Decode` is two opens for one selection, so a texture
+click pays ~92 ms of table parsing to do 0.002 ms of reading. That is the largest single
+optimisation available, and it is **not implemented**: a shared handle is unsafe today because
+`ReadExportData` moves the position of a stream the instance owns. Caching the parsed tables while
+payload reads take their own view is the shape that works.
+
+### Documentation drift, corrected
+
+`README.md` had gone stale enough to misrepresent the project: "3D preview: not started", "~40% of
+skeletal meshes decode" (98.1%), "130 animations" (16,031), and UE5 import presented as the goal
+when it is an excluded feature. Rewritten against the pinned sweeps. **HANDOFF stays authoritative;
+the README is now consistent with it.**
 
 ## Session of 17 Aug 2026 (later) — brush placement, settled against the compiled world
 
