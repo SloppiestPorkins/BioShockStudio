@@ -465,36 +465,41 @@ variable-width, its field order is not established, and **guessing it was reject
 shipped**. Settling it is what stands between this and `FLightMapIndex`: after the zones come
 `Polys`, then `LightMap`, then `LightBits`.
 
-### 5.5c The zone record, and where the lightmap array begins. `CONFIRMED_BYTES`
+### 5.5c The zone record, and the array after it. `CONFIRMED_BYTES` — with a correction
 
 **A zone record is an `FCompactIndex` actor reference followed by 36 fixed bytes.** Found by reading
 the bytes rather than by trying strides: the fixed part starts with the zone's own bit mask — `1`,
-`2`, `4` for zones 0, 1, 2 — and the references resolve to `ZoneInfo` and `SkyZoneInfo` exports,
-which is what a zone points at.
+`2`, `4` for zones 0, 1, 2 — and the references resolve to `ZoneInfo` and `SkyZoneInfo` exports.
 
 **A fixed 38-byte stride was tried first and is wrong**, landing correctly on only 2 of 21 maps: the
-reference's width varies with the export index, so the record is variable-width and only a walk
-works.
+reference's width varies with the export index, so only a walk works.
 
-**The anchor is what UE2 writes next.** After the zones comes the `Polys` object reference and then
-the `LightMap` array, so a correct walk lands on a reference resolving to a `Polys` export.
+**The anchor is what UE2 writes next.** After the zones comes the `Polys` object reference, and
+walking the zones lands on a reference resolving to a `Polys` export on **21 of 21 maps**.
 
-| | |
+> **A correction, recorded because it is the exact mistake this project's rules exist to prevent.**
+> The array after `Polys` was first written up here as `LightMap`, on the strength of UE2's
+> serialisation order — inherited ordering promoted to a fact without reading a record. **It is
+> `Bounds`, a `TArray<FBox>`.** `Entry`'s first record is `min(−128,−128,−128) max(128,128,128)`,
+> which is a box and not a lightmap descriptor. One dump of the bytes settled what one plausible
+> ordering had asserted.
+
+| measured over all 21 maps | |
 |---|---|
-| maps where the zone walk lands on a `Polys` reference | **21 of 21** |
-| lightmap entries, `0-Lighthouse` | **338**, against 370 surfaces |
-| lightmap entries, `1-Medical` | **2,704**, against 3,386 surfaces |
-| lightmap entries, `Entry` | **5**, against 6 surfaces |
+| zone walks landing on a `Polys` reference | **21 of 21** |
+| records after it | **30,578** |
+| …that are valid `FBox`es — `min ≤ max` on all axes, in world range, `IsValid = 1` | **30,578 (100%)** |
+| record stride | **25 bytes** — six floats and a byte |
 
-Fewer entries than surfaces on every map, which is what a per-lit-surface array should be.
+A wrong record size cannot hold that across arrays of 5 to 2,949 elements.
 
-`BspWorld.Layout` now reports `Zones`, `ZoneCount`, `LightMapCount` and `LightMap` — **the offset of
-the first `FLightMapIndex`**. `BspWorldTests.TheZoneWalkLandsOnThePolysReferenceAndFindsTheLightmapArray`.
+`BspWorld.Layout` reports `Zones`, `ZoneCount`, `Bounds` and `BoundCount`.
+`BspWorldTests.TheZoneWalkLandsOnPolysAndTheArrayAfterItIsBoxes`.
 
-**Nothing reads a descriptor yet.** §5.5 has the layout the references give — `iSurf`, `SizeX`,
-`SizeY`, a 4×4 `WorldToLightMap`, and a list of `FLightMapLight` — and the first check to make when
-decoding it is that each entry's `iSurf` is a valid surface index, since the count says the array is
-one entry per lit surface rather than one per surface.
+**Where the lightmaps are, then.** Still further on: `LeafHulls`, `Leaves` and `Lights` follow the
+bounds, and **between 879 and 628,534 bytes remain unread after them** on each map. The next step is
+to walk those three arrays the same way — measure a record, anchor it against something already
+decoded, and only then name it.
 
 ### 5.6 Surfaces that must not be drawn
 

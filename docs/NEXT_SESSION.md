@@ -83,10 +83,12 @@ whatever is in front and has caught the user's browser before.
    `NumSharedSides`, then `NumZones`, verified on 21 of 21 maps against the nodes' own zone bytes —
    and `BspWorld.Layout` reports where the decode stops, so nothing needs searching for.
    §5.5c settles the zone record — an FCompactIndex actor reference plus 36 fixed bytes — and the
-   walk lands on the `Polys` anchor on 21 of 21 maps, so **`BspWorld.Layout.LightMap` is the offset
-   of the first `FLightMapIndex`** and `LightMapCount` is how many there are (338 of Lighthouse's
-   370 surfaces). **Start there**: decode the descriptor, check each entry's `iSurf` is a valid
-   surface, then the atlas lookup in `LightMaps_BSP`.
+   walk lands on the `Polys` anchor on 21 of 21 maps. The array after it is **`Bounds`**, 30,578
+   valid FBoxes at a 25-byte stride, **not the lightmap table** — that was asserted from UE2's
+   serialisation order and refuted by reading one record. `BspWorld.Layout` reports where it is.
+   **Start there**: `LeafHulls`, `Leaves` and `Lights` follow, and 879 to 628,534 bytes remain
+   unread per map. Walk them the same way — measure a record, anchor it against something already
+   decoded, and only then name it.
 
 3. ~~`FBspSurf +20`~~ — **settled: it is `iBrushPoly`**, 6,372 of 6,372 surfaces naming a polygon of
    their own brush whose normal matches. So the lightmap index is NOT on the surface, and the

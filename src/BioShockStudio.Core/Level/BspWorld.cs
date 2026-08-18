@@ -134,17 +134,29 @@ public sealed record BspWorldLayout
     public required int ZoneCount { get; init; }
 
     /// <summary>
-    /// The <c>LightMap</c> array's element count, and where its first element begins.
+    /// The <c>Bounds</c> array — one <c>FBox</c> per leaf — and where its first element begins.
     /// </summary>
     /// <remarks>
-    /// <b>Located, not decoded.</b> UE2's <c>UModel</c> writes <c>Polys</c> after the zones and then
-    /// <c>LightMap</c>, and walking the zones lands on that <c>Polys</c> reference on 21 of 21 maps —
-    /// so the count after it is this array's, and the offset is where <c>FLightMapIndex</c> records
-    /// start. The records themselves are not read yet: §5.5 has the layout the references give, and
-    /// nothing here interprets a byte of it.
+    /// <para>
+    /// <b>This was first named <c>LightMap</c>, and that was wrong.</b> The reasoning was that UE2's
+    /// <c>UModel</c> writes <c>Polys</c> after the zones and <c>LightMap</c> after that — inherited
+    /// ordering, promoted to a fact without reading the records. Reading them settles it:
+    /// <c>Entry</c>'s first record is <c>min(−128,−128,−128) max(128,128,128)</c>, which is a box,
+    /// not a lightmap descriptor.
+    /// </para>
+    /// <para>
+    /// <b>Measured over every map: 25,000+ records, and every one is a valid <c>FBox</c></b> — six
+    /// floats with <c>min ≤ max</c> on all three axes, in world range, followed by an
+    /// <c>IsValid</c> byte that is 1. A 25-byte stride reproduces that on all 21 maps, which a wrong
+    /// record size cannot do across arrays of 5 to 2,949 elements.
+    /// </para>
+    /// <para>
+    /// So <b>the lightmap array is further on</b>: <c>LeafHulls</c>, <c>Leaves</c> and <c>Lights</c>
+    /// follow, and between 74,712 and 680,357 bytes remain unread after the boxes. §5.5c.
+    /// </para>
     /// </remarks>
-    public required int LightMapCount { get; init; }
-    public required int LightMap { get; init; }
+    public required int BoundCount { get; init; }
+    public required int Bounds { get; init; }
 
     /// <summary>One past the last byte this reader consumed.</summary>
     public required int DecodedEnd { get; init; }
@@ -328,7 +340,7 @@ public static class BspWorldReader
         // zones, the Polys reference and then the LightMap array. None of that is interpreted here —
         // the walk exists so the lightmap descriptors can be found without searching for them, which
         // has already produced a false positive once. See BspWorldLayout.
-        int zonesAt = 0, zoneCount = 0, lightMapAt = 0, lightMapCount = 0;
+        int zonesAt = 0, zoneCount = 0, boundsAt = 0, boundCount = 0;
 
         if (offset + 8 <= data.Length)
         {
@@ -352,8 +364,8 @@ public static class BspWorldReader
                 if (walked && cursor + 2 <= data.Length)
                 {
                     PropertyValues.ReadCompactIndex(data, ref cursor);          // Polys
-                    lightMapCount = PropertyValues.ReadCompactIndex(data, ref cursor);
-                    lightMapAt = cursor;
+                    boundCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                    boundsAt = cursor;
                 }
             }
         }
@@ -376,8 +388,8 @@ public static class BspWorldReader
                 VertexPool = poolAt,
                 Zones = zonesAt,
                 ZoneCount = zoneCount,
-                LightMapCount = lightMapCount,
-                LightMap = lightMapAt,
+                BoundCount = boundCount,
+                Bounds = boundsAt,
                 DecodedEnd = offset,
                 PayloadLength = data.Length,
             },

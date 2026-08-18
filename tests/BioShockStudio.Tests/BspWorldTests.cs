@@ -168,7 +168,7 @@ public sealed class BspWorldTests(GameFixture game)
     }
 
     /// <summary>
-    /// The zone array walks to the <c>Polys</c> reference, which locates the lightmap array.
+    /// The zone array walks to the <c>Polys</c> reference, and the array after it is the bounds.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -179,24 +179,25 @@ public sealed class BspWorldTests(GameFixture game)
     /// only 2 of 21 maps, because the reference's width varies with the export index.
     /// </para>
     /// <para>
-    /// <b>The anchor is what UE2 writes next.</b> After the zones comes the <c>Polys</c> object
-    /// reference, then the <c>LightMap</c> array. Walking the zones this way lands on a reference
-    /// resolving to a <c>Polys</c> export on <b>21 of 21 maps</b>, which is what makes the walk a
-    /// decode rather than a plausible-looking stride — and it puts the lightmap array's count and
-    /// first byte at a known offset instead of a searched one.
+    /// <b>Two anchors, and the second corrected the first.</b> Walking the zones lands on a
+    /// reference resolving to a <c>Polys</c> export on 21 of 21 maps, which is what makes the walk a
+    /// decode. The array after it was then <i>assumed</i> to be <c>LightMap</c>, from UE2's
+    /// serialisation order — and reading the records refutes that: <c>Entry</c>'s first is
+    /// <c>min(−128,−128,−128) max(128,128,128)</c>. It is <c>Bounds</c>, a <c>TArray&lt;FBox&gt;</c>.
     /// </para>
     /// <para>
-    /// <b>Nothing reads an <c>FLightMapIndex</c> yet.</b> The count is 338 of Lighthouse's 370
-    /// surfaces and 2,704 of Medical's 3,386 — fewer than the surfaces, which is what a per-lit-
-    /// surface array should be, and the next thing to check when the records are decoded.
+    /// <b>25,349 records across the 21 maps, and every one is a valid box:</b> six floats with
+    /// <c>min ≤ max</c> on all three axes and in world range, then an <c>IsValid</c> byte of 1, at a
+    /// 25-byte stride. A wrong record size cannot hold that across arrays of 5 to 2,949 elements.
+    /// The lightmap array is further on, past <c>LeafHulls</c>, <c>Leaves</c> and <c>Lights</c>.
     /// </para>
     /// </remarks>
     [RequiresGameFact]
-    public void TheZoneWalkLandsOnThePolysReferenceAndFindsTheLightmapArray()
+    public void TheZoneWalkLandsOnPolysAndTheArrayAfterItIsBoxes()
     {
         var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
 
-        int worlds = 0, located = 0;
+        int worlds = 0, located = 0, boxes = 0, validBoxes = 0;
         var problems = new List<string>();
 
         foreach (string map in maps)
@@ -213,32 +214,55 @@ public sealed class BspWorldTests(GameFixture game)
             var layout = world.Layout;
             string name = Path.GetFileNameWithoutExtension(map);
 
-            if (layout.LightMap <= 0 || layout.LightMapCount <= 0)
+            if (layout.Bounds <= 0 || layout.BoundCount <= 0)
             {
-                problems.Add($"{name}: the zone walk found no lightmap array "
-                             + $"(offset {layout.LightMap}, count {layout.LightMapCount})");
+                problems.Add($"{name}: the zone walk found no bounds array "
+                             + $"(offset {layout.Bounds}, count {layout.BoundCount})");
                 continue;
             }
 
             located++;
+            byte[] payload = package.ReadExportData(export);
 
-            // A descriptor per lit surface: never more than the surfaces, never zero.
-            if (layout.LightMapCount > world.Surfaces.Count)
-                problems.Add($"{name}: {layout.LightMapCount} lightmap entries for "
-                             + $"{world.Surfaces.Count} surfaces");
+            for (int i = 0; i < layout.BoundCount; i++)
+            {
+                int at = layout.Bounds + i * 25;
+                if (at + 25 > payload.Length) { problems.Add($"{name}: box {i} runs past the payload"); break; }
 
-            Log($"{name,-22} zones {layout.ZoneCount,4}  lightmap entries {layout.LightMapCount,6} "
-                + $"at {layout.LightMap,10:N0}  surfaces {world.Surfaces.Count,5}  "
-                + $"unread {layout.Unread,9:N0}");
+                var span = payload.AsSpan(at);
+                float minX = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span);
+                float minY = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span[4..]);
+                float minZ = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span[8..]);
+                float maxX = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span[12..]);
+                float maxY = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span[16..]);
+                float maxZ = System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span[20..]);
+
+                boxes++;
+
+                bool ordered = minX <= maxX && minY <= maxY && minZ <= maxZ;
+                bool inRange = float.IsFinite(minX) && float.IsFinite(maxZ)
+                               && MathF.Abs(minX) < 300_000 && MathF.Abs(maxZ) < 300_000;
+
+                if (ordered && inRange && span[24] == 1) validBoxes++;
+            }
+
+            Log($"{name,-22} zones {layout.ZoneCount,4}  bounds {layout.BoundCount,6} at {layout.Bounds,10:N0}  "
+                + $"nodes {world.Nodes.Count,5}  still unread after them "
+                + $"{layout.PayloadLength - layout.Bounds - layout.BoundCount * 25,9:N0}");
         }
 
-        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
+        Log($"bounds: {validBoxes} of {boxes} records are valid FBoxes at a 25-byte stride");
 
-        // The walk has to work everywhere, not on the map it was developed against.
+        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
         Assert.Equal(worlds, located);
+        Assert.True(boxes > 20_000, $"only {boxes} records were checked");
+
+        // The claim: every record is a box. This is what says the walk lands where it says it does —
+        // and it is the check that refuted the first reading of this array as the lightmap table.
+        Assert.Equal(boxes, validBoxes);
 
         Assert.True(problems.Count == 0,
-            "the zone walk did not land where the lightmap array should be:"
+            "the zone walk did not land on an array of boxes:"
             + Environment.NewLine + string.Join(Environment.NewLine, problems));
     }
 
