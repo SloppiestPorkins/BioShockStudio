@@ -9,7 +9,7 @@
 |---|---|
 | **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
 | **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **388 passed, 0 failed, 0 skipped** — 19m23s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
+| **Tests** | **390 passed, 0 failed, 0 skipped** — 21m17s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
 | **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
 | **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
 | **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
@@ -1274,6 +1274,32 @@ Two things had to be true first, and both are now tested:
   a long operation, so evicting four packages under it would turn a slowdown into a crash. Entries
   are reference-counted: eviction removes the entry, the file closes when the last lease returns.
   `AnEvictedPackageStaysReadableWhileItIsStillLeased`.
+
+### The compiled world's tail — three findings and one correction
+
+`BspWorldReader` stopped at the vertex pool, leaving **13.9% of the compiled worlds unread** —
+7.9 MB across the 21 maps. The tail is now walked far enough to know what is in it:
+
+- **The first two int32s after the pool are `NumSharedSides` and `NumZones`** — confirmed by a field
+  this project already decodes independently: `max(node.Zone) + 1` equals the declared zone count on
+  **21 of 21** maps, from a 2-zone `Entry` to a 125-zone `4-Recreation`.
+- **A zone record is an `FCompactIndex` actor reference plus 36 fixed bytes.** The fixed part starts
+  with the zone's own bit mask — 1, 2, 4 for zones 0, 1, 2 — and the references resolve to
+  `ZoneInfo` and `SkyZoneInfo` exports. A fixed 38-byte stride was tried and **rejected**: it lands
+  correctly on 2 of 21 maps, because the reference's width varies with the export index.
+- **The zone walk lands on the `Polys` reference on 21 of 21 maps**, which is what makes it a decode
+  rather than a plausible stride, and the array after that is **`Bounds`** — 30,578 records across
+  the maps, every one a valid `FBox` at a 25-byte stride.
+
+**And the correction, which is the part worth remembering.** That last array was first written up as
+`LightMap`, on the strength of UE2's serialisation order — inherited ordering promoted to a fact
+without reading a record. `Entry`'s first record is `min(-128,-128,-128) max(128,128,128)`. It is a
+box. **One dump of the bytes settled what one plausible ordering had asserted**, and the wrong
+reading stays in `bsp.md` §5.5c rather than being quietly replaced.
+
+**Lightmaps are past `LeafHulls`, `Leaves` and `Lights`**, with 879 to 628,534 bytes still unread per
+map. Walk them the same way: measure a record, anchor it against something already decoded, and only
+then name it.
 
 ### Documentation drift, corrected
 
