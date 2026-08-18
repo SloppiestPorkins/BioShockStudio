@@ -1275,6 +1275,38 @@ Two things had to be true first, and both are now tested:
   are reference-counted: eviction removes the entry, the file closes when the last lease returns.
   `AnEvictedPackageStaysReadableWhileItIsStillLeased`.
 
+### Session of 18 Aug 2026 — the rotation sign bug, found by a real screenshot
+
+A user reported a warped ceiling arch at the Medical Pavilion entrance — two panels meeting at a
+diagonal seam instead of a smooth barrel vault. This is the bug the earlier "flushness" measurement
+had already hinted at (a measured 40-55% mismatch rate for genuinely three-axis rotations) but had
+not pinned down, because that heuristic is too coarse and too noisy for floating fixtures.
+
+**The fix: negate pitch in `UnrealRotator.ToQuaternion`.** Found by matching this project's
+quaternion composition against the reference level editor's own matrix construction, numerically —
+not by trying alternatives and eyeballing renders. Nyko's `viewport.cpp` builds
+`Ry(yaw) * Rp(pitch) * Rr(roll)` for a **column**-vector; this project uses **row**-vector convention
+throughout. Six quaternion candidates were matrix-ized and applied to four probe vectors under both
+conventions, compared against Nyko's raw matrix multiplied by hand, across six sampled rotations
+including the exact case that broke (`pitch=-90°, roll=180°`). `Rz(yaw)·Ry(-pitch)·Rx(roll)`
+reproduced Nyko's construction to **1e-6** precision; the shipped `+pitch` version was off by more
+than 6 units on the same probes.
+
+**Why the earlier skyline render never caught it.** `LevelRenderingTests`' Rapture-skyline check
+exercises real rotated data, but most of Lighthouse's rotated actors are yaw-dominant — a yaw-only
+rotation is insensitive to the pitch sign, so a wrong sign renders identically. The bug needed a
+genuinely three-axis case, which is rare and exactly what the arch is.
+
+`TheMedicalPavilionCeilingArchFormsOneContinuousSurface` is the regression test — verified to fail
+against the old sign (combined bounding diagonal 4295 units, one instance scattering away from the
+rest) and pass against the fix (2422 units).
+
+**Also investigated, found healthy:** a second report that the Static tab's browser showed nothing
+on click. `AssetCatalogService` builds 2,362 static meshes correctly; `MeshPreviewService.Load`
+succeeded with geometry on 50/50 sampled entries, zero exceptions; `AssetDetailsService.Describe`
+succeeded on all 50, including under 40-way concurrent access through the new `PackageCache`.
+Whatever is wrong is in the GUI layer and needs the live window to isolate — not reproduced here.
+
 ### The compiled world's tail — three findings and one correction
 
 `BspWorldReader` stopped at the vertex pool, leaving **13.9% of the compiled worlds unread** —
