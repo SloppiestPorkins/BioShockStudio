@@ -18,3 +18,11 @@ obj/
 # their own licences.
 /UModel-master/
 /Unreal-Library-master/
+
+# Downloaded FMOD helper binaries are used locally to interrogate the game's streamed-audio banks.
+# They are not part of this project's source or redistribution set.
+/tools/fmod-x86/
+
+# Interpreter caches are local build by-products.
+__pycache__/
+*.py[cod]
