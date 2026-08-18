@@ -1275,6 +1275,51 @@ Two things had to be true first, and both are now tested:
   are reference-counted: eviction removes the entry, the file closes when the last lease returns.
   `AnEvictedPackageStaysReadableWhileItIsStillLeased`.
 
+### The "stuck on the first mesh" bug — a real race, found by reading the code
+
+A user reported the preview viewport freezing on the first asset selected and never updating again
+on later clicks, and separately that some assets (`ArcadiaGateMESH`, a Props-category entry) showed
+nothing at all. The second report never reproduced — `AssetCatalogService` (2,362 static meshes, 117
+props), `MeshPreviewService.Load` (80/80 Props entries, geometry, zero exceptions) and
+`AssetDetailsService.Describe` (80/80, including 40-way concurrent access through the new
+`PackageCache`) all check out clean, including for the exact reported entry. Ruled out along the way:
+only one `AssetBrowserView`/`DataGrid` exists at a time — Avalonia's `TabControl` recreates tab
+content rather than keeping both alive, so there is no cross-tab `SelectedAsset` binding conflict.
+
+**The first report was real, and did not need live reproduction to find** — reading
+`RenderAsync` found a genuine dropped-work race:
+
+```csharp
+var model = _previewModel;           // captured ONCE, before the loop
+do {
+    var image = await Task.Run(() => SoftwareRenderer.Render(...));   // a selection can land here
+    if (!ReferenceEquals(model, _previewModel)) return;               // <-- bug: bypasses the queue check
+    Viewport = ToBitmap(image);
+} while (_renderQueued);
+```
+
+If a new selection lands while a render is in flight, `LoadPreviewAsync` finds `_rendering` already
+`true` and — by design — only sets `_renderQueued = true`, trusting this loop to notice. The `return`
+on model mismatch discards the stale image correctly, but **also exits before the
+`while (_renderQueued)` check**, so the newer request it just set is never looked at. `_rendering`
+resets to `false` in `finally`, and nothing else is scheduled to fire again — the viewport freezes on
+whatever rendered first, until some unrelated event (a checkbox, a resize) happens to call
+`RequestRender()` again.
+
+**Fixed by re-reading `_previewModel` at the top of each loop iteration and turning the mismatch
+branch into a retry** (`_renderQueued = true; continue;`) instead of a `return`. Not verified by a
+live reproduction — the race is timing-dependent and forcing it deterministically in a test would
+need test-only hooks in production code, which was judged not worth adding for this. The fix is
+confirmed by tracing the control flow, which is what found the bug in the first place.
+
+**`DiagnosticLog`, added alongside this.** The app had no diagnostic trail at all — `Program.cs`
+called `.LogToTrace()`, invisible to anyone who launches the exe by double-click, and there was no
+handler for an exception escaping every existing try/catch. `%LocalAppData%\BioShockStudio\log.txt`,
+reset each launch, now records every selection, every `ShowDetailsAsync`/`LoadPreviewAsync` outcome,
+every caught exception with its full inner-exception chain, and any exception that would otherwise
+have vanished (`AppDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`). If the Props
+report recurs, this is what will show why without needing a terminal.
+
 ### Session of 18 Aug 2026 — the rotation sign bug, found by a real screenshot
 
 A user reported a warped ceiling arch at the Medical Pavilion entrance — two panels meeting at a

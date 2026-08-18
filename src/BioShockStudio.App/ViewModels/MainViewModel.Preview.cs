@@ -247,13 +247,25 @@ public partial class MainViewModel
         try
         {
             var subject = await Task.Run(() => _preview.Load(entry, null, token), token);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                DiagnosticLog.Write($"LoadPreviewAsync({entry.Name}): cancelled, superseded");
+                return;
+            }
 
             _previewModel = subject.Model;
             ViewportProblem = subject.Problem;
             HasViewport = subject.Model.HasGeometry || subject.Model.Bones.Count > 0;
 
-            if (!HasViewport) return;
+            DiagnosticLog.Write($"LoadPreviewAsync({entry.Name}): loaded — "
+                + $"hasGeometry={subject.Model.HasGeometry} bones={subject.Model.Bones.Count} "
+                + $"meshes={subject.Meshes.Count} problem={(subject.Problem is null ? "none" : subject.Problem)}");
+
+            if (!HasViewport)
+            {
+                DiagnosticLog.Write($"LoadPreviewAsync({entry.Name}): HasViewport=false, stopping here");
+                return;
+            }
 
             _camera = PreviewCamera.Frame(subject.Model);
             ShowSkeleton = !subject.Model.HasGeometry;
@@ -285,10 +297,12 @@ public partial class MainViewModel
         catch (OperationCanceledException)
         {
             // Superseded by a newer selection.
+            DiagnosticLog.Write($"LoadPreviewAsync({entry.Name}): OperationCanceledException");
         }
         catch (Exception ex)
         {
             ViewportProblem = ex.Message;
+            DiagnosticLog.WriteException($"LoadPreviewAsync({entry.Name})", ex);
         }
         finally
         {
@@ -622,8 +636,7 @@ public partial class MainViewModel
 
     private async Task RenderAsync()
     {
-        var model = _previewModel;
-        if (model is null) return;
+        if (_previewModel is null) return;
 
         _rendering = true;
         bool reduced = false;
@@ -632,6 +645,13 @@ public partial class MainViewModel
             do
             {
                 _renderQueued = false;
+
+                // Captured fresh each iteration, not once before the loop. A selection can change
+                // _previewModel while this frame's Task.Run is in flight below; re-reading it here
+                // is what lets the "model changed under me" branch retry with the CURRENT model
+                // instead of quietly dropping the request. See the remark on that branch.
+                var model = _previewModel;
+                if (model is null) return;
 
                 var camera = _camera;
                 var options = new RenderOptions
@@ -687,7 +707,21 @@ public partial class MainViewModel
                     return SoftwareRenderer.Render(instances, camera, options, width, height);
                 });
 
-                if (!ReferenceEquals(model, _previewModel)) return;
+                // The selection changed while this frame was rendering. This used to `return` here
+                // — discarding the stale image correctly, but also discarding the newer request
+                // with it, because the return skipped the `while (_renderQueued)` check below. A
+                // selection arriving mid-render found `_rendering` already true, so it only set
+                // `_renderQueued` and trusted this loop to pick it up; the early return broke that
+                // trust and the viewport froze on whatever had rendered first. Looping again — with
+                // `model` re-read at the top for whatever is current — is what actually honours the
+                // queued request instead of only recording that one arrived.
+                if (!ReferenceEquals(model, _previewModel))
+                {
+                    DiagnosticLog.Write("RenderAsync: selection changed mid-frame, retrying for the current model");
+                    _renderQueued = true;
+                    continue;
+                }
+
                 Viewport = ToBitmap(image);
                 reduced = interacting;
             }

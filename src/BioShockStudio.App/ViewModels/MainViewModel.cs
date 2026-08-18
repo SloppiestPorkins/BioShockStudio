@@ -432,6 +432,9 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedAssetChanged(CatalogEntry? value)
     {
+        DiagnosticLog.Write(value is null
+            ? "SelectedAsset -> null"
+            : $"SelectedAsset -> {value.Name} [{value.Category}] in {value.Package} (group {value.Group})");
         _ = ShowDetailsAsync(value);
         _ = LoadPreviewAsync(value);
     }
@@ -482,7 +485,11 @@ public partial class MainViewModel : ViewModelBase
                 return (described, preview, text);
             }, token);
 
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                DiagnosticLog.Write($"ShowDetailsAsync({entry.Name}): cancelled, superseded");
+                return;
+            }
 
             // What is measurably wrong with this asset, alongside what it is. The details panel is
             // where a user is looking when the viewport shows something odd.
@@ -497,14 +504,21 @@ public partial class MainViewModel : ViewModelBase
 
             TexturePreviewCaption = caption;
             if (image is not null) TexturePreview = ToBitmap(image);
+
+            DiagnosticLog.Write($"ShowDetailsAsync({entry.Name}): done — "
+                + $"identity={IdentityFields.Count} location={LocationFields.Count} "
+                + $"fields={DetailFields.Count} sections={DetailSections.Count} "
+                + $"problem={(details.Problem is null ? "none" : details.Problem)}");
         }
         catch (OperationCanceledException)
         {
             // Superseded by a newer selection.
+            DiagnosticLog.Write($"ShowDetailsAsync({entry.Name}): OperationCanceledException");
         }
         catch (Exception ex)
         {
             DetailsProblem = ex.Message;
+            DiagnosticLog.WriteException($"ShowDetailsAsync({entry.Name})", ex);
         }
     }
 
