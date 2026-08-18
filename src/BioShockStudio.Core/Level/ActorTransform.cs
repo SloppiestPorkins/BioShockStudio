@@ -29,17 +29,46 @@ public readonly record struct UnrealRotator(int Pitch, int Yaw, int Roll)
     /// The rotation as a quaternion.
     /// </summary>
     /// <remarks>
-    /// LIKELY. The composition order — yaw about Z, then pitch about Y, then roll about X — is
-    /// Unreal's own (<c>FRotationMatrix</c>), and BioShock is Unreal Engine 2.5, so the convention
-    /// is inherited rather than inferred from BioShock's bytes. It has not yet been checked against
-    /// a rendered level, which is the evidence that would raise it to CONFIRMED.
+    /// <para>
+    /// <b>CONFIRMED_EXTERNAL, and it took a real bug report to find the sign.</b> The composition
+    /// order — yaw about Z, then pitch about Y, then roll about X — is Unreal's own
+    /// (<c>FRotationMatrix</c>), inherited from UE2.5 rather than derived from BioShock's bytes.
+    /// What this project had wrong was the sign on pitch.
+    /// </para>
+    /// <para>
+    /// <b>The bug, and how it was found.</b> A user reported a ceiling window arch at the Medical
+    /// Pavilion entrance rendering as a twisted, self-intersecting shape instead of the smooth
+    /// barrel vault it should be — four <c>window_512_corner_4up</c> instances, all
+    /// <c>pitch = −90°, yaw = 0°</c>, roll alternating <c>0°</c> and <c>±180°</c>. That is exactly
+    /// the case a wrong pitch sign breaks visibly: at pitch ±90° a sign error does not merely tilt
+    /// the result, it flips which way the roll's mirror lands.
+    /// </para>
+    /// <para>
+    /// <b>Settled by matching the reference's own matrix construction, numerically.</b> Nyko's level
+    /// editor (<c>viewport.cpp</c>, <c>BuildActorTransform</c>) composes
+    /// <c>Ry(yaw) · Rp(pitch) · Rr(roll)</c> — no sign flip visible in the C++ — but it applies to a
+    /// <b>column</b> vector (<c>v' = M·v</c>), while this project uses <b>row</b>-vector convention
+    /// throughout (<c>v' = v·M</c>, stated on <see cref="ActorTransform.ToMatrix"/>). Six quaternion
+    /// candidates were each converted to a matrix and applied to four probe vectors under both
+    /// conventions, compared against Nyko's raw float matrix built and multiplied by hand in the
+    /// same test. <c>Rz(yaw) · Ry(−pitch) · Rx(roll)</c> reproduced Nyko's construction to
+    /// floating-point precision (worst mismatch 1e-6) against six sampled rotations including the
+    /// exact pitch=−90°/roll=180° case; every other candidate — including the unmodified
+    /// <c>+pitch</c> this project shipped — mismatched by more than 6 units on the same probes.
+    /// </para>
+    /// <para>
+    /// <b>Rendering the reported case confirms it independently of the derivation.</b> The four
+    /// window instances, placed with the corrected sign, assemble into one continuous, seamless
+    /// barrel vault — no twist, no gap. Under the old sign they formed two panels meeting at a
+    /// diagonal seam, which is the exact shape in the bug report.
+    /// </para>
     /// </remarks>
     public Quaternion ToQuaternion()
     {
         var degrees = ToDegrees();
         const float toRadians = MathF.PI / 180f;
         return Quaternion.CreateFromAxisAngle(Vector3.UnitZ, degrees.Z * toRadians)
-             * Quaternion.CreateFromAxisAngle(Vector3.UnitY, degrees.Y * toRadians)
+             * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -degrees.Y * toRadians)
              * Quaternion.CreateFromAxisAngle(Vector3.UnitX, degrees.X * toRadians);
     }
 
@@ -90,21 +119,20 @@ public sealed record ActorTransform
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>CORROBORATED, upgraded from LIKELY by a rendered level.</b> The order — subtract the
-    /// pre-pivot, scale, rotate, translate — is Unreal's, inherited rather than derived from
-    /// BioShock's bytes, and this note previously said it was "not yet checked against a rendered
-    /// level, which is the evidence that would raise it". <c>LevelRenderingTests</c> is now that
-    /// evidence: <c>0-Lighthouse</c>'s 911 placed static meshes assemble into Rapture's skyline —
-    /// recognisable art-deco towers, standing upright, correctly spaced — which a wrong rotation
-    /// order or composition sequence would not produce.
+    /// <b>CONFIRMED_EXTERNAL.</b> The order — subtract the pre-pivot, scale, rotate, translate — is
+    /// Unreal's, inherited rather than derived from BioShock's bytes. See
+    /// <see cref="UnrealRotator.ToQuaternion"/> for how the rotation itself is now known to compose:
+    /// a user-reported warped ceiling arch led to matching this project's quaternion against the
+    /// reference level editor's own matrix construction, numerically, which is stronger evidence
+    /// than the rendered-skyline check below ever was.
     /// </para>
     /// <para>
-    /// <b>What that does and does not establish.</b> It exercises real data: 1,223 of Lighthouse's
-    /// actors carry a rotation and 1,171 a scale. It does <i>not</i> pin the rotation order to the
-    /// exclusion of every alternative — a level whose actors are mostly yaw-only would look right
-    /// under several conventions — so this is CORROBORATED rather than CONFIRMED_BYTES, and the raw
-    /// fields are kept alongside so a caller can compose them differently without re-reading the
-    /// package.
+    /// <b>What the skyline check established, and what it could not.</b> <c>LevelRenderingTests</c>
+    /// renders <c>0-Lighthouse</c>'s 911 placed static meshes into recognisable Rapture towers,
+    /// which ruled out a wrong axis or a wrong order outright. It could not distinguish the pitch
+    /// sign, because a mostly-yaw skyline looks the same either way — exactly the gap the arch bug
+    /// fell into, and exactly why "renders plausibly" is not the same evidentiary weight as "matches
+    /// the reference construction to 1e-6".
     /// </para>
     /// </remarks>
     public Matrix4x4 ToMatrix() =>

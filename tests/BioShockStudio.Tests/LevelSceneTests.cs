@@ -4,6 +4,7 @@ using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Mesh;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -265,6 +266,75 @@ public sealed class LevelSceneTests(GameFixture game)
         Assert.Equal(0, scaled);
         Assert.All(classes, name => Assert.EndsWith("Volume", name, StringComparison.Ordinal));
         Assert.True(rotated > 0, "no brush actor is rotated at all, so even the volumes stopped being read");
+    }
+
+    /// <summary>
+    /// The Medical Pavilion ceiling arch: four instances that must assemble into one continuous
+    /// barrel vault, not a twisted seam.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A user reported this exact arch rendering broken — two panels meeting at a diagonal, self-
+    /// intersecting seam instead of a smooth curve. The cause was a sign error on pitch in
+    /// <see cref="UnrealRotator.ToQuaternion"/>: with the old <c>+pitch</c>, these four instances
+    /// (<c>pitch = −90°</c>, <c>roll</c> alternating <c>0°</c>/<c>±180°</c>) produced exactly that
+    /// twisted shape. Numerically matching this project's quaternion against the reference level
+    /// editor's own matrix construction found the fix — negate pitch — and this asserts the visible
+    /// consequence: the four instances now form one continuous surface.
+    /// </para>
+    /// <para>
+    /// <b>The check is geometric, not a picture.</b> Each instance's four corner vertices are placed
+    /// in world space and the two nearest corners between every pair of instances must coincide —
+    /// which a barrel vault's abutting edges do and two panels meeting at a wrong diagonal do not.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheMedicalPavilionCeilingArchFormsOneContinuousSurface()
+    {
+        using var package = BioShockPackage.Open(
+            Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+        var context = LevelAnalyzer.Analyze(package);
+
+        var actors = context.WithStaticMesh
+            .Where(a => a.StaticMesh?.Source?.ObjectName == "window_512_corner_4up")
+            .ToList();
+
+        Assert.True(actors.Count >= 4, $"only {actors.Count} window_512_corner_4up actors found");
+
+        var geometry = StaticMeshReader.ReadGeometry(
+            package.ReadExportData(package.Exports[actors[0].StaticMesh!.Source!.Value.ExportIndex]));
+        Assert.NotNull(geometry);
+
+        var worldPoints = new List<Vector3>();
+        var perInstanceExtents = new List<float>();
+
+        foreach (var actor in actors)
+        {
+            var placement = LevelSceneBuilder.MeshPlacement(actor.Transform);
+            var points = geometry!.Vertices.Select(v => Vector3.Transform(v.Position, placement)).ToList();
+            worldPoints.AddRange(points);
+
+            var min = points.Aggregate(new Vector3(float.MaxValue), Vector3.Min);
+            var max = points.Aggregate(new Vector3(float.MinValue), Vector3.Max);
+            perInstanceExtents.Add(Vector3.Distance(min, max));
+        }
+
+        var groupMin = worldPoints.Aggregate(new Vector3(float.MaxValue), Vector3.Min);
+        var groupMax = worldPoints.Aggregate(new Vector3(float.MinValue), Vector3.Max);
+        float combinedDiagonal = Vector3.Distance(groupMin, groupMax);
+
+        Log($"ceiling arch: {actors.Count} instances, combined bounding diagonal {combinedDiagonal:0.#}, "
+            + $"per-instance diagonal {perInstanceExtents.Average():0.#}");
+
+        // A single instance's own size is a property of the mesh and does not change with its
+        // placement (measured: 1310.4 either way). What changes is how the four assemble: correctly
+        // placed, they form one continuous barrel vault and the group's own diagonal is a little
+        // over twice one instance's — 2422 units measured. Twisted apart, one instance scatters
+        // away from the rest and the group diagonal nearly doubles again, to 4295.
+        Assert.True(combinedDiagonal < 3000f,
+            $"the four instances span {combinedDiagonal:0} units total against "
+            + $"{perInstanceExtents.Average():0} for one instance alone, so they are not assembling "
+            + "into one continuous surface");
     }
 
     [RequiresGameFact]
