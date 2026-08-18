@@ -86,6 +86,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedTabIndexChanged(int value)
     {
+        DiagnosticLog.Write($"SelectedTabIndex -> {value} (Workspace={(AssetWorkspace)Math.Clamp(value, 0, 2)})");
         OnPropertyChanged(nameof(Workspace));
         OnPropertyChanged(nameof(IsAssetsTab));
 
@@ -373,6 +374,7 @@ public partial class MainViewModel : ViewModelBase
     /// </remarks>
     private void RefreshCategories()
     {
+        DiagnosticLog.Write("RefreshCategories: rebuilding Categories and resetting SelectedCategory");
         var counts = _catalog.CategoryCounts();
         var categories = AssetWorkspaces.For(Workspace);
 
@@ -398,13 +400,30 @@ public partial class MainViewModel : ViewModelBase
 
     // ------------------------------------------------------------------ browsing
 
-    partial void OnSearchChanged(string value) => ApplyFilter();
-    partial void OnSelectedCategoryChanged(CategoryRow? value) => ApplyFilter();
-    partial void OnSelectedPackageChanged(string value) => ApplyFilter();
+    partial void OnSearchChanged(string value)
+    {
+        DiagnosticLog.Write($"Search -> \"{value}\"");
+        ApplyFilter();
+    }
+
+    partial void OnSelectedCategoryChanged(CategoryRow? value)
+    {
+        DiagnosticLog.Write($"SelectedCategory -> {value?.Display ?? "null"}");
+        ApplyFilter();
+    }
+
+    partial void OnSelectedPackageChanged(string value)
+    {
+        DiagnosticLog.Write($"SelectedPackage -> {value}");
+        ApplyFilter();
+    }
 
     private void ApplyFilter()
     {
         if (!_catalog.IsLoaded) return;
+
+        DiagnosticLog.Write($"ApplyFilter: rebuilding Assets (was {Assets.Count}), "
+            + $"SelectedAsset before clear = {SelectedAsset?.Name ?? "null"}");
 
         // The workspace bounds the search even when no category is chosen, so "all rigged assets"
         // cannot return a texture and a search inside one workspace cannot reach into the other.
@@ -430,13 +449,69 @@ public partial class MainViewModel : ViewModelBase
             : $"{ShownCount:N0} of {available:N0}";
     }
 
+    /// <summary>The most recent non-null selection, kept to tell a real deselection from the quirk below.</summary>
+    private CatalogEntry? _lastRealSelection;
+
+    /// <summary>Guards against acting on a selection that a moment later turns out to be spurious.</summary>
+    private int _selectionEpoch;
+
+    /// <summary>
+    /// How many times in a row the quirk below has been worked around for the same row. Capped so a
+    /// grid that is genuinely, persistently rejecting a selection cannot be fought forever — three
+    /// held every observed case in the diagnostic log with room to spare.
+    /// </summary>
+    private int _consecutiveReassertions;
+
     partial void OnSelectedAssetChanged(CatalogEntry? value)
     {
         DiagnosticLog.Write(value is null
             ? "SelectedAsset -> null"
             : $"SelectedAsset -> {value.Name} [{value.Category}] in {value.Package} (group {value.Group})");
-        _ = ShowDetailsAsync(value);
-        _ = LoadPreviewAsync(value);
+
+        int epoch = ++_selectionEpoch;
+
+        if (value is not null)
+        {
+            if (!ReferenceEquals(value, _lastRealSelection)) _consecutiveReassertions = 0;
+            _lastRealSelection = value;
+            _ = ShowDetailsAsync(value);
+            _ = LoadPreviewAsync(value);
+            return;
+        }
+
+        // A user clicking a row was reliably logged as SelectedAsset -> theRow immediately
+        // followed by SelectedAsset -> null, milliseconds later, with nothing in this view model
+        // in between — every filter, category and tab-index change is logged too, and none of
+        // them fired. That points at the DataGrid's own SelectedItem binding rather than
+        // anything here: see docs/HANDOFF.md "the DataGrid selection quirk".
+        //
+        // Rather than clear the panel on every one of these, wait one short tick. If the grid was
+        // really navigating away, SelectedAsset stays null and the previous row has left the
+        // filtered list or genuinely was deselected — clear normally. If the null was the quirk,
+        // the row the user actually clicked is still sitting right there in Assets, and the only
+        // honest thing to do is show it, because that is what is on screen as "selected".
+        _ = RecheckAfterNullSelectionAsync(epoch);
+    }
+
+    private async Task RecheckAfterNullSelectionAsync(int epoch)
+    {
+        await Task.Delay(100);
+        if (epoch != _selectionEpoch) return;               // superseded by a later selection change
+
+        if (_lastRealSelection is not null && Assets.Contains(_lastRealSelection)
+            && _consecutiveReassertions < 3)
+        {
+            _consecutiveReassertions++;
+            DiagnosticLog.Write($"SelectedAsset: re-asserting {_lastRealSelection.Name} "
+                + $"after a null that never resolved to anything else (attempt {_consecutiveReassertions}) "
+                + "— the DataGrid quirk");
+            SelectedAsset = _lastRealSelection;              // re-enters this method with a real value
+            return;
+        }
+
+        DiagnosticLog.Write("SelectedAsset: null confirmed after settling — clearing the panel");
+        _ = ShowDetailsAsync(null);
+        _ = LoadPreviewAsync(null);
     }
 
     private async Task ShowDetailsAsync(CatalogEntry? entry)

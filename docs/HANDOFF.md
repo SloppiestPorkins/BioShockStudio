@@ -1320,6 +1320,33 @@ every caught exception with its full inner-exception chain, and any exception th
 have vanished (`AppDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`). If the Props
 report recurs, this is what will show why without needing a terminal.
 
+### The DataGrid selection quirk — found from a real log, worked around, not root-caused
+
+The "nothing shows when I click an asset" report was real and, with the diagnostic log added
+alongside it, reproducible in the wild every single time: **every click logged `SelectedAsset ->
+theRow` immediately followed, 5-15 ms later, by `SelectedAsset -> null`**, with nothing else in the
+view model firing in between — every filter, category and tab-index change is logged too, and none
+of them appeared. `ShowDetailsAsync`/`LoadPreviewAsync` load, then get cancelled by the null before
+they can populate anything. Occasionally a third event re-selected the same row and it worked; most
+of the time it didn't.
+
+**Not root-caused.** This points at Avalonia's `DataGrid.SelectedItem` binding rather than anything
+in this project — a web search turned up several related open issues
+([#16591](https://github.com/AvaloniaUI/Avalonia/issues/16591),
+[discussion #9834](https://github.com/AvaloniaUI/Avalonia/discussions/9834)) but none matches this
+exact shape closely enough to call it confirmed. `Avalonia.Controls.DataGrid` 11.2.3.
+
+**Worked around in `MainViewModel`, not the XAML.** A null selection is no longer acted on
+immediately. It waits one 100 ms tick; if the row that was actually clicked is still sitting in the
+current `Assets` list when the tick elapses, the null is treated as the quirk and the selection is
+re-asserted rather than cleared. If the row is gone (a real navigation happened) or a different
+selection has since superseded it, the null is honoured normally. Capped at three consecutive
+reassertions per row so a genuinely, persistently rejected selection cannot be fought forever.
+
+**This is a workaround, stated as one.** The underlying DataGrid behaviour is still not understood —
+"unknown is a valid answer" applies to the framework's internals same as to this project's own
+formats. If it recurs in a shape the cap doesn't cover, the diagnostic log will show it.
+
 ### Session of 18 Aug 2026 — the rotation sign bug, found by a real screenshot
 
 A user reported a warped ceiling arch at the Medical Pavilion entrance — two panels meeting at a
