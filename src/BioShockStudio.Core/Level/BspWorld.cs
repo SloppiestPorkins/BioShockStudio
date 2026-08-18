@@ -110,6 +110,35 @@ public sealed record BspSurface
     public bool IsDrawn => (Flags & BspSurfaceFlags.NotDrawn) == 0;
 }
 
+/// <summary>
+/// Where each of the compiled world's arrays begins in the export payload, and where the decode
+/// stopped.
+/// </summary>
+/// <remarks>
+/// <b>The payload does not end where this reader does.</b> On <c>0-Lighthouse</c> the walk consumes
+/// 145,712 of 312,400 bytes; what follows is unread, and §5.5 expects the lightmap descriptors to be
+/// in it. Reporting the boundary is what lets the next investigation start from a known offset
+/// rather than searching for a plausible-looking count — a search that has already produced a false
+/// positive on <c>1-Medical</c>.
+/// </remarks>
+public sealed record BspWorldLayout
+{
+    public required int Vectors { get; init; }
+    public required int Points { get; init; }
+    public required int Nodes { get; init; }
+    public required int Surfaces { get; init; }
+    public required int VertexPool { get; init; }
+
+    /// <summary>One past the last byte this reader consumed.</summary>
+    public required int DecodedEnd { get; init; }
+
+    /// <summary>The whole export payload.</summary>
+    public required int PayloadLength { get; init; }
+
+    /// <summary>Bytes after the vertex pool that nothing has read.</summary>
+    public int Unread => PayloadLength - DecodedEnd;
+}
+
 /// <summary>The compiled world: everything needed to draw a level's architecture.</summary>
 public sealed record BspWorld
 {
@@ -126,6 +155,15 @@ public sealed record BspWorld
 
     /// <summary>The vertex pool: each entry names a point. A node's polygon is a run of these.</summary>
     public required IReadOnlyList<int> VertexPool { get; init; }
+
+    /// <summary>Where each array begins in the payload, and where the decode stopped.</summary>
+    /// <remarks>
+    /// Kept because the payload does not end where this reader does — the lightmap descriptors are
+    /// believed to follow (§5.5) — and locating an array by searching for a plausible count lands on
+    /// false positives, which is exactly what a lightmap probe did on <c>1-Medical</c>. A reader that
+    /// walked there should say where it got to rather than make the next investigation guess.
+    /// </remarks>
+    public required BspWorldLayout Layout { get; init; }
 
     public int PolygonCount => Nodes.Count(n => n.IsPolygon);
 
@@ -258,10 +296,15 @@ public static class BspWorldReader
             throw new InvalidDataException($"{source}: the Vengeance class header is not where it should be.");
         offset += 8;
 
+        int vectorsAt = offset;
         var vectors = ReadVectors(data, ref offset, source, "Vectors");
+        int pointsAt = offset;
         var points = ReadVectors(data, ref offset, source, "Points");
+        int nodesAt = offset;
         var nodes = ReadNodes(data, ref offset, source);
+        int surfacesAt = offset;
         var surfaces = ReadSurfaces(data, ref offset, source);
+        int poolAt = offset;
         var pool = ReadVertexPool(data, ref offset, source);
 
         return new BspWorld
@@ -272,6 +315,16 @@ public static class BspWorldReader
             Nodes = nodes,
             Surfaces = surfaces,
             VertexPool = pool,
+            Layout = new BspWorldLayout
+            {
+                Vectors = vectorsAt,
+                Points = pointsAt,
+                Nodes = nodesAt,
+                Surfaces = surfacesAt,
+                VertexPool = poolAt,
+                DecodedEnd = offset,
+                PayloadLength = data.Length,
+            },
         };
     }
 

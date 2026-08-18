@@ -436,6 +436,35 @@ as anything. **The scan does not yet generalise** — it locates the node array 
 Medical columns are not comparable. Fixing the locator, so the same field can be read on several
 maps at once, is the first step of the lightmap work rather than part of it.
 
+### 5.5b What the unread tail starts with — `NumSharedSides`, then `NumZones`. `CONFIRMED_BYTES`
+
+The reader stops at the vertex pool, and **13.9% of the compiled worlds' bytes are still unread** —
+7,928,056 of 57,108,008 across the 21 maps, and 698,916 bytes on `1-Medical` alone. §5.5's
+descriptors are expected to be in there, so the tail is now walked from a known offset rather than
+searched: `BspWorld.Layout` reports where each array began and where the decode stopped.
+
+**The first two int32s of the tail are UE2's `NumSharedSides` and `NumZones`**, and the second is
+confirmed by a field this project already decodes independently: a node's `Zone` byte indexes the
+zone array, so `max(node.Zone)` must equal `NumZones − 1`.
+
+| | |
+|---|---|
+| maps checked | **21** |
+| where `max(node.Zone) + 1` equals the declared zone count | **21 (100%)** |
+| range | `Entry` 2 zones, `4-Recreation` 125 |
+
+An arbitrary int32 does not track a byte field across 21 independent maps.
+`BspWorldTests.TheTailAfterTheVertexPoolStartsWithTheZoneCount`.
+
+**The zone record itself is `UNKNOWN`, and this is a negative result worth keeping.** Its zone-actor
+references are real — they resolve to `ZoneInfo` and `SkyZoneInfo` exports, which is what a zone
+points at — and within any one map they sit exactly **38 bytes** apart. But a fixed 38-byte stride
+lands on the `Polys` reference that UE2 serialises after the array on only **2 of 21** maps, because
+the reference is an `FCompactIndex` whose width varies with the export index. So the record is
+variable-width, its field order is not established, and **guessing it was rejected rather than
+shipped**. Settling it is what stands between this and `FLightMapIndex`: after the zones come
+`Polys`, then `LightMap`, then `LightBits`.
+
 ### 5.6 Surfaces that must not be drawn
 
 `PolyFlags` carries `PF_Invisible 0x1`, `PF_FakeBackdrop 0x80`, `PF_Portal 0x04000000`. Nyko's editor

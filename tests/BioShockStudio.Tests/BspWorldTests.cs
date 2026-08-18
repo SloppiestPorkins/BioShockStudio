@@ -92,6 +92,82 @@ public sealed class BspWorldTests(GameFixture game)
     }
 
     /// <summary>
+    /// What sits immediately after the vertex pool: <c>NumSharedSides</c> and <c>NumZones</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reader stops at the vertex pool, and between 8% and 27% of a <c>Model</c> payload is
+    /// still unread — 698,916 bytes on <c>1-Medical</c>. The lightmap descriptors are expected to be
+    /// in there (<c>bsp.md</c> §5.5), so knowing what the tail starts with is the first step of
+    /// reaching them, and it is now known rather than searched for.
+    /// </para>
+    /// <para>
+    /// <b>The check that identifies the second field is the zone byte on the nodes.</b> UE2's
+    /// <c>UModel</c> writes <c>NumSharedSides</c> then <c>NumZones</c> after the vertex pool, and a
+    /// node's zone must index that array — so <c>max(node.Zone)</c> has to be exactly
+    /// <c>NumZones − 1</c>. It is, on <b>all 21 maps</b>, from a 2-zone <c>Entry</c> to a 125-zone
+    /// <c>4-Recreation</c>. An arbitrary int32 does not track a byte field on 21 independent maps.
+    /// </para>
+    /// <para>
+    /// <b>What is still unknown is the zone record itself.</b> Its zone-actor references sit 38
+    /// bytes apart within a map — they resolve to <c>ZoneInfo</c> and <c>SkyZoneInfo</c> exports,
+    /// which is what a zone points at — but a fixed 38-byte stride only lands on the <c>Polys</c>
+    /// reference that should follow the array on 2 of 21 maps, because the reference is an
+    /// <c>FCompactIndex</c> and its width varies. So the record is variable-width and its field
+    /// order is <c>UNKNOWN</c>; that is the next thing to settle, and it is what stands between
+    /// this and <c>FLightMapIndex</c>.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheTailAfterTheVertexPoolStartsWithTheZoneCount()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int worlds = 0, agreeing = 0;
+        long unread = 0, payloads = 0;
+        var disagreements = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var model = ModelReader.BuiltWorld(package);
+            if (model is null) continue;
+
+            var export = package.Exports[model.Source.ExportIndex];
+            var world = BspWorldReader.Read(package, export);
+            if (world is null || world.Nodes.Count == 0) continue;
+
+            byte[] payload = package.ReadExportData(export);
+            int at = world.Layout.DecodedEnd;
+            if (at + 8 > payload.Length) continue;
+
+            worlds++;
+            unread += world.Layout.Unread;
+            payloads += world.Layout.PayloadLength;
+
+            int declaredZones = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 4));
+            int highestZone = world.Nodes.Max(n => (int)n.Zone);
+
+            if (declaredZones == highestZone + 1) agreeing++;
+            else
+                disagreements.Add($"{Path.GetFileNameWithoutExtension(map)}: declares {declaredZones} zones, "
+                                  + $"nodes reach zone {highestZone}");
+        }
+
+        Log($"tails: {worlds} worlds, {unread:N0} of {payloads:N0} bytes unread "
+            + $"({100.0 * unread / payloads:0.#}%), {agreeing} declare a zone count matching their nodes");
+
+        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
+        Assert.True(unread > 0, "nothing is unread, so the tail this describes is gone");
+
+        // The identification, as an assertion that can fail: every map's second tail field is its
+        // zone count. Reading the wrong offset, or a decode that stopped somewhere else, breaks it.
+        Assert.True(disagreements.Count == 0,
+            "the int32 after the vertex pool is not the zone count on every map:"
+            + Environment.NewLine + string.Join(Environment.NewLine, disagreements));
+    }
+
+    /// <summary>
     /// What the twelve off-plane polygons actually are: corners snapped to round coordinates on
     /// planes that are slightly oblique. Shipped data, not a decode fault.
     /// </summary>
