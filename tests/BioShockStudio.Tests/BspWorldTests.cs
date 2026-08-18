@@ -1,4 +1,5 @@
 using System.Numerics;
+using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
@@ -28,6 +29,28 @@ namespace BioShockStudio.Tests;
 [Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class BspWorldTests(GameFixture game)
 {
+    private static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
+    {
+        byte first = data[offset++];
+        bool negative = (first & 0x80) != 0;
+        int value = first & 0x3F;
+
+        if ((first & 0x40) != 0)
+        {
+            int shift = 6;
+            while (true)
+            {
+                byte next = data[offset++];
+                value |= (next & 0x7F) << shift;
+                shift += 7;
+                if ((next & 0x80) == 0) break;
+                if (shift > 31) throw new InvalidDataException("FCompactIndex overflow.");
+            }
+        }
+
+        return negative ? -value : value;
+    }
+
     private static void Log(string line)
     {
         if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is { Length: > 0 } path)
@@ -267,6 +290,322 @@ public sealed class BspWorldTests(GameFixture game)
     }
 
     /// <summary>
+    /// The complete structural tail reaches the lightmap descriptor array without scanning.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// After <c>Bounds</c>, <c>UModel</c> serialises <c>LeafHulls</c>, 12-byte <c>FLeaf</c>
+    /// records, light references, one further object-reference array, then two int32 fields. The
+    /// next compact count is the <c>FLightMapIndex</c> array: one entry per surface, beginning with
+    /// the Vengeance object header <c>(4, 2)</c>. This is the anchor that proves the variable-width
+    /// reference arrays were walked correctly rather than skipped with a guessed stride.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void StructuralTailWalkLandsOnOneLightmapDescriptorPerSurface()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int worlds = 0, anchored = 0, leaves = 0, lightReferences = 0;
+        var problems = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.Nodes.Count == 0) continue;
+
+            worlds++;
+            string name = Path.GetFileNameWithoutExtension(map);
+            var layout = world.Layout;
+            byte[] payload = package.ReadExportData(package.Exports[world.Source.ExportIndex]);
+
+            if (layout.LightMaps <= 0 || layout.LightMaps + 10 > payload.Length)
+            {
+                problems.Add($"{name}: tail did not reach a lightmap boundary (at {layout.LightMaps})");
+                continue;
+            }
+
+            if (world.Leaves.Count != layout.LeafCount || world.LightReferences.Count != layout.LightCount)
+            {
+                problems.Add($"{name}: tail count/list mismatch (leaves {world.Leaves.Count}/{layout.LeafCount}, "
+                             + $"lights {world.LightReferences.Count}/{layout.LightCount})");
+                continue;
+            }
+
+            int at = layout.LightMaps;
+            int lightMapCount = ReadCompactIndex(payload, ref at);
+            int check = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at));
+            int version = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 4));
+
+            leaves += world.Leaves.Count;
+            lightReferences += world.LightReferences.Count;
+            Log($"{name,-22} hulls {layout.LeafHullCount,6} leaves {layout.LeafCount,6} lights {layout.LightCount,5} "
+                + $"other refs {layout.OtherReferenceCount,5} lightmaps {lightMapCount,6} at {layout.LightMaps,10:N0}");
+
+            if (lightMapCount == world.Surfaces.Count && check == 4 && version == 2)
+                anchored++;
+            else
+                problems.Add($"{name}: expected {world.Surfaces.Count} lightmaps headed (4,2), got "
+                             + $"{lightMapCount} headed ({check},{version})");
+        }
+
+        Log($"tail walk: {anchored} of {worlds} worlds anchored; {leaves:N0} leaves, {lightReferences:N0} light refs");
+
+        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
+        Assert.Equal(worlds, anchored);
+        Assert.True(leaves > 10_000, $"only {leaves} leaves were read");
+        Assert.True(problems.Count == 0,
+            "the structural tail did not land on FLightMapIndex:" + Environment.NewLine
+            + string.Join(Environment.NewLine, problems));
+    }
+
+    /// <summary>The verified lightmap-descriptor variant maps uniquely to its compiled surfaces.</summary>
+    [RequiresGameFact]
+    public void LightmapDescriptorsCoverEverySurface()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int worlds = 0, decodedWorlds = 0, descriptors = 0, embeddedLayers = 0;
+        var problems = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.Nodes.Count == 0) continue;
+
+            worlds++;
+            string name = Path.GetFileNameWithoutExtension(map);
+            var mapsForWorld = world.LightMaps;
+            descriptors += mapsForWorld.Count;
+
+            if (mapsForWorld.Count != world.Surfaces.Count)
+            {
+                Log($"{name,-22} descriptor tail uses an unverified variable layout");
+                continue;
+            }
+
+            decodedWorlds++;
+
+            var expectedSurfaces = Enumerable.Range(0, world.Surfaces.Count).ToHashSet();
+            var actualSurfaces = mapsForWorld.Select(lightMap => lightMap.Surface).ToHashSet();
+            if (!expectedSurfaces.SetEquals(actualSurfaces))
+                problems.Add($"{name}: descriptors do not form a one-to-one surface mapping");
+
+            foreach (var lightMap in mapsForWorld)
+            {
+                if (lightMap.Width is < 1 or > 512 || lightMap.Height is < 1 or > 512)
+                    problems.Add($"{name}: surface {lightMap.Surface} has impossible size {lightMap.Width}x{lightMap.Height}");
+
+                foreach (var layer in lightMap.Lights)
+                {
+                    embeddedLayers++;
+                }
+            }
+
+            Log($"{name,-22} descriptors {mapsForWorld.Count,6} embedded layers {mapsForWorld.Sum(lightMap => lightMap.Lights.Count),6}");
+        }
+
+        Log($"lightmaps: {decodedWorlds}/{worlds} worlds decoded, {descriptors:N0} descriptors, {embeddedLayers:N0} embedded layers");
+
+        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
+        Assert.Equal(worlds, decodedWorlds);
+        Assert.True(descriptors > 39_000, $"only {descriptors} descriptors were decoded");
+        Assert.True(embeddedLayers > 45_000, $"only {embeddedLayers} baked-light layers were decoded");
+        Assert.True(problems.Count == 0,
+            "lightmap descriptor decode failed validation:" + Environment.NewLine
+            + string.Join(Environment.NewLine, problems.Take(50)));
+    }
+
+    /// <summary>One remaining node field is the descriptor index, not merely a plausible small integer.</summary>
+    [RequiresGameFact]
+    public void NodeLightmapIndexMatchesItsDescriptorsOwningSurface()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int worlds = 0;
+        var matches = new Dictionary<int, int> { [88] = 0, [92] = 0, [96] = 0 };
+        var examined = new Dictionary<int, int> { [88] = 0, [92] = 0, [96] = 0 };
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.LightMaps.Count != world.Surfaces.Count) continue;
+
+            worlds++;
+            byte[] payload = package.ReadExportData(package.Exports[world.Source.ExportIndex]);
+            int body = world.Layout.Nodes;
+            int nodeCount = ReadCompactIndex(payload, ref body);
+            Assert.Equal(world.Nodes.Count, nodeCount);
+
+            for (int node = 0; node < nodeCount; node++)
+            {
+                int nodeAt = body + node * 100;
+                foreach (int candidateOffset in matches.Keys.ToArray())
+                {
+                    int candidate = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(nodeAt + candidateOffset));
+                    if (candidate < 0 || candidate >= world.LightMaps.Count) continue;
+                    examined[candidateOffset]++;
+                    if (world.LightMaps[candidate].Surface == world.Nodes[node].Surface)
+                        matches[candidateOffset]++;
+                }
+            }
+        }
+
+        foreach (int offset in matches.Keys.OrderBy(value => value))
+            Log($"node +{offset}: {matches[offset]:N0}/{examined[offset]:N0} descriptor-to-surface matches");
+
+        Assert.True(worlds >= 20, $"only {worlds} worlds were read");
+        Assert.True(examined[96] > 10_000, "node +96 did not produce enough candidate descriptor indices");
+        Assert.Equal(examined[96], matches[96]);
+        Assert.True(matches[88] < examined[88] / 10, "node +88 unexpectedly behaves like the lightmap index");
+        Assert.True(matches[92] < examined[92] / 10, "node +92 unexpectedly behaves like the lightmap index");
+    }
+
+    [RequiresGameFact]
+    public void LightmapAtlasPoolsAreVengeanceWrappedLightMapsTextures()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+        int pools = 0, textures = 0;
+        var problems = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.LightMapTextures.Count == 0) continue;
+
+            string mapName = Path.GetFileNameWithoutExtension(map);
+            pools++;
+            textures += world.LightMapTextures.Count;
+
+            if (world.Layout.LightMapTextures <= world.Layout.LightMaps
+                || world.Layout.LightMapTextureCount != world.LightMapTextures.Count)
+            {
+                problems.Add($"{mapName}: atlas layout offset/count disagree");
+                continue;
+            }
+
+            foreach (var reference in world.LightMapTextures)
+            {
+                if (!reference.Texture.IsExport || reference.Texture.ExportIndex >= package.Exports.Count)
+                {
+                    problems.Add($"{mapName}: atlas reference {reference.Texture} is not an export");
+                    continue;
+                }
+
+                var texture = package.Exports[reference.Texture.ExportIndex];
+                var header = TextureReader.ReadHeader(package, texture);
+                if (package.GetClassName(texture) != TextureReader.ClassName
+                    || package.ResolveName(texture.OuterIndex) != "LightMaps_BSP"
+                    || header is not { Width: 1024, Height: 1024 })
+                    problems.Add($"{mapName}: {texture.ObjectName} is not a 1024px LightMaps_BSP texture");
+            }
+
+            Log($"{mapName,-22} atlas pool {world.LightMapTextures.Count,3} at {world.Layout.LightMapTextures,10:N0}");
+        }
+
+        Assert.True(pools >= 11, $"only {pools} map packages exposed a lightmap atlas pool");
+        Assert.True(textures > 100, $"only {textures} atlas textures were read");
+        Assert.True(problems.Count == 0,
+            "lightmap atlas pool validation failed:" + Environment.NewLine + string.Join(Environment.NewLine, problems));
+    }
+
+    [RequiresGameFact]
+    public void ProbeLightmapDescriptorRecordBoundaries()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.LightMapTextures.Count == 0) continue;
+
+            byte[] payload = package.ReadExportData(package.Exports[world.Source.ExportIndex]);
+            int cursor = world.Layout.LightMaps;
+            int descriptorCount = ReadCompactIndex(payload, ref cursor);
+            var starts = new List<int>();
+
+            for (int at = cursor; at + 20 <= world.Layout.LightMapTextures; at++)
+            {
+                if (System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at)) != 4
+                    || System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 4)) != 2)
+                    continue;
+
+                int surface = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 8));
+                int width = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 12));
+                int height = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(at + 16));
+                if (surface >= 0 && surface < world.Surfaces.Count && width is > 0 and <= 512 && height is > 0 and <= 512)
+                    starts.Add(at);
+            }
+
+            var gaps = starts.Zip(starts.Skip(1), (left, right) => right - left).ToList();
+            int lit = gaps.FindIndex(gap => gap > 97);
+            string sample = "no baked-light entries";
+            if (lit >= 0)
+            {
+                int lightAt = starts[lit] + 96;
+                int afterCount = lightAt;
+                int count = ReadCompactIndex(payload, ref afterCount);
+                int check = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(afterCount));
+                int version = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(afterCount + 4));
+                sample = $"lights {count}, header ({check},{version}), gap {gaps[lit]}";
+            }
+            Log($"{Path.GetFileNameWithoutExtension(map),-22} descriptors {starts.Count}/{descriptorCount}, "
+                + $"first {starts.FirstOrDefault(),10:N0}, last {starts.LastOrDefault(),10:N0}, "
+                + $"gaps {string.Join(',', gaps.Distinct().OrderBy(value => value).Take(12))}; {sample}");
+        }
+    }
+
+    [RequiresGameFact]
+    public void ProbeLightmapMatrixConventionAgainstAtlasTiles()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+        long rowMajorInside = 0, transposedInside = 0, examined = 0;
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.LightMapTextures.Count == 0) continue;
+
+            foreach (var node in world.Nodes.Where(node => node.IsPolygon && node.LightMap >= 0 && node.LightMap < world.LightMaps.Count))
+            {
+                var descriptor = world.LightMaps[node.LightMap];
+                var layer = descriptor.Lights.FirstOrDefault(light => light.Atlas >= 0 && light.Atlas < world.LightMapTextures.Count);
+                if (layer is null) continue;
+
+                foreach (var point in world.PolygonOf(node))
+                {
+                    // BspWorld points have already crossed the Y-reflection; the serialized matrix has not.
+                    var raw = GameBasis.Convert(point);
+                    var rowMajor = Vector4.Transform(new Vector4(raw, 1f), descriptor.WorldToLightMap);
+                    var transposed = Vector4.Transform(new Vector4(raw, 1f), Matrix4x4.Transpose(descriptor.WorldToLightMap));
+
+                    rowMajorInside += IsInsideTile(rowMajor, descriptor, layer) ? 1 : 0;
+                    transposedInside += IsInsideTile(transposed, descriptor, layer) ? 1 : 0;
+                    examined++;
+                }
+            }
+        }
+
+        Log($"lightmap matrix: row-major {rowMajorInside:N0}/{examined:N0}, transposed {transposedInside:N0}/{examined:N0} inside declared tiles");
+        Assert.True(examined > 100_000, $"only {examined} atlas-bound vertices were examined");
+    }
+
+    private static bool IsInsideTile(Vector4 transformed, BspLightMap descriptor, BspLightMapLight layer)
+    {
+        float u = transformed.X * descriptor.Width + layer.TileX + 0.5f;
+        float v = transformed.Y * descriptor.Height + layer.TileY + 0.5f;
+        const float tolerance = 1.5f;
+        return u >= layer.TileX - tolerance && u <= layer.TileX + descriptor.Width + tolerance
+            && v >= layer.TileY - tolerance && v <= layer.TileY + descriptor.Height + tolerance;
+    }
+
+    /// <summary>
     /// What the twelve off-plane polygons actually are: corners snapped to round coordinates on
     /// planes that are slightly oblique. Shipped data, not a decode fault.
     /// </summary>
@@ -413,6 +752,36 @@ public sealed class BspWorldTests(GameFixture game)
         Log($"emitted world triangles: {emittedAgree} agree, {emittedDisagree} disagree");
         Assert.True(emittedAgree > emittedDisagree * 20,
             $"the emitted world triangles face the wrong way: {emittedAgree} against {emittedDisagree}");
+    }
+
+    /// <summary>
+    /// The geometry layer keeps the two UV spaces separate and only binds atlas references the
+    /// package's lightmap pool actually exposed. This is intentionally tested on Medical: it has a
+    /// dense interior world and a decoded <c>LightMaps_BSP</c> pool rather than a guessed one.
+    /// </summary>
+    [RequiresGameFact]
+    public void LightmapBatchesCarryAtlasUvsForEveryVertex()
+    {
+        string medical = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+        using var package = BioShockPackage.Open(medical);
+        var world = World(package)!;
+
+        var batches = BspGeometry.ToLightMapBatches(world);
+        int vertices = batches.Sum(b => b.Geometry.Vertices.Count);
+
+        Log($"1-Medical lightmap batches: {batches.Count:N0}, {vertices:N0} vertices");
+        Assert.NotEmpty(batches);
+        Assert.True(vertices > 10_000, "Medical did not produce a substantial baked-light geometry set");
+
+        foreach (var batch in batches)
+        {
+            Assert.Contains(world.LightMapTextures, t => t.Texture == batch.Atlas);
+            Assert.All(batch.Geometry.Vertices, vertex =>
+            {
+                Assert.InRange(vertex.LightMapUv.X, 0f, 1f);
+                Assert.InRange(vertex.LightMapUv.Y, 0f, 1f);
+            });
+        }
     }
 
     /// <summary>

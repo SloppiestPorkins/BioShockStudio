@@ -21,6 +21,13 @@ public sealed record MeshVertex
 
     public required Vector2 Uv { get; init; }
 
+    /// <summary>
+    /// Optional second UV channel. Compiled BSP lightmaps address a 1024-square atlas independently
+    /// of the material UV, so keeping it beside the primary channel lets a viewport bind both
+    /// without changing the representation of ordinary static and skeletal meshes.
+    /// </summary>
+    public Vector2 LightMapUv { get; init; }
+
     /// <summary>Influences with a non-zero weight. Never truncated to satisfy an exporter limit.</summary>
     public required IReadOnlyList<SkinInfluence> Influences { get; init; }
 }

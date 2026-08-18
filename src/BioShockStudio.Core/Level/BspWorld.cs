@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
 
 namespace BioShockStudio.Core.Level;
 
@@ -46,10 +47,48 @@ public sealed record BspNode
     public required int Front { get; init; }
     public required int Back { get; init; }
 
+    /// <summary>Index into <see cref="BspWorld.LightMaps"/> for this polygon's baked-light descriptor.</summary>
+    public required int LightMap { get; init; }
+
     /// <summary>The zone behind the node's plane. Vengeance allows 128, where stock UE2.5 allows 64.</summary>
     public required byte Zone { get; init; }
 
     public bool IsPolygon => VertexCount >= 3;
+}
+
+/// <summary>One BSP leaf: its zone and the two lighting lookup indices the renderer serialises.</summary>
+public sealed record BspLeaf
+{
+    public required int Zone { get; init; }
+    public required int Permeating { get; init; }
+    public required int Volumetric { get; init; }
+}
+
+/// <summary>One baked-light layer for a BSP surface, including its atlas tile.</summary>
+public sealed record BspLightMapLight
+{
+    public required IReadOnlyList<PackageIndex> LightActors { get; init; }
+    public required int Atlas { get; init; }
+    public required int TileX { get; init; }
+    public required int TileY { get; init; }
+}
+
+/// <summary>The baked-light descriptor belonging to one compiled BSP surface.</summary>
+public sealed record BspLightMap
+{
+    public required int Surface { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+
+    /// <summary>Raw, row-major game-space matrix. It is deliberately not basis-converted here.</summary>
+    public required Matrix4x4 WorldToLightMap { get; init; }
+    public required IReadOnlyList<BspLightMapLight> Lights { get; init; }
+}
+
+/// <summary>One entry in the UModel lightmap-atlas pool.</summary>
+public sealed record BspLightMapTexture
+{
+    public required PackageIndex Texture { get; init; }
 }
 
 /// <summary>One compiled surface: what a run of polygons is painted with, and how.</summary>
@@ -158,6 +197,34 @@ public sealed record BspWorldLayout
     public required int BoundCount { get; init; }
     public required int Bounds { get; init; }
 
+    /// <summary>The collision leaf-hull index array, immediately after <see cref="Bounds"/>.</summary>
+    public required int LeafHullCount { get; init; }
+    public required int LeafHulls { get; init; }
+
+    /// <summary>The 12-byte <c>FLeaf</c> array.</summary>
+    public required int LeafCount { get; init; }
+    public required int Leaves { get; init; }
+
+    /// <summary>The compact object-reference array for lights.</summary>
+    public required int LightCount { get; init; }
+    public required int Lights { get; init; }
+
+    /// <summary>An additional compact object-reference array whose semantic purpose remains unknown.</summary>
+    public required int OtherReferenceCount { get; init; }
+    public required int OtherReferences { get; init; }
+
+    /// <summary>Offsets of the two raw fields just before the rendering data.</summary>
+    public required int RootOutside { get; init; }
+    public required int Linked { get; init; }
+
+    /// <summary>The first byte of the lightmap/rendering arrays, after the proven structural tail.</summary>
+    public required int LightMaps { get; init; }
+    public required int LightMapCount { get; init; }
+    public required int LightBits { get; init; }
+    public required int LightBitCount { get; init; }
+    public required int LightMapTextures { get; init; }
+    public required int LightMapTextureCount { get; init; }
+
     /// <summary>One past the last byte this reader consumed.</summary>
     public required int DecodedEnd { get; init; }
 
@@ -184,6 +251,18 @@ public sealed record BspWorld
 
     /// <summary>The vertex pool: each entry names a point. A node's polygon is a run of these.</summary>
     public required IReadOnlyList<int> VertexPool { get; init; }
+
+    /// <summary>Leaves in the structural UModel tail.</summary>
+    public required IReadOnlyList<BspLeaf> Leaves { get; init; }
+
+    /// <summary>References to the light actors carried by the UModel tail.</summary>
+    public required IReadOnlyList<PackageIndex> LightReferences { get; init; }
+
+    /// <summary>One baked-light descriptor per surface, in the package's own order.</summary>
+    public required IReadOnlyList<BspLightMap> LightMaps { get; init; }
+
+    /// <summary>The atlas texture pool addressed by <see cref="BspLightMapLight.Atlas"/>.</summary>
+    public required IReadOnlyList<BspLightMapTexture> LightMapTextures { get; init; }
 
     /// <summary>Where each array begins in the payload, and where the decode stopped.</summary>
     /// <remarks>
@@ -279,6 +358,26 @@ public sealed record BspWorld
 
         return (worst, off, checkedCount);
     }
+
+    /// <summary>Builds the atlas UV for one vertex and one baked-light layer.</summary>
+    /// <remarks>
+    /// The stored matrix is in game space while <paramref name="position"/> is in the studio
+    /// basis, so the Y reflection is reversed before multiplying. The matrix is consumed row-major:
+    /// on the eleven maps exposing atlas pools, this places <b>234,404 of 234,404</b> checked
+    /// polygon vertices inside their descriptor's declared tile; transposing it places only 1,096
+    /// inside. The half-texel term addresses texel centres, not edges.
+    /// </remarks>
+    public Vector2 LightMapUv(BspNode node, Vector3 position, BspLightMapLight layer)
+    {
+        if (node.LightMap < 0 || node.LightMap >= LightMaps.Count) return Vector2.Zero;
+
+        var descriptor = LightMaps[node.LightMap];
+        Vector3 rawPosition = GameBasis.Convert(position);
+        Vector4 projected = Vector4.Transform(new Vector4(rawPosition, 1f), descriptor.WorldToLightMap);
+        return new Vector2(
+            (projected.X * descriptor.Width + layer.TileX + 0.5f) / 1024f,
+            (projected.Y * descriptor.Height + layer.TileY + 0.5f) / 1024f);
+    }
 }
 
 /// <summary>
@@ -341,6 +440,14 @@ public static class BspWorldReader
         // the walk exists so the lightmap descriptors can be found without searching for them, which
         // has already produced a false positive once. See BspWorldLayout.
         int zonesAt = 0, zoneCount = 0, boundsAt = 0, boundCount = 0;
+        int leafHullsAt = 0, leafHullCount = 0, leavesAt = 0, leafCount = 0;
+        int lightsAt = 0, lightCount = 0, otherReferencesAt = 0, otherReferenceCount = 0;
+        int rootOutsideAt = 0, linkedAt = 0, lightMapsAt = 0;
+        int lightMapCount = 0, lightBitsAt = 0, lightBitCount = 0, lightMapTexturesAt = 0, lightMapTextureCount = 0;
+        IReadOnlyList<BspLeaf> leaves = [];
+        IReadOnlyList<PackageIndex> lightReferences = [];
+        IReadOnlyList<BspLightMap> lightMaps = [];
+        IReadOnlyList<BspLightMapTexture> lightMapTextures = [];
 
         if (offset + 8 <= data.Length)
         {
@@ -366,6 +473,84 @@ public static class BspWorldReader
                     PropertyValues.ReadCompactIndex(data, ref cursor);          // Polys
                     boundCount = PropertyValues.ReadCompactIndex(data, ref cursor);
                     boundsAt = cursor;
+
+                    if (boundCount >= 0 && (long)boundCount * 25 <= data.Length - cursor)
+                    {
+                        cursor += boundCount * 25;                               // FBox: six floats + IsValid
+                        leafHullCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                        leafHullsAt = cursor;
+
+                        if (leafHullCount >= 0 && (long)leafHullCount * 4 <= data.Length - cursor)
+                        {
+                            cursor += leafHullCount * 4;
+                            leafCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                            leavesAt = cursor;
+
+                            if (leafCount >= 0 && (long)leafCount * 12 <= data.Length - cursor)
+                            {
+                                var parsedLeaves = new List<BspLeaf>(leafCount);
+                                for (int i = 0; i < leafCount; i++)
+                                {
+                                    parsedLeaves.Add(new BspLeaf
+                                    {
+                                        Zone = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)),
+                                        Permeating = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4)),
+                                        Volumetric = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 8)),
+                                    });
+                                    cursor += 12;
+                                }
+
+                                lightCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                                lightsAt = cursor;
+                                if (lightCount >= 0 && lightCount <= data.Length - cursor)
+                                {
+                                    var parsedLights = new List<PackageIndex>(lightCount);
+                                    for (int i = 0; i < lightCount; i++)
+                                        parsedLights.Add(new PackageIndex(PropertyValues.ReadCompactIndex(data, ref cursor)));
+
+                                    otherReferenceCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                                    otherReferencesAt = cursor;
+                                    if (otherReferenceCount >= 0 && otherReferenceCount <= data.Length - cursor)
+                                    {
+                                        for (int i = 0; i < otherReferenceCount; i++)
+                                            PropertyValues.ReadCompactIndex(data, ref cursor);
+
+                                        if (cursor + 8 <= data.Length)
+                                        {
+                                            rootOutsideAt = cursor;
+                                            linkedAt = cursor + 4;
+                                            lightMapsAt = cursor + 8;
+                                            leaves = parsedLeaves;
+                                            lightReferences = parsedLights;
+
+                                            if (TryReadLightMaps(data, lightMapsAt, surfaces.Count, out var parsedLightMaps,
+                                                    out lightMapCount, out lightBitsAt, out lightBitCount,
+                                                    out lightMapTexturesAt, out lightMapTextureCount,
+                                                    out var parsedLightMapTextures))
+                                            {
+                                                lightMaps = parsedLightMaps;
+                                                lightMapTextures = parsedLightMapTextures;
+                                            }
+
+                                            // The Remastered tail has a second descriptor variant whose variable
+                                            // light entries are not established yet. Its atlas pool is still
+                                            // independently identifiable: a Vengeance v1 array of local Texture
+                                            // exports, all in the package-declared LightMaps_BSP group. Taking the
+                                            // first such array after the descriptor boundary rejects overlapping
+                                            // false starts inside its own compact references.
+                                            if (TryFindLightMapTexturePool(package, data, lightMapsAt,
+                                                    out int atlasAt, out int atlasCount, out var atlasTextures))
+                                            {
+                                                lightMapTexturesAt = atlasAt;
+                                                lightMapTextureCount = atlasCount;
+                                                lightMapTextures = atlasTextures;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -379,6 +564,10 @@ public static class BspWorldReader
             Nodes = nodes,
             Surfaces = surfaces,
             VertexPool = pool,
+            Leaves = leaves,
+            LightReferences = lightReferences,
+            LightMaps = lightMaps,
+            LightMapTextures = lightMapTextures,
             Layout = new BspWorldLayout
             {
                 Vectors = vectorsAt,
@@ -390,10 +579,221 @@ public static class BspWorldReader
                 ZoneCount = zoneCount,
                 BoundCount = boundCount,
                 Bounds = boundsAt,
+                LeafHullCount = leafHullCount,
+                LeafHulls = leafHullsAt,
+                LeafCount = leafCount,
+                Leaves = leavesAt,
+                LightCount = lightCount,
+                Lights = lightsAt,
+                OtherReferenceCount = otherReferenceCount,
+                OtherReferences = otherReferencesAt,
+                RootOutside = rootOutsideAt,
+                Linked = linkedAt,
+                LightMaps = lightMapsAt,
+                LightMapCount = lightMapCount,
+                LightBits = lightBitsAt,
+                LightBitCount = lightBitCount,
+                LightMapTextures = lightMapTexturesAt,
+                LightMapTextureCount = lightMapTextureCount,
                 DecodedEnd = offset,
                 PayloadLength = data.Length,
             },
         };
+    }
+
+    private static bool TryReadLightMaps(
+        byte[] data,
+        int offset,
+        int surfaceCount,
+        out IReadOnlyList<BspLightMap> lightMaps,
+        out int lightMapCount,
+        out int lightBitsAt,
+        out int lightBitCount,
+        out int texturesAt,
+        out int textureCount,
+        out IReadOnlyList<BspLightMapTexture> textures)
+    {
+        lightMaps = [];
+        lightMapCount = 0;
+        lightBitsAt = 0;
+        lightBitCount = 0;
+        texturesAt = 0;
+        textureCount = 0;
+        textures = [];
+
+        try
+        {
+            int cursor = offset;
+            int count = PropertyValues.ReadCompactIndex(data, ref cursor);
+            if (count != surfaceCount || count < 0) return false;
+
+            var result = new List<BspLightMap>(count);
+            for (int i = 0; i < count; i++)
+            {
+                if (cursor + 96 > data.Length
+                    || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck)
+                    return false;
+                cursor += 8;
+
+                int surface = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor));
+                int width = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4));
+                int height = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 8));
+                if (surface < 0 || surface >= surfaceCount || width < 1 || height < 1) return false;
+                cursor += 12;
+
+                var matrix = new Matrix4x4(
+                    BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 4)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 8)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 12)),
+                    BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 16)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 20)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 24)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 28)),
+                    BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 32)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 36)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 40)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 44)),
+                    BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 48)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 52)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 56)), BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(cursor + 60)));
+                cursor += 64 + 12; // matrix, then Pan/UVBias fields not used by the renderer path yet
+
+                int bakedLightCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                if (bakedLightCount < 0 || bakedLightCount > 4_096) return false;
+                var bakedLights = new List<BspLightMapLight>(bakedLightCount);
+                for (int light = 0; light < bakedLightCount; light++)
+                {
+                    if (cursor + 8 > data.Length
+                        || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck)
+                        return false;
+                    cursor += 8;
+
+                    var actors = new PackageIndex[3];
+                    for (int actor = 0; actor < actors.Length; actor++)
+                        actors[actor] = new PackageIndex(PropertyValues.ReadCompactIndex(data, ref cursor));
+
+                    if (cursor + 12 > data.Length) return false;
+                    bakedLights.Add(new BspLightMapLight
+                    {
+                        LightActors = actors,
+                        Atlas = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)),
+                        TileX = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4)),
+                        TileY = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 8)),
+                    });
+                    cursor += 12;
+                }
+
+                result.Add(new BspLightMap
+                {
+                    Surface = surface,
+                    Width = width,
+                    Height = height,
+                    WorldToLightMap = matrix,
+                    Lights = bakedLights,
+                });
+            }
+
+            // The descriptor records are fully bounded by their own headers and compact counts.
+            // Preserve them even when the rendering arrays that follow use a different Remastered
+            // layout: tying both claims together previously discarded valid descriptors on ten maps.
+            lightMaps = result;
+            lightMapCount = count;
+            lightBitsAt = cursor;
+
+            try
+            {
+                lightBitCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                if (lightBitCount < 0 || lightBitCount > data.Length - cursor) return true;
+                cursor += lightBitCount;
+
+                textureCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                texturesAt = cursor;
+                if (textureCount < 0 || textureCount > 256) return true;
+                var textureResult = new List<BspLightMapTexture>(textureCount);
+                for (int i = 0; i < textureCount; i++)
+                {
+                    if (cursor + 8 > data.Length
+                        || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck)
+                        return true;
+                    cursor += 8;
+                    textureResult.Add(new BspLightMapTexture
+                    {
+                        Texture = new PackageIndex(PropertyValues.ReadCompactIndex(data, ref cursor)),
+                    });
+                }
+
+                textures = textureResult;
+            }
+            catch (IndexOutOfRangeException) { return true; }
+            catch (InvalidDataException) { return true; }
+            return true;
+        }
+        catch (IndexOutOfRangeException) { return false; }
+        catch (InvalidDataException) { return false; }
+    }
+
+    private static bool TryFindLightMapTexturePool(
+        BioShockPackage package,
+        byte[] data,
+        int start,
+        out int poolAt,
+        out int poolCount,
+        out IReadOnlyList<BspLightMapTexture> textures)
+    {
+        poolAt = 0;
+        poolCount = 0;
+        textures = [];
+
+        for (int candidateAt = start; candidateAt + 10 < data.Length; candidateAt++)
+        {
+            // Atlas pools are small enough to use the one-byte compact form. Starting on a later
+            // reference inside a real pool creates a plausible overlapping sequence, so accepting
+            // the first complete, independently validated one is significant.
+            if (data[candidateAt] is < 8 or > 63) continue;
+
+            try
+            {
+                int cursor = candidateAt;
+                int count = PropertyValues.ReadCompactIndex(data, ref cursor);
+                if (count is < 8 or > 64 || cursor + 9 > data.Length) continue;
+
+                if (BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck
+                    || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4)) != 1)
+                    continue;
+
+                var result = new List<BspLightMapTexture>(count);
+                bool valid = true;
+                for (int i = 0; i < count; i++)
+                {
+                    if (cursor + 9 > data.Length
+                        || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck
+                        || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4)) != 1)
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                    cursor += 8;
+                    int reference = PropertyValues.ReadCompactIndex(data, ref cursor);
+                    if (reference <= 0 || reference > package.Exports.Count)
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                    var texture = package.Exports[reference - 1];
+                    if (package.GetClassName(texture) != TextureReader.ClassName
+                        || package.ResolveName(texture.OuterIndex) != "LightMaps_BSP")
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                    result.Add(new BspLightMapTexture { Texture = new PackageIndex(reference) });
+                }
+
+                if (!valid || result.Count != count) continue;
+
+                poolAt = candidateAt;
+                poolCount = count;
+                textures = result;
+                return true;
+            }
+            catch (IndexOutOfRangeException) { }
+            catch (InvalidDataException) { }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -456,6 +856,7 @@ public static class BspWorldReader
                 Surface = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 36)),
                 Back = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 40)),
                 Front = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 44)),
+                LightMap = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 96)),
                 Zone = data[at + 77],
                 VertexCount = data[at + 78],      // A BYTE at +78. See the class remarks.
             });

@@ -351,8 +351,8 @@ int32 RootOutside, int32 Linked
                                 +79  byte  iZone[1]
                                 +80  int32 iLeaf[0], +84 iLeaf[1]
                                 +88  int32 UNKNOWN
-                                +92  int32 iContentBound
-                                +96  int32 iRenderZone
++92  int32 iContentBound
++96  int32 iLightMap
 ```
 
 **`NumVertices` is a byte at +78, not an int32 at +88.** Nyko's initial Ghidra analysis had it at
@@ -364,6 +364,11 @@ source and its output is in `editor_output.txt`.
 **Worth noting for when this is implemented: +97 also scored 100%.** Two offsets pass; the
 distinguishing evidence is the field layout, not the score. This is the same shape of problem as
 "agreement at one layer is not evidence at the layer below it" (`reference-comparison.md` §1).
+
+**`+96` is now settled as `iLightMap`.** On the 11 maps with the verified descriptor variant, all
+**42,887** in-range node values satisfy `LightMap[node.+96].iSurf == node.iSurf`; offsets +88 and
++92 produce only 81/42,887 and 46/37,918 accidental matches respectively. It is a descriptor
+index, not a surface index: the descriptor table is not surface-ordered.
 
 Vengeance uses `MAX_ZONES = 128`, so `ZoneMask` is 128-bit where stock UE2.5 is 64.
 
@@ -413,7 +418,7 @@ look next. `SurfaceBrushPolyTests`.
 
 ### 5.5 Lightmaps
 
-`FLightMapIndex` is one descriptor per surface: `iSurf`, `SizeX`, `SizeY` (7..512), a 4×4
+`FLightMapIndex` is one descriptor per surface: `iSurf`, `SizeX`, `SizeY` (1..512), a 4×4
 `WorldToLightMap` matrix, and a list of `FLightMapLight` entries carrying `iAtlas`, `TileX`, `TileY`.
 The atlases are ordinary DXT textures in the `LightMaps_BSP` group, resolving through the bulk
 pipeline this project already reads (`bulkcontent.md`). The UV build:
@@ -500,6 +505,25 @@ A wrong record size cannot hold that across arrays of 5 to 2,949 elements.
 bounds, and **between 879 and 628,534 bytes remain unread after them** on each map. The next step is
 to walk those three arrays the same way — measure a record, anchor it against something already
 decoded, and only then name it.
+
+### 5.5d The descriptor table is real; the claimed atlas binding is not yet. `CONFIRMED_BYTES`
+
+The complete structural tail now walks from the bounds through `LeafHulls`, 12-byte `FLeaf` records,
+the two compact-reference arrays and `RootOutside`/`Linked`. On all **21 map packages** it lands on a
+compact count equal to the number of surfaces, followed by `ObjHeader(4,2)`. All **39,288**
+descriptors map one-to-one onto their worlds’ surface lists, with **45,851** baked-light layers.
+The apparent ten-map decode failure was a reader bug: it had already walked the variable records
+correctly, then discarded them when an unrelated post-table array did not match the reference.
+
+**The matrix and UV packing are `CONFIRMED_BYTES`.** The matrix is row-major and applies to the raw
+game-space position (reverse the studio Y reflection first). Against eleven independently located
+`LightMaps_BSP` atlas pools, that puts **234,404/234,404** polygon vertices inside the declared tile;
+the transposed matrix puts only 1,096 there. `BspWorld.LightMapUv` then applies `(Size × UV + Tile +
+0.5) / 1024`.
+
+Atlas pools are currently proven on 11 maps: compact arrays of 8–34 Vengeance v1 entries, each a
+local 1024×1024 `Texture` in the package-declared `LightMaps_BSP` group. The remaining maps still
+need their pool location traced, so the viewport may only bind lightmaps where that array is proven.
 
 ### 5.6 Surfaces that must not be drawn
 

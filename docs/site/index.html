@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A byte-faithful BioShock Remastered asset studio for extraction, inspection, level viewing, animation and audio research.">
+    <title>BioShock Remastered Model Studio</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">BIO SHOCK REMASTERED · RESEARCH TOOL</p>
+        <h1>Bring Rapture’s<br><em>real game data</em> into view.</h1>
+        <p class="lede">BioShock Remastered Model Studio is a Windows desktop tool for extracting and validating the meshes, animations, textures, audio and levels that ship with the game.</p>
+        <div class="actions">
+          <span class="button primary pending">GitHub Pages ready</span>
+          <a class="button secondary" href="#capabilities">Explore capabilities</a>
+        </div>
+        <p class="note">Requires an installed copy of BioShock Remastered. This is an independent research project.</p>
+      </section>
+
+      <section class="signal" aria-label="Project verification figures">
+        <div><strong>812k+</strong><span>exports indexed</span></div>
+        <div><strong>16,031</strong><span>animations decoded</span></div>
+        <div><strong>8,668</strong><span>static meshes parsed</span></div>
+        <div><strong>21</strong><span>maps validated</span></div>
+      </section>
+
+      <section id="capabilities" class="capabilities">
+        <header>
+          <p class="eyebrow">THE STUDIO</p>
+          <h2>Made for finding what<br>the game actually contains.</h2>
+        </header>
+        <div class="grid">
+          <article><span>01</span><h3>Asset browser</h3><p>Search the shipped packages, inspect dependencies, and preview meshes, materials and textures without losing context.</p></article>
+          <article><span>02</span><h3>Animation &amp; FBX</h3><p>Decode Havok animation, preserve skeleton bindings and sockets, then round-trip validated FBX into Blender or UE5.</p></article>
+          <article><span>03</span><h3>Walkable levels</h3><p>Render the compiled BSP world with placed objects, real material UVs, lights, camera controls and verified baked-light atlas data.</p></article>
+          <article><span>04</span><h3>Audio research</h3><p>Browse every discovered WAV, listen in-app, and keep English assets separate from language-specific tracks.</p></article>
+        </div>
+      </section>
+
+      <section class="method">
+        <div>
+          <p class="eyebrow">NO BLACK BOXES</p>
+          <h2>Evidence before guesswork.</h2>
+        </div>
+        <p>Every reader is checked against original BioShock Remastered bytes. The project calls out uncertainty openly, validates parsers against the whole installed game, and uses rendered output to catch the mistakes that counts alone cannot see.</p>
+      </section>
+
+      <section class="pipeline">
+        <p class="eyebrow">FROM PACKAGE TO DCC</p>
+        <ol>
+          <li><b>01</b><span>Read the original <code>.bsm</code> package</span></li>
+          <li><b>02</b><span>Resolve geometry, materials, audio and dependencies</span></li>
+          <li><b>03</b><span>Inspect or preview in the desktop studio</span></li>
+          <li><b>04</b><span>Export to Blender, FBX, PNG, DDS, WAV and scene data</span></li>
+        </ol>
+      </section>
+    </main>
+    <footer><span>BIO SHOCK REMASTERED MODEL STUDIO</span><span>Independent reverse-engineering research · Not affiliated with 2K or Irrational Games</span></footer>
+  </body>
+</html>

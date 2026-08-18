@@ -11,6 +11,16 @@ namespace BioShockStudio.Core.Level;
 public static class BspGeometry
 {
     /// <summary>
+    /// One compiled-world draw batch that can bind a base material and one proven baked-light atlas.
+    /// </summary>
+    /// <remarks>
+    /// A descriptor can name several lights. The first is the composite layer shipped for the
+    /// surface on the maps whose <c>LightMaps_BSP</c> pool is decoded; the remaining layers are
+    /// deliberately retained in <see cref="BspWorld.LightMaps"/> until their blend rule is proven.
+    /// </remarks>
+    public sealed record LightMapBatch(PackageIndex Material, PackageIndex Atlas, MeshGeometry Geometry);
+
+    /// <summary>
     /// Triangulates polygons into one geometry, one <see cref="MeshSection"/> per distinct material.
     /// </summary>
     /// <remarks>
@@ -172,6 +182,80 @@ public static class BspGeometry
             RigidVertexCount = vertices.Count,
             Sections = sections,
         };
+    }
+
+    /// <summary>
+    /// Triangulates every drawn BSP surface with a verified baked-light atlas, grouped for a
+    /// two-texture draw. Vertices retain the normal material UV in <see cref="MeshVertex.Uv"/> and
+    /// their atlas UV in <see cref="MeshVertex.LightMapUv"/>.
+    /// </summary>
+    /// <remarks>
+    /// Only the descriptor's first layer is emitted for now. It is a usable, byte-faithful base
+    /// lightmap; rendering all layers requires the game's still-unproven modulation blend rule.
+    /// </remarks>
+    public static IReadOnlyList<LightMapBatch> ToLightMapBatches(BspWorld world)
+    {
+        var groups = world.Nodes
+            .Where(n => n.IsPolygon)
+            .Where(n => n.Surface >= 0 && n.Surface < world.Surfaces.Count)
+            .Where(n => world.Surfaces[n.Surface].IsDrawn)
+            .Where(n => n.LightMap >= 0 && n.LightMap < world.LightMaps.Count)
+            .Select(n => (Node: n, Descriptor: world.LightMaps[n.LightMap]))
+            .Where(x => x.Descriptor.Lights.Count > 0)
+            .Select(x => (x.Node, x.Descriptor, Layer: x.Descriptor.Lights[0]))
+            .Where(x => x.Layer.Atlas >= 0 && x.Layer.Atlas < world.LightMapTextures.Count)
+            .GroupBy(x => (Material: world.Surfaces[x.Node.Surface].Material, Atlas: world.LightMapTextures[x.Layer.Atlas].Texture))
+            .OrderBy(g => g.Key.Material.Value)
+            .ThenBy(g => g.Key.Atlas.Value);
+
+        var batches = new List<LightMapBatch>();
+        foreach (var group in groups)
+        {
+            var vertices = new List<MeshVertex>();
+            var indices = new List<int>();
+            int triangles = 0;
+
+            foreach (var (node, _, layer) in group)
+            {
+                var polygon = world.PolygonOf(node);
+                if (polygon.Count < 3) continue;
+
+                var surface = world.Surfaces[node.Surface];
+                int start = vertices.Count;
+                foreach (var position in polygon)
+                {
+                    vertices.Add(new MeshVertex
+                    {
+                        Position = position,
+                        Normal = node.Plane.Normal,
+                        Uv = world.TexelsAt(surface, position),
+                        LightMapUv = world.LightMapUv(node, position, layer),
+                        Influences = [],
+                    });
+                }
+
+                for (int i = polygon.Count - 1; i - 1 > 0; i--)
+                {
+                    indices.Add(start);
+                    indices.Add(start + i);
+                    indices.Add(start + i - 1);
+                    triangles++;
+                }
+            }
+
+            if (triangles == 0) continue;
+            batches.Add(new LightMapBatch(group.Key.Material, group.Key.Atlas, new MeshGeometry
+            {
+                Vertices = vertices,
+                Indices = indices,
+                BoneMap = [],
+                SkinnedVertexCount = 0,
+                RigidVertexCount = vertices.Count,
+                Sections = [new MeshSection(0, 0, vertices.Count - 1, triangles)],
+            }));
+        }
+
+        return batches;
     }
 
     /// <summary>The distinct materials the compiled world's sections draw with, in section order.</summary>
