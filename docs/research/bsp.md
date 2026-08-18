@@ -465,6 +465,37 @@ variable-width, its field order is not established, and **guessing it was reject
 shipped**. Settling it is what stands between this and `FLightMapIndex`: after the zones come
 `Polys`, then `LightMap`, then `LightBits`.
 
+### 5.5c The zone record, and where the lightmap array begins. `CONFIRMED_BYTES`
+
+**A zone record is an `FCompactIndex` actor reference followed by 36 fixed bytes.** Found by reading
+the bytes rather than by trying strides: the fixed part starts with the zone's own bit mask — `1`,
+`2`, `4` for zones 0, 1, 2 — and the references resolve to `ZoneInfo` and `SkyZoneInfo` exports,
+which is what a zone points at.
+
+**A fixed 38-byte stride was tried first and is wrong**, landing correctly on only 2 of 21 maps: the
+reference's width varies with the export index, so the record is variable-width and only a walk
+works.
+
+**The anchor is what UE2 writes next.** After the zones comes the `Polys` object reference and then
+the `LightMap` array, so a correct walk lands on a reference resolving to a `Polys` export.
+
+| | |
+|---|---|
+| maps where the zone walk lands on a `Polys` reference | **21 of 21** |
+| lightmap entries, `0-Lighthouse` | **338**, against 370 surfaces |
+| lightmap entries, `1-Medical` | **2,704**, against 3,386 surfaces |
+| lightmap entries, `Entry` | **5**, against 6 surfaces |
+
+Fewer entries than surfaces on every map, which is what a per-lit-surface array should be.
+
+`BspWorld.Layout` now reports `Zones`, `ZoneCount`, `LightMapCount` and `LightMap` — **the offset of
+the first `FLightMapIndex`**. `BspWorldTests.TheZoneWalkLandsOnThePolysReferenceAndFindsTheLightmapArray`.
+
+**Nothing reads a descriptor yet.** §5.5 has the layout the references give — `iSurf`, `SizeX`,
+`SizeY`, a 4×4 `WorldToLightMap`, and a list of `FLightMapLight` — and the first check to make when
+decoding it is that each entry's `iSurf` is a valid surface index, since the count says the array is
+one entry per lit surface rather than one per surface.
+
 ### 5.6 Surfaces that must not be drawn
 
 `PolyFlags` carries `PF_Invisible 0x1`, `PF_FakeBackdrop 0x80`, `PF_Portal 0x04000000`. Nyko's editor

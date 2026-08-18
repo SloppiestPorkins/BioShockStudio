@@ -168,6 +168,81 @@ public sealed class BspWorldTests(GameFixture game)
     }
 
     /// <summary>
+    /// The zone array walks to the <c>Polys</c> reference, which locates the lightmap array.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A zone record is an <c>FCompactIndex</c> actor reference followed by <b>36 fixed bytes</b> —
+    /// found by reading the bytes rather than by trying strides: the fixed part begins with the
+    /// zone's own bit mask, 1, 2, 4 for zones 0, 1, 2, and the references resolve to <c>ZoneInfo</c>
+    /// and <c>SkyZoneInfo</c> exports. A fixed 38-byte stride was tried first and lands correctly on
+    /// only 2 of 21 maps, because the reference's width varies with the export index.
+    /// </para>
+    /// <para>
+    /// <b>The anchor is what UE2 writes next.</b> After the zones comes the <c>Polys</c> object
+    /// reference, then the <c>LightMap</c> array. Walking the zones this way lands on a reference
+    /// resolving to a <c>Polys</c> export on <b>21 of 21 maps</b>, which is what makes the walk a
+    /// decode rather than a plausible-looking stride — and it puts the lightmap array's count and
+    /// first byte at a known offset instead of a searched one.
+    /// </para>
+    /// <para>
+    /// <b>Nothing reads an <c>FLightMapIndex</c> yet.</b> The count is 338 of Lighthouse's 370
+    /// surfaces and 2,704 of Medical's 3,386 — fewer than the surfaces, which is what a per-lit-
+    /// surface array should be, and the next thing to check when the records are decoded.
+    /// </para>
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheZoneWalkLandsOnThePolysReferenceAndFindsTheLightmapArray()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int worlds = 0, located = 0;
+        var problems = new List<string>();
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var model = ModelReader.BuiltWorld(package);
+            if (model is null) continue;
+
+            var export = package.Exports[model.Source.ExportIndex];
+            var world = BspWorldReader.Read(package, export);
+            if (world is null || world.Nodes.Count == 0) continue;
+
+            worlds++;
+            var layout = world.Layout;
+            string name = Path.GetFileNameWithoutExtension(map);
+
+            if (layout.LightMap <= 0 || layout.LightMapCount <= 0)
+            {
+                problems.Add($"{name}: the zone walk found no lightmap array "
+                             + $"(offset {layout.LightMap}, count {layout.LightMapCount})");
+                continue;
+            }
+
+            located++;
+
+            // A descriptor per lit surface: never more than the surfaces, never zero.
+            if (layout.LightMapCount > world.Surfaces.Count)
+                problems.Add($"{name}: {layout.LightMapCount} lightmap entries for "
+                             + $"{world.Surfaces.Count} surfaces");
+
+            Log($"{name,-22} zones {layout.ZoneCount,4}  lightmap entries {layout.LightMapCount,6} "
+                + $"at {layout.LightMap,10:N0}  surfaces {world.Surfaces.Count,5}  "
+                + $"unread {layout.Unread,9:N0}");
+        }
+
+        Assert.True(worlds >= 20, $"only {worlds} compiled worlds were read");
+
+        // The walk has to work everywhere, not on the map it was developed against.
+        Assert.Equal(worlds, located);
+
+        Assert.True(problems.Count == 0,
+            "the zone walk did not land where the lightmap array should be:"
+            + Environment.NewLine + string.Join(Environment.NewLine, problems));
+    }
+
+    /// <summary>
     /// What the twelve off-plane polygons actually are: corners snapped to round coordinates on
     /// planes that are slightly oblique. Shipped data, not a decode fault.
     /// </summary>

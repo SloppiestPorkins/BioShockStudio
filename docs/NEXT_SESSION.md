@@ -82,9 +82,11 @@ whatever is in front and has caught the user's browser before.
    surface out as the home of the index. §5.5b identifies the start of the unread tail —
    `NumSharedSides`, then `NumZones`, verified on 21 of 21 maps against the nodes' own zone bytes —
    and `BspWorld.Layout` reports where the decode stops, so nothing needs searching for.
-   **The next thing to settle is the zone record**, which is variable-width and UNKNOWN: after the
-   zones come `Polys`, then `LightMap`, then `LightBits`. A fixed 38-byte stride was tried and lands
-   correctly on only 2 of 21 maps; do not ship it.
+   §5.5c settles the zone record — an FCompactIndex actor reference plus 36 fixed bytes — and the
+   walk lands on the `Polys` anchor on 21 of 21 maps, so **`BspWorld.Layout.LightMap` is the offset
+   of the first `FLightMapIndex`** and `LightMapCount` is how many there are (338 of Lighthouse's
+   370 surfaces). **Start there**: decode the descriptor, check each entry's `iSurf` is a valid
+   surface, then the atlas lookup in `LightMaps_BSP`.
 
 3. ~~`FBspSurf +20`~~ — **settled: it is `iBrushPoly`**, 6,372 of 6,372 surfaces naming a polygon of
    their own brush whose normal matches. So the lightmap index is NOT on the surface, and the

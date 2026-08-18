@@ -129,6 +129,23 @@ public sealed record BspWorldLayout
     public required int Surfaces { get; init; }
     public required int VertexPool { get; init; }
 
+    /// <summary>The zone array, and how many zones it holds.</summary>
+    public required int Zones { get; init; }
+    public required int ZoneCount { get; init; }
+
+    /// <summary>
+    /// The <c>LightMap</c> array's element count, and where its first element begins.
+    /// </summary>
+    /// <remarks>
+    /// <b>Located, not decoded.</b> UE2's <c>UModel</c> writes <c>Polys</c> after the zones and then
+    /// <c>LightMap</c>, and walking the zones lands on that <c>Polys</c> reference on 21 of 21 maps —
+    /// so the count after it is this array's, and the offset is where <c>FLightMapIndex</c> records
+    /// start. The records themselves are not read yet: §5.5 has the layout the references give, and
+    /// nothing here interprets a byte of it.
+    /// </remarks>
+    public required int LightMapCount { get; init; }
+    public required int LightMap { get; init; }
+
     /// <summary>One past the last byte this reader consumed.</summary>
     public required int DecodedEnd { get; init; }
 
@@ -307,6 +324,41 @@ public static class BspWorldReader
         int poolAt = offset;
         var pool = ReadVertexPool(data, ref offset, source);
 
+        // Past the arrays this reader decodes, UE2's UModel writes NumSharedSides, NumZones, the
+        // zones, the Polys reference and then the LightMap array. None of that is interpreted here —
+        // the walk exists so the lightmap descriptors can be found without searching for them, which
+        // has already produced a false positive once. See BspWorldLayout.
+        int zonesAt = 0, zoneCount = 0, lightMapAt = 0, lightMapCount = 0;
+
+        if (offset + 8 <= data.Length)
+        {
+            zoneCount = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 4));
+            zonesAt = offset + 8;
+
+            if (zoneCount >= 0 && zoneCount <= 256)
+            {
+                int cursor = zonesAt;
+                bool walked = true;
+
+                // A zone is an FCompactIndex actor reference followed by 36 fixed bytes. Measured:
+                // walking that lands on the Polys reference on 21 of 21 maps.
+                for (int i = 0; i < zoneCount && walked; i++)
+                {
+                    PropertyValues.ReadCompactIndex(data, ref cursor);
+                    cursor += 36;
+                    if (cursor > data.Length) walked = false;
+                }
+
+                if (walked && cursor + 2 <= data.Length)
+                {
+                    PropertyValues.ReadCompactIndex(data, ref cursor);          // Polys
+                    lightMapCount = PropertyValues.ReadCompactIndex(data, ref cursor);
+                    lightMapAt = cursor;
+                }
+            }
+        }
+
+
         return new BspWorld
         {
             Source = source,
@@ -322,6 +374,10 @@ public static class BspWorldReader
                 Nodes = nodesAt,
                 Surfaces = surfacesAt,
                 VertexPool = poolAt,
+                Zones = zonesAt,
+                ZoneCount = zoneCount,
+                LightMapCount = lightMapCount,
+                LightMap = lightMapAt,
                 DecodedEnd = offset,
                 PayloadLength = data.Length,
             },
