@@ -368,7 +368,15 @@ material.
 2. Placed-actor transforms, parent/base links, draw scale, tags, material overrides — for every
    actor class, not just the geometry-bearing ones already placed.
 3. Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
-   ledger on `1-Medical`): 696 light placeholders, 309 audio actors, 299 script-action actors, 253
+   ledger on `1-Medical`). `level-audit` still correctly reports 696 `LightPending` — that label is
+   accurate, it means "not yet placed as a real UE5 actor," not "undecoded." **The data schema
+   itself is already done**: `LevelSceneExporter`'s `LevelLightDocument` exports location, colour,
+   brightness and radius per light, tested end-to-end
+   (`LevelSceneTests.TheLightsDecodeWithTheTypesTheSdkDocuments` asserts
+   `scene.Lights.Count == document.Lights.Count` plus per-field validation). What remains for
+   lights is turning that data into placed UE5 actors (Gate 3 item 4 / Gate 5) and rendering them
+   faithfully in the viewport (Gate 0) — not decoding anything further.
+   **Next in line, still genuinely open**: 309 audio actors, 299 script-action actors, 253
    region/volume actors, 134 effect actors, then 338 genuinely unclassified actors. Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
    undecoded.
