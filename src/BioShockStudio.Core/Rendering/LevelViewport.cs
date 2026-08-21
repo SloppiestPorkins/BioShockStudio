@@ -95,7 +95,8 @@ public sealed record ViewportItem(PreviewModel Model, Matrix4x4 Transform, Vecto
     public bool IsVolume =>
         ActorClass.EndsWith("Volume", StringComparison.Ordinal)
         || ActorClass.EndsWith("Trigger", StringComparison.Ordinal)
-        || ActorClass.EndsWith("ZoneInfo", StringComparison.Ordinal);
+        || ActorClass.EndsWith("ZoneInfo", StringComparison.Ordinal)
+        || ActorClass.EndsWith("Zone", StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -157,9 +158,24 @@ public static class UnpaintedMaterials
 public sealed record LevelViewFilter
 {
     public bool ShowWorld { get; init; } = true;
-    public bool ShowMeshes { get; init; } = true;
+    public bool ShowStaticMeshes { get; init; } = true;
+    public bool ShowSkeletalMeshes { get; init; } = true;
     public bool ShowSourceBrushes { get; init; }
     public bool ShowVolumes { get; init; }
+
+    /// <summary>
+    /// Apply the compiled world's verified baked-light atlas samples. The current renderer samples
+    /// them at vertices because Avalonia 11.2.3 exposes one texture sampler; turn this off to
+    /// compare against the fixed studio light or to inspect an atlas approximation directly.
+    /// </summary>
+    public bool ShowBakedLightmaps { get; init; }
+
+    /// <summary>
+    /// Draw effect geometry that deliberately has no base colour: godrays, glow cards and water.
+    /// Kept separate from unresolved materials because switching off one must not silently remove
+    /// the other.
+    /// </summary>
+    public bool ShowEffects { get; init; }
 
     /// <summary>
     /// Draw surfaces that resolve <b>no base colour</b>. <b>Off by default.</b>
@@ -187,7 +203,11 @@ public sealed record LevelViewFilter
 
     /// <summary>Everything, including the things the game never draws.</summary>
     public static readonly LevelViewFilter Everything =
-        new() { ShowSourceBrushes = true, ShowVolumes = true, ShowUnpainted = true };
+        new()
+        {
+            ShowSourceBrushes = true, ShowVolumes = true, ShowUnpainted = true,
+            ShowEffects = true, ShowBakedLightmaps = true,
+        };
 
     public bool Accepts(ViewportItem item)
     {
@@ -196,8 +216,10 @@ public sealed record LevelViewFilter
         return item.Kind switch
         {
             Level.LevelGeometryKind.BuiltWorld => ShowWorld,
+            Level.LevelGeometryKind.StaticMesh => ShowStaticMeshes,
+            Level.LevelGeometryKind.SkeletalMesh => ShowSkeletalMeshes,
             Level.LevelGeometryKind.Brush => ShowSourceBrushes,
-            _ => ShowMeshes,
+            _ => false,
         };
     }
 }

@@ -80,6 +80,35 @@ public static class PropertyValues
         return result;
     }
 
+    /// <summary>
+    /// Reads a packed object-reference array only when its compact count consumes the complete
+    /// property value. Use this for a field whose element identity will be exported: accepting a
+    /// valid-looking prefix would silently turn an unknown action payload into a partial graph.
+    /// </summary>
+    public static bool TryAsReferenceArrayExact(UnrealProperty property, out IReadOnlyList<PackageIndex> values)
+    {
+        values = [];
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(property.Value, ref offset);
+            if (count < 0 || count > property.Value.Length) return false;
+
+            var result = new List<PackageIndex>(count);
+            for (int i = 0; i < count; i++)
+                result.Add(new PackageIndex(ReadCompactIndex(property.Value, ref offset)));
+
+            if (offset != property.Value.Length) return false;
+            values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                       or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     internal static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
     {
         byte b = data[offset++];

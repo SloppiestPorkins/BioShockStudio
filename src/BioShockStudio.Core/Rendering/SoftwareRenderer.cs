@@ -198,6 +198,9 @@ public sealed record RenderOptions
     /// </remarks>
     public bool ShowUnpainted { get; init; } = true;
 
+    /// <summary>Draw deliberately unpainted effect materials such as godrays and water.</summary>
+    public bool ShowEffects { get; init; } = true;
+
     public byte BackgroundGrey { get; init; } = 32;
 }
 
@@ -421,7 +424,8 @@ public static class SoftwareRenderer
                 // A surface with no base colour draws as a flat pale sheet — a light shaft, the
                 // ocean plane, or a material that did not resolve. At a level's scale those are what
                 // swallow a view.
-                if (!options.ShowUnpainted && texture is null) continue;
+                bool effect = surface >= 0 && model.Surfaces[surface].NoBaseColourByDesign;
+                if (texture is null && !(effect ? options.ShowEffects : options.ShowUnpainted)) continue;
 
                 var normalMap = surface >= 0 ? normalMaps[surface] : null;
                 var specularMap = surface >= 0 ? specularMaps[surface] : null;

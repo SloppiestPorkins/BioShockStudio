@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Rendering;
 using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
@@ -51,6 +52,46 @@ public sealed class LevelTextureTests(GameFixture game)
             if (max - min > 12) coloured++;
         }
         return drawn == 0 ? 0 : (double)coloured / drawn;
+    }
+
+    [RequiresGameFact]
+    public void AnInteriorWorldUsesItsVerifiedBakedLightAtlas()
+    {
+        string medical = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+        var level = new LevelViewportService(new AssetCatalogService()).Prepare(medical);
+
+        var baked = level.Viewport.Items
+            .Where(item => item.Kind == BioShockStudio.Core.Level.LevelGeometryKind.BuiltWorld)
+            .SelectMany(item => item.Model.Surfaces)
+            .Where(surface => surface.LightMapTexture is not null)
+            .ToList();
+
+        Log($"1-Medical baked-light runs: {baked.Count:N0}");
+        Assert.NotEmpty(baked);
+        Assert.All(baked, surface => Assert.True(surface.LightMapTexture!.Width > 0
+            && surface.LightMapTexture.Height > 0));
+
+        // Atlas headers declare 1024², but this is allowed to select a smaller resident mip. What
+        // matters to the first renderer integration is that real sampled light reaches vertices,
+        // rather than merely that a texture object was found.
+        Assert.Contains(level.Viewport.Items
+                .Where(item => item.Kind == BioShockStudio.Core.Level.LevelGeometryKind.BuiltWorld)
+                .SelectMany(item => item.Model.Vertices),
+            vertex => vertex.BakedLight.X < 0.99f || vertex.BakedLight.Y < 0.99f || vertex.BakedLight.Z < 0.99f);
+
+        // A visual artifact is required here: the failure that prompted this test was valid bytes
+        // displayed through raw texel-space UVs. The assertions above cannot detect that a floor
+        // texture is tiled thousands of times, so retain the corrected interior render on demand.
+        var selection = level.Viewport.Select(level.Start, 16f / 10f, triangleBudget: 250_000);
+        Snapshot(SoftwareRenderer.Render(selection.Instances, level.Start.ToPreviewCamera(),
+            new RenderOptions { ShowSkeleton = false, ShowSockets = false, Textured = true }, 960, 600),
+            "medical-lightmapped");
+
+        // The GPU viewport is deliberately allowed a larger budget than the software fallback.
+        // Its starting value must fit every visible Medical object: otherwise the first impression
+        // of the level is missing exterior/window pieces rather than a complete place.
+        var gpuDefault = level.Viewport.Select(level.Start, 16f / 10f, triangleBudget: 600_000 * 8);
+        Assert.Equal(0, gpuDefault.Dropped);
     }
 
     [RequiresGameFact]

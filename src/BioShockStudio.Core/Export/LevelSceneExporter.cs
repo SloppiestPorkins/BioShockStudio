@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 using BioShockStudio.Core.Level;
 
 namespace BioShockStudio.Core.Export;
@@ -19,7 +20,10 @@ public enum LevelExportFormats
     /// <summary>Wavefront OBJ — geometry only, but openable in anything.</summary>
     Obj = 2,
 
-    All = SceneJson | Obj,
+    /// <summary>Compact UE5 handoff: actor graph and asset identities, with no duplicated mesh buffers.</summary>
+    Ue5Manifest = 4,
+
+    All = SceneJson | Obj | Ue5Manifest,
 }
 
 /// <summary>
@@ -43,6 +47,8 @@ public enum LevelExportFormats
 /// </remarks>
 public static class LevelSceneExporter
 {
+    /// <summary>Schema version for the level-to-UE5 handoff. Bump only for incompatible changes.</summary>
+    public const int LevelManifestVersion = 3;
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = false,
@@ -67,6 +73,14 @@ public static class LevelSceneExporter
             written.Add(path);
         }
 
+        if (formats.HasFlag(LevelExportFormats.Ue5Manifest))
+        {
+            string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
+            File.WriteAllText(path, JsonSerializer.Serialize(ToDocument(scene, includeGeometry: false),
+                readable ? ReadableOptions : Options));
+            written.Add(path);
+        }
+
         if (formats.HasFlag(LevelExportFormats.Obj))
         {
             string path = Path.Combine(directory, scene.PackageName + ".obj");
@@ -78,13 +92,15 @@ public static class LevelSceneExporter
     }
 
     /// <summary>The scene as a serialisable document.</summary>
-    public static LevelDocument ToDocument(LevelScene scene) => new()
+    public static LevelDocument ToDocument(LevelScene scene, bool includeGeometry = true) => new()
     {
+        FormatVersion = LevelManifestVersion,
         Package = scene.PackageName,
         Generator = "BioShockStudio",
         Basis = "right-handed, +X forward, +Y left, +Z up, centimetres",
         BoundsMin = ToArray(scene.Bounds.Min),
         BoundsMax = ToArray(scene.Bounds.Max),
+        GeometryEmbedded = includeGeometry,
         Assets = scene.Instances
             .GroupBy(i => i.Asset)
             .Select(g => new LevelAssetDocument
@@ -93,16 +109,24 @@ public static class LevelSceneExporter
                 Name = g.Key.ObjectName,
                 Kind = g.First().Kind.ToString(),
                 ExportIndex = g.Key.ExportIndex,
-                Vertices = g.First().Geometry.Vertices.Select(v => ToArray(v.Position)).ToList(),
-                Normals = g.First().Geometry.Vertices.Select(v => ToArray(v.Normal)).ToList(),
-                Uvs = g.First().Geometry.Vertices.Select(v => new[] { v.Uv.X, v.Uv.Y }).ToList(),
-                Indices = g.First().Geometry.Indices.ToList(),
+                VertexCount = g.First().Geometry.Vertices.Count,
+                TriangleCount = g.First().Geometry.TriangleCount,
+                Vertices = includeGeometry ? g.First().Geometry.Vertices.Select(v => ToArray(v.Position)).ToList() : null,
+                Normals = includeGeometry ? g.First().Geometry.Vertices.Select(v => ToArray(v.Normal)).ToList() : null,
+                Uvs = includeGeometry ? g.First().Geometry.Vertices.Select(v => new[] { v.Uv.X, v.Uv.Y }).ToList() : null,
+                Indices = includeGeometry ? g.First().Geometry.Indices.ToList() : null,
                 Sections = g.First().Geometry.Sections
                     .Select((s, index) => new LevelSectionDocument
                     {
                         FirstIndex = s.FirstIndex,
                         TriangleCount = s.TriangleCount,
                         Material = index < g.First().Materials.Count ? g.First().Materials[index]?.ObjectName : null,
+                        MaterialKey = index < g.First().Materials.Count ? g.First().Materials[index]?.Key : null,
+                        MaterialPackage = index < g.First().Materials.Count ? g.First().Materials[index]?.Package : null,
+                        MaterialClassName = index < g.First().Materials.Count ? g.First().Materials[index]?.ClassName : null,
+                        MaterialExportIndex = index < g.First().Materials.Count
+                            ? g.First().Materials[index]?.ExportIndex
+                            : null,
                     })
                     .ToList(),
             })
@@ -111,22 +135,100 @@ public static class LevelSceneExporter
             .Select(i => new LevelInstanceDocument
             {
                 Asset = i.Asset.Key,
+                ActorKey = i.Actor.Key,
                 Actor = i.Actor.ObjectName,
                 Label = i.Label,
                 Transform = ToArray(i.Transform),
             })
             .ToList(),
+        Actors = scene.Actors
+            .Select(actor => new LevelActorDocument
+            {
+                Key = actor.Source.Key,
+                Name = actor.Source.ObjectName,
+                ClassName = actor.Source.ClassName,
+                ExportIndex = actor.Source.ExportIndex,
+                Label = actor.Label,
+                Tag = actor.Tag,
+                Location = ToArray(actor.Transform.Location),
+                Rotation = [actor.Transform.Rotation.Pitch, actor.Transform.Rotation.Yaw, actor.Transform.Rotation.Roll],
+                DrawScale = actor.Transform.DrawScale,
+                DrawScale3D = ToArray(actor.Transform.DrawScale3D),
+                PrePivot = ToArray(actor.Transform.PrePivot),
+                StaticMesh = actor.StaticMesh?.ObjectName,
+                SkeletalMesh = actor.SkeletalMesh?.ObjectName,
+                Brush = actor.Brush?.ObjectName,
+                Attachment = actor.Attachment?.ObjectName,
+                StaticMeshReference = Describe(actor.StaticMesh),
+                SkeletalMeshReference = Describe(actor.SkeletalMesh),
+                BrushReference = Describe(actor.Brush),
+                AttachmentReference = Describe(actor.Attachment),
+                MaterialOverrides = actor.MaterialOverrides.Select(Describe).ToList(),
+                Navigation = actor.Navigation is null ? null : new LevelNavigationDocument
+                {
+                    PathLinks = actor.Navigation.PathLinks.Select(Describe).ToList(),
+                    AutoGeneratedFlyingPathNodes = actor.Navigation.AutoGeneratedFlyingPathNodes.Select(Describe).ToList(),
+                    PathCollisionRadius = actor.Navigation.PathCollisionRadius,
+                    AutoGeneratedFlagSerialized = actor.Navigation.AutoGeneratedFlagSerialized,
+                },
+                ScriptActions = actor.ScriptActions is null ? null : new LevelScriptActionsDocument
+                {
+                    Complete = actor.ScriptActions.Complete,
+                    Actions = actor.ScriptActions.Actions.Select(Describe).ToList(),
+                },
+                Emitters = actor.Emitters is null ? null : new LevelEmittersDocument
+                {
+                    Complete = actor.Emitters.Complete,
+                    Templates = actor.Emitters.Templates.Select(template => new LevelEmitterTemplateDocument
+                    {
+                        Source = Describe(template.Source),
+                        Material = Describe(template.Material),
+                        MaxParticles = template.MaxParticles,
+                        ParticlesPerSecond = template.ParticlesPerSecond,
+                        InitialParticlesPerSecond = template.InitialParticlesPerSecond,
+                        PropertiesComplete = template.PropertiesComplete,
+                    }).ToList(),
+                },
+                Groups = actor.Groups.ToList(),
+                Properties = actor.Properties.Select(property => new LevelPropertyDocument
+                {
+                    Name = property.Name,
+                    Type = property.Type.ToString(),
+                    StructName = property.StructName,
+                    ArrayIndex = property.ArrayIndex,
+                    // Large arrays (navigation, emitter and script payloads) make a map manifest
+                    // enormous when hex-encoded. Keep inspectable small values inline; larger ones
+                    // remain byte-identifiable and recoverable from the immutable source export.
+                    ValueHex = property.Value.Length <= 256 ? Convert.ToHexString(property.Value) : null,
+                    ValueLength = property.Value.Length,
+                    ValueSha256 = Convert.ToHexString(SHA256.HashData(property.Value)),
+                }).ToList(),
+                TrailerHex = Convert.ToHexString(actor.Trailer),
+                Truncated = actor.Truncated,
+            })
+            .ToList(),
         Lights = scene.Lights
             .Select(l => new LevelLightDocument
             {
+                Key = l.Source.Key,
                 Name = l.Source.ObjectName,
                 ClassName = l.ClassName,
+                ExportIndex = l.Source.ExportIndex,
                 Location = ToArray(l.Location),
                 Color = l.Color is { } c ? [c.R, c.G, c.B, c.A] : null,
                 Brightness = l.Brightness,
                 Radius = l.Radius,
             })
             .ToList(),
+        ActorCoverage = scene.Coverage?.Classes
+            .Select(row => new LevelActorCoverageDocument
+            {
+                ClassName = row.ClassName,
+                ActorCount = row.ActorCount,
+                Status = row.StatusCounts.ToDictionary(status => status.Key.ToString(), status => status.Value),
+                OutstandingProperties = row.OutstandingProperties.ToList(),
+            })
+            .ToList() ?? [],
         Skipped = scene.Skipped.Select(s => $"{s.Actor}: {s.Reason}").ToList(),
     };
 
@@ -198,19 +300,44 @@ public static class LevelSceneExporter
         m.M31, m.M32, m.M33, m.M34,
         m.M41, m.M42, m.M43, m.M44,
     ];
+
+    /// <summary>
+    /// Preserves the actual UE package reference alongside the convenient display name. A name is
+    /// not an identity: it can repeat under different outers and an import can name a different
+    /// package entirely.
+    /// </summary>
+    private static LevelReferenceDocument? Describe(AssetReference? reference) => reference is null
+        ? null
+        : new LevelReferenceDocument
+        {
+            Index = reference.Index.Value,
+            ObjectName = reference.ObjectName,
+            ClassName = reference.ClassName,
+            Origin = reference.Origin,
+            Status = reference.Status.ToString(),
+            SourceKey = reference.Source?.Key,
+            SourcePackage = reference.Source?.Package,
+            SourceExportIndex = reference.Source?.ExportIndex,
+        };
 }
 
 /// <summary>The level scene's serialised shape.</summary>
 public sealed record LevelDocument
 {
+    public required int FormatVersion { get; init; }
     public required string Package { get; init; }
     public required string Generator { get; init; }
     public required string Basis { get; init; }
     public required float[] BoundsMin { get; init; }
     public required float[] BoundsMax { get; init; }
+    public required bool GeometryEmbedded { get; init; }
     public required List<LevelAssetDocument> Assets { get; init; }
     public required List<LevelInstanceDocument> Instances { get; init; }
+    public required List<LevelActorDocument> Actors { get; init; }
     public required List<LevelLightDocument> Lights { get; init; }
+
+    /// <summary>Every placed actor class, including those the current geometry exporter cannot yet represent.</summary>
+    public required List<LevelActorCoverageDocument> ActorCoverage { get; init; }
 
     /// <summary>Actors whose geometry did not decode. Written even when empty, so the file states it.</summary>
     public required List<string> Skipped { get; init; }
@@ -222,10 +349,12 @@ public sealed record LevelAssetDocument
     public required string Name { get; init; }
     public required string Kind { get; init; }
     public required int ExportIndex { get; init; }
-    public required List<float[]> Vertices { get; init; }
-    public required List<float[]> Normals { get; init; }
-    public required List<float[]> Uvs { get; init; }
-    public required List<int> Indices { get; init; }
+    public required int VertexCount { get; init; }
+    public required int TriangleCount { get; init; }
+    public List<float[]>? Vertices { get; init; }
+    public List<float[]>? Normals { get; init; }
+    public List<float[]>? Uvs { get; init; }
+    public List<int>? Indices { get; init; }
     public required List<LevelSectionDocument> Sections { get; init; }
 }
 
@@ -233,23 +362,142 @@ public sealed record LevelSectionDocument
 {
     public required int FirstIndex { get; init; }
     public required int TriangleCount { get; init; }
+
+    /// <summary>Material object name, retained for quick human inspection.</summary>
     public string? Material { get; init; }
+
+    /// <summary>
+    /// Stable source identity for <see cref="Material"/>. Names alone are not unique in a
+    /// package, so an importer must use this identity when locating or creating a UE5 material.
+    /// </summary>
+    public string? MaterialKey { get; init; }
+    public string? MaterialPackage { get; init; }
+    public string? MaterialClassName { get; init; }
+    public int? MaterialExportIndex { get; init; }
 }
 
 public sealed record LevelInstanceDocument
 {
     public required string Asset { get; init; }
+
+    /// <summary>Stable key of the actor that placed this instance; unlike <see cref="Actor"/> it is unique.</summary>
+    public required string ActorKey { get; init; }
     public required string Actor { get; init; }
     public string? Label { get; init; }
     public required float[] Transform { get; init; }
 }
 
-public sealed record LevelLightDocument
+/// <summary>
+/// A typed placeholder for one placed UE2 actor. The raw property bytes are retained alongside
+/// their declared type so an unsupported UE5 component can be revisited without reparsing the map.
+/// </summary>
+public sealed record LevelActorDocument
 {
+    public required string Key { get; init; }
     public required string Name { get; init; }
     public required string ClassName { get; init; }
+    public required int ExportIndex { get; init; }
+    public string? Label { get; init; }
+    public string? Tag { get; init; }
+    public required float[] Location { get; init; }
+    public required int[] Rotation { get; init; }
+    public required float DrawScale { get; init; }
+    public required float[] DrawScale3D { get; init; }
+    public required float[] PrePivot { get; init; }
+    public string? StaticMesh { get; init; }
+    public string? SkeletalMesh { get; init; }
+    public string? Brush { get; init; }
+    public string? Attachment { get; init; }
+    public LevelReferenceDocument? StaticMeshReference { get; init; }
+    public LevelReferenceDocument? SkeletalMeshReference { get; init; }
+    public LevelReferenceDocument? BrushReference { get; init; }
+    public LevelReferenceDocument? AttachmentReference { get; init; }
+    public required List<LevelReferenceDocument?> MaterialOverrides { get; init; }
+    public LevelNavigationDocument? Navigation { get; init; }
+    public LevelScriptActionsDocument? ScriptActions { get; init; }
+    public LevelEmittersDocument? Emitters { get; init; }
+    public required List<string> Groups { get; init; }
+    public required List<LevelPropertyDocument> Properties { get; init; }
+    public required string TrailerHex { get; init; }
+    public required bool Truncated { get; init; }
+}
+
+/// <summary>One actor property reference exactly as its package table identifies it.</summary>
+public sealed record LevelReferenceDocument
+{
+    /// <summary>Signed UE package index: positive export, negative import.</summary>
+    public required int Index { get; init; }
+    public required string ObjectName { get; init; }
+    public required string ClassName { get; init; }
+    public required string Origin { get; init; }
+    public required string Status { get; init; }
+    public string? SourceKey { get; init; }
+    public string? SourcePackage { get; init; }
+    public int? SourceExportIndex { get; init; }
+}
+
+/// <summary>Byte-backed navigation references retained for a later UE5 NavGraph/SmartObject decision.</summary>
+public sealed record LevelNavigationDocument
+{
+    public required List<LevelReferenceDocument?> PathLinks { get; init; }
+    public required List<LevelReferenceDocument?> AutoGeneratedFlyingPathNodes { get; init; }
+    public float? PathCollisionRadius { get; init; }
+    public required bool AutoGeneratedFlagSerialized { get; init; }
+}
+
+/// <summary>Byte-backed Script action identities; no UE5 behavioural mapping is implied.</summary>
+public sealed record LevelScriptActionsDocument
+{
+    public required bool Complete { get; init; }
+    public required List<LevelReferenceDocument?> Actions { get; init; }
+}
+
+/// <summary>Byte-backed effect-template identities; no Niagara conversion is implied.</summary>
+public sealed record LevelEmittersDocument
+{
+    public required bool Complete { get; init; }
+    public required List<LevelEmitterTemplateDocument> Templates { get; init; }
+}
+
+/// <summary>Known emitter-template fields; unsupported template properties remain in source bytes.</summary>
+public sealed record LevelEmitterTemplateDocument
+{
+    public required LevelReferenceDocument? Source { get; init; }
+    public LevelReferenceDocument? Material { get; init; }
+    public int? MaxParticles { get; init; }
+    public float? ParticlesPerSecond { get; init; }
+    public float? InitialParticlesPerSecond { get; init; }
+    public required bool PropertiesComplete { get; init; }
+}
+
+public sealed record LevelPropertyDocument
+{
+    public required string Name { get; init; }
+    public required string Type { get; init; }
+    public string? StructName { get; init; }
+    public required int ArrayIndex { get; init; }
+    public string? ValueHex { get; init; }
+    public required int ValueLength { get; init; }
+    public required string ValueSha256 { get; init; }
+}
+
+public sealed record LevelLightDocument
+{
+    /// <summary>Stable source identity; display names are not used for UE5 update matching.</summary>
+    public required string Key { get; init; }
+    public required string Name { get; init; }
+    public required string ClassName { get; init; }
+    public required int ExportIndex { get; init; }
     public required float[] Location { get; init; }
     public int[]? Color { get; init; }
     public float? Brightness { get; init; }
     public float? Radius { get; init; }
+}
+
+public sealed record LevelActorCoverageDocument
+{
+    public required string ClassName { get; init; }
+    public required int ActorCount { get; init; }
+    public required Dictionary<string, int> Status { get; init; }
+    public required List<string> OutstandingProperties { get; init; }
 }

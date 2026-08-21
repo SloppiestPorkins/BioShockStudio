@@ -28,6 +28,13 @@ public sealed record MeshVertex
     /// </summary>
     public Vector2 LightMapUv { get; init; }
 
+    /// <summary>
+    /// Baked-light factor sampled from a BSP atlas. Ordinary meshes retain white, meaning their
+    /// base material is unchanged. Kept per vertex for the Avalonia GL backend, whose API exposes
+    /// one sampler but no integer sampler-uniform binding for a second texture unit.
+    /// </summary>
+    public Vector3 BakedLight { get; init; } = Vector3.One;
+
     /// <summary>Influences with a non-zero weight. Never truncated to satisfy an exporter limit.</summary>
     public required IReadOnlyList<SkinInfluence> Influences { get; init; }
 }

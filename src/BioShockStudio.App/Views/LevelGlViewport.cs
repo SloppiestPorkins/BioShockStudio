@@ -38,8 +38,8 @@ namespace BioShockStudio.App.Views;
 /// </remarks>
 public sealed class LevelGlViewport : OpenGlControlBase
 {
-    /// <summary>Position, normal, UV.</summary>
-    private const int FloatsPerVertex = 8;
+    /// <summary>Position, normal, material UV, baked-light UV and sampled baked-light colour.</summary>
+    private const int FloatsPerVertex = 13;
 
     /// <summary>
     /// Enumerants Avalonia's <c>GlConsts</c> does not carry, at their values from the OpenGL
@@ -54,7 +54,7 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
     private sealed record Batch(
         int Vao, int Vbo, int Ebo, int IndexCount,
-        List<(int First, int Count, int Texture)> Runs);
+        List<(int First, int Count, int Texture, int LightMap, bool IsEffect)> Runs);
 
     private readonly Dictionary<PreviewModel, Batch> _batches = [];
     private readonly Dictionary<PreviewImage, int> _textures = [];
@@ -63,6 +63,7 @@ public sealed class LevelGlViewport : OpenGlControlBase
     private int _mvpUniform;
     private int _modelUniform;
     private int _texturedUniform;
+    private int _lightMappedUniform;
     private int _white;
 
     private PreparedLevel? _level;
@@ -119,6 +120,7 @@ public sealed class LevelGlViewport : OpenGlControlBase
             gl.BindAttribLocationString(_program, 0, "aPosition");
             gl.BindAttribLocationString(_program, 1, "aNormal");
             gl.BindAttribLocationString(_program, 2, "aUv");
+            gl.BindAttribLocationString(_program, 3, "aLightMapUv");
 
             string? link = gl.LinkProgramAndGetError(_program);
             if (link is not null) throw new InvalidOperationException("linking the shader failed: " + link);
@@ -129,6 +131,7 @@ public sealed class LevelGlViewport : OpenGlControlBase
             _mvpUniform = gl.GetUniformLocationString(_program, "uMvp");
             _modelUniform = gl.GetUniformLocationString(_program, "uModel");
             _texturedUniform = gl.GetUniformLocationString(_program, "uTextured");
+            _lightMappedUniform = gl.GetUniformLocationString(_program, "uLightMapped");
 
             _white = CreateWhiteTexture(gl);
         }
@@ -206,17 +209,17 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
                 gl.BindVertexArray(batch.Vao);
 
-                foreach (var (first, count, texture) in batch.Runs)
+                foreach (var (first, count, texture, lightMap, isEffect) in batch.Runs)
                 {
-                    // Light shafts and glow cards: no base colour, meant to be blended additively.
-                    // Drawn as surfaces they are opaque white sheets across the view.
-                    // A surface with no base colour draws as a flat pale sheet — a light shaft, the
-                    // ocean plane, or a material that did not resolve. See LevelViewFilter.
-                    if (texture == 0 && !Filter.ShowUnpainted) continue;
+                    // A missing base texture and a deliberate effect are different facts. Godrays
+                    // and water should be controlled by Effects, not disappear when troubleshooting
+                    // an unresolved material run.
+                    if (texture == 0 && !(isEffect ? Filter.ShowEffects : Filter.ShowUnpainted)) continue;
 
                     gl.ActiveTexture(GL_TEXTURE0);
                     gl.BindTexture(GL_TEXTURE_2D, texture == 0 ? _white : texture);
                     gl.Uniform1f(_texturedUniform, texture == 0 ? 0f : 1f);
+                    gl.Uniform1f(_lightMappedUniform, lightMap != 0 && Filter.ShowBakedLightmaps ? 1f : 0f);
                     gl.DrawElements(GL_TRIANGLES, count, GlUnsignedInt, new IntPtr(first * sizeof(uint)));
                 }
             }
@@ -270,6 +273,11 @@ public sealed class LevelGlViewport : OpenGlControlBase
             vertices[at + 5] = vertex.Normal.Z;
             vertices[at + 6] = vertex.Uv.X;
             vertices[at + 7] = vertex.Uv.Y;
+            vertices[at + 8] = vertex.LightMapUv.X;
+            vertices[at + 9] = vertex.LightMapUv.Y;
+            vertices[at + 10] = vertex.BakedLight.X;
+            vertices[at + 11] = vertex.BakedLight.Y;
+            vertices[at + 12] = vertex.BakedLight.Z;
         }
 
         var indices = model.Indices.Select(i => (uint)i).ToArray();
@@ -292,18 +300,27 @@ public sealed class LevelGlViewport : OpenGlControlBase
         gl.EnableVertexAttribArray(1);
         gl.VertexAttribPointer(2, 2, GL_FLOAT, 0, stride, new IntPtr(6 * sizeof(float)));
         gl.EnableVertexAttribArray(2);
+        gl.VertexAttribPointer(3, 2, GL_FLOAT, 0, stride, new IntPtr(8 * sizeof(float)));
+        gl.EnableVertexAttribArray(3);
+        gl.VertexAttribPointer(4, 3, GL_FLOAT, 0, stride, new IntPtr(10 * sizeof(float)));
+        gl.EnableVertexAttribArray(4);
 
         gl.BindVertexArray(0);
 
         // One draw per surface, so a mesh with several materials draws with all of them rather than
         // with its first — the same rule MeshSurfaceResolver enforces everywhere else.
-        var runs = new List<(int, int, int)>();
+        var runs = new List<(int, int, int, int, bool)>();
         foreach (var surface in model.Surfaces)
         {
             int texture = surface.Texture is null ? 0 : Texture(gl, surface.Texture);
-            runs.Add((surface.FirstIndex, surface.IndexCount, texture));
+            // The atlas has already been sampled into MeshVertex.BakedLight by
+            // LevelViewportService. Keep this as a flag rather than uploading a second texture:
+            // Avalonia 11.2.3's GlInterface cannot select a second sampler unit.
+            int lightMap = surface.LightMapTexture is null ? 0 : 1;
+            runs.Add((surface.FirstIndex, surface.IndexCount, texture, lightMap,
+                surface.NoBaseColourByDesign));
         }
-        if (runs.Count == 0) runs.Add((0, indices.Length, 0));
+        if (runs.Count == 0) runs.Add((0, indices.Length, 0, 0, false));
 
         return new Batch(vao, vbo, ebo, indices.Length, runs);
     }
@@ -372,18 +389,24 @@ public sealed class LevelGlViewport : OpenGlControlBase
         in vec3 aPosition;
         in vec3 aNormal;
         in vec2 aUv;
+        in vec2 aLightMapUv;
+        in vec3 aBakedLight;
 
         uniform mat4 uMvp;
         uniform mat4 uModel;
 
         out vec3 vNormal;
         out vec2 vUv;
+        out vec2 vLightMapUv;
+        out vec3 vBakedLight;
 
         void main()
         {
             gl_Position = uMvp * vec4(aPosition, 1.0);
             vNormal = mat3(uModel) * aNormal;
             vUv = aUv;
+            vLightMapUv = aLightMapUv;
+            vBakedLight = aBakedLight;
         }
         """;
 
@@ -395,9 +418,12 @@ public sealed class LevelGlViewport : OpenGlControlBase
     private const string FragmentSource = """
         in vec3 vNormal;
         in vec2 vUv;
+        in vec2 vLightMapUv;
+        in vec3 vBakedLight;
 
         uniform sampler2D uTexture;
         uniform float uTextured;
+        uniform float uLightMapped;
 
         out vec4 fragColour;
 
@@ -419,7 +445,9 @@ public sealed class LevelGlViewport : OpenGlControlBase
 
             vec3 base = mix(vec3(0.72), albedo.rgb, uTextured);
 
-            fragColour = vec4(base * (ambient + key * 0.75 + fill), 1.0);
+            vec3 fallbackLight = vec3(ambient + key * 0.75 + fill);
+            vec3 light = mix(fallbackLight, vBakedLight, uLightMapped);
+            fragColour = vec4(base * light, 1.0);
         }
         """;
 }

@@ -5,7 +5,7 @@ namespace BioShockStudio.Core.Level;
 
 /// <summary>
 /// A placed world object's payload: the fixed header the game writes ahead of every actor, the
-/// Unreal property list, and the twelve-byte trailer that follows it.
+/// Unreal property list, and every remaining byte that follows it.
 /// </summary>
 public sealed record ActorPayload
 {
@@ -37,7 +37,11 @@ public sealed record ActorPayload
     /// </summary>
     public required int UnknownHeaderIndex { get; init; }
 
-    /// <summary>Bytes after the property list's terminator. Twelve — <c>4, 5, 0</c> — on every actor seen.</summary>
+    /// <summary>
+    /// Bytes after the property list's terminator. The common prefix is three int32 values
+    /// (<c>4, 5, 0</c>), but class-specific suffixes exist (for example FluidVolume adds eight
+    /// bytes), so this is deliberately retained whole.
+    /// </summary>
     public required byte[] Trailer { get; init; }
 
     public UnrealProperty? Find(string name) =>
@@ -71,7 +75,7 @@ public sealed record ActorPayload
 ///       FCompactIndex  UNKNOWN        // -1 in every actor inspected
 ///       int32   0
 ///       ...     property list
-///       int32   4, int32 5, int32 0   // trailer
+///       int32   4, int32 5, int32 0   // common trailer prefix; some classes append more
 /// </code>
 /// <para>
 /// Three of those fields are checked against the export table — the class index twice and the
@@ -85,8 +89,8 @@ public static class ActorPayloadReader
     /// <summary>Bytes of fixed header before the first variable-length field.</summary>
     private const int FixedHeaderLength = 41;
 
-    /// <summary>Trailer written after the property list: <c>int32 4, int32 5, int32 0</c>.</summary>
-    public const int TrailerLength = 12;
+    /// <summary>Minimum common trailer prefix: <c>int32 4, int32 5, int32 0</c>.</summary>
+    public const int StandardTrailerLength = 12;
 
     /// <summary>
     /// True when the payload carries the actor header. This is the level's own answer to "which
@@ -95,7 +99,7 @@ public static class ActorPayloadReader
     /// </summary>
     public static bool IsActor(BioShockPackage package, ObjectExport export)
     {
-        if (export.SerialSize < FixedHeaderLength + TrailerLength) return false;
+        if (export.SerialSize < FixedHeaderLength + StandardTrailerLength) return false;
         try { return TryReadHeader(package.ReadExportData(export), export, out _, out _, out _); }
         catch { return false; }
     }
@@ -142,7 +146,7 @@ public static class ActorPayloadReader
         unknownField = 0;
         unknownIndex = 0;
 
-        if (data.Length < FixedHeaderLength + TrailerLength) return false;
+        if (data.Length < FixedHeaderLength + StandardTrailerLength) return false;
         if (Int32At(data, 0) != 4 || Int32At(data, 4) != 3 || Int32At(data, 8) != 4 || Int32At(data, 12) != 1) return false;
         if (Int32At(data, 16) != 0 || Int32At(data, 20) != 0) return false;
         if (Int32At(data, 28) != -1 || Int32At(data, 32) != -1) return false;

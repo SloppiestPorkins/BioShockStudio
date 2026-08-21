@@ -81,7 +81,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
     /// measured number rather than an assumption.
     /// </para>
     /// </remarks>
-    public const int MaximumTexture = 1024;
+    public const int MaximumTexture = 2048;
 
     public PreparedLevel Prepare(string packageFile, IProgress<string>? progress = null)
     {
@@ -105,6 +105,27 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         {
             foreach (var instance in scene.Instances)
             {
+                // A compiled world with a package-proven atlas pool is drawn as material+atlas
+                // batches. This keeps one lightmap texture per draw; forcing all of its triangles
+                // through the old material-only model would bind the wrong atlas for most surfaces.
+                if (instance.Kind == LevelGeometryKind.BuiltWorld && instance.LightMapBatches.Count > 0)
+                {
+                    var lightmapped = LightMappedWorld(package, instance, textures, borrowed);
+                    if (lightmapped.Count > 0)
+                    {
+                        foreach (var lightmappedModel in lightmapped)
+                        {
+                            var (lightmappedCentre, lightmappedRadius) = LevelViewport.BoundsOf(lightmappedModel.Vertices, instance.Transform);
+                            items.Add(new ViewportItem(lightmappedModel, instance.Transform, lightmappedCentre, lightmappedRadius)
+                            {
+                                Kind = instance.Kind,
+                                ActorClass = instance.Actor.ClassName,
+                            });
+                        }
+                        continue;
+                    }
+                }
+
                 if (!models.TryGetValue(instance.Asset.Key, out var model))
                 {
                     var (surfaces, sizes) = Surfaces(package, instance, textures, borrowed);
@@ -151,6 +172,92 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             SurfacesWithoutTexture = withoutTexture,
             TotalSurfaces = totalSurfaces,
         };
+    }
+
+    /// <summary>
+    /// Makes the compiled world's atlas batches into preview models. A map only reaches this path
+    /// after <see cref="BspWorldReader"/> has validated its <c>LightMaps_BSP</c> texture pool; an
+    /// atlas that fails to decode simply leaves the old material-only world as the fallback.
+    /// </summary>
+    private IReadOnlyList<PreviewModel> LightMappedWorld(
+        BioShockPackage package, LevelInstance world,
+        Dictionary<string, PreviewImage?> textures,
+        Dictionary<string, BioShockPackage> borrowed)
+    {
+        var result = new List<PreviewModel>(world.LightMapBatches.Count);
+
+        foreach (var batch in world.LightMapBatches)
+        {
+            var material = Describe(package, batch.Material);
+            var atlas = LightMapImage(package, batch.Atlas, textures);
+            if (atlas is null) continue;
+
+            var litGeometry = batch.Geometry with
+            {
+                Vertices = [.. batch.Geometry.Vertices.Select(vertex => vertex with
+                {
+                    BakedLight = SampleLightMap(atlas, vertex.LightMapUv),
+                })],
+            };
+            var batchInstance = world with { Geometry = litGeometry, Materials = [material] };
+            var (surfaces, sizes) = Surfaces(package, batchInstance, textures, borrowed);
+            if (surfaces.Count == 0) continue;
+
+            // A normal compiled-world model reaches NormaliseUvs in Prepare. Atlas batching was
+            // bypassing that one step, leaving the BSP's texel-space UVs to be treated as
+            // normalised coordinates: floors and ceilings then sampled their material at enormous
+            // repeated offsets. Keep the per-atlas light data, but take the identical base-texture
+            // path as the non-lightmapped world.
+            var texturedGeometry = BspGeometry.NormaliseUvs(litGeometry, sizes);
+            result.Add(PreviewModel.Build(texturedGeometry, null, null,
+                [surfaces[0] with { LightMapTexture = atlas }]));
+        }
+
+        return result;
+    }
+
+    private static SourceId? Describe(BioShockPackage package, PackageIndex index)
+    {
+        if (!index.IsExport || index.ExportIndex >= package.Exports.Count) return null;
+        var export = package.Exports[index.ExportIndex];
+        return new SourceId(Path.GetFileNameWithoutExtension(package.FilePath), export.Index,
+            package.GetClassName(export), export.ObjectName);
+    }
+
+    private PreviewImage? LightMapImage(
+        BioShockPackage package, PackageIndex texture, Dictionary<string, PreviewImage?> textures)
+    {
+        if (!texture.IsExport || texture.ExportIndex >= package.Exports.Count) return null;
+        string key = "lightmap:" + texture.Value;
+        if (textures.TryGetValue(key, out var cached)) return cached;
+
+        var export = package.Exports[texture.ExportIndex];
+        return textures[key] = package.GetClassName(export) == TextureReader.ClassName
+            ? Decode(package, export.ObjectName)
+            : null;
+    }
+
+    /// <summary>
+    /// Bilinear atlas lookup. Lightmap UVs point at texel centres and are already constrained to
+    /// the declared tile by <see cref="BspWorld.LightMapUv"/>, so clamping here is intentional:
+    /// it prevents a rounding edge from bleeding the neighbouring packed lightmap into a surface.
+    /// </summary>
+    private static Vector3 SampleLightMap(PreviewImage image, Vector2 uv)
+    {
+        float x = Math.Clamp(uv.X * image.Width - 0.5f, 0f, image.Width - 1);
+        float y = Math.Clamp(uv.Y * image.Height - 0.5f, 0f, image.Height - 1);
+        int x0 = (int)x, y0 = (int)y;
+        int x1 = Math.Min(x0 + 1, image.Width - 1), y1 = Math.Min(y0 + 1, image.Height - 1);
+        float tx = x - x0, ty = y - y0;
+
+        Vector3 Pixel(int px, int py)
+        {
+            int at = (py * image.Width + px) * 4;
+            return new Vector3(image.Rgba[at], image.Rgba[at + 1], image.Rgba[at + 2]) / 255f;
+        }
+
+        return Vector3.Lerp(Vector3.Lerp(Pixel(x0, y0), Pixel(x1, y0), tx),
+            Vector3.Lerp(Pixel(x0, y1), Pixel(x1, y1), tx), ty);
     }
 
     /// <summary>
@@ -224,7 +331,8 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
     /// <para>
     /// <b>The size is the texture's own <c>USize</c>/<c>VSize</c>, not the dimensions of the mip
     /// that was loaded, and the difference is the whole point of returning it separately.</b> A
-    /// level caps its textures at 256 (see <see cref="MaximumTexture"/>), so a 2048-pixel wall
+    /// level caps its textures at <see cref="MaximumTexture"/> (rather than decoding every source
+    /// mip at once), so a larger authored wall texture can still arrive at a smaller resident mip
     /// texture arrives as a 256-pixel image — but the game's UVs are normalised against 2048.
     /// Dividing by the loaded image's size instead tiles the surface <b>eight times too often</b>,
     /// and that is exactly the fault the first attempt at this shipped with: the tiling improved
@@ -260,6 +368,9 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                 result.Add(new PreviewSurface(
                     section.FirstIndex, section.IndexCount, decoded?.Name,
                     Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed),
+                    // BSP has a normal but no shipped tangent basis in this representation. A
+                    // tangent-space map without that basis would be confidently wrong, so preserve
+                    // it for export but do not feed it to the preview shader.
                     null, null)
                 {
                     NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(decoded?.ClassName),
@@ -273,10 +384,14 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         var export = package.Exports[instance.Asset.ExportIndex];
         var surfaces = MeshSurfaceResolver.Resolve(package, export, geometry, catalog.ExternalMaterials);
 
+        bool hasTangentBasis = geometry.Vertices.Any(vertex =>
+            vertex.Tangent.LengthSquared() > 1e-8f && vertex.Binormal.LengthSquared() > 1e-8f);
+
         return ([.. surfaces.Select(s => new PreviewSurface(
             s.FirstIndex, s.IndexCount, s.Material?.Name,
             Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed),
-            null, null)
+            hasTangentBasis ? Image(package, s.Material, s.Material?.NormalTexture, textures, borrowed) : null,
+            hasTangentBasis ? Image(package, s.Material, s.Material?.SpecularTexture, textures, borrowed) : null)
         {
             NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(s.Material?.ClassName),
         })], sizes);

@@ -1,5 +1,6 @@
 using System.Numerics;
 using BioShockStudio.Core.Coordinates;
+using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 
@@ -43,6 +44,12 @@ public sealed record LevelInstance
 
     public required MeshGeometry Geometry { get; init; }
 
+    /// <summary>
+    /// Atlas-specific render batches for a compiled world. Empty for ordinary meshes, brushes, and
+    /// maps whose lightmap atlas pool has not been proven from the package bytes.
+    /// </summary>
+    public IReadOnlyList<BspGeometry.LightMapBatch> LightMapBatches { get; init; } = [];
+
     /// <summary>The materials the geometry's sections index, in section order. Entries may be null.</summary>
     public required IReadOnlyList<SourceId?> Materials { get; init; }
 
@@ -72,6 +79,16 @@ public sealed record LevelScene
     public required string PackageName { get; init; }
     public required IReadOnlyList<LevelInstance> Instances { get; init; }
     public required IReadOnlyList<LevelLight> Lights { get; init; }
+
+    /// <summary>Every placed UE2 actor, including non-renderable gameplay and audio objects.</summary>
+    public required IReadOnlyList<LevelActor> Actors { get; init; }
+
+    /// <summary>
+    /// The complete placed-actor ledger that produced this scene. Geometry is only one subset of a
+    /// UE2 level; retaining the rest makes a future UE5 importer report gaps instead of dropping
+    /// sound, triggers, effects, or gameplay actors on the floor.
+    /// </summary>
+    public LevelCoverageReport? Coverage { get; init; }
 
     /// <summary>Actors that named geometry which could not be decoded, with the reason.</summary>
     public required IReadOnlyList<(SourceId Actor, string Reason)> Skipped { get; init; }
@@ -149,6 +166,13 @@ public static class LevelSceneBuilder
             {
                 Add(actor, meshSource, LevelGeometryKind.StaticMesh, meshCache, MeshPlacement(actor.Transform));
             }
+            else if (actor.SkeletalMesh is { Source: { } skeletalSource })
+            {
+                // These are deliberately a reference/bind-pose representation. The bytes establish
+                // the mesh, sections and actor transform; they do not yet establish the runtime
+                // animation or physics pose that the shipped game selects for this actor.
+                Add(actor, skeletalSource, LevelGeometryKind.SkeletalMesh, meshCache, MeshPlacement(actor.Transform));
+            }
 
             if (instances.Count % 500 == 0 && instances.Count > 0)
                 progress?.Report($"{instances.Count} instances, {lights.Count} lights");
@@ -165,6 +189,8 @@ public static class LevelSceneBuilder
             PackageName = context.PackageName,
             Instances = instances,
             Lights = lights,
+            Actors = context.Actors,
+            Coverage = LevelCoverageReport.Build(context),
             Skipped = skipped,
             Bounds = MeasureBounds(instances),
         };
@@ -230,6 +256,7 @@ public static class LevelSceneBuilder
             Asset = world.Source,
             Transform = Matrix4x4.Identity,
             Geometry = geometry,
+            LightMapBatches = BspGeometry.ToLightMapBatches(world),
             Materials = [.. BspGeometry.Materials(world).Select(m => Describe(package, m))],
             Label = "compiled world",
         });
@@ -303,8 +330,21 @@ public static class LevelSceneBuilder
                 return (geometry, materials, null);
             }
 
-            var geometry2 = StaticMeshReader.ReadGeometry(package.ReadExportData(package.Exports[asset.ExportIndex]));
-            return (geometry2, [], geometry2 is null ? "no vertex data was found in this mesh" : null);
+            var meshExport = package.Exports[asset.ExportIndex];
+            var meshData = package.ReadExportData(meshExport);
+            var geometry2 = kind == LevelGeometryKind.SkeletalMesh
+                ? SkeletalMeshReader.ReadGeometry(meshData, package.Names)
+                : StaticMeshReader.ReadGeometry(meshData);
+
+            // A mesh's section ordinal addresses its own Materials array. Retaining only
+            // section geometry made the UE5 handoff know that a mesh had sections, but not which
+            // material each section used; that is enough to reconstruct a grey level, not its
+            // authored surfaces.  Keep nulls for external/unresolved references so ordinal N never
+            // shifts onto a neighbour's material.
+            var meshMaterials = MaterialReader.ReadMeshMaterialSlots(meshData, package)
+                .Select(index => Describe(package, index))
+                .ToList();
+            return (geometry2, meshMaterials, geometry2 is null ? "no vertex data was found in this mesh" : null);
         }
         catch (Exception ex)
         {

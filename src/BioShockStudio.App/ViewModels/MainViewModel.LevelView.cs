@@ -49,7 +49,10 @@ public partial class MainViewModel
     /// How much geometry a frame may draw. Exposed because the right value depends on the machine,
     /// and a fixed one would be a guess about someone else's CPU.
     /// </summary>
-    [ObservableProperty] private int _levelTriangleBudget = 150_000;
+    // The GL path multiplies this by eight and Medical contains 4.2M triangles. Starting at the
+    // slider maximum therefore shows the complete scene rather than silently omitting 1,000+
+    // exterior parts; users can still lower it for a slower GPU.
+    [ObservableProperty] private int _levelTriangleBudget = 600_000;
 
     /// <summary>Movement multiplier, so a map can be crossed without waiting.</summary>
     [ObservableProperty] private double _levelCameraSpeed = 1.0;
@@ -75,31 +78,55 @@ public partial class MainViewModel
     /// </remarks>
     [ObservableProperty] private bool _showSourceBrushes;
 
-    /// <summary>Light the level with its own lights rather than the fixed studio lighting.</summary>
+    /// <summary>Draw the compiled CSG world: the actual rooms, floors and walls.</summary>
+    [ObservableProperty] private bool _showCompiledWorld = true;
+
+    /// <summary>Draw ordinary placed UE2 StaticMesh actors.</summary>
+    [ObservableProperty] private bool _showStaticMeshes = true;
+
+    /// <summary>Draw placed UE2 SkeletalMesh actors.</summary>
+    [ObservableProperty] private bool _showSkeletalMeshes = true;
+
+    /// <summary>Light the level with its own point lights rather than the fixed studio lighting.</summary>
     /// <remarks>
     /// Off by default, and that is a claim about honesty rather than taste: this is <b>not</b> the
-    /// game's lighting model. BioShock bakes its static lighting into lightmap atlases, which this
-    /// project reads no part of; what a light actor carries is a colour, a brightness and a radius,
-    /// applied here as simple point lights. The result looks like the level, not like the game.
+    /// game's lighting model. Static lighting now has a separately-toggleable, vertex-sampled
+    /// baked-light atlas path; these actor lights remain a simple point-light approximation.
     /// </remarks>
     [ObservableProperty] private bool _useLevelLights;
+
+    /// <summary>Apply the compiled world's verified baked-light atlas samples in the GPU viewport.</summary>
+    [ObservableProperty] private bool _showBakedLightmaps;
 
     /// <summary>Draw light shafts and glow cards. Off by default — they have no base colour.</summary>
     [ObservableProperty] private bool _showLevelUnpainted;
 
+    /// <summary>Draw godrays, water and glow cards that intentionally omit a base-colour map.</summary>
+    [ObservableProperty] private bool _showLevelEffects;
+
     partial void OnShowLevelUnpaintedChanged(bool value) => SettleLevelCamera();
+    partial void OnShowLevelEffectsChanged(bool value) => SettleLevelCamera();
 
     partial void OnUseLevelLightsChanged(bool value) => SettleLevelCamera();
+    partial void OnShowBakedLightmapsChanged(bool value) => SettleLevelCamera();
 
     partial void OnShowLevelVolumesChanged(bool value) => SettleLevelCamera();
     partial void OnShowSourceBrushesChanged(bool value) => SettleLevelCamera();
+    partial void OnShowCompiledWorldChanged(bool value) => SettleLevelCamera();
+    partial void OnShowStaticMeshesChanged(bool value) => SettleLevelCamera();
+    partial void OnShowSkeletalMeshesChanged(bool value) => SettleLevelCamera();
 
     /// <summary>What the viewport draws. Read by both renderers.</summary>
     public LevelViewFilter ViewFilter => new()
     {
         ShowVolumes = ShowLevelVolumes,
         ShowSourceBrushes = ShowSourceBrushes,
+        ShowWorld = ShowCompiledWorld,
+        ShowStaticMeshes = ShowStaticMeshes,
+        ShowSkeletalMeshes = ShowSkeletalMeshes,
         ShowUnpainted = ShowLevelUnpainted,
+        ShowEffects = ShowLevelEffects,
+        ShowBakedLightmaps = ShowBakedLightmaps,
     };
 
     private GhostCamera _levelCamera = new();
@@ -123,8 +150,13 @@ public partial class MainViewModel
     /// <summary>Raised when the camera moves, so the view can ask the GPU for a frame.</summary>
     public event Action<GhostCamera>? CameraMoved;
 
+    /// <summary>Raised when the live viewport's requested triangle budget changes.</summary>
+    public event Action<int>? LevelTriangleBudgetChanged;
+
     /// <summary>Raised when a level is ready, so the view can hand it to the GPU.</summary>
     public event Action<PreparedLevel, GhostCamera>? LevelOpened;
+
+    partial void OnLevelTriangleBudgetChanged(int value) => LevelTriangleBudgetChanged?.Invoke(value);
 
     /// <summary>Raised when the level is closed, so the view can release its GPU resources.</summary>
     public event Action? LevelClosed;
@@ -277,6 +309,7 @@ public partial class MainViewModel
                         ShowSkeleton = false, ShowSockets = false, Textured = true,
                         Lights = lights,
                         ShowUnpainted = filter.ShowUnpainted,
+                        ShowEffects = filter.ShowEffects,
                     },
                     width, height);
                 return (rendered, chosen);

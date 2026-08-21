@@ -29,7 +29,11 @@ public sealed class LevelLightingTests(GameFixture game)
     private static void Log(string line)
     {
         if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is { Length: > 0 } path)
+        {
+            string? directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
             File.AppendAllText(path, line + Environment.NewLine);
+        }
     }
 
     /// <summary>

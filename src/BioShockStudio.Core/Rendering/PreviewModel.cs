@@ -40,7 +40,8 @@ public sealed record PreviewSurface(
     string? MaterialName = null,
     PreviewImage? Texture = null,
     PreviewImage? NormalMap = null,
-    PreviewImage? SpecularMap = null)
+    PreviewImage? SpecularMap = null,
+    PreviewImage? LightMapTexture = null)
 {
     public int TriangleCount => IndexCount / 3;
 

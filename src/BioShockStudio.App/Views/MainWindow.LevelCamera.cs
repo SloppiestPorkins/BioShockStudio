@@ -148,6 +148,12 @@ public partial class MainWindow
                 Dispatcher.UIThread.Post(() => Confirm(model, gl), DispatcherPriority.Background);
             };
 
+            // The GL control owns its draw selection after the initial Show call. Updating only
+            // the bound view-model value left Detail's thumb moving while the displayed geometry
+            // remained at the old budget, which made omitted exterior assemblies look broken.
+            model.LevelTriangleBudgetChanged += budget =>
+                gl.TriangleBudget = Math.Max(budget * 8, 1_500_000);
+
             model.CameraMoved += camera => { gl.Filter = model.ViewFilter; gl.Move(camera); };
             model.LevelClosed += () => { gl.Clear(); model.UsingGpu = false; };
         };
