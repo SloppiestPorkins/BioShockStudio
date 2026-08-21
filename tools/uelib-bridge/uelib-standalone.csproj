@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles Unreal-Library-master's source directly against net8.0, bypassing its own multi-target
+    csproj (which lists net10.0, unsupported by this repo's installed SDK). See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8765;CS0618;CS0612;CS0108;CS0114;CS0672;CS8632;CS0164;CS0219;CS0660;CS0162</NoWarn>
+    <!-- BIOSHOCK/VENGEANCE enable this game's specific handling; UT supplies a handful of enum
+         members (PackageFlag.Official, PropertyFlagsLO.Cache/Automated, ClassFlags.CacheExempt)
+         that BioShock's own code paths reference despite not being a UT-derived game itself. -->
+    <DefineConstants>DECOMPILE;BINARYMETADATA;UE1;UE2;UE3;UE4;VENGEANCE;SWAT4;BIOSHOCK;UT</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\Unreal-Library-master\src\**\*.cs"
+             Exclude="..\..\Unreal-Library-master\src\**\bin\**;..\..\Unreal-Library-master\src\**\obj\**" />
+  </ItemGroup>
+</Project>
