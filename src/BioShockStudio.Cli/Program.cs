@@ -1,4 +1,5 @@
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Diagnostics;
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
@@ -7,8 +8,11 @@ using BioShockStudio.Core.Havok.Packfile;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
+using System.Diagnostics;
+using System.Text.Json;
 
 if (args.Length == 0)
 {
@@ -40,8 +44,15 @@ try
         "export-fbx" => ExportFbx(root, args),
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
+        "level-audit" => LevelAudit(root, args),
+        "export-level" => ExportLevel(root, args),
+        "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
         "textures" => Textures(root, args),
+        "sounds" => Sounds(root, args),
+        "export-sounds" => ExportSounds(root, args),
+        "audit-audio" => AuditAudio(root),
+        "decode-stream" => DecodeStream(root, args),
         "export-textures" => ExportTextures(root, args),
         "animation" => AnimationInspect(root, args),
         "export-firstperson" => ExportFirstPerson(root, args),
@@ -71,11 +82,20 @@ static int Usage()
                                         List decoded animations, optionally for one weapon.
           meshes <package>              Report which SkeletalMeshes decode to geometry.
           materials <package> [pattern] Resolve each SkeletalMesh's material and its textures.
-          properties <package> <object|--class C> [n]
+          properties <package> <object|--class C|--index N> [n] [--raw]
                                         Dump an export's Unreal property list and what follows it.
           context <package> <group>     Show an asset group and everything it owns.
+          level-audit <map>              Account for every placed UE2 actor and its UE5 decode status.
+          export-level <map> <out-dir>   Write a versioned level JSON plus OBJ for the UE5 pipeline.
+          ue5-audit [out.json]            Decode-check asset containers required by the UE5 pipeline.
           characters <package>          List animated character assets in a package.
           textures <package> [pattern]  List textures with format and size.
+          sounds <package> [pattern]    List native Sound exports and identified payload formats.
+          export-sounds <package> <out-dir> [pattern]
+                                        Write native Sound payloads as MP3 where proven, else .bin.
+          audit-audio                   Census native Sound exports and their identified payloads.
+          decode-stream <bank.fsb> <out.wav> <subsound-index> [--helper path]
+                                        Decode one streamed FSB5 item through the game's x86 FMOD.
           export-textures <package> <out-dir> [pattern]
                                         Write textures as PNG (and DDS when compressed).
           animation inspect <package> <object> <animation>
@@ -174,6 +194,84 @@ static int Inspect(string root, string[] args)
     return 0;
 }
 
+/// <summary>
+/// Prints the map's decode ledger. This is intentionally a report, not an exporter: a class only
+/// moves to "geometry in scene" when the existing level builder can actually place it.
+/// </summary>
+static int LevelAudit(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: level-audit <map>"); return 1; }
+
+    string file = ResolvePackage(root, args[1]);
+    var report = LevelCoverageReport.Build(LevelAnalyzer.Analyze(file));
+
+    Console.WriteLine($"{report.PackageName}: {report.ActorCount:N0} actors, {report.Classes.Count:N0} classes");
+    Console.WriteLine("coverage:");
+    foreach (var (status, count) in report.Classes
+                 .SelectMany(row => row.StatusCounts)
+                 .GroupBy(entry => entry.Key)
+                 .OrderBy(group => group.Key)
+                 .Select(group => (group.Key, group.Sum(entry => entry.Value))))
+        Console.WriteLine($"  {status,-26} {count,6:N0}");
+
+    Console.WriteLine();
+    Console.WriteLine("status                        actors  class");
+
+    foreach (var row in report.Classes)
+    {
+        string statuses = string.Join(", ", row.StatusCounts
+            .OrderBy(status => status.Key)
+            .Select(status => $"{status.Key}={status.Value}"));
+        Console.WriteLine($"{statuses,-36} {row.ActorCount,6:N0}  {row.ClassName}");
+
+        if (row.OutstandingProperties.Count > 0)
+            Console.WriteLine("  outstanding: " + string.Join(", ", row.OutstandingProperties.Take(12))
+                              + (row.OutstandingProperties.Count > 12 ? ", …" : string.Empty));
+    }
+
+    if (report.ClassifiedCount != report.ActorCount)
+    {
+        Console.Error.WriteLine($"error: classified {report.ClassifiedCount:N0} of {report.ActorCount:N0} actors");
+        return 1;
+    }
+
+    return 0;
+}
+
+static int Ue5Audit(string root, string[] args)
+{
+    var report = Ue5CoverageReport.Build(root, new Progress<string>(package =>
+        Console.Error.Write($"\rreading {package,-36}")));
+    Console.Error.WriteLine();
+
+    Console.WriteLine($"packages: {report.Packages:N0}; package failures: {report.PackageFailures:N0}");
+    foreach (var row in report.Containers)
+        Console.WriteLine($"{row.Family,-28} found {row.Found,7:N0}  decoded {row.Decoded,7:N0}  "
+                          + $"rig-only {row.NoGeometry,6:N0}  failed {row.Failed,6:N0}");
+
+    foreach (var failure in report.Failures)
+        Console.WriteLine($"  FAIL {failure.Family}: {failure.Package} {failure.ClassName} {failure.ObjectName} — {failure.Reason}");
+
+    if (args.ElementAtOrDefault(1) is { Length: > 0 } output)
+    {
+        File.WriteAllText(output, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine($"wrote {Path.GetFullPath(output)}");
+    }
+
+    return report.Containers.All(row => row.Accounted == row.Found) ? 0 : 1;
+}
+
+static int ExportLevel(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: export-level <map> <out-dir>"); return 1; }
+
+    string package = ResolvePackage(root, args[1]);
+    var progress = new Progress<string>(message => Console.Error.WriteLine(message));
+    var files = new LevelService().Extract(package, args[2], LevelExportFormats.All, readable: true, progress);
+    foreach (string file in files) Console.WriteLine(file);
+    return 0;
+}
+
 static int Havok(string root, string[] args)
 {
     if (args.Length < 3) { Console.Error.WriteLine("usage: havok <package> <object>"); return 1; }
@@ -217,18 +315,24 @@ static int Havok(string root, string[] args)
 /// </summary>
 static int Properties(string root, string[] args)
 {
-    if (args.Length < 3) { Console.Error.WriteLine("usage: properties <package> <object|--class C> [limit]"); return 1; }
+    if (args.Length < 3) { Console.Error.WriteLine("usage: properties <package> <object|--class C|--index N> [limit] [--raw]"); return 1; }
 
     using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
 
     bool byClass = args[2] == "--class";
-    string selector = byClass ? args[3] : args[2];
-    string? limitArgument = args.ElementAtOrDefault(byClass ? 4 : 3);
+    bool byIndex = args[2] == "--index";
+    string selector = byClass || byIndex ? args[3] : args[2];
+    string? limitArgument = args
+        .Skip(byClass || byIndex ? 4 : 3)
+        .FirstOrDefault(argument => !string.Equals(argument, "--raw", StringComparison.OrdinalIgnoreCase));
     int limit = int.TryParse(limitArgument, out int parsed) ? parsed : 1;
+    bool raw = args.Any(argument => string.Equals(argument, "--raw", StringComparison.OrdinalIgnoreCase));
 
     var matches = (byClass
             ? package.Exports.Where(e => package.GetClassName(e) == selector)
-            : package.Exports.Where(e => e.ObjectName.Contains(selector, StringComparison.OrdinalIgnoreCase)))
+            : byIndex && int.TryParse(selector, out int index)
+                ? package.Exports.Where(e => e.Index == index)
+                : package.Exports.Where(e => e.ObjectName.Contains(selector, StringComparison.OrdinalIgnoreCase)))
         .OrderByDescending(e => e.SerialSize).Take(limit).ToList();
 
     foreach (var export in matches)
@@ -239,7 +343,30 @@ static int Properties(string root, string[] args)
 
         int end;
         List<UnrealProperty> properties;
-        try { properties = UnrealPropertyReader.Read(payload, package.Names, out end); }
+        var actor = ActorPayloadReader.TryRead(package, export, payload);
+        var classDefaults = package.GetClassName(export) == "Class"
+            ? new ClassDefaults(package).For(export)
+            : [];
+        try
+        {
+            if (actor is not null)
+            {
+                properties = [.. actor.Properties];
+                end = actor.PropertyListEnd;
+                Console.WriteLine($"  actor header: properties +{actor.PropertyListStart}..+{end}, "
+                                  + $"unknown={actor.UnknownHeaderField}, trailer={actor.Trailer.Length} bytes");
+            }
+            else if (classDefaults.Count > 0)
+            {
+                properties = [.. classDefaults];
+                end = payload.Length;
+                Console.WriteLine("  class defaults: final clean property list");
+            }
+            else
+            {
+                properties = UnrealPropertyReader.Read(payload, package.Names, out end);
+            }
+        }
         catch (Exception ex) { Console.WriteLine($"  property list unreadable: {ex.Message}"); continue; }
 
         foreach (var property in properties)
@@ -253,7 +380,7 @@ static int Properties(string root, string[] args)
                 UnrealPropertyType.Byte => property.AsByte().ToString(),
                 UnrealPropertyType.Bool => "true",
                 UnrealPropertyType.Name => NameOf(package, property.Value),
-                _ => Convert.ToHexString(property.Value.Take(24).ToArray()),
+                _ => Convert.ToHexString(raw ? property.Value : property.Value.Take(24).ToArray()),
             };
             Console.WriteLine($"  {property.Name,-28} {property.Type,-8} {property.StructName,-16} {value}");
         }
@@ -714,6 +841,138 @@ static int Textures(string root, string[] args)
 
     Console.WriteLine($"\n{decoded} decoded, {failed} not understood.");
     return 0;
+}
+
+static int Sounds(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: sounds <package> [pattern]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    string? pattern = args.Length > 2 ? args[2] : null;
+    var sounds = SoundReader.Read(package)
+        .Where(sound => pattern is null || sound.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    foreach (var sound in sounds)
+        Console.WriteLine($"  {sound.Name,-48} {sound.Format,-8} {sound.RawData.Length,10} bytes");
+
+    Console.WriteLine($"\n{sounds.Count} native Sound exports read.");
+    return 0;
+}
+
+static int ExportSounds(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: export-sounds <package> <out-dir> [pattern]"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    string directory = args[2];
+    string? pattern = args.Length > 3 ? args[3] : null;
+    var sounds = SoundReader.Read(package)
+        .Where(sound => pattern is null || sound.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    foreach (var sound in sounds)
+        Console.WriteLine($"  {SoundExporter.Write(sound, directory)}");
+
+    Console.WriteLine($"\n{sounds.Count} native Sound exports written.");
+    return 0;
+}
+
+static int AuditAudio(string root)
+{
+    int packages = 0, sounds = 0, mp3 = 0, unknown = 0, failed = 0;
+
+    foreach (string file in GameLocator.EnumeratePackages(root).Concat(GameLocator.EnumerateScriptPackages(root)))
+    {
+        try
+        {
+            using var package = BioShockPackage.Open(file);
+            var found = SoundReader.Read(package);
+            if (found.Count == 0) continue;
+
+            packages++;
+            sounds += found.Count;
+            mp3 += found.Count(sound => sound.Format == SoundFormat.Mp3);
+            unknown += found.Count(sound => sound.Format == SoundFormat.Unknown);
+            Console.WriteLine($"  {Path.GetFileName(file),-28} sounds={found.Count,-5} mp3={found.Count(sound => sound.Format == SoundFormat.Mp3),-5} unknown={found.Count(sound => sound.Format == SoundFormat.Unknown)}");
+        }
+        catch (Exception ex)
+        {
+            failed++;
+            Console.Error.WriteLine($"  FAIL  {Path.GetFileName(file)}: {ex.Message}");
+        }
+    }
+
+    Console.WriteLine($"\n{sounds} native Sound exports in {packages} packages: {mp3} MP3, {unknown} unknown; {failed} package failures.");
+    return failed == 0 ? 0 : 1;
+}
+
+/// <summary>
+/// Delegates one streamed FSB5 item to the native x86 companion process. The managed tool never
+/// opens the game's 32-bit FMOD DLL itself: Windows cannot load it into this 64-bit process.
+/// </summary>
+static int DecodeStream(string root, string[] args)
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine("usage: decode-stream <bank.fsb> <out.wav> <subsound-index> [--helper path]");
+        return 1;
+    }
+    if (!int.TryParse(args[3], out int index) || index < 0)
+    {
+        Console.Error.WriteLine("subsound-index must be a non-negative integer.");
+        return 1;
+    }
+
+    string bank = File.Exists(args[1])
+        ? Path.GetFullPath(args[1])
+        : Path.Combine(GameLocator.StreamAudioDirectory(root), args[1]);
+    if (!File.Exists(bank))
+    {
+        Console.Error.WriteLine($"stream bank not found: {bank}");
+        return 1;
+    }
+
+    string runtime = GameLocator.FmodRuntime(root);
+    if (!File.Exists(runtime))
+    {
+        Console.Error.WriteLine($"the game's x86 FMOD runtime was not found: {runtime}");
+        return 1;
+    }
+
+    string? helper = null;
+    for (int i = 4; i + 1 < args.Length; i++)
+        if (args[i] == "--helper") { helper = args[i + 1]; break; }
+    helper ??= Environment.GetEnvironmentVariable("BIOSHOCK_FMOD_HELPER");
+    if (string.IsNullOrWhiteSpace(helper))
+    {
+        string[] candidates =
+        [
+            Path.Combine(AppContext.BaseDirectory, "tools", "FmodFsbDecoder.exe"),
+            Path.Combine(Environment.CurrentDirectory, "artifacts", "tools", "FmodFsbDecoder.exe"),
+            Path.Combine(Environment.CurrentDirectory, "artifacts", "app", "tools", "FmodFsbDecoder.exe"),
+        ];
+        helper = candidates.FirstOrDefault(File.Exists);
+    }
+    if (string.IsNullOrWhiteSpace(helper) || !File.Exists(helper))
+    {
+        Console.Error.WriteLine("FmodFsbDecoder.exe was not found. Build tools/fmod-x86, place it in "
+            + "artifacts/app/tools, set BIOSHOCK_FMOD_HELPER, or pass --helper <path>.");
+        return 1;
+    }
+
+    string output = Path.GetFullPath(args[2]);
+    Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+    var start = new ProcessStartInfo(helper) { UseShellExecute = false };
+    start.ArgumentList.Add(runtime);
+    start.ArgumentList.Add(bank);
+    start.ArgumentList.Add(output);
+    start.ArgumentList.Add(index.ToString());
+
+    using var process = Process.Start(start);
+    if (process is null) { Console.Error.WriteLine("could not start the x86 FMOD decoder."); return 1; }
+    process.WaitForExit();
+    return process.ExitCode;
 }
 
 static int ExportTextures(string root, string[] args)
