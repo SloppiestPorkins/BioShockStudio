@@ -340,7 +340,10 @@ material.
    another rig whose mesh name, `ProtectorBouncerMESH`, didn't match its wrapper, exercising the new
    `--mesh` flag again) both import cleanly (`Success - 0 error(s), 10 warning(s)` for the pair,
    same cosmetic shape) and verify as real `SkeletalMesh`es with populated skeletons.
-   **Still open**: Little Sister, other weapons, doors, props.
+   **Little Sister done, same session**: `GathererGirl` (60 bones, 5,495 vertices, 6 sockets —
+   named for the game's own "Gatherer" terminology) imports cleanly
+   (`Success - 0 error(s), 5 warning(s)`) and verifies the same way.
+   **Still open**: other weapons, doors, props.
 
 ### Gate 3 — levels and UE2 actor systems
 
