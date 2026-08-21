@@ -97,12 +97,18 @@ whatever is in front and has caught the user's browser before.
 4. **A level FBX exporter.** The scene JSON and OBJ exist; FBX is what the rest of the project
    exports and what a user would expect.
 
+## Reopened, 18 Aug 2026
+
+- ~~**Unreal / UE5 import.**~~ **Reopened — this is now stated as the project's actual end goal**:
+  not an import test, but UE5 **as a runtime**, porting the extracted assets to run inside it.
+  `ENGINEERING_RULES.md` §60 has the full note. Scope of "runtime" (native plugin reading `.bsm`
+  live vs. importing this project's existing FBX/scene-JSON export) was not settled as of this
+  entry — check the conversation or ask before assuming which.
+- ~~**Audio.**~~ **Reopened.** A second agent (ChatGPT, same repository) is already working on it —
+  see the git-safety note in `ENGINEERING_RULES.md` §60. Stage files by name; don't `git add -A`.
+
 ## Do not start
 
-- **Unreal / UE5 import.** Never run; the user has repeatedly excluded it. The UI must not offer a
-  UE5 export. (The user *asked about* UE5 water/zone mapping this session — that was a question,
-  answered in conversation, not an instruction to build it.)
-- **Audio.** Closed at the user's instruction.
 - **Bulk extraction size (~140 GB).** Explicitly deferred.
 - **§6.0c, the collapsing fire animations.** Four causes eliminated with evidence; needs
   `sampleTranslation`, absent from this SDK build.

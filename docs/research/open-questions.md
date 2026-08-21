@@ -175,6 +175,12 @@ Measured by the same sweep that found it — `mesh-no-diffuse`, over all 9,684 m
 | `MaterialSequence` | 4 | 4 |
 | `LayeredShader` | 1 | **0** |
 
+Since this table was measured, the `MaterialSwitch` default child has been decoded: its explicit
+`Material` object property is followed, while its candidate-array runtime selection remains
+uninterpreted. A whole-game container sweep now accounts for **45** such rendered defaults (14,251
+rendered material defaults total), all decoded with zero failures. Re-run `diagnose` before changing
+the historical per-mesh `mesh-no-diffuse` figures above.
+
 Counting meshes that end up with **no base colour at all** — no diffuse, or every surface unresolved —
 that is **862 → 347 of 9,684**, so **96.4% of the game's meshes now carry a base colour**, against
 91.1% before and 73.9% two sessions ago.
@@ -190,10 +196,10 @@ and its base colour is itself. That is the second fix and it accounts for the 16
   exporter should do with a light shaft is a separate question.
 - **`FluidShader` (83)** — 63 bind textures but no `WaterDiffuseMap`, 20 bind none. Worth one look at
   what a water material with no diffuse map actually declares.
-- **`MaterialSwitch` (38) and `MaterialSequence` (4) are Modifiers**, not shaders: the note says they
-  wrap a *list of sub-materials* and a reader should "follow it to the wrapped child material(s)".
-  Nothing does that yet, and the child property names have not been read off a shipped object. This
-  is the clearest remaining piece.
+- **`MaterialSequence` is a Modifier**: it serialises `SequenceItems` structs, whose item layout,
+  timing and runtime child-selection semantics have not been decoded. `MaterialSwitch` is no longer
+  in this bucket: its explicit default child is followed, but its candidate-array selection remains
+  intentionally unresolved.
 - **`Shader` (51)** — the only group where "no base colour" may be intended. `FireSpread_Mesh`'s
   `invisible_shader` is one, and is correct.
 

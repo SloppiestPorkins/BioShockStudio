@@ -269,10 +269,30 @@ is written once and shared.
   defaulted, so a missing map stays visible as one.
 
 Uninterpreted shader properties travel with the material by name, in the scene JSON and as a custom
-property on the Blender material, so what was dropped is visible.
+property on the Blender material, so what was dropped is visible.  The scene material also preserves
+`EmissiveBrightness`, `EmissiveColor`, and the raw `OutputBlending` byte.  The latter is deliberately
+not translated to a UE5 blend mode until its ordinal mapping is established from shipped bytes.
 
 `UNKNOWN`: `OutputBlending` (blend mode), `MaterialVisualType`, and the internals of the `MaskMaterial`
 struct beyond the fact that it can name a texture. All are carried through, none are interpreted.
+
+## MaterialSwitch default child
+
+`CONFIRMED_BYTES`. A `MaterialSwitch` has a `Materials` candidate array and a separate `Material`
+object property. On `med_quarantine_switch`, the array begins with two material references while the
+separate property resolves to `med_quarantine_sign_diffuse_scroll_shader`; `SteinmanTVSwitch` and
+`Resurrection_Switch` have the same shape. The reader follows only that explicit default child for
+static reconstruction. It does **not** infer runtime selection from the candidate array, and it does
+not apply the rule to `MaterialSequence`, whose `SequenceItems` structs still need their own walk.
+
+## MaterialSequence items
+
+`CONFIRMED_BYTES`, corroborated by the UE2 `MaterialSequenceItem` declaration. `SequenceItems` is a
+counted array of nested tagged structs containing `Material` (object reference), `Time` (float), and
+`Action` (byte: 0 show, 1 fade in the UE2 declaration). `drip_sequence` declares 30 items; each is
+walked to its own `None` terminator, including the final item whose bytes extend past the array's
+declared size. The source item timeline is now retained, but the viewer does not choose a frame or
+pretend to emulate its runtime transition behaviour yet.
 
 
 ## A StaticMesh names its material in a property (CONFIRMED_BYTES)

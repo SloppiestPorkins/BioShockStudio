@@ -494,16 +494,33 @@ Recorded here because they are binding and were previously only in chat. Each is
 not an engineering opinion — §2 applies, so none of them may be overridden by an agent's judgement
 that the work looks worthwhile.
 
+### Reopened, 18 Aug 2026 — superseding the entries below where they conflict
+
+The user reopened **audio** and **Unreal/UE5 import** directly in conversation, and named UE5 as
+**the project's actual end goal**: not an import test, but using UE5 **as a runtime** — porting the
+extracted assets over so they run inside it. This is stated here because it reverses two of the
+"deliberately deferred" items immediately below, which stay in the record rather than being deleted,
+so a future session can see what changed and why. Audio is being worked on concurrently by a second
+agent (a ChatGPT session) against this same repository — see the git-safety note this implies in
+§48 workflow: stage and commit specific files, not `git add -A`, while that overlap continues, and
+prefer small frequent commits from both sides to shrink the window where an accidental sweep could
+happen again.
+
+**What "reopened" does not change:** §2 (explicit instructions are the task boundary) and every rule
+about evidence, confidence labelling and not guessing still apply in full to UE5/runtime work. A
+decision to port something to UE5 is not itself evidence that the underlying decode is correct.
+
 ### Deliberately deferred — do not "fix" these
 
 - **Bulk extraction size (~140 GB).** "Extract all shown" from the default view is ~2,000 assets and
   many hours. The remaining bulk is animation track data written twice — once as floats in the scene
   JSON, once in the per-animation FBX. Omitting the tracks from the JSON when FBX is also selected is
   the obvious fix and was **explicitly deferred**. So were a size warning before a large job and
-  keeping the UI responsive during one.
-- **Unreal / UE5 import has never been run** and the user has repeatedly excluded it. Do not start it
-  unless asked. The UI must not offer a UE5 export, because that would claim a verification that does
-  not exist.
+  keeping the UI responsive during one. Still deferred — not reopened by the UE5 decision above.
+- ~~**Unreal / UE5 import has never been run** and the user has repeatedly excluded it.~~
+  **Reopened 18 Aug 2026 — see above.** The UI may now offer a UE5 path; do not describe anything as
+  verified in UE5 until it has actually been imported and looked at there, per the project's own
+  evidence rule.
 - **Phase 2 (level extraction) is unlocked once Phase 1C is finished** — the user has confirmed this
   directly. Until then it must not begin. 1C's remaining item is the Asset Inspector; when that lands,
   Phase 1 is frozen and Phase 2 may start. Groundwork already exists in

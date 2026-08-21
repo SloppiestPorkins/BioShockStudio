@@ -282,6 +282,10 @@ The 35% is a property of the route, not a failure: a mesh whose socket table doe
 cannot be reached this way and draws in one material exactly as before. `WP_CrossbowMesh` and
 `TommyGunMESH` — both named in the handoff — now report 2 sections each, materials 0 and 1.
 
+The validated sections now travel on the package-aware `MeshGeometry` path used by the preview,
+scene export, FBX export and `MeshSurfaceResolver`. Byte-only callers may still omit package names
+and receive geometry without sections; they cannot safely pair section ordinals with material slots.
+
 ### ~~An unexplained discrepancy~~ — CLOSED. Nothing was short; `FirstFace` is not where a section starts
 
 The note here used to read: *"4 meshes of 331 have sections reaching past the end of the index buffer
