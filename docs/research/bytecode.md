@@ -134,6 +134,30 @@ that follow, which is exactly what its `defaultproperties` output requires), but
 `int32` at the hypothesized offset in this project's own reader and confirmed it lines up with
 `ClassDefaults.cs`'s existing search result on a real export.
 
+**A first attempt at this, and why it's still open rather than settled.** `dyn_gurney` (a `1-Medical`
+placed-actor class) has `ByteScriptSize = 0` at exactly the position the hypothesis predicts —
+but a class with zero bytecode is a near-tautological test: any zero byte four positions before the
+property list would "match," so this doesn't distinguish the hypothesis from coincidence. A
+class-level export is also the wrong target regardless for anything with real logic: `Pistol`'s own
+`Class` export also shows `ByteScriptSize = 0` at the class level, because BioShock's `Pistol` class
+carries no class-level init bytecode — the real function bodies live in **separate `UFunction`
+exports** nested under it (`Pistol.PostBeginPlay`, `Pistol.GetFireRate`, etc., confirmed present:
+`ShockGame.U` export indices 10386–10390 by outer-chain lookup). Checking one of those
+(`PostBeginPlay`, 169-byte payload) directly is harder than expected: `ClassDefaults.cs`'s
+property-list anchor doesn't apply at all — a `UFunction` payload has no `defaultproperties` block
+to search for (`UFunction.Deserialize` in UELib calls `base.Deserialize()`, i.e. `UStruct`'s shared
+bytecode-serializing path, first, then its own `NativeToken`/`OperPrecedence`/`FunctionFlags` fields
+— never a property list). And the fields *before* the bytecode aren't a clean run of fixed-size
+`int32`s to scan backward through the way the naive first attempt assumed: the first 8 bytes of
+`PostBeginPlay`'s payload (`04 00 00 00 03 00 00 00`) match this project's own already-known
+`TRIBES_HDR` versioned-object-header pattern (`check=4`, one more version field follows since
+`check==4`, here reading `3`) — consistent with, but not proof of, the same "tag block" convention
+`MaterialReader` already searches for elsewhere in this project — but what follows after that is
+object/name references of *variable* width, not fixed 4-byte slots, so a fixed-offset backward scan
+doesn't locate `ByteScriptSize` correctly. Settling this needs the exact preceding field list (likely
+`SuperField`, `Children`, then `Line`/`TextPos`, per `UStruct.Serialize()`), each read according to
+its own real size, not assumed — recorded as the next concrete step rather than pushed further here.
+
 ## 5. VM constants — `CONFIRMED_EXTERNAL`
 
 From `ByteCodeDecompiler.cs`'s `SetupMemorySizes()`, gated `#if BIOSHOCK`:
