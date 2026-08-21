@@ -305,9 +305,14 @@ material.
    close the other 65%.
 3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
-4. **Materials** — decode `OutputBlending` (blend mode) semantics, panners/rotators,
-   environment/cubemap inputs; `MaterialSwitch`'s static-default branch is decoded, its dynamic
-   candidate selection and `MaterialSequence` are not.
+4. ~~**Materials** — decode `OutputBlending` (blend mode) semantics~~ — **already settled, not an
+   open item.** `docs/research/open-questions.md` §11: `OutputBlending`'s declared values do not
+   correlate with the alpha actually present in that material's own diffuse texture, so it is not
+   Unreal's `EBlendMode` or any other rendering blend-mode selector — the renderer is already
+   correct to ignore it and drive transparency from the texture's observed alpha instead. What's
+   still genuinely open: panners/rotators, environment/cubemap inputs; `MaterialSwitch`'s
+   static-default branch is decoded (19 Aug 2026 — see "What's done" above), its dynamic candidate
+   selection and `MaterialSequence` are not.
 
 ### Gate 2 — animation, rigs and physics
 
