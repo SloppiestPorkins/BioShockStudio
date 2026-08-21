@@ -113,22 +113,26 @@ public sealed class DocumentedFiguresTests
 
     /// <summary>The totals by severity, as the quality note's sweep section states them.</summary>
     /// <remarks>
-    /// Was 582/64/365/153 — updated after two real fixes, not a regression: (1)
+    /// Was 582/64/365/153, then 490/19/314/157 — each move a real fix, not a regression: (1)
     /// <c>AssetDiagnostics.ScanExport</c> checked <c>MaterialReader.IsMaterialClass</c> before the
     /// texture-class check, so every <c>Texture</c> export (also a valid material-slot value) was
     /// swallowed into the Materials bucket and the sweep silently examined 0 textures; (2)
     /// <c>TextureReader</c> now decodes UE2's constant-colour <c>MipZero</c> texture variant, which
-    /// several "no Format property" textures turn out to actually be. See <c>docs/QUALITY.md</c>.
+    /// several "no Format property" textures turn out to actually be; (3) <c>ScanMesh</c> called
+    /// <c>MeshGeometryReader.Read</c>'s 2-arg overload, so a <c>SkeletalMesh</c>'s
+    /// <c>geometry.Sections</c> was always empty and the sweep couldn't tell a mesh whose section
+    /// table genuinely didn't resolve from one that resolved fine and just names >1 material — fixed
+    /// by calling the package-aware overload. See <c>docs/QUALITY.md</c>.
     /// </remarks>
     [RequiresGameFact]
     public void TheDiagnosticTotalsStillHold()
     {
         var report = Measured();
 
-        Assert.Equal(490, report.Diagnostics.Count);
+        Assert.Equal(427, report.Diagnostics.Count);
         Assert.Equal(19, report.Count(DiagnosticSeverity.Broken));
         Assert.Equal(314, report.Count(DiagnosticSeverity.Degraded));
-        Assert.Equal(157, report.Count(DiagnosticSeverity.Note));
+        Assert.Equal(94, report.Count(DiagnosticSeverity.Note));
     }
 
     /// <summary>
@@ -150,7 +154,7 @@ public sealed class DocumentedFiguresTests
         Assert.Equal(202, CountOf(report, DiagnosticCodes.MeshNoDiffuse));
         Assert.Equal(110, CountOf(report, DiagnosticCodes.MeshSlotUnresolved));
         Assert.Equal(2, CountOf(report, DiagnosticCodes.MeshUvOutOfRange));
-        Assert.Equal(157, CountOf(report, DiagnosticCodes.MeshNoSections));
+        Assert.Equal(94, CountOf(report, DiagnosticCodes.MeshNoSections));
     }
 
     /// <summary>

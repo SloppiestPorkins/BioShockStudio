@@ -165,7 +165,7 @@ separate sweep — `--animations` merges `audit-animations` in — because it co
 | 202 | Degraded | `mesh-no-diffuse` | The material resolves but binds no base colour, so the mesh draws flat. Was 240 before the diagnostic-dispatch fix below let more slots naming a Texture directly resolve. |
 | 110 | Degraded | `mesh-material-slot-unresolved` | A surface has no material and draws untextured. Was 123, same fix. |
 | 2 | Degraded | `mesh-uv-out-of-range` | The UVs are not usable. |
-| 157 | Note | `mesh-materials-without-sections` | A skeletal mesh names several materials and has no table saying which triangles use which. Was 153; more multi-material meshes are now correctly resolved as such. |
+| 94 | Note | `mesh-materials-without-sections` | A skeletal mesh names several materials and its section table did not resolve, so all of it draws in one. Was 157, then 153 before that — the sweep was calling the byte-only `MeshGeometryReader.Read` overload, so `geometry.Sections` was always empty and it couldn't tell a mesh whose table genuinely didn't resolve from one that resolved fine (`docs/research/skeletalmesh.md`) and just happens to name >1 material. Fixed 19 Aug 2026 by calling the package-aware overload. |
 
 Two of these agree exactly with results already pinned by other tests, which is what says the sweep
 is measuring the same game: the **18** `mesh-no-geometry` are precisely the 18 door exports
@@ -294,27 +294,34 @@ anything for it and saying otherwise would be a guess about a payload nobody has
 last unreadable skeletal variant; everything else now decodes. The preview shows their skeletons and
 says why there is no geometry.
 
-### 2. Multi-material **skeletal** meshes are textured from one material only — 153 exports
+### 2. Multi-material **skeletal** meshes are textured from one material only — 94 exports, down from a claimed 153
 
-**Half of this is fixed and the entry is narrowed accordingly.** A `StaticMesh` carries a section
-table, it is now consumed, and section *N* draws with `Materials[N]` on all 8,668 shipped static
-meshes. A `SkeletalMesh` naming several materials still draws entirely in one of them.
+**This entry was substantially wrong and is corrected here, twice over.** `docs/research/skeletalmesh.md`
+§"Section table — `CONFIRMED_BYTES`" has had the actual state of this for some time: a `SkeletalMesh`
+**does** carry the same per-material section table a `StaticMesh` does (`UnMeshBioshock.cpp`'s
+`FStaticLODModelBio`, `TArray<FSkelMeshSection>`, nine `uint16`s each), it is **implemented and
+consumed** (`Core/Mesh/SkeletalMeshSections.cs`, tested), and it travels on the same package-aware
+path the preview, scene export, FBX export and `MeshSurfaceResolver` all already use. This document
+had not been updated to say so.
 
-~~A `SkeletalMesh` carries no such table — whether the container has an equivalent is `UNKNOWN`.~~
-**That was wrong and is corrected here: the table exists.** `UnMeshBioshock.cpp`'s
-`FStaticLODModelBio` opens with `TArray<FSkelMeshSection>`, nine `uint16`s each, commented
-"1 section = 1 material" — see open question 11d and
-[reference-comparison.md](research/reference-comparison.md) §3a. So these meshes are open
-because **the work is not done, not because the data is missing**: it needs the payload walked from
-the front instead of the vertex chain being searched for, and UModel targets the original game, so
-every field needs checking against Remastered bytes first.
+**The catch, and the real remaining gap: the table is only reachable ~35% of the time.** It sits
+immediately after the socket table, and is located by walking from there — so a mesh whose socket
+table doesn't itself validate can't be reached this way and genuinely still draws in one material.
+Measured over all 21 map packages: 944 skeletal meshes with geometry, 331 (35%) yielding a resolved
+section table, 392 sections total, 61 meshes with more than one material among those 331.
 
-The diagnostic sweep counts **157** exports in this state (`mesh-materials-without-sections`) — was
-153 before the 19 Aug 2026 diagnostic-dispatch fix let more of these meshes' materials resolve
-correctly enough to be recognized as genuinely multi-material rather than falling out some other
-way. `WP_CrossbowMesh` names `Crossbow_Shader` and
-`group_02_mat`; `TommyGunMESH` and `PlasmidEquipMESH` name two each; `PearlsAnim_Mesh` names three.
-The preview, the details panel and the Problems panel all say so. See open question 4c, and item 6
+**Separately, the diagnostic sweep itself had a real bug hiding how much of this was already
+fixed**, found 19 Aug 2026: `AssetDiagnostics.ScanMesh` called `MeshGeometryReader.Read`'s 2-arg,
+byte-only overload, so `geometry.Sections` was always empty during the sweep and it flagged *every*
+skeletal mesh naming more than one material as lacking a section table — including the ones whose
+table had already resolved fine. Calling the package-aware overload (the same fix as the
+`AssetDiagnostics` note above) dropped the count from 157 to **94**: the true remaining population
+of meshes whose section table genuinely isn't reachable, not an undifferentiated "not implemented"
+bucket. `WP_CrossbowMesh` names `Crossbow_Shader` and
+`group_02_mat`; `TommyGunMESH` and `PlasmidEquipMESH` name two each; `PearlsAnim_Mesh` names three —
+whether each of these is now in the resolved 61 or the unresolved 94 has not been checked
+individually here. The preview, the details panel and the Problems panel all say so. See open
+question 4c, and item 6
 under NEXT CLAUDE SESSION in `HANDOFF.md`.
 
 ### 3. Three skeletal meshes resolve a material that will not read — 3 distinct

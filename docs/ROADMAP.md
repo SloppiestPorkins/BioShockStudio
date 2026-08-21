@@ -37,7 +37,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | Materials | **14,328 walked, 0 partial. 96.8% of meshes carry a base colour.** |
 | Textures | DXT1/3/5 + DXT5N (ordinal 12) decode; 8 GB bulk-mip store indexed and resolved per group. |
 | Levels — BSP/actors | Compiled world + source brushes + placed actors assemble into a scene. `0-Lighthouse`: 1,141 objects, 2,181,021 triangles, 465 lights. |
-| Levels — lightmaps | Descriptor table **complete on all 21 maps** (39,288 descriptors, 45,851 baked-light layers); atlas *binding* proven on 11 of 21 — see Gate 0 below. |
+| Levels — lightmaps | Descriptor table **complete on all 21 maps** (39,288 descriptors, 45,851 baked-light layers); atlas *binding* proven on **all 20 maps that carry a `LightMaps_BSP` group** (`Entry` has none — see Gate 0 below). |
 | Audio — native `Sound` | Complete — **25,848 exports across 21 packages, 100% decode as MP3**, 0 unknown, 0 package failures. |
 | Audio — streamed FSB5 | Working — x86 FMOD bridge decodes any subsound to WAV; app has a Streamed Audio tab (65 banks, 10,882 subsounds). |
 | Application (GUI) | Asset browser (14,378 assets), 3D preview + animation playback, walkable level viewport (GPU + tested software fallback), Problems panel, audio tabs, profile editor. |
@@ -177,15 +177,18 @@ detailed evidence record; the duplication to remove is the *status* tables scatt
 - Placed-actor coverage: a byte-backed, class-by-class ledger accounts for every actor in a map
   (8,089 in `1-Medical`) — geometry, skeletal placements, lights, gameplay regions and unclassified
   objects — rather than silently dropping anything the exporter doesn't yet handle.
-- **Lightmaps** (newest work, 18 Aug 2026): the descriptor chain that eluded the project for most of
-  its life is now fully walked — `iLightMap` at `+96` settled with 42,887/42,887 in-range matches;
-  the full tail (bounds → `LeafHulls` → `FLeaf` records → compact-reference arrays →
-  `RootOutside`/`Linked`) lands on the lightmap descriptor table on all 21 maps; 39,288 descriptors
-  map one-to-one onto their worlds' surfaces with 45,851 baked-light layers. The
-  `WorldToLightMap` matrix and UV packing are `CONFIRMED_BYTES` (234,404/234,404 vertices land
-  inside their declared atlas tile). Atlas-pool *binding* — finding where each map's actual
-  `LightMaps_BSP` texture pool lives — is proven on 11 of 21 maps; the other 10 still need that
-  final trace.
+- **Lightmaps** (18–19 Aug 2026): the descriptor chain that eluded the project for most of its life
+  is now fully walked — `iLightMap` at `+96` settled with 42,887/42,887 in-range matches; the full
+  tail (bounds → `LeafHulls` → `FLeaf` records → compact-reference arrays → `RootOutside`/`Linked`)
+  lands on the lightmap descriptor table on all 21 maps; 39,288 descriptors map one-to-one onto
+  their worlds' surfaces with 45,851 baked-light layers. The `WorldToLightMap` matrix and UV
+  packing are `CONFIRMED_BYTES` (234,404/234,404 vertices land inside their declared atlas tile).
+  **Atlas-pool binding, 19 Aug 2026: proven on all 20 of 21 maps that carry a `LightMaps_BSP`
+  group, up from 11.** The gap was the pool-search's count floor (`>= 8`, a range read off the
+  first 11 maps rather than a real constraint) — `0-Lighthouse` turned up a genuine 5-entry pool,
+  so the floor is 1 now, with zero regressions on the original 11's counts or offsets. `Entry` is
+  the sole exception, correctly: it carries no `LightMaps_BSP` group at all (a 40-export, ~20 KB
+  trivial package, not a real level).
 
 ### 5. Audio
 
@@ -274,10 +277,11 @@ material.
    single view.
 2. **Material fidelity** — resolve remaining blocky/flat BSP surfaces as material/shader-chain
    failures, not by shrinking UVs or tinting base colour.
-3. **Lightmaps to default-on** — the remaining 10 of 21 maps need their atlas-pool location traced
-   the same way the first 11 were (locate the local `LightMaps_BSP` texture pool, don't assume its
-   position). Once all 21 are proven, bind the atlas per pixel and do a lit/unlit comparison render
-   before it becomes a default rather than an opt-in.
+3. ~~**Lightmaps to default-on** — the remaining 10 of 21 maps need their atlas-pool location traced
+   the same way the first 11 were.~~ **Atlas-pool binding done, 19 Aug 2026 — 20 of 21 maps proven**
+   (the 21st, `Entry`, has no `LightMaps_BSP` group to bind). What's left before this becomes a
+   default rather than an opt-in: bind the atlas per pixel (currently per-vertex, via
+   `MeshGeometry.BakedLight`) and do a lit/unlit comparison render.
 4. **Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently
@@ -287,10 +291,18 @@ material.
 
 1. **Static meshes** — collision/kDOP tail, LODs and socket metadata; only decode the currently
    opaque collision blocks once a concrete UE5 target (collision/navigation/ray query) is known.
-2. **Skeletal meshes** — close the 4 remaining unreadable door variants; the 153
+2. ~~**Skeletal meshes** — close the 4 remaining unreadable door variants; the 153
    `mesh-materials-without-sections` skeletal meshes have a known fix (the section table exists per
    `UnMeshBioshock.cpp`'s `FStaticLODModelBio`, it just isn't consumed yet — this is scoped work,
-   not a research gap).
+   not a research gap).~~ **This was already stale when written — the section table was already
+   implemented and consumed** (`docs/research/skeletalmesh.md` §"Section table — `CONFIRMED_BYTES`",
+   `Core/Mesh/SkeletalMeshSections.cs`), and the sweep's own dispatch bug (fixed 19 Aug 2026, see
+   "Test health" below) was hiding how much of it already worked. **The real remaining gap**: the
+   table sits right after the socket table and is located by walking from there, so it's only
+   reachable when the socket table itself validates — measured at 331 of 944 skeletal meshes with
+   geometry (35%). Close the 4 remaining unreadable door variants (unrelated), and find a more
+   robust locator for the section table that doesn't depend on the socket table resolving first, to
+   close the other 65%.
 3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
 4. **Materials** — decode `OutputBlending` (blend mode) semantics, panners/rotators,
@@ -377,18 +389,23 @@ dotnet test                         # both — the number to report
 Fast tier: **195/195 passing** (measured 19 Aug 2026, after the Blender/UE5 and audio work landed).
 
 Full suite: **437/437 passing** (measured 19 Aug 2026, after the 7 failures below were classified
-and fixed). **Item 0.1 above is done.** Classification, per test:
+and fixed, and after a second-order dispatch fix on top of the first — see below). **Item 0.1
+above is done.** Classification, per test:
 
 - `DocumentedFiguresTests` (4 checks) and `DiagnosticsTests.AReportSaysHowMuchItExamined` —
-  **a real regression, fixed.** `AssetDiagnostics.ScanExport` checked
+  **a real regression, fixed, in two parts.** First: `AssetDiagnostics.ScanExport` checked
   `MaterialReader.IsMaterialClass` before the texture-class check; since a `Texture` export is
   itself a valid material (`MaterialReader.SelfSlot`), every texture in the game was being
   swallowed into the Materials bucket and the sweep silently examined **0 textures**. Fixed by
-  reordering the two checks. `docs/QUALITY.md` and `README.md`'s figures updated to match what the
-  sweep now correctly measures: 14,328 materials (was 13,545), 202 `mesh-no-diffuse` (was 240), 110
-  `mesh-material-slot-unresolved` (was 123), 1 `texture-undecodable` (was 46, the rest recovered by
-  a second, unrelated fix below), 157 `mesh-materials-without-sections` (was 153). Base-colour
-  coverage moved from 96.4% to **96.8%**.
+  reordering the two checks. Second, found while working Gate 1 item 2 below:
+  `AssetDiagnostics.ScanMesh` called `MeshGeometryReader.Read`'s byte-only 2-arg overload, so a
+  `SkeletalMesh`'s `geometry.Sections` was always empty during the sweep, and `mesh-no-sections`
+  fired for every multi-material skeletal mesh regardless of whether its section table had actually
+  resolved. Fixed by calling the package-aware overload. `docs/QUALITY.md` and `README.md`'s
+  figures updated to match what the sweep now correctly measures: 14,328 materials (was 13,545),
+  202 `mesh-no-diffuse` (was 240), 110 `mesh-material-slot-unresolved` (was 123), 1
+  `texture-undecodable` (was 46), 94 `mesh-materials-without-sections` (was 157, then 153 before
+  that). Base-colour coverage moved from 96.4% to **96.8%**.
 - `StructSizeTests.NoMaterialReportsAnInventedPropertyName` (`ZoningOnlyBrushMaterial` / `'Self'`)
   — **not a bug.** `ZoningOnlyBrushMaterial`'s class is `Texture`, and `MaterialReader.SelfSlot` is
   an already-documented, deliberate synthetic slot name for exactly that case (a `Texture` used

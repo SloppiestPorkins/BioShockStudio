@@ -433,7 +433,10 @@ public static class AssetDiagnostics
         try
         {
             payload = package.ReadExportData(export);
-            geometry = MeshGeometryReader.Read(className, payload);
+            // The package-aware overload: without it, a SkeletalMesh's geometry.Sections is always
+            // empty, which is what let mesh-no-sections below fire for every multi-material skeletal
+            // mesh regardless of whether its section table actually resolved.
+            geometry = MeshGeometryReader.Read(className, payload, package.Names);
         }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
                                        or ArgumentOutOfRangeException or IOException)
@@ -521,18 +524,21 @@ public static class AssetDiagnostics
                 "docs/research/materials.md"));
         }
 
-        // A skeletal mesh has no section table — the table belongs to the StaticMesh container — so
-        // one naming several materials draws entirely in one of them. Reported as a Note because it
-        // is a known limit of what is decoded, not a fault in this asset.
+        // A skeletal mesh's section table (docs/research/skeletalmesh.md "Section table —
+        // CONFIRMED_BYTES") is only reachable ~35% of the time, through the socket table
+        // immediately preceding it — a mesh whose socket table doesn't validate still can't be
+        // reached this way and genuinely draws in one material. geometry.Sections.Count == 0 is
+        // that "genuinely not reached" case; named > 1 alone is not, since a mesh whose sections DID
+        // resolve also names more than one material and must not be flagged as lacking a table it has.
         int named = slots.Count(s => !s.IsNull);
-        if (className == AssetClasses.SkeletalMesh && named > 1)
+        if (className == AssetClasses.SkeletalMesh && named > 1 && geometry.Sections.Count == 0)
         {
             found.Add(Row(DiagnosticCodes.MeshNoSections, DiagnosticSubsystem.Materials, DiagnosticSeverity.Note,
-                $"This mesh names {named} materials, but a skeletal mesh carries no table saying "
-                + "which triangles use which, so all of it draws in one.",
+                $"This mesh names {named} materials, but its section table did not resolve "
+                + "(its socket table, which locates it, may not validate), so all of it draws in one.",
                 $"{named} non-null material slots; {geometry.TriangleCount:N0} triangles in "
                 + $"{surfaces.Count} surface(s)",
-                "docs/HANDOFF.md item 6 under NEXT CLAUDE SESSION"));
+                "docs/research/skeletalmesh.md"));
         }
     }
 

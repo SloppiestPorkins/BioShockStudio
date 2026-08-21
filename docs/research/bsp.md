@@ -506,7 +506,7 @@ bounds, and **between 879 and 628,534 bytes remain unread after them** on each m
 to walk those three arrays the same way — measure a record, anchor it against something already
 decoded, and only then name it.
 
-### 5.5d The descriptor table is real; the claimed atlas binding is not yet. `CONFIRMED_BYTES`
+### 5.5d The descriptor table is real, and the atlas binding now is too. `CONFIRMED_BYTES`
 
 The complete structural tail now walks from the bounds through `LeafHulls`, 12-byte `FLeaf` records,
 the two compact-reference arrays and `RootOutside`/`Linked`. On all **21 map packages** it lands on a
@@ -521,9 +521,17 @@ game-space position (reverse the studio Y reflection first). Against eleven inde
 the transposed matrix puts only 1,096 there. `BspWorld.LightMapUv` then applies `(Size × UV + Tile +
 0.5) / 1024`.
 
-Atlas pools are currently proven on 11 maps: compact arrays of 8–34 Vengeance v1 entries, each a
-local 1024×1024 `Texture` in the package-declared `LightMaps_BSP` group. The remaining maps still
-need their pool location traced, so the viewport may only bind lightmaps where that array is proven.
+**Atlas pools are proven on all 20 map packages that carry a `LightMaps_BSP` group — 19 Aug 2026,
+up from 11.** Each is a compact array of Vengeance v1 entries, every one a local 1024×1024
+`Texture` in the package-declared `LightMaps_BSP` group. The gap was the pool-search's count floor:
+it required at least 8 entries, a range read off the first 11 proven maps rather than a real format
+constraint. `0-Lighthouse` turned up a genuine 5-entry pool — smaller than anything checked so far,
+not evidence the location or shape was wrong — so the floor is 1 now: `3-Market` and `5-Ryan` carry
+pools of only 4 and 3. All 20 pass the same validation the first 11 did (every reference resolves to
+an actual export, is genuinely class `Texture`, sits in `LightMaps_BSP`, and decodes to 1024×1024),
+with zero regressions on the original 11's counts or offsets. **`Entry` is the one map package with
+no atlas pool, and correctly so**: it has no `LightMaps_BSP` group at all — a 40-export, ~20 KB
+trivial package, not a real level. `BspWorldTests.LightmapAtlasPoolsAreVengeanceWrappedLightMapsTextures`.
 
 ### 5.6 Surfaces that must not be drawn
 

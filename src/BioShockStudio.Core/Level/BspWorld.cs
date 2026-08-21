@@ -738,14 +738,17 @@ public static class BspWorldReader
         {
             // Atlas pools are small enough to use the one-byte compact form. Starting on a later
             // reference inside a real pool creates a plausible overlapping sequence, so accepting
-            // the first complete, independently validated one is significant.
-            if (data[candidateAt] is < 8 or > 63) continue;
+            // the first complete, independently validated one is significant. The lower bound was
+            // 8 (the smallest observed among the first 11 proven maps) until 0-Lighthouse turned up
+            // a genuine 5-entry LightMaps_BSP pool — that was the range of what had been checked,
+            // not a format constraint, so it is 1 here instead.
+            if (data[candidateAt] is < 1 or > 63) continue;
 
             try
             {
                 int cursor = candidateAt;
                 int count = PropertyValues.ReadCompactIndex(data, ref cursor);
-                if (count is < 8 or > 64 || cursor + 9 > data.Length) continue;
+                if (count is < 1 or > 64 || cursor + 9 > data.Length) continue;
 
                 if (BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor)) != VengeanceCheck
                     || BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor + 4)) != 1)

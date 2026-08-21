@@ -507,7 +507,12 @@ public sealed class BspWorldTests(GameFixture game)
             Log($"{mapName,-22} atlas pool {world.LightMapTextures.Count,3} at {world.Layout.LightMapTextures,10:N0}");
         }
 
-        Assert.True(pools >= 11, $"only {pools} map packages exposed a lightmap atlas pool");
+        // Was >= 11: the pool search's count floor was 8, calibrated from the range observed among
+        // those first 11 rather than a real format constraint. 0-Lighthouse turned up a genuine
+        // 5-entry pool, so the floor is 1 now, and all 20 of the 21 map packages that carry a
+        // LightMaps_BSP group at all resolve one — Entry is the one exception, and it has no such
+        // group (a 40-export, ~20 KB trivial package, not a real level).
+        Assert.Equal(20, pools);
         Assert.True(textures > 100, $"only {textures} atlas textures were read");
         Assert.True(problems.Count == 0,
             "lightmap atlas pool validation failed:" + Environment.NewLine + string.Join(Environment.NewLine, problems));

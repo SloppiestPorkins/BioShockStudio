@@ -150,9 +150,11 @@ public static class MeshSurfaceResolver
 
         PackageIndex ReferenceAt(int slot) => slot >= 0 && slot < slots.Count ? slots[slot] : default;
 
-        // A mesh with no section table is one surface. Every SkeletalMesh is in this case — the
-        // table belongs to the StaticMesh container — and so is any static mesh whose table did not
-        // satisfy the reader's constraints.
+        // A mesh with no section table is one surface — either a static mesh whose table did not
+        // satisfy the reader's constraints, or a skeletal mesh whose section table (which sits just
+        // after its socket table) could not be reached because the socket table itself did not
+        // validate. A skeletal mesh with a validated socket table does carry a section table; see
+        // docs/research/skeletalmesh.md "Section table — CONFIRMED_BYTES".
         if (geometry.Sections.Count == 0)
         {
             // With no table there is nothing to say which slot draws which triangle, so the mesh
