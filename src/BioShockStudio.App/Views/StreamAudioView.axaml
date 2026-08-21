@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BioShockStudio.App.ViewModels"
+             x:Class="BioShockStudio.App.Views.StreamAudioView"
+             x:DataType="vm:MainViewModel">
+    <Grid ColumnDefinitions="300,4,*,4,320" Margin="10">
+        <DockPanel Grid.Column="0">
+            <TextBlock DockPanel.Dock="Top" Text="STREAM BANKS" FontWeight="SemiBold" Margin="4,0,0,8" />
+            <TabControl>
+                <TabItem Header="English">
+                    <ListBox ItemsSource="{Binding EnglishStreamBanks}" SelectedItem="{Binding SelectedStreamBank}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StreamBankRow">
+                                <StackPanel Margin="2,3">
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Text="{Binding Detail}" Opacity="0.65" FontSize="11" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+                <TabItem Header="Languages">
+                    <ListBox ItemsSource="{Binding LocalisedStreamBanks}" SelectedItem="{Binding SelectedStreamBank}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StreamBankRow">
+                                <StackPanel Margin="2,3">
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Text="{Binding Detail}" Opacity="0.65" FontSize="11" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+            </TabControl>
+        </DockPanel>
+        <GridSplitter Grid.Column="1" Background="Transparent" />
+
+        <StackPanel Grid.Column="2" Spacing="12" Margin="14,0">
+            <TextBlock Text="Streamed audio" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text="Dialogue, ambience and music are stored in FSB5 banks. Each item is decoded by the game’s own 32-bit FMOD runtime into a standard WAV; the app never treats FSB data as WAV."
+                       TextWrapping="Wrap" Opacity="0.8" MaxWidth="620" />
+            <Border Background="#14FFFFFF" CornerRadius="6" Padding="14" IsVisible="{Binding HasStreamBank}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding SelectedStreamBank.Name}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedStreamBank.Detail}" Opacity="0.7" />
+                    <WrapPanel>
+                        <Button Content="▶ Decode + play" Command="{Binding PlayStreamCommand}"
+                                IsEnabled="{Binding !IsStreamDecodeBusy}" Margin="0,0,8,0" />
+                        <Button Content="■ Stop" Command="{Binding StopStreamCommand}"
+                                IsEnabled="{Binding IsStreamedAudioPlaying}" Margin="0,0,8,0" />
+                        <Button Content="Export WAV" Command="{Binding ExportStreamCommand}"
+                                IsEnabled="{Binding !IsStreamDecodeBusy}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+            <TextBlock Text="Stream entries (decode to WAV)" FontWeight="SemiBold" IsVisible="{Binding HasStreamBank}" />
+            <DataGrid ItemsSource="{Binding StreamSamples}" SelectedItem="{Binding SelectedStreamSample}"
+                      IsReadOnly="True" GridLinesVisibility="Horizontal" CanUserSortColumns="True"
+                      Height="360" IsVisible="{Binding HasStreamBank}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="70" />
+                    <DataGridTextColumn Header="FMOD name" Binding="{Binding Name}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+            <ProgressBar IsIndeterminate="True" Height="4" IsVisible="{Binding IsStreamDecodeBusy}" />
+            <TextBlock Text="{Binding StreamedAudioStatus}" TextWrapping="Wrap" Opacity="0.8" />
+        </StackPanel>
+        <GridSplitter Grid.Column="3" Background="Transparent" />
+        <Border Grid.Column="4" Background="#14FFFFFF" CornerRadius="6" Padding="14">
+            <StackPanel Spacing="8">
+                <TextBlock Text="About this view" FontWeight="SemiBold" />
+                <TextBlock Text="FMOD supplies each row's name. If it supplies no name, the row says so rather than fabricating one." TextWrapping="Wrap" Opacity="0.75" />
+                <TextBlock Text="Decoded preview WAVs are cached under LocalAppData. Export WAV writes to the configured export folder." TextWrapping="Wrap" Opacity="0.75" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

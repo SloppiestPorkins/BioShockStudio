@@ -1,5 +1,6 @@
 using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -152,5 +153,89 @@ public sealed class SoundEventTests(GameFixture game)
 
         // Both outcomes have to occur somewhere in the map, or this is not testing the refusal.
         Assert.Contains(responses, r => r.IsResolved);
+    }
+
+    /// <summary>The bulk catalogue does not contain the pistol reload effects.</summary>
+    /// <remarks>
+    /// The three names are independently resolved from the package's sound-event responses. The
+    /// catalogue parser accepts records only when their redundant size fields agree and their
+    /// offsets are 32 KiB-aligned, so this checks the game's own index rather than raw bytes. Their
+    /// absence rules the catalogue out as their source, but not another structure in its chunks.
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheBulkCatalogueDoesNotContainTheResolvedPistolReloadEffects()
+    {
+        var catalog = BulkTextureCatalog.Load(game.RequireRoot);
+        Assert.NotNull(catalog);
+
+        foreach (string sound in new[]
+                 {
+                     "weapons_pistol_reload_one",
+                     "weapons_pistol_reload_two",
+                     "weapons_pistol_reload_three",
+                 })
+        {
+            Assert.Null(catalog!.Find(sound));
+        }
+    }
+
+    /// <summary>
+    /// FMODAudio contains embedded native Sound exports whose payloads are MP3 frames.
+    /// </summary>
+    [RequiresGameFact]
+    public void FMODAudioEmbeddedSoundsAreExtractedAsMp3Payloads()
+    {
+        string packagePath = Path.Combine(
+            Core.Game.GameLocator.ScriptPackageDirectory(game.RequireRoot), "FMODAudio.U");
+        using var package = BioShockPackage.Open(packagePath);
+
+        var sounds = SoundReader.Read(package);
+
+        Assert.Equal(13, sounds.Count);
+        Assert.All(sounds, sound => Assert.Equal(SoundFormat.Mp3, sound.Format));
+        Assert.All(sounds, sound => Assert.NotEmpty(sound.RawData));
+
+        var start = Assert.Single(sounds.Where(sound => sound.Name == "GUI_shell_startGame_01"));
+        Assert.True(start.RawData.AsSpan().StartsWith(new byte[] { 0xFF, 0xFB, 0x90, 0x44 }));
+        Assert.Equal(79829, start.RawData.Length);
+    }
+
+    /// <summary>
+    /// A resolved animation sound name reaches the native Sound export that contains its MP3 bytes.
+    /// </summary>
+    [RequiresGameFact]
+    public void ThePistolReloadEventReachesAnEmbeddedMp3Sound()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+
+        var response = Assert.Single(SoundEventReader.Read(package).Where(response =>
+            response.Event == "ReloadPistolOne" && response.SourceClassName == "Hands"));
+        Assert.Equal("weapons_pistol_reload_one", response.SoundName);
+
+        var sound = Assert.Single(SoundReader.Read(package).Where(sound => sound.Name == response.SoundName));
+        Assert.Equal(SoundFormat.Mp3, sound.Format);
+        Assert.Equal(8358, sound.RawData.Length);
+        Assert.True(sound.RawData.AsSpan().StartsWith(new byte[] { 0xFF, 0xFB, 0x50, 0xC4 }));
+    }
+
+    /// <summary>An identified MP3 payload is exported byte-for-byte, without transcoding.</summary>
+    [RequiresGameFact]
+    public void ThePistolReloadMp3ExportsWithoutChangingItsBytes()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var sound = Assert.Single(SoundReader.Read(package).Where(sound =>
+            sound.Name == "weapons_pistol_reload_one"));
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-sound-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string written = Core.Export.SoundExporter.Write(sound, directory);
+            Assert.EndsWith(".mp3", written, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(sound.RawData, File.ReadAllBytes(written));
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { /* best effort */ }
+        }
     }
 }

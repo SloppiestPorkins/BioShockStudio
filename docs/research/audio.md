@@ -194,3 +194,116 @@ Nothing in the application or the exporters consumes it yet.
    response object is not evidence of a missing sound.
 5. **How does an event choose between several responses?** `FilteredState`, `Chance` and
    `LevelContext` all suggest conditions this reader ignores.
+
+## 7. Embedded FMOD sounds — `CONFIRMED_BYTES`
+
+`Build/Final/BakedScripts/pc/FMODAudio.U` is an audio integration package, not just a script stub.
+Its `FMODAudioSettings` source declares `array<Sound>` references for front-end and level-loading
+audio, and the package holds 13 native `Sound` exports under `interface_audio`.
+
+The native container follows UModel's BioShock `USound` layout: ordinary tagged properties, an
+`FName` (compact index plus number), then a lazy byte array. At this game's version 142 the lazy
+array carries `SkipPosition`, two unread int32 fields, and a compact byte count. For every one of the
+13 exports, that count consumes its payload exactly. `SoundReader` accepts no other shape.
+
+All 13 recovered payloads begin with valid MPEG Layer III frame headers. For example,
+`GUI_shell_startGame_01` is 79,829 bytes beginning `FF FB 90 44`; it is an MP3 payload, not an FSB
+bank or a name-only reference. `SoundEventTests.FMODAudioEmbeddedSoundsAreExtractedAsMp3Payloads`
+pins the count, byte boundary, format identification and this known frame signature against the
+installed game.
+
+This settles the embedded `Sound` container and supplies real samples for extraction. It does **not**
+yet locate `weapons_pistol_reload_one`: that name is not in `FMODAudio.U`, and no assertion is made
+that every effect uses this container.
+
+## 8. Native effect sound path — `CONFIRMED_BYTES`
+
+The previous sentence in section 7 is superseded: `FMODAudio.U` is only one source of embedded
+sounds. `1-Medical` contains both `SoundEffectSpecification weapons_pistol_reload_one` and a native
+`Sound weapons_pistol_reload_one` export under `Weapons_audio`.
+
+The recovered native sound is **8,358 bytes** and starts `FF FB 50 C4`, a valid MPEG Layer III frame
+header. `SoundReader` extracts the lazy-array bytes exactly and `SoundExporter` writes them unchanged
+as `.mp3`; the command below produces a standard MP3 payload without transcoding:
+
+```bash
+dotnet run --project src/BioShockStudio.Cli -- export-sounds 1-Medical out weapons_pistol_reload_one
+```
+
+`SoundEventTests.ThePistolReloadEventReachesAnEmbeddedMp3Sound` now holds the complete proven chain:
+`FastReloadPistol`'s `ReloadPistolOne` event -> `HandsReloadPistolOne` response ->
+`weapons_pistol_reload_one` -> native `Sound` -> MP3 frame. The export test separately requires the
+written bytes to equal the package bytes.
+
+The streamed route remains a separate task. `IGSoundEffectsSubsystem.U` defines `StreamSoundRef` as
+an FMOD-native call with `SoundUnit`, `Stream`, `StreamingBlockIndex` and `StreamDuration`; its
+`SoundEffectSpecification.SoundSpec` entries carry both Xenon and Windows streaming-block indices.
+This explains why the FSB5 files contain dialogue, ambience and music while short weapon effects can
+be embedded directly in `.bsm` packages. It is not evidence that every sound is embedded.
+
+## 9. Native Sound coverage — `CONFIRMED_BYTES`
+
+`audit-audio` reads every shipped map and baked-script package through `SoundReader`. On the installed
+game it finds **25,848 native `Sound` exports in 21 packages**. Every lazy-array count reaches the
+end of its export exactly, and every recovered payload identifies as MPEG Layer III: **25,848 MP3,
+0 unknown, 0 package failures**. `SoundAuditTests` pins all four figures in the sweep tier.
+
+The native extraction surface is therefore complete: `sounds <package>` reports it and
+`export-sounds <package> <out-dir> [pattern]` writes the original bytes. The remaining audio work is
+the distinct `StreamSoundRef`/FSB5 route for voice-over, ambience and music, plus presenting audio
+in the application. Those are not blockers for extracting the embedded effect catalogue.
+
+## 10. Streamed FSB5 decoder probe — `CONFIRMED_BYTES`, not yet integrated
+
+The installed `Build/Final/fmodex.dll` is a **32-bit** FMOD Ex runtime. Under 32-bit PowerShell it
+successfully creates an FMOD system, opens `streams_0_audio.fsb`, and reports **7 subsounds**. Its
+first subsound reports PCM16 stereo and a declared **2,225,936 PCM bytes**; a direct `readData` probe
+returns 65,536 decoded bytes. This confirms that the game runtime can decode its own FSB5/Vorbis
+variant.
+
+The application is 64-bit and cannot load that DLL directly. An attempted PowerShell wrapper was
+deliberately removed rather than shipped after legacy FMOD call-boundary behaviour made it unsuitable
+for a reliable exporter. The next correct implementation is a dedicated x86 compiled helper with the
+exact FMOD Ex ABI, launched explicitly by the 64-bit app/CLI. Do not substitute a renamed `.fsb` or
+an inferred WAV header: neither is a decoded sample.
+
+### Implemented x86 bridge
+
+`tools/fmod-x86/FmodFsbDecoder.cpp` is now that bridge. It dynamically loads the installed
+`Build/Final/fmodex.dll` rather than redistributing it, opens one FSB5 bank and writes one selected
+subsound as standard PCM WAV. The process is x86 because the game runtime is x86; the normal
+application and CLI remain x64 and invoke it out of process.
+
+The helper was compiled with the local x86 Visual C++ toolchain and tested against
+`streams_0_audio.fsb`, subsound 0. FMOD returned **2,225,936 bytes** of **44,100 Hz, stereo,
+16-bit PCM**. The written WAV is 2,225,980 bytes: a 44-byte RIFF header plus exactly those PCM
+bytes. Its RIFF and data-size fields agree with the file boundary.
+
+The helper first uses `FMOD_Sound_ReadData`. This build exposes a fully decoded non-streaming sound
+through `FMOD_Sound_Lock` instead, so it falls back to that FMOD-owned PCM route and requires the
+locked bytes to equal FMOD's declared `PCMBYTES` before writing. It never treats FSB bytes as WAV.
+
+## 11. Streamed-audio application surface — `CONFIRMED_BYTES`
+
+The application has a separate **Streamed audio** tab. It enumerates FSB5 files by validating their
+`FSB5` header, including the localised `*.deu_fsb` / `*.fra_fsb` copies rather than assuming a
+`.fsb` extension. The installed game exposes **65 banks and 10,882 subsounds**.
+
+The x86 helper now asks the game FMOD runtime for every subsound's name. The UI lists every entry as
+an index plus that FMOD name — `streams_0_audio.fsb`, for example, exposes `ambience_0_bathy` through
+`vo_0_planedive`. A blank FMOD name is shown as **(unnamed stream)** rather than invented. English
+`.fsb` banks and localised `*.deu_fsb` / `*.fra_fsb` copies are separate tabs.
+
+**Decode + play** writes a cached standard WAV through `FmodFsbDecoder.exe` and Windows plays that
+WAV; **Export WAV** writes the same FMOD-produced PCM result below the configured output folder.
+This is separate from native `Sound` MP3 playback, and neither route fabricates a WAV header from
+FSB bytes.
+
+The CLI surface is:
+
+```bash
+dotnet run --project src/BioShockStudio.Cli -- decode-stream streams_0_audio.fsb output.wav 0
+```
+
+It finds `artifacts/app/tools/FmodFsbDecoder.exe` when run from the packaged application, or accepts
+`--helper <path>` / `BIOSHOCK_FMOD_HELPER` for a development build.

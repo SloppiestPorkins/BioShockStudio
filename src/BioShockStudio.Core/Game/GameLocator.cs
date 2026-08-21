@@ -64,6 +64,14 @@ public static partial class GameLocator
     public static string BulkContentDirectory(string gameRoot) =>
         Path.Combine(gameRoot, "ContentBaked", "pc", "BulkContent");
 
+    /// <summary>The FSB5 dialogue, ambience and music banks streamed by the game.</summary>
+    public static string StreamAudioDirectory(string gameRoot) =>
+        Path.Combine(gameRoot, "ContentBaked", "pc", "Sounds_Windows");
+
+    /// <summary>The game's x86 FMOD Ex runtime, used only by the separate x86 stream decoder.</summary>
+    public static string FmodRuntime(string gameRoot) =>
+        Path.Combine(gameRoot, "Build", "Final", "fmodex.dll");
+
     /// <summary>
     /// Shipped packages excluding the per-language duplicates, which are localisation-only variants
     /// of the same maps.
