@@ -323,8 +323,19 @@ material.
    blocked, not merely unstarted.
 3. Map Havok collision/ragdoll data to UE5 Physics Assets only once body shapes, constraints and
    units are byte-backed — preserve unsupported blocks losslessly rather than guessing.
-4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven: splicer,
-   Big Daddy, Little Sister, other weapons, doors, props.
+4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
+   **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
+   structurally different, larger rig than any weapon viewmodel) imports cleanly
+   (`Success - 0 error(s), 5 warning(s)`, the same cosmetic warning shape as the weapon rigs) and
+   the resulting asset verified directly: a real `SkeletalMesh` with a non-null `Skeleton` and a
+   populated bone tree. Found and fixed a real CLI gap along the way: `export-fbx` guessed a rig's
+   mesh name by stripping `UAPW_` off the wrapper name, which only holds for a rig with one mesh —
+   `AggressorBabyJane`'s rig is shared by three (`Agg_Doctor_Mesh` plus two corpse variants), so it
+   silently exported 0 vertices. `export-fbx` now takes an explicit `--mesh <name>` override.
+   Animations weren't re-verified per-character here (the rig has 457 of them — whole-game format
+   validation already covers all 16,031 animations in the game; this item is about mesh/skeleton
+   topology, which the weapon rigs' narrower bone counts didn't exercise). **Still open**: Big
+   Daddy, Little Sister, other weapons, doors, props.
 
 ### Gate 3 — levels and UE2 actor systems
 

@@ -1258,16 +1258,32 @@ static int ExportFbx(string root, string[] args)
 {
     if (args.Length < 4)
     {
-        Console.Error.WriteLine("usage: export-fbx <package> <object> <output-dir> [owner]");
+        Console.Error.WriteLine("usage: export-fbx <package> <object> <output-dir> [owner] [--mesh <name>]");
         return 1;
     }
 
     string outputDirectory = args[3];
-    string? owner = args.Length > 4 ? args[4] : null;
+    // A wrapper's mesh name is guessed by stripping "UAPW_" (ResolveMesh), which only holds for a
+    // rig with one mesh. A group where several meshes share one rig - AggressorBabyJane's splicer
+    // variants and corpses, all off one animation package - needs the real mesh named explicitly.
+    string? explicitMesh = null;
+    var positional = new List<string>();
+    for (int i = 4; i < args.Length; i++)
+    {
+        if (string.Equals(args[i], "--mesh", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+        {
+            explicitMesh = args[++i];
+        }
+        else
+        {
+            positional.Add(args[i]);
+        }
+    }
+    string? owner = positional.Count > 0 ? positional[0] : null;
 
     Directory.CreateDirectory(outputDirectory);
     var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
-    var (sockets, geometry, material) = ResolveMesh(root, args[1], args[2], outputDirectory);
+    var (sockets, geometry, material) = ResolveMesh(root, args[1], explicitMesh ?? args[2], outputDirectory);
     var events = ResolveEvents(root, args[1], animationPackage);
     var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events, material);
 
