@@ -1,4 +1,5 @@
 ﻿using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
@@ -88,6 +89,7 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
                 AssetCategory.Materials => DescribeMaterial(package, entry),
                 AssetCategory.SkeletalMeshes or AssetCategory.StaticMeshes => DescribeMesh(package, entry),
                 AssetCategory.Animations => DescribeAnimation(package, entry),
+                AssetCategory.Sounds => DescribeSound(package, entry),
                 _ => DescribeGroup(package, entry),
             };
         }
@@ -167,6 +169,7 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         AssetCategory.Animations => "Animation",
         AssetCategory.Textures => "Texture",
         AssetCategory.Materials => "Material",
+        AssetCategory.Sounds => "Sound",
         _ => category.ToString(),
     };
 
@@ -250,7 +253,7 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
         {
             byte[] payload = package.ReadExportData(meshExport);
             string className = package.GetClassName(meshExport);
-            var geometry = MeshGeometryReader.Read(className, payload);
+            var geometry = MeshGeometryReader.Read(className, payload, package.Names);
             var sockets = className == AssetClasses.SkeletalMesh
                 ? SkeletalMeshReader.ReadSockets(payload, package.Names)
                 : [];
@@ -412,6 +415,36 @@ public sealed class AssetDetailsService(AssetCatalogService catalog)
                 .Select(t => new RelatedAsset(t.TextureName, t.Slot + (t.IsExternal ? " · in another package" : ""),
                     AssetCategory.Textures))
                 .ToList());
+
+    /// <summary>
+    /// Describes a native Sound only after its lazy byte array has passed SoundReader's exact
+    /// boundary check. The UI must not label an arbitrary export tail as playable audio.
+    /// </summary>
+    private static AssetDetails DescribeSound(BioShockPackage package, CatalogEntry entry)
+    {
+        var export = Export(package, entry);
+        var sound = SoundReader.Read(package, export);
+        if (sound is null) return Failed(entry, "This Sound export does not match the proven native-audio layout.");
+
+        return new AssetDetails
+        {
+            Title = sound.Name,
+            Subtitle = $"Native sound · {entry.Package}",
+            Fields =
+            [
+                new DetailField("Payload", Size(sound.RawData.Length)),
+                new DetailField("Format", sound.Format == SoundFormat.Mp3 ? "MPEG Layer III (MP3)" : "Unknown — exported as .bin"),
+                new DetailField("Export", "Extract selected writes the original payload unchanged."),
+            ],
+            Sections = [],
+            Research =
+            [
+                new DetailField("Export index", export.Index.ToString()),
+                new DetailField("Lazy skip position", sound.LazyArraySkipPosition.ToString()),
+                new DetailField("Lazy fields", $"{sound.Unknown10}, {sound.Unknown8}"),
+            ],
+        };
+    }
 
     private static AssetDetails DescribeMesh(BioShockPackage package, CatalogEntry entry)
     {
