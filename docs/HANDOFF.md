@@ -3,6 +3,26 @@
 > **Read this first.** It is the project's institutional memory. If a discovery exists only in a
 > chat, it does not exist.
 
+## Active work — check and update this before touching a shared file
+
+Two AI agents (this session's assistant and a separate ChatGPT session) work in this repository
+concurrently, on one branch, with no other coordination mechanism between them. This table is it.
+**Before starting work, add a row. Before touching a file another row claims, check with the user
+first** — they're the one relaying between both sessions and can say whether it's stale or still
+live. Remove your row when the track lands (committed) or you stop working on it. An empty table
+means no row is currently claimed, not that no one is working — always check the date.
+
+| Agent | Track | Areas / files | Started |
+|---|---|---|---|
+| _(none currently claimed)_ | | | |
+
+**Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
+them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A
+written claim here is the lowest-overhead thing both sessions can actually be expected to check. The
+existing git-hygiene rule below (stage by filename, never `git add -A`, commit in small logical
+groups) is the safety net under this — it limits the blast radius of a collision even when this
+table is stale or unchecked.
+
 ## Current state
 
 | | |

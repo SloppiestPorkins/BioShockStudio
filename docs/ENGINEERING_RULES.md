@@ -504,7 +504,10 @@ so a future session can see what changed and why. Audio is being worked on concu
 agent (a ChatGPT session) against this same repository — see the git-safety note this implies in
 §48 workflow: stage and commit specific files, not `git add -A`, while that overlap continues, and
 prefer small frequent commits from both sides to shrink the window where an accidental sweep could
-happen again.
+happen again. **Check and update `docs/HANDOFF.md`'s "Active work" table before starting on or
+touching a file another session might be mid-edit on** — added 19 Aug 2026 after a week-long,
+61-file uncommitted backlog made it hard to tell which changes were whose; it's the lowest-overhead
+coordination signal two independently-run sessions can actually be expected to keep current.
 
 **What "reopened" does not change:** §2 (explicit instructions are the task boundary) and every rule
 about evidence, confidence labelling and not guessing still apply in full to UE5/runtime work. A

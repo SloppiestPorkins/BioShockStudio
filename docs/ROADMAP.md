@@ -75,15 +75,14 @@ a bad `git clean`, an accidental hard reset, a crash mid-edit. Break the current
 logical commits (by track: audio, lightmaps, UE5 tooling, GUI) and keep future work landing that
 way rather than accumulating.
 
-**0.3 — Give the two concurrent agents (this session and ChatGPT) lanes.** Both work in the same
-tree with no branch separation and no shared signal for what the other is touching right now — it
-already caused one incident (`git add -A` sweeping unrelated in-progress audio files into an
-unrelated commit, undone with a `reset --soft`). Cheapest real fix: a short-lived branch per track,
-merged deliberately when a track is stable, rather than both agents committing straight to
-`feature/fbx-materials-gui`. If branches are too heavy for how this project actually gets worked,
-at minimum keep the git-hygiene rule already in `ENGINEERING_RULES.md` §60 (stage by filename,
-never `git add -A`) and add a one-line "current owner" note per file group so a session doesn't
-have to discover collisions by breaking the build.
+~~**0.3 — Give the two concurrent agents (this session and ChatGPT) lanes.**~~ **Done, 19 Aug
+2026.** Went with the lighter option rather than a branch-per-track workflow: a branch scheme only
+works if both sessions actually use it, and this session can't enforce that on a separately-run
+ChatGPT session. Added an "Active work" claim table at the top of `docs/HANDOFF.md` — add a row
+before starting a track, check it before touching a file another row claims, remove it when the
+track lands. `ENGINEERING_RULES.md` §60 points at it. The existing git-hygiene rule (stage by
+filename, never `git add -A`, small logical commits — 0.2 above) remains the safety net under this
+for whenever the table is stale or unchecked.
 
 **0.4 — Finish one track before starting the next.** UE5 import, audio, and lightmaps are all
 mid-flight, and Track B (bytecode decoding) is about to become a fourth. UE5 import is the
