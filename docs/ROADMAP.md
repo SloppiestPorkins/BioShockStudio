@@ -334,8 +334,13 @@ material.
    silently exported 0 vertices. `export-fbx` now takes an explicit `--mesh <name>` override.
    Animations weren't re-verified per-character here (the rig has 457 of them — whole-game format
    validation already covers all 16,031 animations in the game; this item is about mesh/skeleton
-   topology, which the weapon rigs' narrower bone counts didn't exercise). **Still open**: Big
-   Daddy, Little Sister, other weapons, doors, props.
+   topology, which the weapon rigs' narrower bone counts didn't exercise).
+   **Both Big Daddy variants done, same session**: `ProtectorRosie` (60 bones, 12,670 vertices, 7
+   sockets, single-mesh rig) and `NewProtectorBouncer` (42 bones, 8,586 vertices, 7 sockets —
+   another rig whose mesh name, `ProtectorBouncerMESH`, didn't match its wrapper, exercising the new
+   `--mesh` flag again) both import cleanly (`Success - 0 error(s), 10 warning(s)` for the pair,
+   same cosmetic shape) and verify as real `SkeletalMesh`es with populated skeletons.
+   **Still open**: Little Sister, other weapons, doors, props.
 
 ### Gate 3 — levels and UE2 actor systems
 
