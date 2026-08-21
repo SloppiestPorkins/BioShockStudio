@@ -91,7 +91,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         {
             byte[] payload = package.ReadExportData(meshExport);
             string className = package.GetClassName(meshExport);
-            geometry = MeshGeometryReader.Read(className, payload);
+            geometry = MeshGeometryReader.Read(className, payload, package.Names);
 
             // Only a skeletal mesh carries a socket table; a static one is what hangs off a socket.
             if (className == AssetClasses.SkeletalMesh)
@@ -229,7 +229,7 @@ public sealed class MeshPreviewService(AssetCatalogService catalog)
         {
             byte[] payload = package.ReadExportData(meshExport);
             string className = package.GetClassName(meshExport);
-            geometry = MeshGeometryReader.Read(className, payload);
+            geometry = MeshGeometryReader.Read(className, payload, package.Names);
             if (className == AssetClasses.SkeletalMesh)
                 sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
             surfaces = LoadSurfaces(package, meshExport, geometry);

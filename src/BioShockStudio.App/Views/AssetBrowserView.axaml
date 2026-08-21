@@ -7,6 +7,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="700"
              x:Class="BioShockStudio.App.Views.AssetBrowserView"
+             Name="AssetBrowserRoot"
              x:DataType="vm:MainViewModel">
 
     <!--
@@ -33,34 +34,40 @@
         </DrawingBrush>
     </UserControl.Resources>
 
-        <Grid ColumnDefinitions="196,4,*,4,452">
+        <Grid ColumnDefinitions="206,8,*,8,452" Margin="4,6">
 
             <!-- categories -->
-            <DockPanel Grid.Column="0" Margin="10">
-                <TextBlock DockPanel.Dock="Top" Text="Browse" FontWeight="SemiBold" Margin="4,0,0,8" />
-                <ComboBox DockPanel.Dock="Bottom" Margin="0,8,0,0" HorizontalAlignment="Stretch"
-                          ItemsSource="{Binding Packages}" SelectedItem="{Binding SelectedPackage}" />
-                <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:CategoryRow">
-                            <TextBlock Text="{Binding Display}" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
+            <Border Grid.Column="0" Margin="6" Padding="10" Background="#FF111A24" BorderBrush="#FF273646" BorderThickness="1" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="BROWSE ASSETS" FontWeight="SemiBold" FontSize="11" Foreground="#FFBD8245" Margin="4,0,0,10" />
+                    <ComboBox DockPanel.Dock="Bottom" Margin="0,10,0,0" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Packages}" SelectedItem="{Binding SelectedPackage}" />
+                    <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CategoryRow">
+                                <TextBlock Text="{Binding Display}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
 
             <GridSplitter Grid.Column="1" Background="Transparent" />
 
             <!-- asset list -->
-            <DockPanel Grid.Column="2" Margin="0,10,0,10">
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <DockPanel Grid.Column="2" Margin="6">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
                     <TextBox Grid.Column="0" Name="SearchBox" Text="{Binding Search}"
-                             Watermark="Search (Ctrl+F) — try Pistol, BigDaddy, Hand_DIFF, FastReload" />
+                             Watermark="Search assets — Pistol, BigDaddy, Hand_DIFF, FastReload" />
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="10,0,4,0" Opacity="0.7"
                                Text="{Binding ResultSummary}" />
+                    <Button Grid.Column="2" Classes="quiet" Content="Clear" Command="{Binding ClearSearchCommand}"
+                            ToolTip.Tip="Clear search (Esc)" />
                 </Grid>
 
-                <DataGrid ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedAsset}"
+                <!-- A direct SelectedItem binding can feed a stale selection back after a click.
+                     AssetBrowserView accepts added rows and ignores transient clears instead. -->
+                <DataGrid Name="AssetGrid" ItemsSource="{Binding Assets}"
                           IsReadOnly="True" GridLinesVisibility="Horizontal" CanUserSortColumns="True">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="170" />
@@ -78,15 +85,49 @@
             <GridSplitter Grid.Column="3" Background="Transparent" />
 
             <!-- details -->
-            <Border Grid.Column="4" Margin="0,10,10,10" Padding="14" CornerRadius="6" Background="#18FFFFFF">
+            <Border Grid.Column="4" Margin="6" Padding="16" CornerRadius="7" Background="#FF111A24"
+                    BorderBrush="#FF273646" BorderThickness="1">
                 <ScrollViewer>
                     <StackPanel Spacing="10">
                         <TextBlock Text="Select an asset to see its skeleton, animations, materials and textures."
                                    Opacity="0.6" TextWrapping="Wrap"
                                    IsVisible="{Binding DetailsTitle, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
-                        <TextBlock Text="{Binding DetailsTitle}" FontSize="18" FontWeight="SemiBold"
+                        <TextBlock Text="INSPECTOR" FontSize="10" FontWeight="SemiBold" Foreground="#FFBD8245"
+                                   IsVisible="{Binding SelectedAsset, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock Text="{Binding DetailsTitle}" FontSize="20" FontWeight="SemiBold"
                                    TextWrapping="Wrap" />
                         <TextBlock Text="{Binding DetailsSubtitle}" Opacity="0.7" />
+
+                        <!-- The selected object is where its primary action belongs. The lower
+                             export strip remains for batch work; this avoids making a user travel
+                             to the window foot just to extract the thing they are inspecting. -->
+                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                    IsVisible="{Binding SelectedAsset, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <Button Classes="primary" Content="Export selected" Command="{Binding ExtractSelectedCommand}"
+                                    ToolTip.Tip="Export this asset using the current export options." />
+                            <Button Content="Open export folder" Command="{Binding OpenOutputCommand}" />
+                        </StackPanel>
+
+                        <!-- Native Sound exports are verified MP3 payloads. Keep their transport beside
+                             the inspector: the bottom bar is batch extraction, whereas these controls
+                             answer the immediate question a sound browser exists for — what does it say? -->
+                        <Border Background="#14FFFFFF" CornerRadius="4" Padding="10"
+                                IsVisible="{Binding IsSelectedNativeSound}">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="NATIVE AUDIO" FontSize="10" Opacity="0.6" />
+                                <TextBlock Text="Embedded MP3 audio — playback uses the original bytes, not a conversion."
+                                           TextWrapping="Wrap" Opacity="0.8" FontSize="12" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Name="PlayNativeSoundButton" Content="▶ Play"
+                                            Command="{Binding PlayNativeSoundCommand}" />
+                                    <Button Name="StopNativeSoundButton" Content="■ Stop"
+                                            Command="{Binding StopNativeSoundCommand}"
+                                            IsEnabled="{Binding IsNativeSoundPlaying}" />
+                                    <Button Content="Extract MP3" Command="{Binding ExtractSelectedCommand}"
+                                            ToolTip.Tip="Writes the original MP3 to the configured export folder." />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
                         <Border Background="#33B86B6B" CornerRadius="4" Padding="10"
                                 IsVisible="{Binding DetailsProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
@@ -301,8 +342,7 @@
                                                             HorizontalAlignment="Stretch"
                                                             HorizontalContentAlignment="Stretch"
                                                             Background="Transparent" BorderThickness="0"
-                                                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenRelatedCommand}"
-                                                            CommandParameter="{Binding}"
+                                                            Click="OpenRelated_Click"
                                                             ToolTip.Tip="Open this asset">
                                                         <Grid ColumnDefinitions="*,Auto">
                                                             <StackPanel Grid.Column="0">

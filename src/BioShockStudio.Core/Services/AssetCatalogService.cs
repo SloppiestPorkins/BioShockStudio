@@ -4,6 +4,7 @@ using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
+using BioShockStudio.Core.Audio;
 
 namespace BioShockStudio.Core.Services;
 
@@ -27,6 +28,7 @@ public enum AssetCategory
     Animations,
     Textures,
     Materials,
+    Sounds,
     Other,
 }
 
@@ -363,6 +365,7 @@ public sealed class AssetCatalogService
                 AssetClasses.StaticMesh => AssetCategory.StaticMeshes,
                 TextureReader.ClassName => AssetCategory.Textures,
                 AnimationMetadataReader.ClassName => AssetCategory.Animations,
+                SoundReader.ClassName => AssetCategory.Sounds,
                 _ when MaterialReader.IsMaterialClass(className) => AssetCategory.Materials,
                 _ => AssetCategory.Other,
             };

@@ -19,7 +19,7 @@ The view model holds no parsing, no offsets and no output-path decisions. That i
 its own sake: the services are what the tests exercise, and it is what stops the browser and the
 command line from disagreeing about what an asset is.
 
-## Three workspaces
+## Four workspaces
 
 The window is a `TabControl`:
 
@@ -28,6 +28,7 @@ The window is a `TabControl`:
 | **Animated** | Rigged assets: the first-person set, characters, weapons, skeletal meshes, animations. |
 | **Static** | Static meshes, props, materials and textures. |
 | **Level** | Pick a map, see what it holds, walk through it, write it out. |
+| **Streamed audio** | English and localized FMOD stream banks, their named entries, and WAV decode/play/export. |
 
 **The two asset tabs are one browser filtered two ways, not two browsers.** The distinction they
 split on is the one that actually changes how an asset is worked with — whether it carries a rig. A
@@ -49,9 +50,17 @@ and the result summary "1,889 of 14,380" beside a list that can only reach the r
 stated something untrue about what was on offer. `EveryCategoryBelongsToExactlyOneWorkspace` guards
 the silent failure — a category in neither list is simply unreachable, with nothing to indicate it.
 
-The asset extraction bar at the foot of the window **is hidden on the Level tab** — it offers
+The asset extraction bar at the foot of the window **is hidden on the Level and Streamed audio tabs** — it offers
 "Extract selected" and "Extract all shown", which beneath the level panel reads as though those
 buttons extract the level. They do not; the level has its own.
+
+### Command and export surfaces
+
+The selected asset has an **Export selected** action in its inspector, because that is where the
+user has the context to decide what to do with it. The footer keeps **Extract selected** and
+**Extract all shown** for batch work. Export options are collapsed by default into a truthful format
+and folder-policy summary; opening them reveals the destination and format choices. This keeps the
+primary workflow visible while leaving infrequent configuration available without a second screen.
 
 ### The Level tab
 
@@ -418,8 +427,8 @@ rejected); what is actually proven is that their frame counts match exactly.
   sockets, but whether any object reference points at a Little Sister asset is still `UNKNOWN`, so
   nothing is drawn for it.
 - **UE5 export status in the UI.** The FBX option writes files that are validated by round trip
-  through Blender. Nothing has been imported into Unreal, so the UI does not offer a "UE5" export —
-  offering one would claim a verification that does not exist.
+  through Blender, and the pistol slice now imports in UE5.7 via the documented Blender-normalized
+  script. The UI intentionally has no UE5 button until visual fidelity checks are reproducible.
 
 
 ## Viewport performance

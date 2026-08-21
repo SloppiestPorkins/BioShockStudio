@@ -7,6 +7,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
+using BioShockStudio.App.Services;
+using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -42,6 +44,8 @@ public partial class MainViewModel : ViewModelBase
     private readonly ExtractionService _extraction;
     private readonly MeshPreviewService _preview;
     private readonly AssetContextService _context;
+    private readonly NativeSoundPlaybackService _soundPlayback = new();
+    private readonly StreamAudioService _streamAudio = new();
     private readonly SettingsService _settings = new();
 
     private CancellationTokenSource? _work;
@@ -77,10 +81,17 @@ public partial class MainViewModel : ViewModelBase
     /// </remarks>
     [ObservableProperty] private int _selectedTabIndex;
 
-    public AssetWorkspace Workspace => (AssetWorkspace)Math.Clamp(SelectedTabIndex, 0, 2);
+    public AssetWorkspace Workspace => SelectedTabIndex switch
+    {
+        0 => AssetWorkspace.Animated,
+        1 => AssetWorkspace.Static,
+        2 => AssetWorkspace.Level,
+        _ => AssetWorkspace.Audio,
+    };
 
     /// <summary>True while an asset workspace is showing, rather than the level.</summary>
-    public bool IsAssetsTab => Workspace != AssetWorkspace.Level;
+    public bool IsAssetsTab => Workspace is AssetWorkspace.Animated or AssetWorkspace.Static;
+    public bool IsStreamedAudioTab => Workspace == AssetWorkspace.Audio;
 
     private IReadOnlySet<AssetCategory>? _workspaceCategories;
 
@@ -89,11 +100,12 @@ public partial class MainViewModel : ViewModelBase
         DiagnosticLog.Write($"SelectedTabIndex -> {value} (Workspace={(AssetWorkspace)Math.Clamp(value, 0, 2)})");
         OnPropertyChanged(nameof(Workspace));
         OnPropertyChanged(nameof(IsAssetsTab));
+        OnPropertyChanged(nameof(IsStreamedAudioTab));
 
         var categories = AssetWorkspaces.For(Workspace);
         _workspaceCategories = categories.Count > 0 ? categories.ToHashSet() : null;
 
-        if (!_catalog.IsLoaded || Workspace == AssetWorkspace.Level) return;
+        if (!_catalog.IsLoaded || Workspace is AssetWorkspace.Level or AssetWorkspace.Audio) return;
 
         // Switching workspace re-lists the categories and re-runs the filter. The search text is
         // deliberately kept: a user who typed "pistol" and switched wants the other half of that
@@ -133,6 +145,32 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _exportDds;
     [ObservableProperty] private bool _preservePackageStructure = true;
     [ObservableProperty] private bool _skipExisting;
+    [ObservableProperty] private bool _isNativeSoundPlaying;
+
+    /// <summary>A compact, truthful summary for the collapsed export options surface.</summary>
+    public string ExportSummary
+    {
+        get
+        {
+            var formats = new List<string>();
+            if (ExportSceneJson) formats.Add("JSON");
+            if (ExportFbx) formats.Add("FBX");
+            if (ExportPng) formats.Add("PNG");
+            if (ExportDds) formats.Add("DDS");
+
+            string selected = formats.Count == 0 ? "no formats selected" : string.Join(" + ", formats);
+            string layout = PreservePackageStructure ? "package folders" : "flat folders";
+            return SkipExisting ? $"{selected} · {layout} · skip existing" : $"{selected} · {layout}";
+        }
+    }
+
+    partial void OnOutputDirectoryChanged(string value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnExportSceneJsonChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnExportFbxChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnExportPngChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnExportDdsChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnPreservePackageStructureChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
+    partial void OnSkipExistingChanged(bool value) => OnPropertyChanged(nameof(ExportSummary));
 
     public const string AllPackages = "All packages";
 
@@ -303,6 +341,7 @@ public partial class MainViewModel : ViewModelBase
         HasInstall = true;
         InstallSummary = $"{path}  ·  {report.Packages.Count} map packages";
         _catalog.RegisterInstall(path);
+        LoadStreamBanks(path);
 
         // The map list is a directory listing, so it is ready immediately — the Level tab is usable
         // while the asset catalogue is still being built behind it.
@@ -395,6 +434,7 @@ public partial class MainViewModel : ViewModelBase
         AssetCategory.FirstPerson => "First person",
         AssetCategory.SkeletalMeshes => "Skeletal meshes",
         AssetCategory.StaticMeshes => "Static meshes",
+        AssetCategory.Sounds => "Native sounds",
         _ => category.ToString(),
     };
 
@@ -472,6 +512,10 @@ public partial class MainViewModel : ViewModelBase
 
         if (value is not null)
         {
+            _soundPlayback.Stop();
+            IsNativeSoundPlaying = false;
+            OnPropertyChanged(nameof(IsSelectedNativeSound));
+
             if (!ReferenceEquals(value, _lastRealSelection)) _consecutiveReassertions = 0;
             _lastRealSelection = value;
             _ = ShowDetailsAsync(value);
@@ -510,8 +554,44 @@ public partial class MainViewModel : ViewModelBase
         }
 
         DiagnosticLog.Write("SelectedAsset: null confirmed after settling — clearing the panel");
+        _soundPlayback.Stop();
+        IsNativeSoundPlaying = false;
+        OnPropertyChanged(nameof(IsSelectedNativeSound));
         _ = ShowDetailsAsync(null);
         _ = LoadPreviewAsync(null);
+    }
+
+    /// <summary>Whether the shared extraction controls will write an original native sound payload.</summary>
+    public bool IsSelectedNativeSound => SelectedAsset?.Category == AssetCategory.Sounds;
+
+    /// <summary>Writes the selected verified MP3 to the local cache and plays it in the application.</summary>
+    [RelayCommand]
+    private async Task PlayNativeSoundAsync()
+    {
+        if (SelectedAsset is not { Category: AssetCategory.Sounds } sound) return;
+
+        try
+        {
+            Status = $"Preparing {sound.Name}…";
+            string path = await Task.Run(() => _soundPlayback.Play(_catalog, sound));
+            IsNativeSoundPlaying = true;
+            Status = $"Playing {sound.Name}.";
+            DiagnosticLog.Write($"Playing native sound: {path}");
+        }
+        catch (Exception ex)
+        {
+            IsNativeSoundPlaying = false;
+            Status = $"Could not play {sound.Name}: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void StopNativeSound()
+    {
+        _soundPlayback.Stop();
+        IsNativeSoundPlaying = false;
+        if (SelectedAsset is { Category: AssetCategory.Sounds } sound)
+            Status = $"Stopped {sound.Name}.";
     }
 
     private async Task ShowDetailsAsync(CatalogEntry? entry)

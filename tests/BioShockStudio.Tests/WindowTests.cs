@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using BioShockStudio.App.ViewModels;
 using BioShockStudio.App.Views;
+using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Services;
 using Xunit;
 
@@ -35,6 +36,151 @@ public sealed class HeadlessApp
 [Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class WindowTests
 {
+    /// <summary>
+    /// A grid click must be allowed to replace the previous preview even when Avalonia follows the
+    /// click with its known transient empty selection notification.
+    /// </summary>
+    [AvaloniaFact]
+    public void AssetGrid_ClickingANewRowAfterATransientClear_SelectsTheNewAsset()
+    {
+        var first = TestEntry("First");
+        var second = TestEntry("Second");
+        var model = new MainViewModel();
+        model.Assets.Add(first);
+        model.Assets.Add(second);
+
+        var browser = new AssetBrowserView { DataContext = model };
+        var window = new Window { Content = browser, Width = 900, Height = 600 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var grid = browser.FindControl<DataGrid>("AssetGrid");
+        Assert.NotNull(grid);
+
+        grid!.SelectedItem = first;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(first, model.SelectedAsset);
+
+        // This is the spurious notification the DataGrid has been producing after a click.
+        grid.SelectedItem = null;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(first, model.SelectedAsset);
+
+        grid.SelectedItem = second;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(second, model.SelectedAsset);
+    }
+
+    [AvaloniaFact]
+    public void NativeSoundSelection_ShowsTheAudioTransport()
+    {
+        var sound = TestEntry("SplicerGreeting") with { Category = AssetCategory.Sounds, ClassName = "Sound" };
+        var model = new MainViewModel { SelectedAsset = sound };
+        var browser = new AssetBrowserView { DataContext = model };
+        var window = new Window { Content = browser, Width = 900, Height = 600 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(browser.FindControl<Button>("PlayNativeSoundButton")!.IsVisible);
+        Assert.True(browser.FindControl<Button>("StopNativeSoundButton")!.IsVisible);
+
+        string? snapshot = Environment.GetEnvironmentVariable("BIOSHOCK_AUDIO_UI_SNAPSHOT");
+        if (!string.IsNullOrWhiteSpace(snapshot))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(snapshot)!);
+            window.CaptureRenderedFrame()?.Save(snapshot);
+            Assert.True(File.Exists(snapshot));
+        }
+    }
+
+    [AvaloniaFact]
+    public void StreamAudioView_RendersBankAndTransport()
+    {
+        var bank = new BioShockStudio.Core.Audio.StreamBank("streams_0_audio.fsb", "C:\\Test\\streams_0_audio.fsb", 7, 4_358_240);
+        var model = new MainViewModel();
+        // Keep the render fixture synthetic-free but isolated: the real installed game's automatic
+        // detection would otherwise start a helper process and append its seven live rows while
+        // this test is drawing the two rows below.
+        model.GamePath = Path.GetTempPath();
+        model.StreamBanks.Add(new StreamBankRow(bank));
+        model.SelectedStreamBank = model.StreamBanks[0];
+        model.StreamSamples.Add(new StreamSampleRow(model.SelectedStreamBank,
+            new BioShockStudio.Core.Audio.StreamSample(0, "ambience_0_bathy")));
+        model.StreamSamples.Add(new StreamSampleRow(model.SelectedStreamBank,
+            new BioShockStudio.Core.Audio.StreamSample(1, "ambience_0_end")));
+        model.SelectedStreamSample = model.StreamSamples[0];
+
+        var view = new StreamAudioView { DataContext = model };
+        var window = new Window { Content = view, Width = 1100, Height = 650 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(window.CaptureRenderedFrame());
+
+        string? snapshot = Environment.GetEnvironmentVariable("BIOSHOCK_STREAM_AUDIO_UI_SNAPSHOT");
+        if (!string.IsNullOrWhiteSpace(snapshot))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(snapshot)!);
+            window.CaptureRenderedFrame()?.Save(snapshot);
+            Assert.True(File.Exists(snapshot));
+        }
+    }
+
+    /// <summary>
+    /// Material relationship rows are created only when their expander opens. This exercises that
+    /// lazy XAML path against a real mesh, where the old ancestor command binding could terminate
+    /// the application before a texture row was displayed.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task MeshMaterialExpander_OpensAndRenders()
+    {
+        if (GameLocator.Find() is null) return;
+
+        var model = new MainViewModel { SelectedTabIndex = (int)AssetWorkspace.Static };
+        for (int i = 0; i < 400 && model.Assets.Count == 0; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(25);
+        }
+        if (!model.HasInstall) return;
+
+        model.SelectedCategory = model.Categories.First(c => c.Category == AssetCategory.StaticMeshes);
+        model.SelectedAsset = model.Assets.First();
+
+        for (int i = 0; i < 240 && !model.DetailSections.Any(s => s.Title.StartsWith("Material", StringComparison.Ordinal)); i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(25);
+        }
+
+        var browser = new AssetBrowserView { DataContext = model };
+        var window = new Window { Content = browser, Width = 1100, Height = 720 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var material = browser.GetVisualDescendants().OfType<Expander>()
+            .FirstOrDefault(e => e.DataContext is DetailSection section
+                                 && section.Title.StartsWith("Material", StringComparison.Ordinal));
+        Assert.NotNull(material);
+
+        material!.IsExpanded = true;
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(window.CaptureRenderedFrame());
+    }
+
+    private static CatalogEntry TestEntry(string name) => new()
+    {
+        Category = AssetCategory.StaticMeshes,
+        Name = name,
+        Package = "Test",
+        Group = name,
+        ObjectName = name,
+        ClassName = "StaticMesh",
+        ExportIndex = 1,
+        SerialSize = 1,
+        Detail = "test asset",
+    };
+
     /// <summary>
     /// The window must build and render. Every binding is resolved during this, so a typo in the
     /// XAML fails here rather than on the user's machine.
@@ -72,6 +218,26 @@ public sealed class WindowTests
         Assert.Empty(model.Assets);
 
         Assert.NotNull(window.CaptureRenderedFrame());
+    }
+
+    /// <summary>The compact action-first export strip stays visible and readable without opening its options.</summary>
+    [AvaloniaFact]
+    public void MainWindow_CompactExportStripRenders()
+    {
+        var model = new MainViewModel { HasInstall = true, SelectedTabIndex = (int)AssetWorkspace.Static };
+        var window = new MainWindow { DataContext = model, Width = 1280, Height = 820 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(window.CaptureRenderedFrame());
+
+        string? snapshot = Environment.GetEnvironmentVariable("BIOSHOCK_EXPORT_UI_SNAPSHOT");
+        if (!string.IsNullOrWhiteSpace(snapshot))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(snapshot)!);
+            window.CaptureRenderedFrame()?.Save(snapshot);
+            Assert.True(File.Exists(snapshot));
+        }
     }
 
     /// <summary>

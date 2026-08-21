@@ -11,7 +11,7 @@
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Width="1280" Height="820" MinWidth="960" MinHeight="600"
-        Title="BioShockHavok">
+        Title="BioShock Studio">
 
     <Design.DataContext>
         <vm:MainViewModel />
@@ -33,19 +33,25 @@
     <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- ============================================ header -->
-        <Border Grid.Row="0" Padding="14,10" Background="#22000000">
+        <Border Grid.Row="0" Padding="18,12" Background="#FF0C131C" BorderBrush="#FF273646" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <TextBlock Text="BioShockHavok" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding InstallSummary}" Opacity="0.75" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" MaxWidth="620" />
+                <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="BIOSHOCK STUDIO" FontSize="10" FontWeight="SemiBold" Foreground="#FFBD8245"
+                               LetterSpacing="1.8" />
+                    <TextBlock Text="Asset extraction workbench" FontSize="19" FontWeight="SemiBold" />
                 </StackPanel>
+
+                <Border Grid.Column="1" Margin="24,0" Padding="10,5" Background="#16FFFFFF" CornerRadius="5"
+                        VerticalAlignment="Center" HorizontalAlignment="Left" MaxWidth="620">
+                    <TextBlock Text="{Binding InstallSummary}" Opacity="0.82" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <CheckBox Content="Research mode" IsChecked="{Binding ResearchMode}"
                               ToolTip.Tip="Show export indices, classes and other format detail." />
-                    <Button Content="Detect game" Command="{Binding DetectCommand}" />
-                    <Button Content="Browse…" Command="{Binding BrowseCommand}" />
+                    <Button Classes="quiet" Content="Detect game" Command="{Binding DetectCommand}" />
+                    <Button Classes="primary" Content="Choose install…" Command="{Binding BrowseCommand}" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -167,12 +173,27 @@
                                     <Slider Width="110" Minimum="25000" Maximum="600000"
                                             Value="{Binding LevelTriangleBudget}" VerticalAlignment="Center" />
                                 </StackPanel>
+                                <CheckBox Content="Compiled world" IsChecked="{Binding ShowCompiledWorld}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="The built UE2 CSG world: rooms, floors and walls." />
+                                <CheckBox Content="Static meshes" IsChecked="{Binding ShowStaticMeshes}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Placed UE2 StaticMesh actors: props, architecture and exterior pieces." />
+                                <CheckBox Content="Skeletal meshes" IsChecked="{Binding ShowSkeletalMeshes}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Placed UE2 SkeletalMesh actors." />
                                 <CheckBox Content="Unpainted surfaces" IsChecked="{Binding ShowLevelUnpainted}"
                                           Margin="0,0,14,6"
-                                          ToolTip.Tip="Surfaces that resolve no base colour — light shafts, the ocean plane, glow cards, and materials that did not resolve. They draw as flat pale sheets that swallow the view." />
+                                          ToolTip.Tip="Material runs that failed to resolve a base colour. This no longer hides intentional effects such as godrays or water." />
+                                <CheckBox Content="Effects (godrays &amp; water)" IsChecked="{Binding ShowLevelEffects}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Intentional no-base-colour effect geometry: godrays, glow cards and water. Kept separate from unresolved materials." />
                                 <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
                                           Margin="0,0,14,6"
-                                          ToolTip.Tip="Light the level with its own lights instead of the fixed studio lighting. Not the game's lighting model — BioShock bakes its static light into lightmaps, which this tool does not read." />
+                                          ToolTip.Tip="Apply decoded light actors as a simple point-light approximation. This is separate from the baked-lightmap control." />
+                                <CheckBox Content="Baked lightmaps (experimental)" IsChecked="{Binding ShowBakedLightmaps}"
+                                          Margin="0,0,14,6"
+                                          ToolTip.Tip="Verified atlas bytes, but only the first layer can currently be vertex-sampled. Off by default because it is not colour-faithful yet." />
                                 <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"
                                           Margin="0,0,14,6"
                                           ToolTip.Tip="Blocking volumes, triggers, water and zone markers. The game never draws these — their brushes are room-sized boxes." />
@@ -309,6 +330,10 @@
             </Grid>
         </TabItem>
 
+        <TabItem Header="Streamed audio">
+            <views:StreamAudioView />
+        </TabItem>
+
         </TabControl>
 
         <!-- ============================================ extraction
@@ -317,34 +342,45 @@
              it sitting under the level panel with its own "Extract selected" / "Extract all shown"
              buttons, which reads as though those buttons extract the level — they do not, and the
              level has its own. A control that is merely irrelevant still makes a claim. -->
-        <Border Grid.Row="2" Padding="14,10" Background="#22000000" IsVisible="{Binding IsAssetsTab}">
+        <Border Grid.Row="2" Padding="16,12" Background="#FF0C131C" BorderBrush="#FF273646" BorderThickness="0,1,0,0"
+                IsVisible="{Binding IsAssetsTab}">
             <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                    <TextBlock Grid.Column="0" Text="Export to" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <TextBox Grid.Column="1" Text="{Binding OutputDirectory}" />
-                    <Button Grid.Column="2" Content="Change…" Margin="8,0,0,0" Command="{Binding ChooseOutputCommand}" />
-                    <Button Grid.Column="3" Content="Open" Margin="8,0,0,0" Command="{Binding OpenOutputCommand}" />
-                </Grid>
-
                 <Grid ColumnDefinitions="*,Auto">
-                    <WrapPanel Grid.Column="0" Orientation="Horizontal">
-                        <CheckBox Content="Scene JSON (Blender)" IsChecked="{Binding ExportSceneJson}" Margin="0,0,12,0" />
-                        <CheckBox Content="FBX" IsChecked="{Binding ExportFbx}" Margin="0,0,12,0" />
-                        <CheckBox Content="PNG" IsChecked="{Binding ExportPng}" Margin="0,0,12,0" />
-                        <CheckBox Content="DDS" IsChecked="{Binding ExportDds}" Margin="0,0,20,0" />
-                        <CheckBox Content="Keep package folders" IsChecked="{Binding PreservePackageStructure}"
-                                  Margin="0,0,12,0" />
-                        <CheckBox Content="Skip existing" IsChecked="{Binding SkipExisting}" />
-                    </WrapPanel>
-
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="Export" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ExportSummary}" Opacity="0.72" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Extract selected" Command="{Binding ExtractSelectedCommand}"
+                        <Button Classes="primary" Content="Extract selected" Command="{Binding ExtractSelectedCommand}"
                                 IsEnabled="{Binding !IsBusy}" />
-                        <Button Content="Extract all shown" Command="{Binding ExtractShownCommand}"
+                        <Button Classes="quiet" Content="Extract all shown" Command="{Binding ExtractShownCommand}"
                                 IsEnabled="{Binding !IsBusy}" />
                         <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsBusy}" />
                     </StackPanel>
                 </Grid>
+
+                <Expander IsExpanded="False">
+                    <Expander.Header>
+                        <TextBlock Text="Export options and destination" Opacity="0.8" />
+                    </Expander.Header>
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <TextBlock Grid.Column="0" Text="Export to" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBox Grid.Column="1" Text="{Binding OutputDirectory}" />
+                            <Button Grid.Column="2" Content="Change…" Margin="8,0,0,0" Command="{Binding ChooseOutputCommand}" />
+                            <Button Grid.Column="3" Content="Open" Margin="8,0,0,0" Command="{Binding OpenOutputCommand}" />
+                        </Grid>
+                        <WrapPanel>
+                            <CheckBox Content="Scene JSON (Blender)" IsChecked="{Binding ExportSceneJson}" Margin="0,0,12,0" />
+                            <CheckBox Content="FBX" IsChecked="{Binding ExportFbx}" Margin="0,0,12,0" />
+                            <CheckBox Content="PNG" IsChecked="{Binding ExportPng}" Margin="0,0,12,0" />
+                            <CheckBox Content="DDS" IsChecked="{Binding ExportDds}" Margin="0,0,20,0" />
+                            <CheckBox Content="Keep package folders" IsChecked="{Binding PreservePackageStructure}"
+                                      Margin="0,0,12,0" />
+                            <CheckBox Content="Skip existing" IsChecked="{Binding SkipExisting}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Expander>
 
                 <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsBusy}">
                     <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100" Height="6"
@@ -353,6 +389,8 @@
                 </Grid>
 
                 <TextBlock Text="{Binding Status}" Opacity="0.8" TextWrapping="Wrap" />
+                <TextBlock Text="Native Sound selections export their original MP3 bytes. Streamed dialogue, ambience and music are decoded separately from their FSB banks."
+                           Opacity="0.75" TextWrapping="Wrap" IsVisible="{Binding IsSelectedNativeSound}" />
 
                 <!-- ==================================== problems
 

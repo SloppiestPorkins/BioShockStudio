@@ -238,7 +238,7 @@ public partial class MainViewModel
         AnimationSummary = "";
 
         // Textures have their own preview; there is nothing to draw in 3D for a material either.
-        if (entry is null || entry.Category is AssetCategory.Textures or AssetCategory.Materials) return;
+        if (entry is null || entry.Category is AssetCategory.Textures or AssetCategory.Materials or AssetCategory.Sounds) return;
 
         _previewWork = new CancellationTokenSource();
         var token = _previewWork.Token;

@@ -27,7 +27,6 @@ public partial class MainWindow : Window
             model.CopyText = CopyTextAsync;
         };
 
-        HookViewport();
         HookShortcuts();
         HookLevelCamera();
 

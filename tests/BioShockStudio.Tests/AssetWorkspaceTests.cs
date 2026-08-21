@@ -121,7 +121,7 @@ public sealed class AssetWorkspaceTests
         Assert.All(model.Assets, a => Assert.Contains(a.Category, AssetWorkspaces.Static));
     }
 
-    /// <summary>Both workspaces host a browser, and the window renders with them.</summary>
+    /// <summary>The two asset browsers, level workspace and dedicated streamed-audio workspace render.</summary>
     [AvaloniaFact]
     public void BothWorkspacesHostABrowser()
     {
@@ -133,7 +133,7 @@ public sealed class AssetWorkspaceTests
         var tabs = window.GetVisualDescendants().OfType<TabControl>().First();
         var headers = tabs.Items.OfType<TabItem>().Select(t => (string?)t.Header).ToList();
 
-        Assert.Equal(["Animated", "Static", "Level"], headers);
+        Assert.Equal(["Animated", "Static", "Level", "Streamed audio"], headers);
         Assert.NotNull(window.CaptureRenderedFrame());
     }
 }

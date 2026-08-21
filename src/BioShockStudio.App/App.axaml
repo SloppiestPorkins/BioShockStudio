@@ -2,8 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="BioShockStudio.App.App"
              xmlns:local="using:BioShockStudio.App"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             RequestedThemeVariant="Dark">
+             <!-- This is an inspection and creation tool used against dark game renders. A stable dark
+                  surface avoids the high-glare system-default switch and keeps the viewport, texture
+                  preview and diagnostic colours visually consistent. -->
 
     <Application.DataTemplates>
         <local:ViewLocator />
@@ -11,6 +13,25 @@
 
     <Application.Styles>
         <FluentTheme />
-            <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+        <!-- A restrained Rapture-inspired system: warm brass marks intent, cool slate holds the
+             work surface, and errors keep their own semantic colour rather than becoming theme. -->
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="12,7" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#FFBD8245" />
+            <Setter Property="Foreground" Value="#FF17120D" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.quiet">
+            <Setter Property="Background" Value="#1FFFFFFF" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
     </Application.Styles>
 </Application>

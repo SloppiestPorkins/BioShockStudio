@@ -1,5 +1,6 @@
 using System.Numerics;
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
@@ -148,6 +149,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             {
                 AssetCategory.Textures => ExtractTexture(package, entry, options, directory),
                 AssetCategory.Materials => ExtractMaterialTextures(package, entry, options, directory),
+                AssetCategory.Sounds => ExtractSound(package, entry, directory),
                 AssetCategory.SkeletalMeshes or AssetCategory.StaticMeshes or AssetCategory.Animations
                     => ExtractGroup(package, entry, options, directory, cancellation),
                 _ => ExtractGroup(package, entry, options, directory, cancellation),
@@ -177,6 +179,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             AssetCategory.Props => "Props",
             AssetCategory.Textures => "Textures",
             AssetCategory.Materials => "Materials",
+            AssetCategory.Sounds => "Sounds",
             _ => "Meshes",
         };
 
@@ -184,7 +187,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             ? Path.Combine(options.OutputDirectory, category, entry.Package)
             : Path.Combine(options.OutputDirectory, category);
 
-        bool perAsset = entry.Category is not (AssetCategory.Textures or AssetCategory.Materials);
+        bool perAsset = entry.Category is not (AssetCategory.Textures or AssetCategory.Materials or AssetCategory.Sounds);
         return perAsset ? Path.Combine(root, Sanitise(entry.Group)) : root;
     }
 
@@ -257,6 +260,19 @@ public sealed class ExtractionService(AssetCatalogService catalog)
         return directory;
     }
 
+    /// <summary>Writes the native Sound's original bytes only after its layout is verified.</summary>
+    private static string ExtractSound(BioShockPackage package, CatalogEntry entry, string directory)
+    {
+        var export = package.Exports
+            .Where(e => e.ObjectName == entry.ObjectName && package.GetClassName(e) == SoundReader.ClassName)
+            .MaxBy(e => e.SerialSize)
+            ?? throw new FileNotFoundException($"'{entry.ObjectName}' is not in {entry.Package}.");
+
+        var sound = SoundReader.Read(package, export)
+            ?? throw new InvalidDataException("This Sound export does not match the proven native-audio layout.");
+        return SoundExporter.Write(sound, directory);
+    }
+
     /// <summary>
     /// Extracts a whole animated asset: skeleton, animations, mesh, sockets, events and material.
     /// </summary>
@@ -309,7 +325,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
         {
             byte[] payload = package.ReadExportData(meshExport);
             sockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
-            geometry = SkeletalMeshReader.ReadGeometry(payload);
+            geometry = SkeletalMeshReader.ReadGeometry(payload, package.Names);
 
             if (geometry is not null)
                 (materials, triangleMaterials) =
@@ -506,7 +522,7 @@ public sealed class ExtractionService(AssetCatalogService catalog)
             {
                 byte[] payload = package.ReadExportData(meshExport);
                 weaponSockets = SkeletalMeshReader.ReadSockets(payload, package.Names);
-                weaponGeometry = SkeletalMeshReader.ReadGeometry(payload);
+                weaponGeometry = SkeletalMeshReader.ReadGeometry(payload, package.Names);
 
                 if (weaponGeometry is not null)
                     (weaponMaterials, weaponTriangles) = MaterialExporter.ResolveSurfaces(

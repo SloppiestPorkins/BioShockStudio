@@ -30,6 +30,9 @@ public enum AssetWorkspace
 
     /// <summary>Whole maps.</summary>
     Level,
+
+    /// <summary>Dialogue, ambience and music stored in FMOD stream banks.</summary>
+    Audio,
 }
 
 /// <summary>Which categories each workspace shows, in the order they are listed.</summary>
@@ -48,13 +51,14 @@ public static class AssetWorkspaces
         AssetCategory.Animations,
     ];
 
-    /// <summary>Static geometry, and the materials and textures everything draws with.</summary>
+    /// <summary>Static geometry, surface data, and native package audio.</summary>
     public static readonly IReadOnlyList<AssetCategory> Static =
     [
         AssetCategory.StaticMeshes,
         AssetCategory.Props,
         AssetCategory.Materials,
         AssetCategory.Textures,
+        AssetCategory.Sounds,
     ];
 
     public static IReadOnlyList<AssetCategory> For(AssetWorkspace workspace) => workspace switch

@@ -19,6 +19,11 @@
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <!-- The 64-bit app launches this x86 bridge for the game's 32-bit FMOD Ex runtime. It is not
+         the runtime itself and is copied beside the published app so a clean publish remains able
+         to decode stream banks. -->
+    <None Include="..\..\artifacts\tools\FmodFsbDecoder.exe" Link="tools\FmodFsbDecoder.exe"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
