@@ -376,7 +376,16 @@ material.
    `scene.Lights.Count == document.Lights.Count` plus per-field validation). What remains for
    lights is turning that data into placed UE5 actors (Gate 3 item 4 / Gate 5) and rendering them
    faithfully in the viewport (Gate 0) — not decoding anything further.
-   **Next in line, still genuinely open**: 309 audio actors, 299 script-action actors, 253
+
+   **The 299 `ScriptPending` actors are the same shape of "already has a schema, just not a UE5
+   translation."** `LevelAnalyzer.ScriptActions` already resolves each actor's `Actions` array to
+   real, typed references (class + object name), exported as `LevelScriptActionsDocument` and
+   tested (`LevelAnalysisTests`: a specific actor, `Script79`, asserts exactly 17 complete,
+   correctly-typed action references). What's actually still open is the same as Emitters below —
+   translating identified references into UE5 behaviour (Blueprint/Kismet-equivalent), not
+   identifying them.
+
+   **Next in line, still genuinely open**: 309 audio actors, 253
    region/volume actors, 134 effect actors, then 338 genuinely unclassified actors. Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
    undecoded.
