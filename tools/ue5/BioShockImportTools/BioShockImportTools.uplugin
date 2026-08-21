@@ -1,0 +1,9 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "BioShock Import Tools",
+  "Modules": [
+    { "Name": "BioShockImportTools", "Type": "Editor", "LoadingPhase": "Default" }
+  ]
+}

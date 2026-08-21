@@ -12,9 +12,10 @@ The FBX files themselves are verified: `tools/blender/validate_fbx.py` imports t
 rest matrices, skin weights and posed bone positions against transforms composed independently from
 the game's own track data, and they match to within a few microns.
 
-This script is NOT verified. No Unreal editor was available when it was written, so every call below
-is written from the documented API and none of it has been run. Treat a failure here as a bug in
-this file rather than as evidence about the FBX. In particular:
+The first-person pistol vertical slice is verified in UE5.7: both rigs and all 12 animations import
+through this script. UE's legacy importer rejects the project's binary FBX dialect despite Blender
+reading it correctly, so the script normalizes each FBX through headless Blender by default. In
+particular:
 
   * Unreal may import the `SOCKET_*` null nodes as bones rather than ignoring them. If the imported
     skeleton has more bones than the manifest's `boneCount`, re-export with socket nodes turned off
@@ -29,8 +30,14 @@ off, and which weapon animation plays with which hand animation. FBX has no plac
 
 import json
 import os
+import subprocess
 
 import unreal
+
+
+_NORMALIZER = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), "..", "blender", "normalize_fbx_for_ue5.py"))
+_DEFAULT_BLENDER = r"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe"
 
 
 def _log(message):
@@ -68,6 +75,8 @@ def _skeletal_mesh_options(uniform_scale=1.0):
     options.set_editor_property("import_materials", False)
     options.set_editor_property("import_textures", False)
     options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
+    options.set_editor_property("original_import_type", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
+    options.set_editor_property("automated_import_should_detect_type", False)
     options.set_editor_property("skeletal_mesh_import_data", mesh_data)
     return options
 
@@ -90,6 +99,10 @@ def _animation_options(skeleton, frame_rate, uniform_scale=1.0):
     anim_data.set_editor_property("remove_redundant_keys", False)
     anim_data.set_editor_property("use_default_sample_rate", False)
     anim_data.set_editor_property("custom_sample_rate", int(round(frame_rate)))
+    # Blender preserves the source duration exactly, including 29.94/27.02 fps clips. UE's
+    # importer samples at an integer rate, so permit its documented nearest-frame adjustment
+    # instead of rejecting those clips outright.
+    anim_data.set_editor_property("snap_to_closest_frame_boundary", True)
 
     options = unreal.FbxImportUI()
     options.set_editor_property("import_mesh", False)
@@ -98,6 +111,8 @@ def _animation_options(skeleton, frame_rate, uniform_scale=1.0):
     options.set_editor_property("import_materials", False)
     options.set_editor_property("import_textures", False)
     options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_ANIMATION)
+    options.set_editor_property("original_import_type", unreal.FBXImportType.FBXIT_ANIMATION)
+    options.set_editor_property("automated_import_should_detect_type", False)
     options.set_editor_property("skeleton", skeleton)
     options.set_editor_property("anim_sequence_import_data", anim_data)
     return options
@@ -114,6 +129,37 @@ def _import(filename, destination, options):
 
     _asset_tools().import_asset_tasks([task])
     return list(task.get_objects())
+
+
+def _find_blender(blender_path=None):
+    """Find Blender without baking a machine-specific path into a UE project."""
+    candidate = blender_path or os.environ.get("BIOSHOCK_BLENDER") or _DEFAULT_BLENDER
+    if not os.path.isfile(candidate):
+        raise RuntimeError(
+            "Blender is required to normalize BioShock FBX files for UE5's legacy importer. "
+            "Install Blender 5.1 or set BIOSHOCK_BLENDER to blender.exe "
+            f"(looked for: {candidate}).")
+    return candidate
+
+
+def _normalize_fbx(source, export_directory, blender_path=None):
+    """Write a Blender-normalized sibling under _ue5_normalized, never changing the export."""
+    relative = os.path.relpath(source, export_directory)
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+        raise RuntimeError(f"FBX is outside its export directory: {source}")
+
+    destination = os.path.join(export_directory, "_ue5_normalized", relative)
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    result = subprocess.run(
+        [_find_blender(blender_path), "--background", "--python", _NORMALIZER, "--", source, destination],
+        capture_output=True,
+        text=True,
+        check=False)
+    if result.returncode or not os.path.isfile(destination) or os.path.getsize(destination) == 0:
+        output = (result.stdout + result.stderr).strip()
+        raise RuntimeError(
+            f"Blender could not normalize '{source}' (exit {result.returncode}).\n{output[-4000:]}")
+    return destination
 
 
 def _apply_notifies(sequence, notifies):
@@ -157,8 +203,25 @@ def _tag(asset, values):
         unreal.EditorAssetLibrary.set_metadata_tag(asset, key, str(value))
 
 
-def main(export_directory, content_root="/Game/BioShock"):
-    """Import every rig in an export directory. Returns the imported skeletal meshes by rig name."""
+def _restore_manifest_sockets(mesh, sockets):
+    """Restore markers dropped by the FBX round-trip through the native editor bridge."""
+    library = getattr(unreal, "BioShockSocketLibrary", None)
+    if library is None:
+        raise RuntimeError("BioShockImportTools editor plugin is required for socket restoration.")
+    valid = [item for item in sockets if item["bone"] != "PistolBody"]
+    # WP_Pistol's legacy RimLight marker targets PistolBody, which is not present in the shipped
+    # reference skeleton. Keep it in BioShockSockets metadata but do not create an invalid UE socket.
+    return library.restore_sockets(mesh, [item["name"] for item in valid],
+                                   [item["bone"] for item in valid])
+
+
+def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None):
+    """Import every rig in an export directory. Returns the imported skeletal meshes by rig name.
+
+    `normalize_fbx` defaults to true because UE5.7's legacy FBX reader rejects the project's
+    otherwise valid binary FBX dialect. Blender's independent reader accepts the files and its
+    re-export has been verified to import correctly in UE5. Set it false only for diagnostics.
+    """
     manifest_path = os.path.join(export_directory, "ue5_manifest.json")
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -171,13 +234,29 @@ def main(export_directory, content_root="/Game/BioShock"):
         destination = f"{content_root}/{rig['name']}"
         _log(f"importing {rig['name']}: {rig['boneCount']} bones, {rig['vertexCount']} vertices")
 
-        assets = _import(os.path.join(export_directory, rig["mesh"]), destination, _skeletal_mesh_options())
+        mesh_file = os.path.join(export_directory, rig["mesh"])
+        if normalize_fbx:
+            mesh_file = _normalize_fbx(mesh_file, export_directory, blender_path)
+        assets = _import(mesh_file, destination, _skeletal_mesh_options())
         mesh = next((a for a in assets if isinstance(a, unreal.SkeletalMesh)), None)
         if mesh is None:
             _log(f"FAILED to import {rig['mesh']}")
             continue
 
         skeleton = mesh.get_editor_property("skeleton")
+        if skeleton is None:
+            _log(f"FAILED to create a Skeleton for {rig['mesh']}; animations skipped")
+            continue
+        # AssetImportTask saves its primary returned object, but the legacy FBX factory creates the
+        # companion Skeleton as a secondary object. Persist both explicitly before animations refer
+        # to it, otherwise the mesh/sequence packages can be saved with a dangling skeleton ref.
+        unreal.EditorAssetLibrary.save_loaded_asset(skeleton)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        restored_sockets = _restore_manifest_sockets(mesh, rig["sockets"])
+        if restored_sockets:
+            _log(f"  restored {restored_sockets} socket(s) from the manifest")
+            unreal.EditorAssetLibrary.save_loaded_asset(skeleton)
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
         bones = len(skeleton.get_editor_property("bone_tree")) if skeleton else 0
         if bones and bones != rig["boneCount"]:
             # Almost certainly the SOCKET_ nulls; see the note at the top of this file.
@@ -198,8 +277,11 @@ def main(export_directory, content_root="/Game/BioShock"):
 
         notifies = 0
         for animation in rig["animations"]:
+            animation_file = os.path.join(export_directory, animation["file"])
+            if normalize_fbx:
+                animation_file = _normalize_fbx(animation_file, export_directory, blender_path)
             assets = _import(
-                os.path.join(export_directory, animation["file"]),
+                animation_file,
                 f"{destination}/Animations",
                 _animation_options(skeleton, animation["frameRate"]))
 

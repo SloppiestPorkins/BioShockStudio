@@ -166,10 +166,11 @@ hand, positioned and oriented at the grip.
 
 ## Unreal
 
-`UNKNOWN`. **Nothing has been imported into Unreal Engine 5.** `tools/ue5/import_bioshock.py` is
-written from the documented API and has never been run; no editor was available. It is marked as
-such at the top of the file. Any claim about Unreal in this repository is a claim about what the
-files declare, not about what Unreal does with them.
+The first-person pistol vertical slice has been imported in UE5.7: both skeletal meshes and all 12
+animations were created. UE's legacy FBX reader rejects the project's otherwise valid binary FBX
+dialect, while Blender reads it and its re-export imports correctly. `tools/ue5/import_bioshock.py`
+therefore uses the documented headless Blender normalization bridge by default, leaving the source
+export unchanged. Visual rig, socket, material and animation-fidelity review remains in progress.
 
 
 ## Naming

@@ -290,7 +290,7 @@ public static class FbxSceneBuilder
             {
                 if (indexes[bone] is null) continue;
 
-                long clusterId = NewObject("Deformer", "Deformer", scene.Bones[bone].Name, "Cluster", out var cluster);
+                long clusterId = NewObject("Deformer", "SubDeformer", scene.Bones[bone].Name, "Cluster", out var cluster);
                 cluster.Add("Version", 100);
                 cluster.Add("UserData", string.Empty).String(string.Empty);
                 cluster.Add("Indexes").Int32Array(CollectionsMarshalSpan(indexes[bone]));
