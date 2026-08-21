@@ -348,6 +348,12 @@ public sealed record SceneMaterial
 {
     public required string Name { get; init; }
 
+    /// <summary>Package file containing the authored material.</summary>
+    public string? SourceFile { get; init; }
+
+    /// <summary>Zero-based export-table identity in <see cref="SourceFile"/>.</summary>
+    public required int SourceExportIndex { get; init; }
+
     /// <summary>Shader class — <c>Shader</c>, <c>FacingShader</c> and so on.</summary>
     public required string ClassName { get; init; }
 
@@ -362,13 +368,25 @@ public sealed record SceneMaterial
 
     public float? Glossiness { get; init; }
     public float? SpecularBrightness { get; init; }
+    public float? EmissiveBrightness { get; init; }
 
     /// <summary>RGBA, 0..1.</summary>
     public float[]? DiffuseColor { get; init; }
 
     public float[]? SpecularColor { get; init; }
+    public float[]? EmissiveColor { get; init; }
     public bool TwoSided { get; init; }
     public bool Masked { get; init; }
+
+    /// <summary>
+    /// Original <c>OutputBlending</c> byte when the material serialises one.
+    /// </summary>
+    /// <remarks>
+    /// Its ordinal-to-blend-mode mapping has not been established from shipped bytes.  The export
+    /// therefore preserves the byte for an Unreal importer to inspect, rather than silently
+    /// treating (for example) value 2 as a particular UE5 blend mode.
+    /// </remarks>
+    public byte? OutputBlending { get; init; }
 
     /// <summary>True when the shader's property list could not be walked to its end.</summary>
     public required bool Partial { get; init; }

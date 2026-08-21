@@ -26,7 +26,7 @@ game's own transforms.
 | Spline decompression | Complete. **16,031 of 16,031 animations decode**, zero failures, 47,560 events. |
 | `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis, per-material sections. **954 of 972 exports decode (98.1%)** — the 18 that do not are all doors. |
 | `StaticMesh` | Complete: all 8,668 shipped exports, including the section table. |
-| Materials | 13,545 walked with none partial; **96.4% of meshes carry a base colour**. |
+| Materials | 14,328 walked with none partial (`MaterialSwitch`'s own candidate array excepted, not yet decoded); **96.8% of meshes carry a base colour**. |
 | Textures | DXT1/3/5 and DXT5N, PNG + DDS. The 8 GB bulk mip store is indexed and resolved per group. |
 | Levels | Actors, BSP source brushes and the compiled world assemble into a scene: `0-Lighthouse` is 1,141 placed objects, 2,181,021 triangles and 465 lights. Scene JSON + OBJ out. |
 | Blender export | Complete: skinned mesh, armature, actions, sockets, materials. |
@@ -34,7 +34,7 @@ game's own transforms.
 | 3D preview | Complete: asset viewport with animation playback and weapon attachment, plus a **walkable level viewport** (GPU, with a tested software fallback). |
 | Diagnostics | `AssetDiagnostics` in Core, shared by the `diagnose` command and the window's Problems panel. |
 | Lightmaps | **Not started.** The descriptor chain is documented; levels draw flat-lit. |
-| UE5 import | **Out of scope, never attempted.** The tool does not offer a UE5 export, because that would claim a verification nobody has done. |
+| UE5 import | **Verified on pistol and TommyGun first-person slices.** UE5.7 imports both rigs, Skeletons, sockets and all animations through the documented Blender + editor-plugin bridge. No app UI workflow yet. |
 | Audio | Event → sound-name chain decoded. **Where sample data lives is `UNKNOWN`**, and the investigation is closed. |
 
 
@@ -168,7 +168,7 @@ src/BioShockStudio.Core/
 src/BioShockStudio.Cli/
 tests/BioShockStudio.Tests/
 tools/blender/    headless Blender importer and the FBX round-trip validator
-tools/ue5/        Unreal editor import script (unverified)
+tools/ue5/        Unreal editor import script and Blender normalization bridge
 docs/research/
 ```
 

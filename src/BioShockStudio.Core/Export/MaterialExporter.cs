@@ -71,11 +71,16 @@ public static class MaterialExporter
             if (surface.Material is not null)
             {
                 // The same shader on two sections is one slot, not two.
-                if (!indexOf.TryGetValue(surface.Material.Name, out index))
+                // Names repeat across packages.  An imported weapon shader and a map-local shader
+                // with the same object name are distinct authored materials and may bind different
+                // textures, so deduplicating by name alone silently assigns one section the other
+                // package's images.  SourceFile is populated by both local and external reads.
+                string materialKey = $"{surface.Material.SourceFile}|{surface.Material.Name}";
+                if (!indexOf.TryGetValue(materialKey, out index))
                 {
                     materials.Add(Convert(package, surface.Material, outputDirectory, bulk));
                     index = materials.Count - 1;
-                    indexOf[surface.Material.Name] = index;
+                    indexOf[materialKey] = index;
                 }
             }
 
@@ -144,6 +149,8 @@ public static class MaterialExporter
         return new SceneMaterial
         {
             Name = material.Name,
+            SourceFile = material.SourceFile,
+            SourceExportIndex = material.SourceExportIndex,
             ClassName = material.ClassName,
             Textures = files,
             Diffuse = Lookup(files, material.DiffuseTexture, material, "Diffuse", "FacingDiffuse", "EdgeDiffuse"),
@@ -152,10 +159,13 @@ public static class MaterialExporter
                 "SpecularColorMap", "FacingSpecularColorMap", "EdgeSpecularColorMap"),
             Glossiness = material.Glossiness,
             SpecularBrightness = material.SpecularBrightness,
+            EmissiveBrightness = material.EmissiveBrightness,
             DiffuseColor = ToFloats(material.DiffuseColor),
             SpecularColor = ToFloats(material.SpecularColor),
+            EmissiveColor = ToFloats(material.EmissiveColor),
             TwoSided = material.TwoSided,
             Masked = material.Masked,
+            OutputBlending = material.OutputBlending,
             Partial = material.Truncated,
             Uninterpreted = material.UnhandledProperties.Distinct(StringComparer.Ordinal).ToList(),
         };

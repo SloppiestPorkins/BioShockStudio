@@ -26,9 +26,20 @@ the conclusion — so a finding can be acted on by a session that did not produc
 [the whole-game diagnostic sweep](#whole-game-diagnostic-sweep) below.
 
 **Scope:** 21 map packages plus the script packages — the `diagnose` sweep covers **33 packages,
-9,684 mesh exports, 13,545 materials and 31,106 textures**; the animation audit covers 16,031
+9,684 mesh exports, 14,328 materials and 31,106 textures**; the animation audit covers 16,031
 animations across 883 animation packages. The older figures below (9,672 meshes, 16,025 animations)
 are from the previous probe over the narrower set and are kept as written.
+
+**Materials went from 13,545 to 14,328 examined, 19 Aug 2026, from a real bug fix, not scope
+creep.** `AssetDiagnostics.ScanExport` checked `MaterialReader.IsMaterialClass` before the
+texture-class check; since a `Texture` export is itself a valid material (a `BitmapMaterial`, per
+`MaterialReader.SelfSlot`), every texture in the game was being swallowed into the Materials bucket
+and the sweep silently examined **0 textures** — a regression `DocumentedFiguresTests` caught the
+moment it was measured again. Reordering the two checks fixed the dispatch; it also surfaced a
+second real gap while widening `IsMaterialClass` to scan `MaterialSwitch` directly: its
+`MaterialReader.Read` follows the switch's default child, but did not check the child was actually a
+class the reader understands before recursing into it, misreading an unrelated class's own Object
+properties as texture slots. Both are fixed; see `StructSizeTests` and `DocumentedFiguresTests`.
 
 Every check is objective. Nothing here judges whether something "looks" right; each one reports a
 fact that can only be true of a broken result — a decode that failed, a non-finite vertex, an index
@@ -41,12 +52,14 @@ that is recorded rather than the check being quietly dropped.
 |---|---|---|---|
 | Meshes decoded | 9,672 | **9,654** | 99.8% |
 | Animations decoded | 16,025 | **16,025** | 100% |
-| Meshes with a resolved diffuse texture | 9,684 | **9,337** | **96.4%** (was 73.9% two sessions ago, 91.1% before the material-class work) |
+| Meshes with a resolved diffuse texture | 9,684 | **9,372** | **96.8%** (was 96.4% before the diagnostic-dispatch and MipZero fixes, 73.9% two sessions before that, 91.1% before the material-class work) |
 
-Geometry and animation are essentially complete, and materials have gone from 7.0% to **96.4%** in
-three steps: a `StaticMesh` names its material in its own `Materials` property; an import naming a
-shader in another package is followed; and a texture binding is any object property that resolves to
-a `Texture`, not a name on a list. See [research/materials.md](research/materials.md).
+Geometry and animation are essentially complete, and materials have gone from 7.0% to **96.8%** in
+four steps: a `StaticMesh` names its material in its own `Materials` property; an import naming a
+shader in another package is followed; a texture binding is any object property that resolves to a
+`Texture`, not a name on a list; and fixing the diagnostic sweep's material/texture dispatch order
+(above) plus decoding UE2's constant-colour `MipZero` texture variant recovered another 45
+previously-"undecodable" textures. See [research/materials.md](research/materials.md).
 
 ## Animation audit — whole game
 
@@ -140,19 +153,19 @@ nothing in the code consumes it.
 
 ## Whole-game diagnostic sweep
 
-`CONFIRMED_BYTES`, from `diagnose` over the whole install. **Examined 54,335 assets in 33 packages:
-9,684 meshes, 13,545 materials, 31,106 textures.** The counts below are after the material-class work
-described under `mesh-no-diffuse`; where a figure moved, both are given. Animation is a separate sweep — `--animations`
-merges `audit-animations` in — because it costs minutes on its own.
+`CONFIRMED_BYTES`, from `diagnose` over the whole install. **Examined 55,118 assets in 33 packages:
+9,684 meshes, 14,328 materials, 31,106 textures.** The counts below are current as of 19 Aug 2026;
+where a figure moved from a real fix rather than scope creep, both are given. Animation is a
+separate sweep — `--animations` merges `audit-animations` in — because it costs minutes on its own.
 
 | count | severity | code | what it means |
 |---|---|---|---|
-| 46 | Broken | `texture-undecodable` | The texture will not decode, so nothing can be written for it. Was 320 before ordinal 12 was decoded. |
+| 1 | Broken | `texture-undecodable` | The texture will not decode, so nothing can be written for it. Was 320 before ordinal 12 was decoded, 46 before the `MipZero` constant-colour variant was decoded (19 Aug 2026). |
 | 18 | Broken | `mesh-no-geometry` | No vertex data in the payload. |
-| 240 | Degraded | `mesh-no-diffuse` | The material resolves but binds no base colour, so the mesh draws flat. |
-| 123 | Degraded | `mesh-material-slot-unresolved` | A surface has no material and draws untextured. |
+| 202 | Degraded | `mesh-no-diffuse` | The material resolves but binds no base colour, so the mesh draws flat. Was 240 before the diagnostic-dispatch fix below let more slots naming a Texture directly resolve. |
+| 110 | Degraded | `mesh-material-slot-unresolved` | A surface has no material and draws untextured. Was 123, same fix. |
 | 2 | Degraded | `mesh-uv-out-of-range` | The UVs are not usable. |
-| 153 | Note | `mesh-materials-without-sections` | A skeletal mesh names several materials and has no table saying which triangles use which. |
+| 157 | Note | `mesh-materials-without-sections` | A skeletal mesh names several materials and has no table saying which triangles use which. Was 153; more multi-material meshes are now correctly resolved as such. |
 
 Two of these agree exactly with results already pinned by other tests, which is what says the sweep
 is measuring the same game: the **18** `mesh-no-geometry` are precisely the 18 door exports
@@ -165,25 +178,26 @@ stated in three documents at once and was wrong in all three within a session, w
 numbers here are now pinned by a test rather than maintained by hand (see
 [Keeping these figures honest](#keeping-these-figures-honest)).
 
-By this sweep, **347 of 9,684 meshes (3.6%) draw with no base colour at all** — 240 resolving a
-material that binds none, plus those whose every surface resolves nothing. So **96.4% carry a base
-colour**, against 91.1% before the material-class work below and 73.9% when that line was written.
+**19 Aug 2026 — two real fixes, not a regression, moved every figure in the table above.**
+`DocumentedFiguresTests` caught `AssetDiagnostics.ScanExport` checking
+`MaterialReader.IsMaterialClass` before the texture-class check: since a `Texture` export is itself
+a valid material (`MaterialReader.SelfSlot`), every texture in the game was being swallowed into the
+Materials bucket and the sweep silently examined **0 textures** — this was the actual failure, not
+documentation drift. Reordering the two checks fixed it, and separately, `TextureReader` now decodes
+UE2's constant-colour `MipZero` texture variant (`WhiteTexture`, `BlackTexture` and others were never
+actually broken, just not yet modeled). Together: `mesh-no-diffuse` **240 → 202**,
+`mesh-material-slot-unresolved` **123 → 110**, `texture-undecodable` **46 → 1**.
 
-> **Correction, and a caveat on that 96.4%.** When the figures here were pinned by a test, the 347
-> could **not be reproduced from the `diagnose` output**, and its derivation had not been written
-> down anywhere. What the sweep reports is **240** `mesh-no-diffuse` and **123**
-> `mesh-material-slot-unresolved`, and those two are **disjoint** on the shipped game — no mesh
-> raises both — giving **363 distinct meshes with a base-colour fault, so 96.3% carry one**.
->
-> The two numbers measure different things and both are defensible. 363 counts a mesh with *any*
-> unresolved slot, and a mesh with one unresolved slot out of three still has a base colour; 347
-> counts only meshes with **no base colour at all**, which is the more meaningful figure and the
-> smaller one. **363 is an upper bound and 96.3% a lower bound.**
->
-> The test asserts 363, because that is what is reproducible today. Pinning 347 needs a per-mesh
-> surface measurement the report does not expose — recorded as open rather than asserted on a
-> derivation that cannot be checked. This is precisely the drift the test was added to catch, and it
-> was caught on its first run.
+By this sweep, **202 + 110 = 312 of 9,684 meshes (3.2%) carry a base-colour fault** — the two codes
+remain disjoint on the shipped game, no mesh raises both. So **96.8% carry a base colour**, against
+96.4% before the 19 Aug fixes, 91.1% before the material-class work below, and 73.9% when this line
+was first written.
+
+> **The older "347" figure quoted here before 19 Aug 2026 was already flagged as unreproducible from
+> the `diagnose` output** — its derivation (240 plus only the slot-unresolved meshes whose *every*
+> surface resolves nothing) was never written down anywhere the sweep could check it, which is
+> exactly the drift `DocumentedFiguresTests` exists to catch. It is not being recomputed against the
+> new 202/110 counts for the same reason: **312 is what the sweep can actually reproduce.**
 
 ### `mesh-no-diffuse` was mostly material classes the reader did not know — 755 → 240
 
@@ -211,17 +225,28 @@ fronds and `newspaper_old_05` as three crumpled newspapers with legible print. B
 before. `StaticMeshRenderingTests.Static_Snapshot` writes them.
 
 What is left is not all fault. `LightBeamShader` genuinely has no base colour — it binds `FalloffMap`
-and `DustMap` and takes its look from `BeamColor` — and `MaterialSwitch`/`MaterialSequence` are
-Modifiers that wrap a list of *sub-materials*, which nothing follows yet. Open question 11b.
+and `DustMap` and takes its look from `BeamColor`. **`MaterialSwitch` is no longer wholly
+unfollowed as of 19 Aug 2026**: each shipped switch has an explicit `Material` property naming its
+authored default child, and `MaterialReader.Read` now follows that one reference (guarded so it only
+recurses into a class the reader actually knows how to parse — see `docs/ROADMAP.md`). The switch's
+own `Materials` candidate array — the *runtime* selection among several sub-materials — remains
+unfollowed; `MaterialSequence` deliberately still isn't, for the same reason. Open question 11b.
 
-### `mesh-material-slot-unresolved` is mostly declared-null slots — 117 of 123
+**The total in the table above is now further reduced, 240 → 202, by an unrelated dispatch fix**
+(see the note above the table) rather than by the `MaterialSwitch` child-following change, which
+does not change *this* count — a switch's default child was already being scanned as its own export
+when that export's class independently matched `IsMaterialClass`.
+
+### `mesh-material-slot-unresolved` is mostly declared-null slots — 117 of 123 (now 110)
 
 117 slots name nothing at all; 6 name an import that does not resolve, and four of those six are
 `DefaultTexture`. The null slots are the ones already recorded in the handoff's decision log: an
 empty slot keeps its position so the section table still indexes correctly, and the surface draws
-untextured rather than borrowing a neighbour's material.
+untextured rather than borrowing a neighbour's material. The total dropped to 110 on 19 Aug 2026
+from the diagnostic-dispatch fix above; the breakdown of which of the remaining 110 are null versus
+a still-unresolved import has not been re-derived and is not asserted here.
 
-### `texture-undecodable` was two separate things — 320 → 46
+### `texture-undecodable` was two separate things — 320 → 46 (now 1)
 
 The diagnostic reports which of the reader's own preconditions failed
 (`TextureReader.DescribeFailure`), and that split the original 320 cleanly with nothing left over:
@@ -252,11 +277,14 @@ block with the normal in **alpha and green**. Decoded both ways on `Cheese_Mould
 reading** rather than merely describing the right one. See
 [research/reference-comparison.md](research/reference-comparison.md) §1.
 
-**The 46 that remain are engine objects, not art** — 32 editor sprites (`S_Actor`, `S_Camera`,
-`S_HkVehicle`, `S_Trigger` …) plus `DefaultTexture`, `WhiteTexture`, `BlackTexture`,
-`MaterialBackdrop`, `Proj_Icon`, `SoundMarker`, `Texture0`. They are still reported as broken,
-because the reader genuinely cannot produce anything for them and saying otherwise would be a guess
-about payloads of 438 to 22,267 bytes that nobody has read.
+**Of the 46 that remained, all but one turned out to be decodable after all — 19 Aug 2026.**
+`TextureReader` now recognizes UE2's constant-colour `MipZero` variant: a texture with no `Format`
+property but a `MipZero` property of struct type `Color` is not missing its format, it's a solid
+fill, and the colour itself is the payload. That recovered `DefaultTexture`, `WhiteTexture`,
+`BlackTexture`, `MaterialBackdrop`, `Proj_Icon`, `SoundMarker` and the 32 editor sprites (`S_Actor`,
+`S_Camera`, `S_HkVehicle`, `S_Trigger` …). Only **`Texture0`** remains — 32,903 bytes, no `Format`
+and no `MipZero` either — still reported as broken, because the reader genuinely cannot produce
+anything for it and saying otherwise would be a guess about a payload nobody has read.
 
 ## What is actually wrong
 
@@ -276,13 +304,15 @@ meshes. A `SkeletalMesh` naming several materials still draws entirely in one of
 **That was wrong and is corrected here: the table exists.** `UnMeshBioshock.cpp`'s
 `FStaticLODModelBio` opens with `TArray<FSkelMeshSection>`, nine `uint16`s each, commented
 "1 section = 1 material" — see open question 11d and
-[reference-comparison.md](research/reference-comparison.md) §3a. So these 153 meshes are open
+[reference-comparison.md](research/reference-comparison.md) §3a. So these meshes are open
 because **the work is not done, not because the data is missing**: it needs the payload walked from
 the front instead of the vertex chain being searched for, and UModel targets the original game, so
 every field needs checking against Remastered bytes first.
 
-The diagnostic sweep counts **153** exports in this state (`mesh-materials-without-sections`), which
-replaces the old "28 distinct" estimate. `WP_CrossbowMesh` names `Crossbow_Shader` and
+The diagnostic sweep counts **157** exports in this state (`mesh-materials-without-sections`) — was
+153 before the 19 Aug 2026 diagnostic-dispatch fix let more of these meshes' materials resolve
+correctly enough to be recognized as genuinely multi-material rather than falling out some other
+way. `WP_CrossbowMesh` names `Crossbow_Shader` and
 `group_02_mat`; `TommyGunMESH` and `PlasmidEquipMESH` name two each; `PearlsAnim_Mesh` names three.
 The preview, the details panel and the Problems panel all say so. See open question 4c, and item 6
 under NEXT CLAUDE SESSION in `HANDOFF.md`.

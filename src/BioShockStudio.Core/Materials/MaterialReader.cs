@@ -73,6 +73,13 @@ public sealed record BioShockMaterial
     /// </remarks>
     public string? SourceFile { get; init; }
 
+    /// <summary>Zero-based export-table identity in <see cref="SourceFile"/>.</summary>
+    /// <remarks>
+    /// Names repeat both within and across packages. Keeping the original table identity lets an
+    /// importer update the same authored UE5 material on a later run instead of using a name match.
+    /// </remarks>
+    public required int SourceExportIndex { get; init; }
+
     /// <summary>
     /// The base colour texture, whichever slot the shader class puts it in.
     /// </summary>
@@ -102,10 +109,12 @@ public sealed record BioShockMaterial
         }
     }
 
-    public string? NormalTexture => TextureFor("NormalMap");
+    /// <summary>Tangent-space normal map, including class-specific shader slot names.</summary>
+    public string? NormalTexture => TextureFor("NormalMap") ?? TextureFor("AliveNormalMap");
 
     public string? SpecularTexture =>
-        TextureFor("SpecularColorMap") ?? TextureFor("FacingSpecularColorMap") ?? TextureFor("EdgeSpecularColorMap");
+        TextureFor("SpecularColorMap") ?? TextureFor("FacingSpecularColorMap") ?? TextureFor("EdgeSpecularColorMap")
+        ?? TextureFor("AliveSpecularColorMap");
 
     public string? TextureFor(string slot) =>
         Textures.FirstOrDefault(t => string.Equals(t.Slot, slot, StringComparison.OrdinalIgnoreCase))?.TextureName;
@@ -130,7 +139,10 @@ public sealed record BioShockMaterial
 /// </remarks>
 public static class MaterialReader
 {
-    /// <summary>Export classes that are materials.</summary>
+    /// <summary>
+    /// Export classes that were originally observed in mesh slots. Kept as a discovery aid; slot
+    /// validation itself must not be limited to this early sample (see <see cref="IsMaterialClass"/>).
+    /// </summary>
     public static readonly string[] ClassNames = ["Shader", "FacingShader", "TerrainShader", "WaterShader"];
 
     /// <summary>
@@ -190,7 +202,25 @@ public static class MaterialReader
     /// <summary>How far into a payload the tag block is looked for.</summary>
     private const int TagBlockSearchLimit = 256;
 
-    public static bool IsMaterialClass(string className) => ClassNames.Contains(className, StringComparer.Ordinal);
+    /// <summary>
+    /// Whether an object is a direct rendered material that a mesh slot may name.
+    /// </summary>
+    /// <remarks>
+    /// BioShock's shipped mesh slots name class-specific shaders such as <c>PlantShader</c>,
+    /// <c>FluidShader</c> and <c>LightBeamShader</c>, not only the four classes first sampled for
+    /// <see cref="ClassNames"/>. All have the same ordinary tagged-property container, so rejecting
+    /// a <c>*Shader</c> here leaves a verified base colour unbound before <see cref="Read"/> even
+    /// gets a chance to decode it. Compound material nodes (<c>MaterialSwitch</c>,
+    /// <c>MaterialSequence</c>) intentionally remain outside this predicate until their child
+    /// selection semantics are byte-backed.  <c>MaterialSwitch</c> is an exception: each shipped
+    /// switch has a direct <c>Material</c> property naming its declared default child, so that
+    /// child is safe to follow while the candidate-array selection semantics remain preserved as
+    /// unresolved data.
+    /// </remarks>
+    public static bool IsMaterialClass(string className) =>
+        className == BitmapMaterialClass
+        || className == "MaterialSwitch"
+        || className.EndsWith("Shader", StringComparison.Ordinal);
 
     /// <summary>
     /// Reads the material reference out of a mesh payload, or null when the tag block is not found or
@@ -432,9 +462,13 @@ public static class MaterialReader
         return Read(package, package.Exports[index.ExportIndex]);
     }
 
-    public static BioShockMaterial? Read(BioShockPackage package, ObjectExport export)
+    public static BioShockMaterial? Read(BioShockPackage package, ObjectExport export) =>
+        Read(package, export, new HashSet<int>());
+
+    /// <summary>Reads a rendered material, following a switch's explicit default child at most once per export.</summary>
+    private static BioShockMaterial? Read(BioShockPackage package, ObjectExport export, HashSet<int> visited)
     {
-        if (export.SerialSize <= 0) return null;
+        if (export.SerialSize <= 0 || !visited.Add(export.Index)) return null;
 
         byte[] payload = package.ReadExportData(export);
         List<UnrealProperty> properties;
@@ -446,6 +480,33 @@ public static class MaterialReader
         }
 
         string sourceFile = package.FilePath;
+        string className = package.GetClassName(export);
+
+        // A MaterialSwitch is a modifier, not the shader that ultimately renders.  Its Materials
+        // array describes candidates whose runtime selection still needs a dedicated decode, but
+        // the separate Material object property is the authored default child.  Following that
+        // explicit reference improves static reconstruction without guessing how a live switch
+        // chooses among candidates.  MaterialSequence deliberately does not enter this branch:
+        // it only serialises SequenceItems structs, whose timing/selection semantics are unknown.
+        if (className == "MaterialSwitch")
+        {
+            var selected = properties.FirstOrDefault(property =>
+                property.Name == "Material" && property.Type == UnrealPropertyType.Object);
+            if (selected is not null && TryReadObjectReference(selected, out var reference)
+                && reference.IsExport && reference.ExportIndex < package.Exports.Count)
+            {
+                // The default child is not guaranteed to be a class this reader knows how to parse
+                // as a shader — a switch can name something like ZoningOnlyBrushMaterial, whose
+                // layout is unrelated. Reading it anyway with the generic tagged-property walk below
+                // misinterprets its own Object properties (e.g. a self-reference) as texture slots.
+                var childExport = package.Exports[reference.ExportIndex];
+                if (IsMaterialClass(package.GetClassName(childExport)))
+                {
+                    var child = Read(package, childExport, visited);
+                    if (child is not null) return child;
+                }
+            }
+        }
 
         var textures = new List<MaterialTexture>();
         var unhandled = new List<string>();
@@ -456,7 +517,7 @@ public static class MaterialReader
         // reading one as if it were a Shader finds no Object properties and reports a material that
         // binds nothing, and the mesh draws flat with its own texture sitting right there.
         // Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §1.
-        if (package.GetClassName(export) == BitmapMaterialClass)
+        if (className == BitmapMaterialClass)
         {
             textures.Add(new MaterialTexture
             {
@@ -515,7 +576,7 @@ public static class MaterialReader
         return new BioShockMaterial
         {
             Name = export.ObjectName,
-            ClassName = package.GetClassName(export),
+            ClassName = className,
             Textures = textures,
             Glossiness = glossiness,
             SpecularBrightness = specularBrightness,
@@ -529,24 +590,32 @@ public static class MaterialReader
             UnhandledProperties = unhandled,
             Truncated = truncated,
             SourceFile = sourceFile,
+            SourceExportIndex = export.Index,
         };
     }
 
     private static MaterialTexture? ReadTexture(BioShockPackage package, UnrealProperty property)
     {
-        int offset = 0;
-        int value;
-        try { value = ReadCompactIndex(property.Value, ref offset); }
-        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
-        {
-            return null;
-        }
-
-        var reference = new PackageIndex(value);
+        if (!TryReadObjectReference(property, out var reference)) return null;
         string? name = ResolveName(package, reference, "Texture");
         if (name is null) return null;
 
         return new MaterialTexture { Slot = property.Name, TextureName = name, Reference = reference };
+    }
+
+    private static bool TryReadObjectReference(UnrealProperty property, out PackageIndex reference)
+    {
+        reference = default;
+        int offset = 0;
+        try
+        {
+            reference = new PackageIndex(ReadCompactIndex(property.Value, ref offset));
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     private static bool NamesAMaterial(BioShockPackage package, PackageIndex reference)

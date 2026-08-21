@@ -1,6 +1,9 @@
 using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Rendering;
+using BioShockStudio.Core.Services;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -180,5 +183,72 @@ public sealed class SkeletalMeshSectionTests(GameFixture game)
         Assert.True(multi > 0,
             "every mesh reported exactly one section, so the table is not distinguishing materials "
             + "and reading it changes nothing");
+    }
+
+    [RequiresGameFact]
+    public void PackageAwareGeometryCarriesTheValidatedSections()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage!);
+        var mesh = package.Exports.Single(export => package.GetClassName(export) == "SkeletalMesh"
+            && export.ObjectName == "TommyGunMESH");
+        byte[] payload = package.ReadExportData(mesh);
+
+        var geometry = SkeletalMeshReader.ReadGeometry(payload, package.Names);
+        var sections = SkeletalMeshSectionReader.Read(payload, package.Names);
+
+        Assert.NotNull(geometry);
+        Assert.NotNull(sections);
+        Assert.Equal(sections!.Count, geometry!.Sections.Count);
+        Assert.Equal(sections.Sum(section => (int)section.NumFaces), geometry.TriangleCount);
+        Assert.Equal(sections.Select(section => section.FirstIndex), geometry.Sections.Select(section => section.FirstIndex));
+    }
+
+    [RequiresGameFact]
+    public void MultiMaterialSkeletalMeshesResolveOneSurfacePerDecodedSection()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage!);
+        var mesh = package.Exports.Single(export => package.GetClassName(export) == "SkeletalMesh"
+            && export.ObjectName == "TommyGunMESH");
+        byte[] payload = package.ReadExportData(mesh);
+        var geometry = SkeletalMeshReader.ReadGeometry(payload, package.Names);
+
+        Assert.NotNull(geometry);
+        var surfaces = MeshSurfaceResolver.Resolve(package, mesh, geometry!);
+
+        Assert.Equal(geometry.Sections.Count, surfaces.Count);
+        Assert.Equal(geometry.Sections.Select(section => section.FirstIndex), surfaces.Select(surface => surface.FirstIndex));
+        Assert.Equal(geometry.Sections.Select(section => section.IndexCount), surfaces.Select(surface => surface.IndexCount));
+        Assert.Equal([0, 1], surfaces.Select(surface => surface.Slot));
+        Assert.All(surfaces, surface => Assert.NotNull(surface.Material));
+    }
+
+    /// <summary>Exercises the package-aware geometry path the application viewport actually uses.</summary>
+    [RequiresGameFact]
+    public void TommyGunPreviewUsesBothMaterialRuns()
+    {
+        var catalog = new AssetCatalogService();
+        catalog.RegisterInstall(game.RequireRoot);
+
+        using var package = BioShockPackage.Open(game.WeaponPackage!);
+        string packageName = Path.GetFileNameWithoutExtension(game.WeaponPackage!);
+        var entry = AssetCatalogService.Catalogue(package, packageName)
+            .Single(item => item.ClassName == "SkeletalMesh" && item.Name == "TommyGunMESH");
+
+        var subject = new MeshPreviewService(catalog).Load(entry);
+        Assert.Equal(2, subject.Model.Surfaces.Count);
+        Assert.Equal(2, subject.Model.TriangleSurface.Distinct().Count(index => index >= 0));
+        Assert.All(subject.Model.Surfaces, surface => Assert.NotNull(surface.Texture));
+
+        // Visual evidence is opt-in, but the image travels through the same surface mapping as the
+        // window. Use it when reviewing a material-section regression rather than trusting counts.
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_SKELETAL_SECTION_SNAPSHOT") is { Length: > 0 } target)
+        {
+            var image = SoftwareRenderer.Render(subject.Model,
+                PreviewCamera.Frame(subject.Model.Centre, subject.Model.Radius).Orbit(0.6f, 0.3f),
+                new RenderOptions { ShowSkeleton = false, ShowSockets = false }, 640, 480);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            Core.Textures.PngWriter.Write(target, image.Rgba, image.Width, image.Height);
+            Assert.True(File.Exists(target));
+        }
     }
 }

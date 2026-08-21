@@ -58,6 +58,34 @@ public sealed class MaterialClassTests(GameFixture game)
 
         // And the base colour resolves, which is what stops the mesh drawing flat.
         Assert.Equal("Kelp_01_Diffuse", kelp.DiffuseTexture);
+        Assert.Equal("Kelp_01_Normal", kelp.NormalTexture);
+        Assert.Equal("Kelp_01_Specular", kelp.SpecularTexture);
+    }
+
+    /// <summary>
+    /// A mesh slot must accept a class-specific shader. The material reader already understands
+    /// PlantShader; rejecting it at the slot boundary made that decoder unreachable for levels.
+    /// </summary>
+    [RequiresGameFact]
+    public void StaticMeshSlotsAcceptClassSpecificShaders()
+    {
+        using var package = BioShockPackage.Open(Map("0-Lighthouse"));
+
+        var mesh = package.Exports
+            .Where(export => package.GetClassName(export) == "StaticMesh")
+            .FirstOrDefault(export => MaterialReader.ReadMeshMaterialSlots(
+                package.ReadExportData(export), package).Any(reference =>
+                    reference.IsExport
+                    && package.GetClassName(package.Exports[reference.ExportIndex]) == "PlantShader"));
+
+        Assert.True(mesh is not null, "the shipped map has no StaticMesh slot using PlantShader");
+        var slots = MaterialReader.ReadMeshMaterialSlots(package.ReadExportData(mesh!), package);
+        var plant = Assert.Single(slots.Where(reference => reference.IsExport
+            && package.GetClassName(package.Exports[reference.ExportIndex]) == "PlantShader"));
+
+        var material = MaterialReader.Read(package, package.Exports[plant.ExportIndex]);
+        Assert.NotNull(material);
+        Assert.NotNull(material!.DiffuseTexture);
     }
 
     /// <summary>
@@ -146,6 +174,43 @@ public sealed class MaterialClassTests(GameFixture game)
         var binding = Assert.Single(material.Textures);
         Assert.True(binding.Reference.IsExport);
         Assert.Equal(export!.Index, binding.Reference.ExportIndex);
+    }
+
+    /// <summary>
+    /// A switch carries both a candidate array and an explicit default <c>Material</c> object. The
+    /// latter is enough to render the shipped static default without pretending its runtime choice
+    /// rules are understood.
+    /// </summary>
+    [RequiresGameFact]
+    public void AMaterialSwitchFollowsItsDeclaredDefaultChild()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var material = Material(package, "MaterialSwitch", "med_quarantine_switch");
+
+        Assert.Equal("Shader", material.ClassName);
+        Assert.Equal("med_quarantine_sign_diffuse_scroll_shader", material.Name);
+        Assert.NotNull(material.DiffuseTexture);
+    }
+
+    [RequiresGameFact]
+    public void AMaterialSequenceWalksItsNestedItemsPastTheShortArraySize()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var export = package.Exports.Single(entry => package.GetClassName(entry) == "MaterialSequence"
+            && entry.ObjectName == "drip_sequence");
+
+        var sequence = MaterialSequenceReader.Read(package, export);
+
+        Assert.NotNull(sequence);
+        Assert.True(sequence!.Complete, $"only {sequence.Items.Count} of 30 sequence items walked: {sequence.Failure}");
+        Assert.Equal(30, sequence.Items.Count);
+        Assert.All(sequence.Items, item =>
+        {
+            Assert.True(item.Material.IsExport || item.Material.IsImport);
+            Assert.True(float.IsFinite(item.Time));
+            Assert.InRange(item.Action, (byte)0, (byte)1);
+        });
+        Assert.Equal(0.05f, sequence.Items[0].Time, 3);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Mesh;
 
@@ -24,6 +25,15 @@ public static class MeshGeometryReader
     public static MeshGeometry? Read(string className, ReadOnlySpan<byte> payload) => className switch
     {
         AssetClasses.SkeletalMesh => SkeletalMeshReader.ReadGeometry(payload),
+        AssetClasses.StaticMesh => StaticMeshReader.ReadGeometry(payload),
+        _ => null,
+    };
+
+    /// <summary>Package-aware form, which attaches SkeletalMesh material sections when validated.</summary>
+    public static MeshGeometry? Read(
+        string className, ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names) => className switch
+    {
+        AssetClasses.SkeletalMesh => SkeletalMeshReader.ReadGeometry(payload, names),
         AssetClasses.StaticMesh => StaticMeshReader.ReadGeometry(payload),
         _ => null,
     };

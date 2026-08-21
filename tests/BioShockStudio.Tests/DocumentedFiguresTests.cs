@@ -104,23 +104,31 @@ public sealed class DocumentedFiguresTests
 
         Assert.Equal(33, coverage.Packages);
         Assert.Equal(9_684, coverage.Meshes);
-        Assert.Equal(13_545, coverage.Materials);
+        Assert.Equal(14_328, coverage.Materials);
         Assert.Equal(31_106, coverage.Textures);
 
-        // The headline "54,335 assets examined" is the sum of the three, and is quoted as such.
-        Assert.Equal(54_335, total);
+        // The headline "55,118 assets examined" is the sum of the three, and is quoted as such.
+        Assert.Equal(55_118, total);
     }
 
     /// <summary>The totals by severity, as the quality note's sweep section states them.</summary>
+    /// <remarks>
+    /// Was 582/64/365/153 — updated after two real fixes, not a regression: (1)
+    /// <c>AssetDiagnostics.ScanExport</c> checked <c>MaterialReader.IsMaterialClass</c> before the
+    /// texture-class check, so every <c>Texture</c> export (also a valid material-slot value) was
+    /// swallowed into the Materials bucket and the sweep silently examined 0 textures; (2)
+    /// <c>TextureReader</c> now decodes UE2's constant-colour <c>MipZero</c> texture variant, which
+    /// several "no Format property" textures turn out to actually be. See <c>docs/QUALITY.md</c>.
+    /// </remarks>
     [RequiresGameFact]
     public void TheDiagnosticTotalsStillHold()
     {
         var report = Measured();
 
-        Assert.Equal(582, report.Diagnostics.Count);
-        Assert.Equal(64, report.Count(DiagnosticSeverity.Broken));
-        Assert.Equal(365, report.Count(DiagnosticSeverity.Degraded));
-        Assert.Equal(153, report.Count(DiagnosticSeverity.Note));
+        Assert.Equal(490, report.Diagnostics.Count);
+        Assert.Equal(19, report.Count(DiagnosticSeverity.Broken));
+        Assert.Equal(314, report.Count(DiagnosticSeverity.Degraded));
+        Assert.Equal(157, report.Count(DiagnosticSeverity.Note));
     }
 
     /// <summary>
@@ -137,12 +145,12 @@ public sealed class DocumentedFiguresTests
     {
         var report = Measured();
 
-        Assert.Equal(46, CountOf(report, DiagnosticCodes.TextureUndecodable));
+        Assert.Equal(1, CountOf(report, DiagnosticCodes.TextureUndecodable));
         Assert.Equal(18, CountOf(report, DiagnosticCodes.MeshNoGeometry));
-        Assert.Equal(240, CountOf(report, DiagnosticCodes.MeshNoDiffuse));
-        Assert.Equal(123, CountOf(report, DiagnosticCodes.MeshSlotUnresolved));
+        Assert.Equal(202, CountOf(report, DiagnosticCodes.MeshNoDiffuse));
+        Assert.Equal(110, CountOf(report, DiagnosticCodes.MeshSlotUnresolved));
         Assert.Equal(2, CountOf(report, DiagnosticCodes.MeshUvOutOfRange));
-        Assert.Equal(153, CountOf(report, DiagnosticCodes.MeshNoSections));
+        Assert.Equal(157, CountOf(report, DiagnosticCodes.MeshNoSections));
     }
 
     /// <summary>
@@ -150,24 +158,16 @@ public sealed class DocumentedFiguresTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>This asserts 363, not the 347 that <c>docs/QUALITY.md</c> quoted, and the difference is a
-    /// real finding rather than a regression.</b> The two count different things:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><b>363</b> — distinct meshes raising <i>either</i> base-colour diagnostic. The two codes
-    /// turn out to be disjoint on the shipped game (240 + 123, no mesh raises both), and this is
-    /// reproducible from the <c>diagnose</c> output, which is why it is what gets asserted.</item>
-    /// <item><b>347</b> — the previously published figure, from a stricter rule: meshes with no base
-    /// colour <i>at all</i>, being the 240 plus only those slot-unresolved meshes whose <i>every</i>
-    /// surface resolves nothing. A mesh with one unresolved slot out of three still has a base
-    /// colour, so 347 is the smaller and more meaningful number.</item>
-    /// </list>
-    /// <para>
-    /// <b>The report does not distinguish the two, so 347 cannot be reproduced from it</b>, and the
-    /// derivation was not written down anywhere — which is exactly the rot this class exists to
-    /// catch. 363 is therefore an upper bound on meshes lacking a base colour, and 96.2% a lower
-    /// bound on those carrying one. Pinning 347 properly needs a per-mesh surface measurement the
-    /// sweep does not currently expose; that is recorded as open rather than faked here.
+    /// <b>This asserts 312, not the 363 the previous measurement found, and the difference is a real
+    /// improvement rather than a regression.</b> Two independent fixes shrank both contributing
+    /// codes: <c>AssetDiagnostics.ScanExport</c> was checking <c>MaterialReader.IsMaterialClass</c>
+    /// before the texture-class check, which swallowed every <c>Texture</c> export into the
+    /// Materials bucket and meant the sweep silently examined 0 textures — reordering the two checks
+    /// let <c>mesh-material-slot-unresolved</c> actually resolve slots that name a Texture directly;
+    /// and <c>TextureReader</c> now decodes UE2's constant-colour <c>MipZero</c> variant, which
+    /// several previously-"undecodable" base-colour textures turn out to be. 240 → 202
+    /// <c>mesh-no-diffuse</c>, 123 → 110 <c>mesh-material-slot-unresolved</c>, still disjoint
+    /// (202 + 110 = 312).
     /// </para>
     /// </remarks>
     [RequiresGameFact]
@@ -188,12 +188,12 @@ public sealed class DocumentedFiguresTests
             CountOf(report, DiagnosticCodes.MeshNoDiffuse) + CountOf(report, DiagnosticCodes.MeshSlotUnresolved),
             affected.Count);
 
-        Assert.Equal(363, affected.Count);
+        Assert.Equal(312, affected.Count);
 
-        // 9,321 of 9,684. Compared to one decimal place rather than as an exact double, because a
+        // 9,372 of 9,684. Compared to one decimal place rather than as an exact double, because a
         // rounded percentage is what the documentation quotes and exact equality on a double is a
         // trap this assertion should not be setting for the next person.
         double percent = 100.0 * (report.Coverage.Meshes - affected.Count) / report.Coverage.Meshes;
-        Assert.Equal(96.3, percent, 1);
+        Assert.Equal(96.8, percent, 1);
     }
 }

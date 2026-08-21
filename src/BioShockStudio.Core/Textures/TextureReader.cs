@@ -109,14 +109,22 @@ public static class TextureReader
         var format = properties.FirstOrDefault(p => p.Name == "Format");
         var uSize = properties.FirstOrDefault(p => p.Name == "USize");
         var vSize = properties.FirstOrDefault(p => p.Name == "VSize");
-        if (format is null || uSize is null || vSize is null) return null;
-
-        var textureFormat = (BioShockTextureFormat)format.AsByte();
-        if (!Enum.IsDefined(textureFormat)) return null;
+        if (uSize is null || vSize is null) return null;
 
         int width = uSize.AsInt();
         int height = vSize.AsInt();
         if (width <= 0 || height <= 0 || width > 8192 || height > 8192) return null;
+
+        // UE2 also ships small utility textures as a solid MipZero Color with no Format or mip
+        // chain at all (WhiteTexture, BlackTexture, SubActionIndicator). The colour is the payload,
+        // not a missing header, so model it as generated RGBA8 rather than reporting a false gap.
+        if (format is null)
+            return SolidColour(properties, width, height) is not null
+                ? (BioShockTextureFormat.Rgba8, width, height)
+                : null;
+
+        var textureFormat = (BioShockTextureFormat)format.AsByte();
+        if (!Enum.IsDefined(textureFormat)) return null;
 
         return (textureFormat, width, height);
     }
@@ -159,16 +167,23 @@ public static class TextureReader
         var format = properties.FirstOrDefault(p => p.Name == "Format");
         var uSize = properties.FirstOrDefault(p => p.Name == "USize");
         var vSize = properties.FirstOrDefault(p => p.Name == "VSize");
-        if (format is null || uSize is null || vSize is null) return null;
-
-        var textureFormat = (BioShockTextureFormat)format.AsByte();
-        if (!Enum.IsDefined(textureFormat)) return null;
+        if (uSize is null || vSize is null) return null;
 
         int width = uSize.AsInt();
         int height = vSize.AsInt();
         if (width <= 0 || height <= 0 || width > 8192 || height > 8192) return null;
 
-        var mips = ReadMips(payload, textureFormat);
+        // Normal textures may also carry MipZero metadata. It is a texture variant only when the
+        // normal Format field is absent; otherwise the on-disk mip chain remains authoritative.
+        byte[]? solid = format is null ? SolidColour(properties, width, height) : null;
+        if (format is null && solid is null) return null;
+
+        var textureFormat = format is null ? BioShockTextureFormat.Rgba8 : (BioShockTextureFormat)format.AsByte();
+        if (!Enum.IsDefined(textureFormat)) return null;
+
+        var mips = solid is null
+            ? ReadMips(payload, textureFormat)
+            : new List<TextureMip> { new() { Width = width, Height = height, Data = solid } };
         if (mips.Count == 0) return null;
 
         // Most textures ship with their top levels removed and kept in the bulk store, so what the
@@ -192,6 +207,28 @@ public static class TextureReader
             DeclaredHeight = height,
             StrippedMipCount = stripped,
         };
+    }
+
+    /// <summary>
+    /// Reads UE2's constant-colour texture variant. <c>Color</c> stores BGRA on disk; previews
+    /// and PNG export consume RGBA, so the conversion belongs at this byte boundary.
+    /// </summary>
+    private static byte[]? SolidColour(IReadOnlyList<UnrealProperty> properties, int width, int height)
+    {
+        var mipZero = properties.FirstOrDefault(property => property.Name == "MipZero"
+            && property.StructName == "Color" && property.Value.Length >= 4);
+        if (mipZero is null) return null;
+
+        byte b = mipZero.Value[0], g = mipZero.Value[1], r = mipZero.Value[2], a = mipZero.Value[3];
+        var rgba = new byte[checked(width * height * 4)];
+        for (int i = 0; i < rgba.Length; i += 4)
+        {
+            rgba[i] = r;
+            rgba[i + 1] = g;
+            rgba[i + 2] = b;
+            rgba[i + 3] = a;
+        }
+        return rgba;
     }
 
     /// <summary>

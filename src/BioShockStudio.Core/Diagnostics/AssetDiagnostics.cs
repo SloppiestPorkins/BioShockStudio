@@ -381,16 +381,22 @@ public static class AssetDiagnostics
             return DiagnosticSubsystem.Geometry;
         }
 
-        if (MaterialReader.IsMaterialClass(className))
-        {
-            ScanMaterial(package, packageName, export, index, className, found);
-            return DiagnosticSubsystem.Materials;
-        }
-
+        // Checked before IsMaterialClass: a Texture export is unambiguously a texture asset for
+        // sweep purposes. IsMaterialClass also answers true for "Texture" — a Texture named directly
+        // in a mesh's material slot is itself a material there — but that is a different question
+        // (what a *slot* resolves to) from what *this export itself* is. Checking materials first
+        // swallowed every Texture export into the Materials bucket and left the sweep reporting zero
+        // textures examined.
         if (className == TextureReader.ClassName)
         {
             ScanTexture(package, packageName, export, index, className, bulk, found);
             return DiagnosticSubsystem.Textures;
+        }
+
+        if (MaterialReader.IsMaterialClass(className))
+        {
+            ScanMaterial(package, packageName, export, index, className, found);
+            return DiagnosticSubsystem.Materials;
         }
 
         return null;

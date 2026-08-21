@@ -343,7 +343,19 @@ public static class SkeletalMeshReader
     /// which makes a false positive implausible.
     /// </para>
     /// </summary>
-    public static MeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload)
+    public static MeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload) => ReadGeometry(payload, names: null);
+
+    /// <summary>
+    /// Reads skeletal geometry and, when the owning package's names are supplied, its validated
+    /// material-section table.
+    /// </summary>
+    /// <remarks>
+    /// The geometry layout itself has no dependency on the name table.  The section table does: its
+    /// route starts at the socket names and validates against this geometry's independently located
+    /// index buffer.  Keeping the names optional preserves byte-only callers while letting actual
+    /// preview/export paths split multi-material skinned meshes correctly.
+    /// </remarks>
+    public static MeshGeometry? ReadGeometry(ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry>? names)
     {
         if (!TryLocateGeometry(payload, out var layout)) return null;
 
@@ -391,7 +403,7 @@ public static class SkeletalMeshReader
 
         // As in StaticMeshReader: the raw decode ends here, and the basis conversion is applied once
         // at this boundary. See Coordinates/GameBasis.
-        return GameBasis.Convert(new MeshGeometry
+        var geometry = GameBasis.Convert(new MeshGeometry
         {
             Vertices = vertices,
             Indices = indices,
@@ -399,6 +411,20 @@ public static class SkeletalMeshReader
             SkinnedVertexCount = layout.SkinnedCount,
             RigidVertexCount = layout.RigidCount,
         });
+
+        if (names is null) return geometry;
+
+        var sections = SkeletalMeshSectionReader.Read(payload, names);
+        if (sections is null) return geometry;
+
+        return geometry with
+        {
+            Sections = sections.Select(section => new MeshSection(
+                section.FirstIndex,
+                section.MinWedgeIndex,
+                section.MaxWedgeIndex,
+                section.NumFaces)).ToList(),
+        };
     }
 
     private static MeshVertex ReadVertexCore(ReadOnlySpan<byte> payload, int offset, IReadOnlyList<SkinInfluence> influences) =>

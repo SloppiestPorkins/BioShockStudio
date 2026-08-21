@@ -162,6 +162,42 @@ public sealed partial class MaterialTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void Export_PreservesRawShaderValuesWithoutInventingABlendMode()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+
+        // The map contains several materials with OutputBlending.  Select one through its mesh so
+        // this verifies the same resolution/export path a user invokes, rather than a detached
+        // material-reader result.
+        var mesh = package.Exports
+            .Where(e => package.GetClassName(e) == AssetClasses.StaticMesh)
+            .FirstOrDefault(e => MaterialReader.ReadForMesh(package, e)?.OutputBlending is not null);
+        Assert.NotNull(mesh);
+
+        var source = MaterialReader.ReadForMesh(package, mesh!);
+        var directory = Path.Combine(Path.GetTempPath(), $"bioshock-material-values-{Guid.NewGuid():N}");
+        try
+        {
+            var exported = MaterialExporter.Resolve(package, mesh!, directory);
+
+            Assert.NotNull(source);
+            Assert.NotNull(exported);
+            Assert.Equal(source!.OutputBlending, exported!.OutputBlending);
+            Assert.Equal(source.SourceFile, exported.SourceFile);
+            Assert.Equal(source.SourceExportIndex, exported.SourceExportIndex);
+            Assert.Equal(source.EmissiveBrightness, exported.EmissiveBrightness);
+            float[]? expectedEmissive = source.EmissiveColor is { } color
+                ? [color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f]
+                : null;
+            Assert.Equal(expectedEmissive, exported.EmissiveColor);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [RequiresGameFact]
     public void Fbx_CarriesTheMaterialAndItsTextureFiles()
     {
         using var package = BioShockPackage.Open(game.LighthousePackage);

@@ -1,5 +1,6 @@
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
+using BioShockStudio.Core.Game;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -106,6 +107,27 @@ public sealed class TextureTests(GameFixture game)
         Assert.True(failed < 20, $"{failed} textures failed");
         Assert.Contains(BioShockTextureFormat.Dxt1, seen);
         Assert.Contains(BioShockTextureFormat.Dxt5, seen);
+    }
+
+    /// <summary>
+    /// UE2 utility textures can be a single stored colour rather than a compressed mip chain. They
+    /// are normal textures, not corrupt exports, and must stay available to a UE5 material export.
+    /// </summary>
+    [RequiresGameFact]
+    public void SolidColourTextureVariantDecodesFromMipZero()
+    {
+        using var package = BioShockPackage.Open(Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "Entry.bsm"));
+        var export = package.Exports.Single(e => e.ObjectName == "BlackTexture"
+            && package.GetClassName(e) == TextureReader.ClassName);
+
+        var header = TextureReader.ReadHeader(package, export);
+        var texture = TextureReader.Read(package, export);
+
+        Assert.Equal((BioShockTextureFormat.Rgba8, 32, 32), header);
+        Assert.NotNull(texture);
+        var mip = Assert.Single(texture!.Mips);
+        Assert.Equal(32 * 32 * 4, mip.Data.Length);
+        Assert.All(mip.Data.Chunk(4), pixel => Assert.Equal(new byte[] { 0, 0, 0, 255 }, pixel));
     }
 
     [RequiresGameFact]
