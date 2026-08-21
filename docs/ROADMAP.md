@@ -43,7 +43,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | Application (GUI) | Asset browser (14,378 assets), 3D preview + animation playback, walkable level viewport (GPU + tested software fallback), Problems panel, audio tabs, profile editor. |
 | Export — Blender / FBX | Complete — skinned mesh, armature, actions, sockets, materials; FBX validated by round-trip through Blender. |
 | UE5 import | **Working, verified for real in UE5.7** — pistol and TommyGun first-person slices (both rigs, all animations, sockets) import cleanly via a Blender-normalization bridge + editor plugin. No app-facing UI yet. |
-| Bytecode / game-logic decode | **Not started.** Zero prior work; scoped in Part 2 below. |
+| Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
 | Tests | Full suite **437/437 passing** (measured 19 Aug 2026). See "Test health" below. |
 
@@ -328,7 +328,24 @@ material.
 
 ### Gate 3 — levels and UE2 actor systems
 
-1. Zones, leaves, portals, visibility/collision relationships for the compiled world.
+1. ~~Zones, leaves, portals, visibility/collision relationships for the compiled world.~~ **Zone
+   connectivity and per-node visibility both done, 19 Aug 2026:**
+   - Every zone's 128-bit connectivity mask decodes (`BspZone.ConnectedZones`,
+     `docs/research/bsp.md` §5.5c), `CONFIRMED_BYTES` over all 1,042 zones in the game (bit *N* set
+     for zone *N* itself, 100%; 94% connect to at least one other zone, in a distribution — 1–15
+     bits, average 3.2 — shaped like real portal adjacency).
+   - `FBspNode+16`'s 128-bit per-node visibility mask also decodes (`BspNode.VisibleZones`,
+     §5.2), sourced from `Bioshock1REMSDK-WIP--main`'s working level editor and confirmed
+     independently: 81,559 of 81,566 polygon-carrying nodes (99.99%) see their own zone, the 7
+     exceptions all sharing `Zone == 0`. The two masks correlate (94% subset) but aren't identical —
+     real, related structures, not duplicates.
+   - Leaves already carry their own zone/permeating/volumetric fields (`BspLeaf`).
+
+   **Still open:** what the zone record's constant trailing 20 bytes are (possibly a
+   `VisibilityBitMask` or an unused environment default — no per-zone variation exists to correlate
+   it against, so this may stay `UNKNOWN`); the other 6% where node visibility isn't a subset of
+   zone connectivity; actual portal *geometry* (as opposed to zone-to-zone adjacency); and collision
+   relationships.
 2. Placed-actor transforms, parent/base links, draw scale, tags, material overrides — for every
    actor class, not just the geometry-bearing ones already placed.
 3. Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
@@ -363,21 +380,37 @@ material.
 ### Track B — UnrealScript bytecode / game-logic decoding
 
 Opened alongside the UE5 track on 18 Aug 2026 ("do both" — pursue UE5 import and game-logic
-decoding in parallel), and **genuinely not started**. The only trace of it anywhere in the codebase
-is a comment in `src/BioShockStudio.Core/Level/ClassDefaults.cs` noting that a `Class`/`UFunction`
-export's bytecode, of unknown length, must be skipped to reach its property defaults.
+decoding in parallel). **Went well past a reference survey, 19 Aug 2026: BioShock's own game logic
+is now readable.** `docs/research/bytecode.md` has the full record;
+`tools/uelib-bridge/` is the reusable tool.
 
-Per this project's standing policy, the first real step is not writing a decoder — it's reading
-reference material first: UE2.5's script VM opcode format is externally documented (UDN docs,
-UELib, other UE2 reverse-engineering projects), and those should be surveyed and cross-checked
-before any byte is interpreted. Concretely, in order:
+`Unreal-Library-master` (UELib) turned out to have first-class, explicit BioShock/Vengeance support
+— not just generic UE2 coverage. Its own build files target a `net10.0` this repo's SDK doesn't
+support, so `tools/uelib-bridge/` compiles its source directly against `net8.0` instead. Once
+building, it decompiles BioShock's actual shipped script packages to readable UnrealScript:
+**1,445 classes across 11 of 12 packages, 0 failures** (`Engine.U` crashes during package
+initialization on one version-gated field — a real, lower-priority gap, not chased further since
+it's mostly stock engine base classes rather than BioShock's own logic). Independently
+cross-validated: the decompiled `Pistol.uc`'s animation and mesh names match this project's own,
+completely independently byte-derived animation-package findings exactly.
 
-1. Survey UModel/UELib/Unreal-Library/Bioshock1REMSDK-WIP and UE2's own UDN documentation for the
-   opcode table and bytecode framing.
-2. Find and measure where bytecode begins/ends in a real, simple `Class`/`UFunction`/`UState` export
-   from a shipped package.
-3. Attempt a first decode on a small, well-understood function and verify the result against
-   expected logic before generalizing.
+This means the practical question Track B exists to answer — "what does BioShock's game logic
+actually do" — can already be answered for almost everything by regenerating and reading the
+decompiled output, without first building an independent decoder. What remains:
+
+1. ~~Survey UModel/UELib/Unreal-Library/Bioshock1REMSDK-WIP and UE2's own UDN documentation for the
+   opcode table and bytecode framing.~~ **Far exceeded** — a working decompiler run against the
+   real game, not just a reference survey.
+2. **Use the decompiled output as documentation** going forward, the same way other reference
+   projects' docs already get read, whenever a specific class or function's behavior is in
+   question elsewhere in this project. Regenerate via `tools/uelib-bridge/`; never commit the
+   output (game-derived, same reason no extracted textures/meshes/audio are committed).
+3. **Only if an independent, from-scratch decoder is still wanted** separately from reading UELib's
+   output: verify the bytecode length-framing hypothesis (`bytecode.md` §4) against this project's
+   own byte reader, then hand-walk one simple function's bytecode against the opcode table before
+   generalizing.
+4. Lower priority: investigate the `Engine.U` crash if its classes turn out to matter; expand the
+   native-function ID table beyond `coop-natives-map.md`'s partial coverage if needed.
 
 ---
 

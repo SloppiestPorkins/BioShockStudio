@@ -53,6 +53,14 @@ public sealed record BspNode
     /// <summary>The zone behind the node's plane. Vengeance allows 128, where stock UE2.5 allows 64.</summary>
     public required byte Zone { get; init; }
 
+    /// <summary>
+    /// Every zone index visible from this node — the node's own 128-bit mask at <c>+16</c>, per
+    /// <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c> (a working, rendering
+    /// level editor's reading, exercised there as a per-node visibility mask, not derived from these
+    /// bytes independently). See <see cref="BspZone"/> for the separate per-zone connectivity mask.
+    /// </summary>
+    public required IReadOnlyList<int> VisibleZones { get; init; }
+
     public bool IsPolygon => VertexCount >= 3;
 }
 
@@ -62,6 +70,32 @@ public sealed record BspLeaf
     public required int Zone { get; init; }
     public required int Permeating { get; init; }
     public required int Volumetric { get; init; }
+}
+
+/// <summary>
+/// One BSP zone: its actor, and the zone connectivity mask found in its 36-byte fixed tail.
+/// </summary>
+/// <remarks>
+/// <b>`CONFIRMED_BYTES`.</b> The tail's first 16 bytes are a little-endian 128-bit mask — sized for
+/// Vengeance's 128-zone maximum (stock UE2.5 is 64) — where bit <c>N</c> is the zone's own index.
+/// Measured across all 1,042 zones in the game: bit <c>N</c> is set for zone <c>N</c> on
+/// <b>1,042 of 1,042 (100%)</b>, and the trailing 20 bytes of the tail are the exact constant
+/// <c>FFFFFFFFFFFFFFFF000000000000000000000000</c> on every one, with no exceptions. Bits beyond a
+/// zone's own are set on 982 of 1,042 zones, and the distribution (1 to 15 bits, average 3.2) is the
+/// shape of a real portal-adjacency graph, not noise: most zones connect to a small number of
+/// neighbours, a few are hubs. This is <c>ConnectivityBitMask</c> in UE2 terms; whether the game
+/// ships a separate <c>VisibilityBitMask</c> (usually a superset, computed by a PVS pre-pass) is
+/// `UNKNOWN` — the constant trailing 20 bytes may be it, defaulted/unused, or something else
+/// entirely, and asserting which is not supported by evidence yet.
+/// </remarks>
+public sealed record BspZone
+{
+    public required PackageIndex Actor { get; init; }
+
+    /// <summary>
+    /// Every zone index this zone's mask carries, including its own. Portal-adjacency in UE2 terms.
+    /// </summary>
+    public required IReadOnlyList<int> ConnectedZones { get; init; }
 }
 
 /// <summary>One baked-light layer for a BSP surface, including its atlas tile.</summary>
@@ -255,6 +289,9 @@ public sealed record BspWorld
     /// <summary>Leaves in the structural UModel tail.</summary>
     public required IReadOnlyList<BspLeaf> Leaves { get; init; }
 
+    /// <summary>Zones and their connectivity, in the package's own order. See <see cref="BspZone"/>.</summary>
+    public required IReadOnlyList<BspZone> Zones { get; init; }
+
     /// <summary>References to the light actors carried by the UModel tail.</summary>
     public required IReadOnlyList<PackageIndex> LightReferences { get; init; }
 
@@ -445,6 +482,7 @@ public static class BspWorldReader
         int rootOutsideAt = 0, linkedAt = 0, lightMapsAt = 0;
         int lightMapCount = 0, lightBitsAt = 0, lightBitCount = 0, lightMapTexturesAt = 0, lightMapTextureCount = 0;
         IReadOnlyList<BspLeaf> leaves = [];
+        IReadOnlyList<BspZone> zones = [];
         IReadOnlyList<PackageIndex> lightReferences = [];
         IReadOnlyList<BspLightMap> lightMaps = [];
         IReadOnlyList<BspLightMapTexture> lightMapTextures = [];
@@ -454,19 +492,41 @@ public static class BspWorldReader
             zoneCount = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 4));
             zonesAt = offset + 8;
 
+            var parsedZones = new List<BspZone>(zoneCount >= 0 ? zoneCount : 0);
+
             if (zoneCount >= 0 && zoneCount <= 256)
             {
                 int cursor = zonesAt;
                 bool walked = true;
 
-                // A zone is an FCompactIndex actor reference followed by 36 fixed bytes. Measured:
-                // walking that lands on the Polys reference on 21 of 21 maps.
+                // A zone is an FCompactIndex actor reference followed by 36 fixed bytes: a 128-bit
+                // little-endian connectivity mask (bit N always set for zone N itself, plus a bit
+                // per connected zone — CONFIRMED_BYTES over all 1,042 zones in the game, see
+                // BspZone), then a constant, unvarying 20 bytes. Measured: walking this lands on the
+                // Polys reference on 21 of 21 maps.
                 for (int i = 0; i < zoneCount && walked; i++)
                 {
-                    PropertyValues.ReadCompactIndex(data, ref cursor);
+                    int actorReference = PropertyValues.ReadCompactIndex(data, ref cursor);
+                    if (cursor + 36 > data.Length) { walked = false; break; }
+
+                    ulong low = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(cursor));
+                    ulong high = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(cursor + 8));
                     cursor += 36;
-                    if (cursor > data.Length) walked = false;
+
+                    var connected = new List<int>();
+                    for (int bit = 0; bit < 64; bit++)
+                        if ((low & (1UL << bit)) != 0) connected.Add(bit);
+                    for (int bit = 0; bit < 64; bit++)
+                        if ((high & (1UL << bit)) != 0) connected.Add(64 + bit);
+
+                    parsedZones.Add(new BspZone
+                    {
+                        Actor = new PackageIndex(actorReference),
+                        ConnectedZones = connected,
+                    });
                 }
+
+                if (walked) zones = parsedZones;
 
                 if (walked && cursor + 2 <= data.Length)
                 {
@@ -565,6 +625,7 @@ public static class BspWorldReader
             Surfaces = surfaces,
             VertexPool = pool,
             Leaves = leaves,
+            Zones = zones,
             LightReferences = lightReferences,
             LightMaps = lightMaps,
             LightMapTextures = lightMapTextures,
@@ -848,6 +909,16 @@ public static class BspWorldReader
                 BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(at + 8))));
             float distance = BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(at + 12));
 
+            // +16: a 128-bit visible-zone mask, per the reference above. Read the same way as the
+            // zone record's own connectivity mask (BspZone), as two ulongs.
+            ulong visibleLow = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(at + 16));
+            ulong visibleHigh = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(at + 24));
+            var visibleZones = new List<int>();
+            for (int bit = 0; bit < 64; bit++)
+                if ((visibleLow & (1UL << bit)) != 0) visibleZones.Add(bit);
+            for (int bit = 0; bit < 64; bit++)
+                if ((visibleHigh & (1UL << bit)) != 0) visibleZones.Add(64 + bit);
+
             result.Add(new BspNode
             {
                 // Unreal stores the plane as normal plus a POSITIVE distance along it, so the plane
@@ -862,6 +933,7 @@ public static class BspWorldReader
                 LightMap = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 96)),
                 Zone = data[at + 77],
                 VertexCount = data[at + 78],      // A BYTE at +78. See the class remarks.
+                VisibleZones = visibleZones,
             });
         }
 

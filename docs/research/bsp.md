@@ -372,6 +372,22 @@ index, not a surface index: the descriptor table is not surface-ordered.
 
 Vengeance uses `MAX_ZONES = 128`, so `ZoneMask` is 128-bit where stock UE2.5 is 64.
 
+**`+16`'s `ZoneMask` is now decoded and consumed, not just recorded from the reference —
+`CONFIRMED_BYTES`, 19 Aug 2026.** `BspNode.VisibleZones` reads it as a 128-bit little-endian mask.
+Validated the same way the zone record's own connectivity mask was: a node's own zone should appear
+in its own visibility mask. Measured over all 21 maps: **81,559 of 81,566 polygon-carrying nodes
+(99.99%)**. The 7 exceptions all carry `Zone == 0` — plausibly the "outside"/default zone behaving
+differently, not a wrong offset (a wrong offset scatters failures across many zone values; every
+exception here lands on the same one). `BspWorldTests.EveryNodesOwnZoneIsInItsOwnVisibilityMask`.
+
+This is a **separate** structure from the zone record's own connectivity mask (§5.5c,
+`BspZone.ConnectedZones`): one lives on each polygon-carrying node (which zones can be seen *from
+this node*), the other on each zone record (which zones *this zone* connects to). They are related
+but not identical: a node's visibility mask is a subset of its own zone's connectivity mask on
+**76,657 of 81,566 nodes (94%)** — real correlation, corroborating that both are genuinely
+zone-relationship data, but not clean enough to assert as one invariant. `PLAUSIBLE`, not
+`CONFIRMED_BYTES`, pending an explanation for the other 6%.
+
 ### 5.3 `FBspSurf`
 
 ```
@@ -461,23 +477,45 @@ zone array, so `max(node.Zone)` must equal `NumZones − 1`.
 An arbitrary int32 does not track a byte field across 21 independent maps.
 `BspWorldTests.TheTailAfterTheVertexPoolStartsWithTheZoneCount`.
 
-**The zone record itself is `UNKNOWN`, and this is a negative result worth keeping.** Its zone-actor
-references are real — they resolve to `ZoneInfo` and `SkyZoneInfo` exports, which is what a zone
-points at — and within any one map they sit exactly **38 bytes** apart. But a fixed 38-byte stride
-lands on the `Polys` reference that UE2 serialises after the array on only **2 of 21** maps, because
-the reference is an `FCompactIndex` whose width varies with the export index. So the record is
-variable-width, its field order is not established, and **guessing it was rejected rather than
-shipped**. Settling it is what stands between this and `FLightMapIndex`: after the zones come
-`Polys`, then `LightMap`, then `LightBits`.
+~~The zone record itself is `UNKNOWN`, and this is a negative result worth keeping.~~ **Settled —
+see 5.5c and `BspZone`.** Its zone-actor references are real — they resolve to `ZoneInfo` and
+`SkyZoneInfo` exports, which is what a zone points at — and within any one map they sit exactly
+**38 bytes** apart. But a fixed 38-byte stride lands on the `Polys` reference that UE2 serialises
+after the array on only **2 of 21** maps, because the reference is an `FCompactIndex` whose width
+varies with the export index. So the record is variable-width, and **guessing it was rejected
+rather than shipped** while its field order was still unestablished.
 
 ### 5.5c The zone record, and the array after it. `CONFIRMED_BYTES` — with a correction
 
 **A zone record is an `FCompactIndex` actor reference followed by 36 fixed bytes.** Found by reading
-the bytes rather than by trying strides: the fixed part starts with the zone's own bit mask — `1`,
-`2`, `4` for zones 0, 1, 2 — and the references resolve to `ZoneInfo` and `SkyZoneInfo` exports.
+the bytes rather than by trying strides: the reference resolves to a `ZoneInfo` or `SkyZoneInfo`
+export, exactly what a zone points at.
 
 **A fixed 38-byte stride was tried first and is wrong**, landing correctly on only 2 of 21 maps: the
 reference's width varies with the export index, so only a walk works.
+
+**The 36-byte fixed tail is now decoded, not just walked over — `CONFIRMED_BYTES`, 19 Aug 2026.**
+Its first 16 bytes are a little-endian **128-bit zone connectivity mask** — sized for Vengeance's
+128-zone maximum, where stock UE2.5 is 64 — and its trailing 20 bytes are an exact, unvarying
+constant (`FFFFFFFFFFFFFFFF000000000000000000000000`). Measured across every zone in the game
+(**1,042 of 1,042**, all 20 map packages that carry any):
+
+| claim | agrees | disagrees |
+|---|---|---|
+| Bit *N* of the mask is set for zone *N* itself | **1,042** | **0** |
+| The trailing 20 bytes equal the one constant value above | **1,042** | **0** |
+
+982 of the 1,042 zones (94%) carry at least one bit beyond their own, and the distribution — 1 to
+15 bits set, average 3.2 — is the shape of a real portal-adjacency graph rather than noise: most
+zones connect to a small number of neighbours, a handful are hubs. This is `ConnectivityBitMask` in
+UE2 terms. `BspZone.ConnectedZones`, `BspWorldTests.ZoneConnectivityMasksAlwaysCarryTheirOwnBit`.
+
+**What the trailing constant 20 bytes are is `UNKNOWN`.** UE2 zones also carry a separate
+`VisibilityBitMask` (typically a superset of connectivity, computed by a PVS pre-pass) and various
+environment defaults (gravity, fluid friction, and similar) — the constant value here could be any
+of those, left at an engine default the game never overrides, or something this project hasn't
+considered. Unlike the connectivity mask, there is no per-zone variation to correlate against
+anything, so naming it would be exactly the guess this project's rules exist to prevent.
 
 **The anchor is what UE2 writes next.** After the zones comes the `Polys` object reference, and
 walking the zones lands on a reference resolving to a `Polys` export on **21 of 21 maps**.

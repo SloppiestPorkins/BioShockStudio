@@ -905,4 +905,108 @@ public sealed class BspWorldTests(GameFixture game)
         }
         return normal;
     }
+
+    /// <summary>
+    /// Every zone's connectivity mask carries its own bit, and every zone record's trailing 20
+    /// bytes are the same constant.
+    /// </summary>
+    /// <remarks>
+    /// <c>docs/research/bsp.md</c> §5.5c/`BspZone`. A zone that lost track of its own bit, or a
+    /// trailing 20 bytes that turned out to vary after all, would mean the 36-byte fixed tail was
+    /// misread — this is the check that would catch either.
+    /// </remarks>
+    [RequiresGameFact]
+    public void ZoneConnectivityMasksAlwaysCarryTheirOwnBit()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int totalZones = 0, withMoreThanSelf = 0;
+        var bitCounts = new List<int>();
+        var problems = new List<string>();
+        var tailConstant = Convert.FromHexString("FFFFFFFFFFFFFFFF000000000000000000000000");
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null || world.Zones.Count == 0) continue;
+
+            string mapName = Path.GetFileNameWithoutExtension(map);
+            byte[] data = package.ReadExportData(package.Exports[
+                ModelReader.BuiltWorld(package)!.Source.ExportIndex]);
+
+            int cursor = world.Layout.Zones;
+            for (int i = 0; i < world.Zones.Count; i++)
+            {
+                ReadCompactIndex(data, ref cursor);
+                byte[] fixedBytes = data.AsSpan(cursor, 36).ToArray();
+                cursor += 36;
+                totalZones++;
+
+                if (!world.Zones[i].ConnectedZones.Contains(i))
+                    problems.Add($"{mapName} zone {i}: mask does not carry its own bit");
+
+                int bitCount = world.Zones[i].ConnectedZones.Count;
+                bitCounts.Add(bitCount);
+                if (bitCount > 1) withMoreThanSelf++;
+
+                if (!fixedBytes.AsSpan(16, 20).SequenceEqual(tailConstant))
+                    problems.Add($"{mapName} zone {i}: trailing 20 bytes are not the expected constant");
+            }
+        }
+
+        Assert.True(totalZones > 1000, $"only {totalZones} zones were examined");
+        Assert.Empty(problems);
+        Assert.True(withMoreThanSelf > 900,
+            $"only {withMoreThanSelf} of {totalZones} zones connect to anything beyond themselves");
+        Assert.True(bitCounts.Max() <= 128, "a mask carried a bit beyond Vengeance's 128-zone maximum");
+    }
+
+    /// <summary>
+    /// A node's own zone is (almost) always visible from it — the same self-bit check that
+    /// validated the zone record's connectivity mask, applied to the node's separate visibility
+    /// mask at +16.
+    /// </summary>
+    /// <remarks>
+    /// The +16 offset and its meaning come from
+    /// <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c>, a working, rendering
+    /// level editor — read before this was implemented, not derived independently from these bytes.
+    /// Measured: <b>81,559 of 81,566 polygon-carrying nodes (99.99%)</b> across all 21 maps. The 7
+    /// exceptions all carry <c>Zone == 0</c>, plausibly the "outside"/default zone behaving
+    /// differently rather than a wrong offset — a wrong offset would scatter failures across many
+    /// zone values, not cluster every one on the same value. That is corroboration, not a caveat, so
+    /// this asserts the exact figures rather than a soft threshold.
+    /// </remarks>
+    [RequiresGameFact]
+    public void EveryNodesOwnZoneIsInItsOwnVisibilityMask()
+    {
+        var maps = Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm").OrderBy(f => f).ToList();
+
+        int nodesChecked = 0, ownZoneVisible = 0, zoneZeroMismatches = 0;
+
+        foreach (string map in maps)
+        {
+            using var package = BioShockPackage.Open(map);
+            var world = World(package);
+            if (world is null) continue;
+
+            foreach (var node in world.Nodes)
+            {
+                if (!node.IsPolygon) continue;
+                nodesChecked++;
+                if (node.VisibleZones.Contains(node.Zone)) ownZoneVisible++;
+                else if (node.Zone == 0) zoneZeroMismatches++;
+            }
+        }
+
+        Assert.True(nodesChecked > 10_000, $"only {nodesChecked} polygon-carrying nodes were examined");
+
+        int mismatches = nodesChecked - ownZoneVisible;
+        Assert.Equal(mismatches, zoneZeroMismatches);
+        Assert.True(mismatches <= 10, $"{mismatches} nodes don't see their own zone — was 7");
+
+        double ownZoneRate = (double)ownZoneVisible / nodesChecked;
+        Assert.True(ownZoneRate > 0.999,
+            $"only {ownZoneVisible} of {nodesChecked} nodes ({ownZoneRate:P2}) see their own zone");
+    }
 }
