@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using BioShockStudio.Core.Coordinates;
 using BioShockStudio.Core.Rendering;
 using BioShockStudio.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -196,6 +197,7 @@ public partial class MainViewModel
 
             _prepared = prepared;
             _levelCamera = prepared.Start;
+            UpdateLevelLocation();
             HasLevelView = true;
             LevelViewStatus = $"{level.Name}: {prepared.TextureSummary}.";
 
@@ -233,6 +235,7 @@ public partial class MainViewModel
         _prepared = null;
         LevelImage = null;
         LevelViewStatus = "";
+        LevelLocation = "";
         LevelClosed?.Invoke();
     }
 
@@ -241,6 +244,7 @@ public partial class MainViewModel
     {
         if (!HasLevelView) return;
         _levelCamera = _levelCamera.Look(deltaYaw, deltaPitch);
+        UpdateLevelLocation();
         Invalidate(moving: true);
     }
 
@@ -249,7 +253,53 @@ public partial class MainViewModel
     {
         if (!HasLevelView) return;
         _levelCamera = _levelCamera.Move(forward, right, up, seconds, (float)LevelCameraSpeed);
+        UpdateLevelLocation();
         Invalidate(moving: true);
+    }
+
+    /// <summary>
+    /// Where the camera is, <b>in the game's own coordinates</b> — the numbers an actor's
+    /// <c>Location</c> property is written in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Reported in the game's basis, not the studio's, and that is the whole point.</b> Geometry
+    /// and placements are converted on decode by <c>C = diag(1,-1,1)</c>
+    /// (<c>docs/research/ANIMATION_COORDINATE_SYSTEM.md</c>), so the viewport's own Y is the
+    /// negation of the one every shipped package, every actor <c>Location</c>, and Nyko's editor
+    /// use. A readout in studio coordinates would be a number nobody could look anything up with,
+    /// and worse, one that looks plausible while pointing at the mirror image of the right place.
+    /// The conversion is its own inverse, so this is the same call in both directions.
+    /// </para>
+    /// <para>
+    /// Added because a user reporting a misplaced asset had no way to say <i>where</i> — the
+    /// alternative was describing the room and guessing which actors were in it.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty] private string _levelLocation = "";
+
+    private void UpdateLevelLocation()
+    {
+        var game = GameBasis.Convert(_levelCamera.Position);
+        float heading = _levelCamera.Yaw * 180f / MathF.PI;
+        float elevation = _levelCamera.Pitch * 180f / MathF.PI;
+
+        LevelLocation =
+            $"X {game.X:0} · Y {game.Y:0} · Z {game.Z:0} · facing {heading:0}° · pitch {elevation:0}°";
+    }
+
+    /// <summary>Puts the camera at a point, in the studio basis the viewport works in.</summary>
+    /// <remarks>
+    /// Exists so the position readout can be tested against a shipped actor's own stated
+    /// <c>Location</c> rather than against the conversion function — see
+    /// <c>LevelWalkthroughUiTests.TheCameraPositionIsReportedInTheGamesOwnCoordinates</c>.
+    /// </remarks>
+    public void PlaceLevelCameraAt(System.Numerics.Vector3 position)
+    {
+        if (!HasLevelView) return;
+        _levelCamera = _levelCamera with { Position = position };
+        UpdateLevelLocation();
+        Invalidate(moving: false);
     }
 
     /// <summary>Redraws at full quality — called when the camera stops.</summary>

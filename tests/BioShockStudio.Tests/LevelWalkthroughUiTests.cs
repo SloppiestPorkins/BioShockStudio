@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
@@ -8,6 +9,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using BioShockStudio.App.ViewModels;
+using BioShockStudio.Core.Coordinates;
+using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Level;
+using BioShockStudio.Core.Packages;
 using BioShockStudio.App.Views;
 using Xunit;
 
@@ -50,6 +55,59 @@ public sealed class LevelWalkthroughUiTests
         Pump(() => model.LevelSummary is not null && !model.IsLevelBusy);
 
         return (model, window);
+    }
+
+    /// <summary>
+    /// The camera's position readout: present, updating, and in the <b>game's</b> coordinates.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Added so a user reporting a misplaced asset can say exactly where they are standing rather
+    /// than describing the room. That is only useful if the numbers are the ones an actor's
+    /// <c>Location</c> is written in — the viewport works in the studio basis, whose Y is the
+    /// negation of the game's (<c>C = diag(1,-1,1)</c>), so a readout that forgot the conversion
+    /// would look entirely plausible while naming the mirror image of the right place.
+    /// </para>
+    /// <para>
+    /// <b>Asserted against a real actor, not against the conversion function.</b> Comparing
+    /// <c>Convert(Convert(x))</c> to <c>x</c> would pass with the conversion missing from the view
+    /// model entirely. This drives the camera to a shipped actor's stated <c>Location</c> and
+    /// requires the readout to report that actor's own numbers back.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheCameraPositionIsReportedInTheGamesOwnCoordinates()
+    {
+        if (Open() is not var (model, window)) return;
+
+        model.OpenLevelViewCommand.Execute(null);
+        Pump(() => model.HasLevelView && model.LevelImage is not null && !model.IsLevelViewLoading);
+        if (!model.HasLevelView) return;
+
+        Assert.False(string.IsNullOrWhiteSpace(model.LevelLocation),
+            "the level view opened but reports no camera position");
+
+        // A real actor from the map being viewed, and its stated Location in the game's basis —
+        // read from the package rather than from anything the view model derived.
+        string root = GameLocator.Find()!;
+        using var package = BioShockPackage.Open(
+            System.IO.Path.Combine(GameLocator.MapsDirectory(root), "0-Lighthouse.bsm"));
+        var stated = LevelAnalyzer.Analyze(package).Actors
+            .First(a => a.Transform.Location != Vector3.Zero
+                        && MathF.Abs(a.Transform.Location.Y) > 100f).Transform.Location;
+
+        // Put the camera exactly there, in the basis the viewport works in.
+        model.PlaceLevelCameraAt(GameBasis.Convert(stated));
+        Pump(() => model.LevelLocation.Contains(((int)MathF.Round(stated.X)).ToString()), attempts: 20);
+
+        // The readout must name the actor's own coordinates back.
+        foreach (float component in new float[] { stated.X, stated.Y, stated.Z })
+        {
+            string expected = ((int)MathF.Round(component)).ToString();
+            Assert.Contains(expected, model.LevelLocation);
+        }
+
+        window.Close();
     }
 
     [AvaloniaFact]

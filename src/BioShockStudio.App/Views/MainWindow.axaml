@@ -225,8 +225,17 @@
                         </Panel>
                     </Border>
 
-                    <TextBlock Grid.Row="2" Text="{Binding LevelViewStatus}" Opacity="0.75"
-                               Margin="2,6,0,0" TextWrapping="Wrap" />
+                    <StackPanel Grid.Row="2" Margin="2,6,0,0" Spacing="2">
+                        <!-- Where the camera is, in the GAME's coordinates: the same numbers an
+                             actor's Location property uses, so a position seen here can be looked up
+                             directly against the package. Selectable so it can be copied into a bug
+                             report. -->
+                        <SelectableTextBlock Text="{Binding LevelLocation}" Opacity="0.85"
+                                             FontFamily="Consolas,Menlo,monospace"
+                                             IsVisible="{Binding HasLevelView}"
+                                             ToolTip.Tip="Camera position in the game's own coordinates — the same numbers an actor's Location uses. Select and copy to report exactly where you are." />
+                        <TextBlock Text="{Binding LevelViewStatus}" Opacity="0.75" TextWrapping="Wrap" />
+                    </StackPanel>
                 </Grid>
 
                 <!-- what it holds, and getting it out -->
