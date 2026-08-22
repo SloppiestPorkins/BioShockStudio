@@ -45,7 +45,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | UE5 import | **Working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. See Gate 2 item 4 for the full list. No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
-| Tests | Full suite **446/446 passing** (measured 22 Aug 2026). See "Test health" below. |
+| Tests | Full suite **464/464 passing** (measured 22 Aug 2026). See "Test health" below. |
 
 ---
 
@@ -108,6 +108,13 @@ it already exists to be the orientation layer — and have the others link into 
 maintain their own parallel summary. `QUALITY.md` and the `research/*.md` files should stay as the
 detailed evidence record; the duplication to remove is the *status* tables scattered across
 `README.md`, `HANDOFF.md` and `NEXT_SESSION.md`.
+
+**0.7 — Work Part 2's gate items in order, not by jumping around.** Added 22 Aug 2026, user
+instruction — `ENGINEERING_RULES.md` §60 "Roadmap discipline" is the canonical text. Take the next
+undone item within whichever gate is active, drive it fully to done — not merely started, not
+"mostly working" — before starting another item. This is one level more granular than 0.4 above,
+which governs the four concurrent tracks; this governs the numbered items inside whichever
+track/gate is currently active.
 
 ---
 
@@ -272,16 +279,130 @@ and rewriting it from scratch would lose that. Updated to reflect what Part 1 ab
 UE5 level work can't be judged while the source viewer itself can show the wrong transform or
 material.
 
-1. **Window-placement fidelity** — verify actor transforms against the external level editor
+1. ~~**Window-placement fidelity** — verify actor transforms against the external level editor
    construction beyond the one already-fixed vault case; don't generalize a rotation fix from a
-   single view.
-2. **Material fidelity** — resolve remaining blocky/flat BSP surfaces as material/shader-chain
-   failures, not by shrinking UVs or tinting base colour.
+   single view.~~ **Done, 22 Aug 2026 — reopened the same day by a user screenshot, then closed
+   properly against the game's own data.** Two rounds:
+   - **Round one, and why it wasn't enough.** The reference comparison was committed and run over
+     all 12,557 rotation/scale pairs the game ships (worst difference 0.000011). Then a user
+     photographed a `1-Medical` skylight rotated wrongly with correctly-rotated neighbours — and the
+     new test was green throughout, because **it proves agreement with Nyko's editor, not
+     correctness, and the reference composes roll the same wrong way.** A check that compares two
+     implementations of a rule cannot find a rule wrong in both.
+   - **Round two: `Rx(roll)` → `Rx(−roll)`, settled against the compiled world's BSP tree.** The
+     tree classifies any point as inside architecture or open space, so "how much of a rotated
+     actor's geometry is buried in solid" is a cost the correct composition minimises — and it
+     involves no reference implementation. Across six maps and 147,466 points on rolled actors:
+     **negated roll 15.38% buried against 25.85% shipped**, with every other candidate (pre-fix
+     pitch, negated yaw, reversed order, reversed-negated) clustered at 25.9–27.3%. Only one
+     separates, by 40%. Rendering the reported skylight under all six agrees: only this one
+     assembles it into a continuous vault.
+   - **The classifier is itself validated, not assumed** — which leaf side is open space comes from
+     the shipped AI navigation graph, 7,207 of 7,378 `PathNode`/`PatrolPoint` positions across 18
+     maps in a front leaf (97.7%). `BspSolidityTests`.
+   - **Independent of the pitch fix**: ±180° roll negates to itself, so the Medical Pavilion arch is
+     untouched (2422 units, unchanged to the digit) — which is exactly why the earlier pitch fix
+     left this one standing.
+   - **Confirmed by the reporting user in the rebuilt viewport** — the skylight draws correctly.
+     Every measurement above is a proxy for that check, and this project has a documented history of
+     numbers agreeing while the picture was wrong.
+   - **The disagreement with the reference is now pinned, not hidden**:
+     `TheDivergenceFromTheReferencesRollIsDeliberateAndMeasured` requires all 5,703 observable-roll
+     rotations to differ from the raw reference, so a silent revert fails a test rather than quietly
+     degrading every level. The pitch-sign fix had been settled by a throwaway probe
+   against Nyko's `BuildActorTransform` over six sampled rotations, and the only thing committed
+   from it was a single-case geometric assertion on four instances of one mesh in one map — which
+   is the same shape of evidence that let the bug ship in the first place. The reference comparison
+   is now a committed test (`ActorTransformReferenceTests`): `viewport.cpp`'s `BuildActorTransform`
+   transcribed literally (same column-major `float[16]`, same index arithmetic, same multiplication
+   order, so it can be diffed against the C++ by eye), compared component-by-component against
+   `ActorTransform.ToMatrix` on **every one of the 12,557 distinct rotation/scale pairs the shipped
+   maps place an actor at** — all 161 shipped `.bsm` packages, 118,919 actors, 69,068 rotated —
+   each composed with that actor's own location and scale. **Worst component difference 0.000011.**
+   `ToMatrix`'s label moves from `LIKELY` to `CONFIRMED_EXTERNAL`; the stale `LIKELY`
+   cross-reference in `LevelSceneBuilder.MeshPlacement` is corrected with it.
+   - **Proved able to fail, which is the half that matters.** Re-run with the pre-fix `+pitch`
+     composition, all **6,215** placements pitched far enough to distinguish the two reject it,
+     worst difference **60**.
+   - **A real finding about why the old evidence was so weak.** Of the game's 12,557 placements,
+     **6,167 sit at a pitch of exactly 0° or 180°**, where `Ry(−p) ≡ Ry(p)` and the wrong sign is
+     not merely hard to see but produces the *identical* matrix — pinned as its own test rather
+     than left as an unexplained gap in the falsification sweep. A further 175 combine a tiny pitch
+     with a small scale and fall below float noise. So **essentially half of Rapture cannot express
+     this class of bug at all**, which is what "don't generalize from a single view" was warning
+     about, quantified.
+   - **The scale/rotation composition order is `UNKNOWN` from shipped data, and now says so.** A
+     uniform scale commutes with the rotation, so only a non-uniform one can tell `T·R·S` from
+     `T·S·R` — and the whole game ships **exactly two** rotated actors with a non-uniform scale,
+     both in `1-Welcome`, both only **1.8%** off uniform. This is the same wall the brush placement
+     rule hit (0 of 13,443 brushes scaled). The order is instead verified against the reference
+     under a deliberately non-uniform **probe** scale, which establishes that the two
+     *implementations* agree and is labelled as exactly that — it is not a claim about shipped
+     data, and the census is asserted so a future session finding it red has found a better sample.
+   - **What the comparison deliberately cannot speak to:** the reference editor does not apply
+     `PrePivot` to an actor (it appears in its source only as a name in a skip list), so the
+     pre-pivot term is held at zero here. It rests on separate and stronger evidence —
+     `BrushPlacementTests`, 33,631 of 33,632 world polygons.
+2. ~~**Material fidelity** — resolve remaining blocky/flat BSP surfaces as material/shader-chain
+   failures, not by shrinking UVs or tinting base colour.~~ **Done, 22 Aug 2026 — and the census
+   came first, which is what stopped this being solved as the wrong problem.** The only coverage
+   that existed was one map asserting that more than *half* its surfaces bound a texture. Measured
+   properly, the compiled world's material chain was already close to healthy — so the real defects
+   were elsewhere, and one of them was much worse than "blocky".
+   - **The big one: 11.5% of the compiled world was never drawn at all.** A map with a proven atlas
+     pool is drawn from its lightmap batches and the material-only model is skipped entirely — but a
+     drawn surface whose first baked-light layer names no atlas the world carries is in *no batch*,
+     so it reached the screen through nothing. **23,714 of 206,742 triangles across the 20 affected
+     maps**, up to **49.5% of `7-BossFight`** (a whole room) and 37.7% of `0-Lighthouse`. `Entry` was
+     the only map at 100% — and it is the one map with no `LightMaps_BSP` group, so it fell back to
+     the material path, which is the natural control that identified the cause. Fixed by drawing the
+     remainder unlit; **now 206,742 of 206,742 on all 21 maps**, exact, with no map over 100% (which
+     would mean double-drawing). `BspGeometry.HasLightMapAtlas` is now the single shared predicate so
+     the batch filter and its complement cannot drift. **Rendered and looked at**: the remainder is
+     architecture — floors, ceilings, wall panels — not slivers, which a count alone could not have
+     told apart.
+   - **Then the actual material-chain gap, and item 2's framing was right about it.** Of the game's
+     **74,091 drawn compiled-world polygons, 0 name no material** — so a grey BSP surface was always
+     this project failing to follow a reference that is present. **1,530 of them name their material
+     by *import*** (another package), and `Describe` can only express an export, so every one
+     resolved to null and drew untextured. The mesh path has resolved these via
+     `IExternalMaterialSource` since it was introduced ("433 slots… draw flat grey"); the BSP path
+     never got the branch. Now it has. **0 unresolved**, and 73,188 of 74,091 polygons (98.8%) bind a
+     base colour, 875 unpainted by design, 28 neither.
+   - **A methodology trap worth keeping.** The first run of the new census reported *no change* from
+     a fix that works: `AssetCatalogService.ExternalMaterials` is null until `RegisterInstall`, which
+     the app calls at startup and the test did not — so the import branch was a silent no-op **in the
+     test only**. Then the end-to-end check was written against `0-Lighthouse`, the fixture's default
+     map, where it passed *and would have passed before the fix*, because the Lighthouse names almost
+     nothing by import. It is now on `1-Medical` (248 imports) and **verified to fail when the fix is
+     disabled**. Picking the convenient map is how a test ends up asserting something true and
+     irrelevant.
+   - **The census was also rewritten to be affordable.** Its first form went through
+     `LevelViewportService` and decoded every texture in every map: 18 GB and 20+ minutes, which is
+     the kind of test that stops being run. It now walks the chain without turning any of it into
+     pixels; the end-to-end pixel check stays as one map.
+   - **Still `UNKNOWN`, recorded not fixed:** the 28 polygons that resolve a material binding no base
+     colour and are not a by-design unpainted class. And the **source brushes** are excluded
+     throughout — `docs/research/bsp.md` already establishes that 17,802 of 93,264 brush polygons
+     carry neither texture axes nor a material, which is content; the import branch was scoped to the
+     compiled world and brushes were not swept for imports.
 3. ~~**Lightmaps to default-on** — the remaining 10 of 21 maps need their atlas-pool location traced
    the same way the first 11 were.~~ **Atlas-pool binding done, 19 Aug 2026 — 20 of 21 maps proven**
    (the 21st, `Entry`, has no `LightMaps_BSP` group to bind). What's left before this becomes a
    default rather than an opt-in: bind the atlas per pixel (currently per-vertex, via
    `MeshGeometry.BakedLight`) and do a lit/unlit comparison render.
+   **Both done, 22 Aug 2026 — and they exposed the real blocker.** The software rasteriser now
+   samples the atlas per pixel (`RenderOptions.BakedLightmaps`, off by default) and
+   `BakedLightmapRenderTests` renders lit against unlit from inside the level, so baked light can be
+   *looked at* in a test for the first time; it previously reached only the GPU viewport, which
+   cannot render headless. **The picture is wrong, and now visibly so:** every surface draws a flat
+   saturated primary. Cause measured and written up in `docs/research/bsp.md` §5.5e — the atlas is a
+   pack of *per-light* contributions in each light's own colour, a surface commonly has several
+   (1,122 of `1-Medical`'s descriptors carry 2-10 layers), and this project applies only
+   `Lights[0]`. The layers are not channel-packed: 0 of 1,122 put their layers on one tile.
+   **Remaining: sample every layer at its own tile and combine** — the combination rule is `UNKNOWN`
+   and additive is a guess, not evidence. Default-on stays blocked until that is settled; the
+   per-vertex GPU path has the same defect and merely blurs it.
 4. **Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently
@@ -613,10 +734,12 @@ dotnet test --filter Tier=Sweep     # whole-game censuses, bulk store, UI, ~20 m
 dotnet test                         # both — the number to report
 ```
 
-Fast tier: **202/202 passing** (measured 22 Aug 2026, after the UE5 skeleton-family sweep,
-`export-firstperson --group`, root-motion and Havok-physics decode work).
-
-Full suite: **446/446 passing** (measured 22 Aug 2026, same session — 9m22s). Classification below is
+Full suite: **464/464 passing** (measured 22 Aug 2026, 29m02s, after Gate 0 items 1 and 2 including
+the roll correction — `ActorTransformReferenceTests`, `BspSurfaceCensusTests`,
+`BspWorldCoverageTests`, `BspSolidityTests`, `ActorPlacementAgainstTheWorldTests`,
+`BakedLightmapRenderTests`). Intermediate clean runs this session measured 452 and 458. The previous entry
+here recorded 202 fast / 446 full; the fast figure was already stale when written, which is the
+ordinary drift this section exists to catch. Classification below is
 from the 19 Aug 2026 pass that first closed item 0.1; **item 0.1 stays done** unless a fresh run
 reports a new failure, and this full run reported none. Classification, per test:
 

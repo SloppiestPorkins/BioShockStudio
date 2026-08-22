@@ -571,11 +571,81 @@ with zero regressions on the original 11's counts or offsets. **`Entry` is the o
 no atlas pool, and correctly so**: it has no `LightMaps_BSP` group at all — a 40-export, ~20 KB
 trivial package, not a real level. `BspWorldTests.LightmapAtlasPoolsAreVengeanceWrappedLightMapsTextures`.
 
+### 5.5e Why the baked lighting looks wrong: only ONE of a surface's light layers is applied
+
+**Measured, 22 Aug 2026, and it explains a specific visible fault.** Applying the atlas per pixel in
+the software rasteriser drew every compiled-world surface a flat saturated primary — a red wall, a
+green ceiling, a magenta floor. The cause is not the projection and not the sampler:
+
+- **The atlas UVs are fine.** Across 25 sampled batches in `1-Medical` the per-batch UV spread is
+  hundreds of texels (up to 1,019 of 1,024); **none** collapses to under 2 texels. A surface's own
+  tile is small — descriptors measure 19x27, 19x15, 31x27 and similar — but it is a real footprint.
+- **The atlas is a pack of per-light contributions, and they are coloured.** Dumped through the
+  application's own decode path, a 1024² atlas is hundreds of small tiles, each a saturated red,
+  green or blue falloff blob: one light's contribution to one surface, in that light's own colour.
+- **A surface usually has more than one, and this project applies only the first.**
+  `BspGeometry.ToLightMapBatches` emits `descriptor.Lights[0]` alone. Across `1-Medical`'s 3,386
+  descriptors: **1,668 carry one layer, 828 carry two, 195 three, 66 four, 23 five, 8 six, one
+  seven, one ten**, and 596 carry none. So **1,122 surfaces are lit by a single one of their
+  several lights**, which is exactly how a wall lit by a red lamp *and* a white one renders pure red.
+- **The layers are NOT channel-packed into one tile** — a plausible alternative that would have
+  meant the RGB channels were three separate lights. Of the 1,122 descriptors with two or more
+  layers, **1,090 keep every layer in the same atlas but 0 of 1,122 put them on the same tile.**
+  Each layer has its own footprint and must be sampled separately.
+
+**So the remaining work is accumulation, not decoding**: sample every layer at its own tile and
+combine. The combination rule itself is still `UNKNOWN` — additive is the physically obvious guess
+and this project does not ship guesses. Note that the per-vertex GPU path has the same defect and
+merely hides it: averaging one light's contribution over three corners produces a dull tint rather
+than an obvious flat primary.
+
 ### 5.6 Surfaces that must not be drawn
 
 `PolyFlags` carries `PF_Invisible 0x1`, `PF_FakeBackdrop 0x80`, `PF_Portal 0x04000000`. Nyko's editor
 skips all three: they are zoning, portal and backdrop surfaces, not architecture. **Any level
 exporter has to honour these or the level comes out full of invisible walls.**
+
+### 5.6c A drawn surface need not have a lightmap, and drawing only lightmapped ones loses 11.5% of the level
+
+**Not a format finding — a consequence of one, and it cost 11.5% of every level for as long as atlas
+batching existed.** `IsDrawn` (§5.6) and "has a usable baked-light layer" are **independent**
+properties of a surface. Measured across the game: of **206,742 drawn compiled-world triangles,
+23,714 (11.5%) belong to nodes whose first lightmap layer names no atlas the world carries** — or
+that carry no lightmap descriptor at all.
+
+| map | drawn triangles | in a lightmap batch | not batched |
+|---|---|---|---|
+| `7-BossFight` | 2,274 | 1,149 | **1,125 (49.5%)** |
+| `0-Lighthouse` | 1,887 | 1,175 | **712 (37.7%)** |
+| `6-Slums` | 14,520 | 11,956 | 2,564 (17.7%) |
+| all 21 maps | 206,742 | 183,028 | **23,714 (11.5%)** |
+
+`LevelViewportService` drew a map from its batches *instead of* the material-only model, so those
+surfaces were drawn by nothing. **`Entry` was the only map unaffected, and it is the only map with no
+`LightMaps_BSP` group** — it fell back to the material path. That is the control that identified the
+cause.
+
+**The rule: anything that selects lightmapped nodes and anything that draws the remainder must use
+one shared predicate**, or they drift and geometry falls between them. That is
+`BspGeometry.HasLightMapAtlas`, and `ToGeometry(world, include)` takes its negation.
+`BspWorldCoverageTests` pins compiled-world triangles reaching the viewport at **206,742 of
+206,742**.
+
+### 5.6d A compiled-world surface never omits its material — but 1,530 name it by import
+
+**Census of all 21 maps: of 74,091 drawn compiled-world polygons, `0` carry a null material
+reference.** So an untextured BSP surface is never absent data; it is always a reference that was not
+followed. **1,530 of those references are imports** — a material in another package — and a
+`SourceId` can only name an export, so every one resolved to null.
+
+This is the same population `MeshSurfaceResolver` already handled for mesh slots via
+`IExternalMaterialSource` ("433 slots across the game are imports and none resolve inside their own
+package"). With the BSP path given the same branch: **0 unresolved, and 73,188 of 74,091 polygons
+(98.8%) bind a base colour** — 875 unpainted by design, 28 neither (`UNKNOWN`, recorded).
+
+**This is per-package data, and `0-Lighthouse` is not representative of it**: the Lighthouse names
+almost nothing by import, while `6-Resi` names 426 and `1-Medical` 248. A check written against the
+Lighthouse passes whether or not imports resolve.
 
 ### 5.6b The twelve off-plane polygons are snapped corners. `HIGH CONFIDENCE`, and not a decode fault
 

@@ -14,7 +14,7 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | Gate 2 item 4 — UE5 skeleton-family validation, weapons/doors/props | `docs/ROADMAP.md`, throwaway UE5 project at `C:\Users\Jack\Documents\BioShockUE5\` | 22 Aug 2026 |
+| Claude (this session) | Gate 0 — items 1 and 2 landed; item 3 (lightmaps to default-on) is next in order | `docs/ROADMAP.md`, `src/BioShockStudio.Core/Level/`, `src/BioShockStudio.Core/Services/LevelViewportService.cs`, `tests/BioShockStudio.Tests/{ActorTransformReference,BspSurfaceCensus,BspWorldCoverage}Tests.cs` | 22 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
 them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A
@@ -1380,6 +1380,244 @@ reassertions per row so a genuinely, persistently rejected selection cannot be f
 **This is a workaround, stated as one.** The underlying DataGrid behaviour is still not understood —
 "unknown is a valid answer" applies to the framework's internals same as to this project's own
 formats. If it recurs in a shape the cap doesn't cover, the diagnostic log will show it.
+
+### 22 Aug 2026 — SOLVED: the actor roll sign was wrong, settled against the game's own BSP tree
+
+**Superseding the "OPEN" record below, which is kept because its dead ends are worth not repeating.**
+A user photographed a `1-Medical` skylight rotated wrongly with correctly-rotated neighbours, after
+the actor-transform work had been called done. **`UnrealRotator.ToQuaternion` now negates roll as
+well as pitch**, and the evidence is a ground truth no reference implementation is involved in.
+
+**The decisive measurement: the game's own BSP tree.** The compiled world is a spatial partition
+shipped in the package; it can classify any point as inside architecture or in open space. A prop
+stands in a room — not inside the masonry — so the share of a rotated actor's geometry landing in a
+*solid* leaf is a cost the correct composition minimises. Across **six maps and 147,466 sampled
+points**, on actors carrying a non-zero roll:
+
+| composition | geometry buried in solid |
+|---|---|
+| `Rx(+roll)` — as shipped, and as the reference builds it | **25.85%** |
+| **`Rx(-roll)`** | **15.38%** |
+| pre-fix `+pitch` | 26.49% |
+| negated yaw | 27.30% |
+| reversed order | 26.58% |
+| reversed with negated roll | 25.89% |
+
+**Every alternative clusters at 25.8–27.3%; only the negated roll separates, by 40%.** That spread is
+what makes this a measurement rather than a preference.
+
+**The classifier behind it is validated, not assumed.** Which leaf side is open space could have been
+stated from memory of Unreal's convention — exactly the inherited claim this project keeps being
+caught by. Instead it was established from the shipped AI navigation graph: **7,207 of 7,378
+`PathNode`/`PatrolPoint` positions across 18 maps (97.7%) fall in a front leaf**, so front is open.
+`BspSolidityTests` asserts both that split and the scoring.
+
+**Rendering agrees.** The four `window_128_corner` pieces of the reported skylight were placed under
+all six candidates and drawn: only the negated roll assembles them into a continuous barrel vault.
+
+**And the user confirmed it in the viewport — which is the evidence that actually closes this.**
+The same person who reported the fault walked back to it in the rebuilt app and reported the
+skylight fully fixed. Every measurement above is a proxy for that; this project's own history is a
+list of numbers that agreed while the picture was wrong, so a human looking at the thing remains the
+last word.
+
+**What it does not disturb, and why the two fixes are independent.** A roll of ±180° negates to
+itself, so the Medical Pavilion arch that produced the pitch fix is untouched —
+`TheMedicalPavilionCeilingArchFormsOneContinuousSurface` still measures 2422 units, unchanged to the
+digit. That is why fixing pitch left this one standing for a further session.
+
+**This project now deliberately disagrees with the reference editor**, and that is pinned rather than
+hidden. `ActorTransformReferenceTests` compares against the reference construction *with roll
+negated* — which still exercises the axis assignment, multiplication order, scale, translation and
+row/column convention, worst component difference **0.000011** across all 12,557 rotation/scale
+pairs — and `TheDivergenceFromTheReferencesRollIsDeliberateAndMeasured` separately requires all
+**5,703** observable-roll rotations to differ from the raw reference (worst 70). A silent revert to
+the reference's roll fails a test instead of quietly making every level worse.
+
+**The lesson, which is the reusable part:** agreement with a reference implementation is not
+correctness. The reference comparison was committed the same day and stayed green through a real,
+visible bug, because Nyko's editor composes roll the same wrong way. **A check that can only compare
+two implementations of a rule cannot find a rule that is wrong in both.** What broke the deadlock was
+finding a source of truth inside the shipped data — the BSP tree and the navigation graph — that
+neither implementation had a hand in.
+
+### 22 Aug 2026 — OPEN (superseded by the entry above): the roll investigation and its dead ends
+
+**A user photographed a skylight in `1-Medical` rotated wrongly with correctly-rotated neighbours,
+after the actor-transform work had been called done.** The investigation is unfinished; this records
+what is established so a later session does not restart it.
+
+**First, the correction to how item 1 was closed.** `ActorTransformReferenceTests` proves this
+project composes an actor transform *identically to Nyko's level editor* — 12,557 rotations to 1e-5.
+That is agreement with a **reference**, not correctness: if the reference builds the rotation wrongly
+this project reproduces the error faithfully and the test stays green forever. The project's own
+landmine list already says this ("corroboration is not agreement — check the layer you actually
+depend on") and it was not applied. The older evidence has the same hole from the other side: the
+Medical Pavilion arch was settled by "the four instances form one continuous surface", which a
+surface that is continuous but rotated *as a whole* also passes. **Both existing checks are blind in
+exactly the place the bug lives.**
+
+**The reported case, measured.** Four `window_128_corner` actors at Z 8452 form one skylight vault:
+
+| actor | pitch | yaw | roll |
+|---|---|---|---|
+| `StaticMeshActor1855`, `…1853` | −90° | 0 | 180° |
+| `StaticMeshActor1854`, `…1856` | 0 | −90° | −90° |
+
+Their placed area-weighted normals come out `(0, 0.78, 0.63)` and `(0, −0.63, −0.78)` — the Y and Z
+components swapped and negated, the signature of a 90° error about X. **Rendered, two pieces form a
+clean barrel vault and two are rotated out of it**, which is exactly what the user saw.
+
+**Six candidate compositions were built and rendered on that assembly. Only one produces a
+continuous vault:** `Rz(yaw) · Ry(−pitch) · Rx(−roll)` — i.e. **the current composition with roll
+negated**. The shipped one (919 units combined diagonal) and the pre-fix `+pitch` (670) and the
+negated-yaw variant (658) are all visibly broken; small diagonal does not mean correct, which is why
+this was decided by looking rather than by the number.
+
+**Corroboration is real but weak, and is recorded as such — do not treat this as settled:**
+
+- **Assembly compactness across five maps** (same mesh, ≥3 actors, ≥2 distinct rotations; 287–482
+  clusters per map): `negroll` has the lowest mean spread in **4 of 5** — 1-Medical 1.0172 vs 1.0297
+  shipped, 6-Resi 1.0174 vs 1.0278, 3-Arcadia 1.0255 vs 1.0328, 7-Science 1.0262 vs 1.0307 — and
+  loses narrowly on 4-Recreation. Margins are small because yaw-only clusters, which every candidate
+  places alike, dilute the signal.
+- **Flushness against the compiled world was tried and is INCONCLUSIVE** — a negative result worth
+  keeping so it is not repeated. Counting rolled actors sitting within 12 units of a parallel BSP
+  surface gives 63/250 for `negroll` against 60/250 shipped on 1-Medical, 39 vs 37 on 6-Resi, and
+  7 vs 10 the *other* way on 3-Arcadia. Most rolled props are not flush against architecture at all,
+  so the metric is mostly noise.
+- **`Med_Floor_Signs` cannot decide it.** The two rolled ±90° signs sit flush against walls (3.8 and
+  5.8 units), which reads as correct under the shipped composition — but a negated roll leaves them
+  vertical and flush too, facing the other way. This is why an early conclusion that "the roll term
+  is fine" was wrong: the test could not see the difference it was being asked about.
+
+**Nothing has been changed.** Negating roll would put this project in deliberate disagreement with
+the reference editor and would turn `ActorTransformReferenceTests` red on every rotation with a
+non-zero roll — which may be the correct outcome, but not on this evidence. **What would settle it:**
+the skylight vault must fill an opening in the compiled world, so its silhouette should match that
+opening's boundary — a ground truth independent of both this project and Nyko. That test is not
+written yet.
+
+**Also from this session:** the level viewport now reports the camera position **in the game's own
+coordinates** (`MainViewModel.LevelLocation`), so a user can say exactly where a fault is instead of
+describing the room. It is the studio basis negated in Y; a readout in viewport coordinates would
+name the mirror image of the right place.
+
+### Session of 22 Aug 2026 (later still) — Gate 0 item 2: the level was missing 11.5% of itself
+
+**Item 2 asked for "remaining blocky/flat BSP surfaces" to be resolved as material-chain failures.
+Censusing before fixing found something else first, and it was worse than blocky.**
+
+**A compiled-world surface with no lightmap had no path to the screen.** A map with a proven atlas
+pool is drawn from `LightMapBatches` and `Prepare` then `continue`s, so the material-only model is
+never built for it. But `ToLightMapBatches` keeps a node only when its first baked-light layer names
+an atlas the world carries — so a *drawn* surface failing that test was in no batch and was drawn by
+nothing at all. **23,714 of 206,742 triangles across the 20 affected maps: 49.5% of `7-BossFight`,
+37.7% of `0-Lighthouse`.**
+
+- **`Entry` identified the cause on its own.** It was the only map at 100%, and it is the only map
+  with no `LightMaps_BSP` group — so it took the material-only fallback and lost nothing. A natural
+  control, not a constructed one.
+- **Missing geometry is invisible to every count taken over what is drawn.** The surface census was
+  green throughout: a surface that was never added is not a surface with no material, it is simply
+  absent. This is the same shape as the mirrored-asset years — the numbers cannot see it.
+- Fixed by drawing the remainder unlit. **206,742 of 206,742 on all 21 maps**, exact, and no map over
+  100% (which would have meant double-drawing). `BspGeometry.HasLightMapAtlas` is now one shared
+  predicate used by the batch filter and by its complement, so they cannot drift apart.
+- **Rendered and looked at, per the standing rule.** "23,714 triangles were missing" is equally
+  consistent with real walls and with degenerate slivers, and adding junk would have made the
+  coverage assertion pass while making the viewport worse. `7-BossFight`'s remainder is a complete
+  room; `1-Medical`'s is scattered solid slabs. Architecture, not slivers.
+
+**Then the material chain itself, where item 2's framing was correct.** Of **74,091 drawn
+compiled-world polygons, 0 name no material** — so a grey BSP surface was never absent data, always
+a reference this project failed to follow. **1,530 name their material by import**, and `Describe`
+can only express an export, so all 1,530 resolved to null and drew untextured. `MeshSurfaceResolver`
+has had the `IExternalMaterialSource` branch for exactly this since "433 slots across the game are
+imports and none resolve inside their own package"; the BSP path never got it. Now: **0 unresolved**,
+**73,188 of 74,091 (98.8%) bind a base colour**, 875 unpainted by design, 28 neither.
+
+**Two methodology traps, both worth more than the fix:**
+
+- **The first census run reported no change from a fix that works.**
+  `AssetCatalogService.ExternalMaterials` is null until `RegisterInstall`, which the application
+  calls at startup and the test did not — so the import branch was a silent no-op *in the test*. A
+  measurement that does not set the app up the way the app sets itself up measures a different
+  program.
+- **The end-to-end check was first written against `0-Lighthouse` and passed — and would have passed
+  before the fix**, because the Lighthouse's compiled world names almost nothing by import. It is now
+  on `1-Medical` (248 imports) and was **verified to fail with the fix disabled**, then the source
+  restored byte-identical. Reaching for the fixture's default map is how a test ends up asserting
+  something true and irrelevant.
+
+**And the census was rewritten to be affordable.** Its first form went through `LevelViewportService`
+and therefore decoded every texture in every map — 18 GB and over twenty minutes, which is precisely
+the kind of test that stops being run (the same reasoning behind the Fast/Sweep split). It now walks
+the chain without turning any of it into pixels; the pixel check stays as one map.
+
+**Left `UNKNOWN` rather than tidied away:** 28 polygons resolve a material that binds no base colour
+and is not a by-design unpainted class. **Source brushes are out of scope throughout** — `bsp.md`
+already establishes their 17,802 material-less polygons as content — and were not swept for imports.
+
+### Session of 22 Aug 2026 (later) — Gate 0 item 1: the reference comparison, committed and swept
+
+**A new standing rule came first:** work a roadmap's items in order and clear one fully before
+starting another (`ENGINEERING_RULES.md` §60 "Roadmap discipline", `ROADMAP.md` 0.7). Gate 0 has been
+marked *active* for several sessions while work happened in Gate 1 and Gate 2; this session went
+back to Gate 0 item 1.
+
+**What was actually wrong with the existing evidence.** The pitch-sign fix below was correct, and the
+way it was established was not durable. Nyko's `BuildActorTransform` was matched numerically in one
+session over six sampled rotations — as a throwaway probe. **Nothing of that comparison was
+committed.** What went into the suite was
+`TheMedicalPavilionCeilingArchFormsOneContinuousSurface`: four instances of one mesh in one map.
+That is a single view, and generalizing a rotation rule from a single view is the exact failure that
+produced the bug.
+
+**`ActorTransformReferenceTests` now holds it.** `viewport.cpp`'s construction is transcribed
+literally — same column-major `float[16]`, same `m[col*4+row]` arithmetic, same multiplication
+order — so it can be diffed against the C++ by eye rather than trusted as a paraphrase. All sixteen
+matrix components are compared (strictly stronger than probe vectors, and it needs no probe choice
+to justify) against `ActorTransform.ToMatrix`, for **every one of the 12,557 distinct rotation/scale
+pairs the shipped maps place an actor at**: all 161 shipped `.bsm` packages, 118,919 actors, 69,068 rotated, each composed
+with that actor's own location and scale. **Worst component difference 0.000011.**
+
+**Proved able to fail.** The pre-fix `+pitch` composition is rejected by all **6,215** placements
+pitched far enough to distinguish the two, worst difference **60**. This project has been burned
+specifically here before — two geometric metrics written to catch the backwards first-person pistol
+both *passed* the broken pistol — so a check that has never been seen to fail is not evidence.
+
+**The finding worth keeping: essentially half the game is blind to this class of bug.**
+**6,167 of the 12,557 placements sit at a pitch of exactly 0° or 180°**, where `Ry(−p) ≡ Ry(p)` and
+the wrong sign produces not a subtly different matrix but the *identical* one. A further 175 combine
+a tiny pitch with a small scale and fall below float noise. The first attempt at the falsification
+test asserted that *every* rotated actor rejects the wrong sign, failed 91 of 4,562, and **the right
+response was to find out why rather than widen the tolerance** — the difference is
+`2·|sin(pitch)|·scale`, which reproduces the measured values to four significant figures. The
+exact-symmetry case is pinned by its own test so a later session cannot read the population filter
+as a tolerance tuned until the counts agreed.
+
+**A second `UNKNOWN` surfaced, and it is the brush-placement wall again.** Keying the sweep on scale
+as well as rotation — because `T·R·S` and `T·S·R` agree for every *uniform* scale, so a uniform-only
+population verifies the ordering no more than a yaw-only one verifies the pitch sign — turned up
+**exactly two** rotated actors in the whole game carrying a non-uniform scale, both in `1-Welcome`,
+both `<0.7, 0.687, 0.7>`: **1.8% off uniform**. That is present but far too weak to settle an order.
+Same shape as `BrushPlacement`'s "0 of 13,443 brushes scaled, and every rotated one a gameplay
+volume": **no shipped sample can decide it.** The order is therefore checked against the reference
+under a deliberately non-uniform *probe* scale (`<0.5, 2, 3.5>`, worst difference 0.000004; the
+swapped order diverges by 3, so the check distinguishes them) — and that is labelled for what it is,
+an equivalence between two *implementations*, not a claim about shipped data. The census
+`Assert.Equal(2, nonUniformScale)` is the fact that can fail if a better sample ever turns up.
+
+**Confidence records corrected while here.** `ToMatrix` moves `LIKELY` → `CONFIRMED_EXTERNAL`, and
+`LevelSceneBuilder.MeshPlacement`'s cross-reference — which still said "labelled `LIKELY` there,
+awaiting a rendered level" long after that stopped being true — is corrected with it.
+
+**What this comparison deliberately cannot say.** The reference editor does not apply `PrePivot` to
+an actor at all; the field appears in its source only as a name in a skip list. So the pre-pivot
+term is held at zero throughout, and it continues to rest on this project's own separate and
+stronger evidence (`BrushPlacementTests`, 33,631 of 33,632 world polygons). Stated as a boundary,
+not left for someone to discover.
 
 ### Session of 18 Aug 2026 — the rotation sign bug, found by a real screenshot
 
