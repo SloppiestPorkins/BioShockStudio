@@ -199,7 +199,12 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     BakedLight = SampleLightMap(atlas, vertex.LightMapUv),
                 })],
             };
-            var batchInstance = world with { Geometry = litGeometry, Materials = [material] };
+            var batchInstance = world with
+            {
+                Geometry = litGeometry,
+                Materials = [material],
+                MaterialReferences = [batch.Material],
+            };
             var (surfaces, sizes) = Surfaces(package, batchInstance, textures, borrowed);
             if (surfaces.Count == 0) continue;
 
@@ -211,6 +216,24 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             var texturedGeometry = BspGeometry.NormaliseUvs(litGeometry, sizes);
             result.Add(PreviewModel.Build(texturedGeometry, null, null,
                 [surfaces[0] with { LightMapTexture = atlas }]));
+        }
+
+        // The drawn surfaces no batch covers, unlit. Without this they are drawn by nothing at all:
+        // this path replaces the material-only world entirely, so a surface missing from every batch
+        // simply vanished from the level — 23,714 of 206,742 compiled-world triangles across the 20
+        // maps with an atlas pool, and 49.5% of 7-BossFight. See BspGeometry.HasLightMapAtlas.
+        if (result.Count > 0 && world.LightMapRemainder is { } remainder)
+        {
+            var remainderInstance = world with
+            {
+                Geometry = remainder,
+                Materials = [],
+                MaterialReferences = world.LightMapRemainderMaterials,
+            };
+            var (surfaces, sizes) = Surfaces(package, remainderInstance, textures, borrowed);
+            if (surfaces.Count > 0)
+                result.Add(PreviewModel.Build(
+                    BspGeometry.NormaliseUvs(remainder, sizes), null, null, surfaces));
         }
 
         return result;
@@ -362,8 +385,20 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             for (int i = 0; i < geometry.Sections.Count; i++)
             {
                 var section = geometry.Sections[i];
-                var material = i < instance.Materials.Count ? instance.Materials[i] : null;
-                var decoded = material is null ? null : ReadMaterial(package, material.Value);
+
+                // Prefer the raw reference: it is the only form that can express an import, and a
+                // compiled-world surface naming a material in another package is common. Fall back
+                // to the described SourceId for anything that does not carry the raw list.
+                BioShockMaterial? decoded;
+                if (i < instance.MaterialReferences.Count)
+                {
+                    decoded = ReadMaterial(package, instance.MaterialReferences[i]);
+                }
+                else
+                {
+                    var material = i < instance.Materials.Count ? instance.Materials[i] : null;
+                    decoded = material is null ? null : ReadMaterial(package, material.Value);
+                }
 
                 result.Add(new PreviewSurface(
                     section.FirstIndex, section.IndexCount, decoded?.Name,
@@ -442,6 +477,52 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// A BSP surface's material from the raw reference, so an <b>import</b> resolves instead of
+    /// disappearing.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the same two-branch rule <see cref="MeshSurfaceResolver"/> already applies to a
+    /// mesh's slots</b>, which the BSP path never got. A compiled-world surface naming a material in
+    /// another package went through <c>Describe</c>, which can only express an export, and came out
+    /// null — indistinguishable from a surface that names nothing. Measured across the game:
+    /// <b>1,530 of 74,091 drawn compiled-world polygons name an import and 0 name nothing</b>, so
+    /// every one of those was an avoidable untextured surface rather than absent data.
+    /// </remarks>
+    private BioShockMaterial? ReadMaterial(BioShockPackage package, PackageIndex reference)
+    {
+        if (reference.IsNull) return null;
+
+        try
+        {
+            if (reference.IsExport)
+                return MaterialReader.Read(package, package.Exports[reference.ExportIndex]);
+
+            if (catalog.ExternalMaterials is { } external && reference.IsImport)
+            {
+                var import = package.Imports[reference.ImportIndex];
+                return external.Find(import.ObjectName, GroupOf(package, import.Outer));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException
+                                       or ArgumentOutOfRangeException or IndexOutOfRangeException)
+        {
+            // A shader that will not decode leaves its surface untextured and visible as such.
+        }
+
+        return null;
+    }
+
+    /// <summary>The group an import's outer names, or empty when the chain does not reach one.</summary>
+    private static string GroupOf(BioShockPackage package, PackageIndex outer)
+    {
+        if (outer.IsImport && outer.ImportIndex < package.Imports.Count)
+            return package.Imports[outer.ImportIndex].ObjectName;
+        if (outer.IsExport && outer.ExportIndex < package.Exports.Count)
+            return package.Exports[outer.ExportIndex].ObjectName;
+        return string.Empty;
     }
 
     /// <summary>

@@ -50,8 +50,45 @@ public sealed record LevelInstance
     /// </summary>
     public IReadOnlyList<BspGeometry.LightMapBatch> LightMapBatches { get; init; } = [];
 
+    /// <summary>
+    /// The drawn compiled-world surfaces that <see cref="LightMapBatches"/> does <b>not</b> cover,
+    /// with <see cref="LightMapRemainderMaterials"/> as their section-ordered material list.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists because the atlas-batched path used to lose them.</b> A map with a proven
+    /// atlas pool is drawn from its batches, and a drawn surface whose first baked-light layer names
+    /// no atlas this world carries is in no batch — so it reached the screen through nothing at all:
+    /// 23,714 of 206,742 compiled-world triangles across the 20 affected maps, up to 49.5% of a
+    /// single one. The remainder is carried here so the lightmapped path can draw it unlit rather
+    /// than drop it. Null when the map has no batches, since then the whole world is drawn the
+    /// ordinary way. See <see cref="BspGeometry.HasLightMapAtlas"/>.
+    /// </remarks>
+    public MeshGeometry? LightMapRemainder { get; init; }
+
+    /// <summary>
+    /// Section-ordered material references for <see cref="LightMapRemainder"/>. Raw rather than
+    /// described, for the reason given on <see cref="MaterialReferences"/>.
+    /// </summary>
+    public IReadOnlyList<PackageIndex> LightMapRemainderMaterials { get; init; } = [];
+
     /// <summary>The materials the geometry's sections index, in section order. Entries may be null.</summary>
     public required IReadOnlyList<SourceId?> Materials { get; init; }
+
+    /// <summary>
+    /// The same list as <see cref="Materials"/>, as the raw references the BSP actually stores.
+    /// Empty for a static or skeletal mesh, which resolves its own slots.
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="Materials"/> cannot represent an import, and BSP surfaces have them.</b> A
+    /// <see cref="SourceId"/> names an export in one package, so <c>Describe</c> returns null for a
+    /// reference into another — which made a cross-package BSP material indistinguishable from a
+    /// surface that names nothing. Measured: <b>1,530 of the game's 74,091 drawn compiled-world
+    /// polygons name an import</b>, and every one of them drew untextured for it, while
+    /// <b>0 name nothing at all</b>. The mesh path has resolved these since
+    /// <c>MeshSurfaceResolver</c> gained <c>IExternalMaterialSource</c>; this is the same references
+    /// kept intact so the BSP path can use it too.
+    /// </remarks>
+    public IReadOnlyList<PackageIndex> MaterialReferences { get; init; } = [];
 
     public string? Label { get; init; }
 
@@ -249,6 +286,24 @@ public static class LevelSceneBuilder
         var geometry = BspGeometry.ToGeometry(world);
         if (geometry.Indices.Count < 3) return;
 
+        var batches = BspGeometry.ToLightMapBatches(world);
+
+        // The drawn surfaces those batches leave behind. Only meaningful when the map is going to be
+        // drawn from batches at all — otherwise the whole world goes through Geometry above, and a
+        // second copy of part of it would draw those triangles twice.
+        MeshGeometry? remainder = null;
+        IReadOnlyList<PackageIndex> remainderMaterials = [];
+        if (batches.Count > 0)
+        {
+            bool Unbatched(BspNode node) => !BspGeometry.HasLightMapAtlas(world, node);
+            var leftover = BspGeometry.ToGeometry(world, Unbatched);
+            if (leftover.Indices.Count >= 3)
+            {
+                remainder = leftover;
+                remainderMaterials = BspGeometry.Materials(world, Unbatched);
+            }
+        }
+
         instances.Add(new LevelInstance
         {
             Actor = world.Source,
@@ -256,8 +311,11 @@ public static class LevelSceneBuilder
             Asset = world.Source,
             Transform = Matrix4x4.Identity,
             Geometry = geometry,
-            LightMapBatches = BspGeometry.ToLightMapBatches(world),
+            LightMapBatches = batches,
+            LightMapRemainder = remainder,
+            LightMapRemainderMaterials = remainderMaterials,
             Materials = [.. BspGeometry.Materials(world).Select(m => Describe(package, m))],
+            MaterialReferences = BspGeometry.Materials(world),
             Label = "compiled world",
         });
     }
@@ -267,9 +325,10 @@ public static class LevelSceneBuilder
     /// </summary>
     /// <remarks>
     /// <c>ActorTransform.ToMatrix</c> composes pre-pivot, scale, rotation and translation in
-    /// Unreal's order and is labelled <c>LIKELY</c> there — inherited from the engine rather than
-    /// derived from BioShock's bytes, and explicitly awaiting a rendered level as evidence.
-    /// <c>LevelRenderingTests</c> is now that evidence.
+    /// Unreal's order. That label used to read <c>LIKELY</c>, "awaiting a rendered level as
+    /// evidence"; it is now <c>CONFIRMED_EXTERNAL</c>, checked component-by-component against the
+    /// reference level editor's own <c>BuildActorTransform</c> on all 12,557 distinct rotation/scale
+    /// pairs the shipped game places an actor at — <c>ActorTransformReferenceTests</c>.
     /// </remarks>
     public static Matrix4x4 MeshPlacement(ActorTransform transform) => GameBasis.Convert(transform.ToMatrix());
 

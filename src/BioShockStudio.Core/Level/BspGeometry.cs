@@ -121,7 +121,18 @@ public static class BspGeometry
     /// authoritative source, and it stays correct on the slivers a cross product cannot resolve.
     /// </para>
     /// </remarks>
-    public static MeshGeometry ToGeometry(BspWorld world)
+    public static MeshGeometry ToGeometry(BspWorld world) => ToGeometry(world, null);
+
+    /// <summary>
+    /// The compiled world, optionally restricted to the nodes a predicate accepts.
+    /// </summary>
+    /// <remarks>
+    /// The predicate exists so the atlas-batched path can draw its <b>remainder</b> — the drawn
+    /// surfaces that <see cref="HasLightMapAtlas"/> rejects — through this same triangulation rather
+    /// than a second copy of it. See that method's remarks for what happened when the remainder was
+    /// not drawn at all.
+    /// </remarks>
+    public static MeshGeometry ToGeometry(BspWorld world, Func<BspNode, bool>? include)
     {
         var vertices = new List<MeshVertex>();
         var indices = new List<int>();
@@ -131,6 +142,7 @@ public static class BspGeometry
             .Where(n => n.IsPolygon)
             .Where(n => n.Surface >= 0 && n.Surface < world.Surfaces.Count)
             .Where(n => world.Surfaces[n.Surface].IsDrawn)
+            .Where(n => include is null || include(n))
             .GroupBy(n => world.Surfaces[n.Surface].Material.Value)
             .OrderBy(g => g.Key);
 
@@ -193,17 +205,38 @@ public static class BspGeometry
     /// Only the descriptor's first layer is emitted for now. It is a usable, byte-faithful base
     /// lightmap; rendering all layers requires the game's still-unproven modulation blend rule.
     /// </remarks>
+    /// <summary>
+    /// Whether a node's first baked-light layer names an atlas this world actually carries — the
+    /// one condition that decides whether <see cref="ToLightMapBatches"/> can place the node.
+    /// </summary>
+    /// <remarks>
+    /// <b>Extracted so the batch filter and its complement cannot drift apart.</b> The compiled
+    /// world is drawn either as atlas batches or as a plain material model, and for a while it was
+    /// drawn as batches <i>only</i> — so a drawn surface that failed this test had no path into the
+    /// viewport at all and silently vanished from the level: 23,714 of 206,742 triangles across the
+    /// 20 maps with an atlas pool, 49.5% of <c>7-BossFight</c> alone. <c>Entry</c>, the one map with
+    /// no <c>LightMaps_BSP</c> group, was the only one at 100% precisely because it fell back to the
+    /// material path. Anything that selects lightmapped nodes must use this, and anything that draws
+    /// the remainder must use its negation. <c>BspWorldCoverageTests</c>.
+    /// </remarks>
+    public static bool HasLightMapAtlas(BspWorld world, BspNode node)
+    {
+        if (node.LightMap < 0 || node.LightMap >= world.LightMaps.Count) return false;
+        var descriptor = world.LightMaps[node.LightMap];
+        if (descriptor.Lights.Count == 0) return false;
+        int atlas = descriptor.Lights[0].Atlas;
+        return atlas >= 0 && atlas < world.LightMapTextures.Count;
+    }
+
     public static IReadOnlyList<LightMapBatch> ToLightMapBatches(BspWorld world)
     {
         var groups = world.Nodes
             .Where(n => n.IsPolygon)
             .Where(n => n.Surface >= 0 && n.Surface < world.Surfaces.Count)
             .Where(n => world.Surfaces[n.Surface].IsDrawn)
-            .Where(n => n.LightMap >= 0 && n.LightMap < world.LightMaps.Count)
+            .Where(n => HasLightMapAtlas(world, n))
             .Select(n => (Node: n, Descriptor: world.LightMaps[n.LightMap]))
-            .Where(x => x.Descriptor.Lights.Count > 0)
             .Select(x => (x.Node, x.Descriptor, Layer: x.Descriptor.Lights[0]))
-            .Where(x => x.Layer.Atlas >= 0 && x.Layer.Atlas < world.LightMapTextures.Count)
             .GroupBy(x => (Material: world.Surfaces[x.Node.Surface].Material, Atlas: world.LightMapTextures[x.Layer.Atlas].Texture))
             .OrderBy(g => g.Key.Material.Value)
             .ThenBy(g => g.Key.Atlas.Value);
@@ -259,10 +292,17 @@ public static class BspGeometry
     }
 
     /// <summary>The distinct materials the compiled world's sections draw with, in section order.</summary>
-    public static IReadOnlyList<PackageIndex> Materials(BspWorld world) => world.Nodes
+    public static IReadOnlyList<PackageIndex> Materials(BspWorld world) => Materials(world, null);
+
+    /// <summary>
+    /// The same, for the subset of nodes a predicate accepts — so a geometry built with the same
+    /// predicate gets a material list its sections actually index.
+    /// </summary>
+    public static IReadOnlyList<PackageIndex> Materials(BspWorld world, Func<BspNode, bool>? include) => world.Nodes
         .Where(n => n.IsPolygon)
         .Where(n => n.Surface >= 0 && n.Surface < world.Surfaces.Count)
         .Where(n => world.Surfaces[n.Surface].IsDrawn)
+        .Where(n => include is null || include(n))
         .GroupBy(n => world.Surfaces[n.Surface].Material.Value)
         .OrderBy(g => g.Key)
         .Select(g => new PackageIndex(g.Key))
