@@ -204,6 +204,7 @@
                         </DockPanel>
                     </Border>
 
+
                     <!-- Focusable so the movement keys reach it, and the pointer events drive the
                          look.
 
@@ -235,6 +236,25 @@
                                              IsVisible="{Binding HasLevelView}"
                                              ToolTip.Tip="Camera position in the game's own coordinates — the same numbers an actor's Location uses. Select and copy to report exactly where you are." />
                         <TextBlock Text="{Binding LevelViewStatus}" Opacity="0.75" TextWrapping="Wrap" />
+
+                        <!-- What the level HOLDS, against what the toggles can show. A viewport that
+                             draws the geometry and quietly omits the lights, zones, navigation
+                             graph, sounds and script actors looks complete; "this map has no
+                             triggers" and "triggers are never drawn" are indistinguishable from the
+                             picture. Same principle as the Problems panel stating its coverage
+                             before its findings. Collapsed by default — it is a reference, not a
+                             running commentary. -->
+                        <Expander Header="What this level contains" Margin="0,4,0,0"
+                                  HorizontalAlignment="Stretch">
+                            <ItemsControl ItemsSource="{Binding LevelContents}" Margin="4">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <SelectableTextBlock Text="{Binding}" Opacity="0.85" Margin="0,1"
+                                                             FontFamily="Consolas,Menlo,monospace" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
                     </StackPanel>
                 </Grid>
 

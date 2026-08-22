@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
@@ -75,6 +76,54 @@ public sealed class LevelWalkthroughUiTests
     /// requires the readout to report that actor's own numbers back.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The viewport says what the level holds, including the categories it cannot draw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Gate 0 item 4's second clause: "non-drawable actor classes should be listed explicitly, not
+    /// silently absent". The toggles cover every drawable category, but a level is mostly things the
+    /// viewport never places — lights, zones, navigation nodes, sound actors, script graphs — and a
+    /// picture cannot distinguish "this map has none" from "these are never drawn".
+    /// </para>
+    /// <para>
+    /// <b>Asserts the not-drawn half specifically.</b> A ledger that listed only the geometry would
+    /// satisfy a count-based check while omitting the entire point of the feature.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheViewportListsWhatItCannotDraw()
+    {
+        if (Open() is not var (model, window)) return;
+
+        model.OpenLevelViewCommand.Execute(null);
+        Pump(() => model.HasLevelView && model.LevelImage is not null && !model.IsLevelViewLoading);
+        if (!model.HasLevelView) return;
+
+        Assert.NotEmpty(model.LevelContents);
+
+        string all = string.Join(Environment.NewLine, model.LevelContents);
+        if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is { Length: > 0 } probe)
+            File.AppendAllText(probe, all + Environment.NewLine);
+
+        // Coverage before findings: the total has to be stated, or a short list reads as a small level.
+        Assert.Contains("actors", all);
+        Assert.Contains("classes", all);
+
+        // The half that matters. 0-Lighthouse carries lights and a navigation graph, neither drawn.
+        Assert.Contains("not drawn", all);
+
+        var notDrawn = model.LevelContents.Where(line => line.Contains("not drawn")).ToList();
+        Assert.True(notDrawn.Count >= 2,
+            "only " + notDrawn.Count + " undrawn categories listed: " + Environment.NewLine + all);
+
+        // Each line names actual classes, so "not drawn - lights" can be acted on rather than
+        // merely noted.
+        Assert.All(notDrawn, line => Assert.Contains("(", line));
+
+        window.Close();
+    }
+
     [AvaloniaFact]
     public void TheCameraPositionIsReportedInTheGamesOwnCoordinates()
     {

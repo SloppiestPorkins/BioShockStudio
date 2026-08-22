@@ -403,10 +403,22 @@ material.
    **Remaining: sample every layer at its own tile and combine** — the combination rule is `UNKNOWN`
    and additive is a guess, not evidence. Default-on stays blocked until that is settled; the
    per-vertex GPU path has the same defect and merely blurs it.
-4. **Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
+4. ~~**Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently
-   absent.
+   absent.~~ **Done, 22 Aug 2026.** The toggles were already all there — nine of them, covering
+   every category the item lists plus unpainted surfaces and effects. **The second clause was the
+   outstanding half**, and the data for it had existed for a while in `LevelCoverageReport` while
+   reaching only the CLI's `level-audit`; the person who needs it most is the one looking at the
+   level. The viewport now carries a "What this level contains" panel built from that ledger. On
+   `0-Lighthouse`: 1,877 actors across 64 classes, 1,137 drawn (1,005 meshes/brushes, 132 skeletal
+   in bind pose) and **740 in eight categories it never draws** — 321 lights, 157 zones/triggers,
+   104 emitters, 54 script graphs, 50 unclassified, 28 navigation, 25 sound actors, 1 with geometry
+   in another package — each naming its actual classes so a line can be acted on. `Expander`,
+   collapsed by default: it is a reference, not a running commentary.
+   `LevelWalkthroughUiTests.TheViewportListsWhatItCannotDraw` asserts the **not-drawn** half
+   specifically, since a ledger listing only the geometry would satisfy a count-based check while
+   omitting the entire point.
 
 ### Gate 1 — complete asset containers
 

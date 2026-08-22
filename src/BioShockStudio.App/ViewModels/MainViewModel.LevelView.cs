@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using System.Collections.Generic;
+using System.Linq;
 using BioShockStudio.Core.Coordinates;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Rendering;
 using BioShockStudio.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -198,6 +201,7 @@ public partial class MainViewModel
             _prepared = prepared;
             _levelCamera = prepared.Start;
             UpdateLevelLocation();
+            UpdateLevelContents(prepared.Scene);
             HasLevelView = true;
             LevelViewStatus = $"{level.Name}: {prepared.TextureSummary}.";
 
@@ -236,6 +240,7 @@ public partial class MainViewModel
         LevelImage = null;
         LevelViewStatus = "";
         LevelLocation = "";
+        LevelContents = [];
         LevelClosed?.Invoke();
     }
 
@@ -286,6 +291,77 @@ public partial class MainViewModel
 
         LevelLocation =
             $"X {game.X:0} · Y {game.Y:0} · Z {game.Z:0} · facing {heading:0}° · pitch {elevation:0}°";
+    }
+
+    /// <summary>
+    /// What this level contains, and which of it the viewport draws — including the categories it
+    /// does <b>not</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Silent omission is the failure mode this exists to stop.</b> A viewport that shows a
+    /// level's geometry and quietly leaves out its lights, zones, navigation graph, sounds and
+    /// script actors looks complete, and the difference between "this map has no triggers" and
+    /// "triggers are never drawn" is invisible from the picture. The ledger behind this
+    /// (<see cref="LevelCoverageReport"/>) has existed for a while and reached only the CLI's
+    /// <c>level-audit</c>; the person who needs it most is the one looking at the level.
+    /// </para>
+    /// <para>
+    /// The same principle as the Problems panel stating its coverage before its findings: "nothing
+    /// found" and "nothing looked" must not render identically.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty] private IReadOnlyList<string> _levelContents = [];
+
+    /// <summary>Whether a coverage status is geometry the viewport actually places.</summary>
+    private static bool IsDrawn(LevelActorCoverage status) =>
+        status is LevelActorCoverage.GeometryInScene or LevelActorCoverage.SkeletalMeshBindPose;
+
+    private static string Describe(LevelActorCoverage status) => status switch
+    {
+        LevelActorCoverage.GeometryInScene => "drawn — meshes and brushes",
+        LevelActorCoverage.SkeletalMeshBindPose => "drawn — skeletal, in bind pose",
+        LevelActorCoverage.ExternalGeometryPending => "not drawn — geometry in another package",
+        LevelActorCoverage.LightPending => "not drawn — lights (see the Level lights toggle)",
+        LevelActorCoverage.RegionPending => "not drawn — zones, triggers and volumes",
+        LevelActorCoverage.EffectPending => "not drawn — particle emitters",
+        LevelActorCoverage.AudioPending => "not drawn — sound actors",
+        LevelActorCoverage.NavigationPending => "not drawn — navigation graph",
+        LevelActorCoverage.ScriptPending => "not drawn — script action graphs",
+        _ => "not drawn — unclassified",
+    };
+
+    private void UpdateLevelContents(LevelScene scene)
+    {
+        if (scene.Coverage is not { } coverage) { LevelContents = []; return; }
+
+        var byStatus = coverage.Classes
+            .SelectMany(row => row.StatusCounts.Select(entry => (row.ClassName, entry.Key, entry.Value)))
+            .GroupBy(entry => entry.Key)
+            .Select(group => (
+                Status: group.Key,
+                Actors: group.Sum(entry => entry.Value),
+                Classes: group.OrderByDescending(entry => entry.Value)
+                    .Select(entry => entry.ClassName).ToList()))
+            // Drawn first, then the rest by how much of the level they account for: the biggest
+            // omission is the one worth seeing.
+            .OrderByDescending(group => IsDrawn(group.Status))
+            .ThenByDescending(group => group.Actors)
+            .ToList();
+
+        var lines = new List<string>(byStatus.Count + 1)
+        {
+            $"{coverage.ActorCount:N0} actors, {coverage.Classes.Count:N0} classes",
+        };
+
+        foreach (var (status, actors, classes) in byStatus)
+        {
+            string examples = string.Join(", ", classes.Take(3));
+            if (classes.Count > 3) examples += $", +{classes.Count - 3} more";
+            lines.Add($"{actors,6:N0}  {Describe(status)}  ({examples})");
+        }
+
+        LevelContents = lines;
     }
 
     /// <summary>Puts the camera at a point, in the studio basis the viewport works in.</summary>
