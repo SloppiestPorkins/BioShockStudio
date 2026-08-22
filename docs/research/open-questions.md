@@ -27,6 +27,11 @@ all third-person character animations decode with zero failures.
 `enum BlendHint { NORMAL = 0, ADDITIVE = 1 }`. Every shipped animation is 0, by census, so additive
 blending is ruled out as an explanation for anything.
 
+**`m_extractedMotion` (root motion) is now read — see [root-motion.md](root-motion.md).** 6,356 of
+16,031 animations (39.6%) carry it, resolving to a real `hkaDefaultAnimatedReferenceFrame` object
+whose fields cross-validate against the owning animation four independent ways. Not applied to any
+export yet — a decode result, not an export-pipeline decision.
+
 **`m_partitionIndices` is now read and is empty everywhere it was checked.** Havok lets a binding
 name the skeleton partitions an animation is sampled against, and `hkaSkeleton` lets a skeleton
 declare them. On `AggressorBabyJane`: 457 bindings, **0 partition indices**; six skeletons,

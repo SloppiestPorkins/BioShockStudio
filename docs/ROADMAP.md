@@ -318,6 +318,25 @@ material.
 
 1. Decode remaining Havok animation fields affecting playback: blend hints, compression edge cases,
    additive semantics, root motion, events beyond what's already surfaced.
+   **Blend hints/additive semantics: already settled** — `CONFIRMED_EXTERNAL` then census, every one
+   of the game's animations is `blendHint` 0 (`NORMAL`); `open-questions.md` §3.
+   **Events: already complete** — 47,560 events across all 16,031 animations, 0 blocks left
+   unconsumed (`docs/HANDOFF.md`'s current-state table).
+   **Root motion: decoded, 22 Aug 2026.** `m_extractedMotion` was named in this project's own byte
+   layout doc comment but never read — the same shape of gap as the skeletal mesh section table.
+   Now read (`HkaDefaultAnimatedReferenceFrameReader`) and censused: **6,356 of 16,031 animations
+   (39.6%) carry it**, resolving to a real `hkaDefaultAnimatedReferenceFrame` object whose
+   `up`/`forward`/`duration`/sample-count all cross-validate against the owning animation, four
+   independent ways, on every one of six animations checked (`RootMotionTests`). **Still open,
+   `PLAUSIBLE` not `CONFIRMED_BYTES`**: which of a sample's four components is "forward" vs "yaw"
+   (every sample checked has two live components, not the class's documented one-translation-plus-
+   one-yaw shape); whether the pattern holds outside one splicer's death/getup clips; and wiring it
+   into the exporter at all, which crosses into Gate 5's export-pipeline territory and needs the
+   coordinate-basis policy applied first. See `docs/research/root-motion.md` for the full record.
+   **Compression edge cases: genuinely still open** — nothing this cycle touched the spline
+   decompression path itself (0 failures across all 16,031 already, per `open-questions.md` §3, so
+   there is no known-broken case to chase, only unvalidated edge behaviour that hasn't been forced by
+   a real shipped animation).
 2. §6.0c — the 252 bone-rigidity collapses (27 folding ≥20 bones), including `AggressorBabyJane`'s
    fire clips — needs `sampleTranslation`, which the current SDK build doesn't expose. Genuinely
    blocked, not merely unstarted.
