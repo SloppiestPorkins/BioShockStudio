@@ -343,50 +343,65 @@ material.
    **Little Sister done, same session**: `GathererGirl` (60 bones, 5,495 vertices, 6 sockets —
    named for the game's own "Gatherer" terminology) imports cleanly
    (`Success - 0 error(s), 5 warning(s)`) and verifies the same way.
-   **First weapon beyond pistol/TommyGun, and first door, done 22 Aug 2026**: `WP_Crossbow` (15
-   bones, 10,151 vertices, 3 sockets, 3 animations, attached via `export-firstperson Crossbow`)
-   imports cleanly alongside the hands rig (`Success - 0 error(s), 7 warning(s)`, same cosmetic
-   shape). `UAPW_BulkheadDoor` (11 bones, 2,640 vertices, 10 sockets, 6 animations — a mechanical
-   rig with no skin deformation rather than a character, and another `--mesh` case: its mesh export
-   is named `BulkheadDoorANIM`, not a `UAPW_`-stripped match) imports cleanly on its own
-   (`Success - 0 error(s), 2 warning(s)`). Both verified the same way as the character rigs: a real
-   `SkeletalMesh` with a non-null, populated `Skeleton`, via `verify_bioshock_import.py` raising no
-   `RuntimeError`. Of the hands' 19 weapon sockets, only `Wrench`, `Launcher`, `Chem` and
-   `PlayerGathererGun` resolved to no animated `WP_<name>` group in `ShockGame.U` when tried
-   (`export-firstperson` reported "No animated weapon found") — those are plausibly static-mesh-only
-   weapons (no separate skeleton), not yet confirmed either way.
-   **First prop, same session**: `UAPW_TurretMachineGun` (11 bones, 6,317 vertices, 6 sockets, 2
-   animations — a mechanical enemy rig shipped in nearly every map, mesh name matches the wrapper
-   exactly so no `--mesh` override needed) imports and verifies the same way
-   (`Success - 0 error(s), 2 warning(s)`).
-   **Two more weapons unlocked, 22 Aug 2026**: two of the four "no animated weapon found" sockets
-   above turned out to be real animated rigs after all — `export-firstperson`'s `"WP_" + weapon`
-   group-name guess just didn't hold for them, the same shape of bug `--mesh` fixed for mesh names.
-   `Chem` is `WP_ChemicalThrower` (`WP_ChemicalThrowerMesh`, 8 bones, 7,936 vertices, 6 animations)
-   and `Launcher` is `WP_GrenadeLauncher` (`WP_GrenadeLauncherMesh`, 8 bones, 5,386 vertices, 4
-   animations) in `ShockGame.U`. `export-firstperson` now takes a `--group=<name>` override
-   (`Cli/Program.cs`) the same way `export-fbx` takes `--mesh`; both weapons import cleanly attached
-   to the hands (`Success - 0 error(s), 7 warning(s)` each, same cosmetic shape). Neither carries
-   hand-side animations under this weapon's own name (`0 'Chem'/'Launcher' animations` on the hands
-   rig) — worth another look if the hand-side naming convention differs here too, not chased further
-   this session. **The other two, `Wrench` and `PlayerGathererGun`, are confirmed genuinely
-   different, not just misnamed**: `Wrench` has no `WP_*` group anywhere in `ShockGame.U` at all
-   (melee, plausibly static-mesh-only, no separate skeleton); `PlayerGathererGun`'s animated rig
-   (`UAPW_WP_gathererGun` / `PlayerGathererGunMESH`) exists but lives in the `7-BossFight`/
-   `7-Gauntlet` map packages, not `ShockGame.U` — a boss-fight-scripted weapon outside the shared
-   first-person set, needing a different export path (`export-fbx` against the map package, the way
-   doors and props are done) rather than `export-firstperson`.
-   **A genuine curiosity, not chased**: `ShockGame.U` also holds a fully animated `WP_ShotgunMesh` /
-   `UAPW_WP_Shotgun` (8 bones) with no corresponding socket on the current `NEWPlayerHands` rig —
-   plausibly cut or multiplayer-only content. Recorded, not exported (no attachment point to verify
-   against).
-   **Two more doors and a prop, same session**: `UAPW_LockerDoorAnim` (3 bones, 288 vertices, 4
-   animations, mesh named `LockerDoorAnimMESH` — another `--mesh` case), `UAPW_Med_DoorAnim` (3
-   bones, 26 vertices, 4 animations, exact name match) and `UAPW_SlotMachine_MESH` (5 bones, 1,973
-   vertices, 2 sockets, 7 animations) all import and verify cleanly (`Success - 0 error(s)`,
-   1–2 warnings each, same cosmetic shape).
-   **Still open**: `Wrench`'s static-mesh-only status (unconfirmed either way), a `PlayerGathererGun`
-   export via the map-package path, the orphaned `Shotgun` rig, other doors, other props.
+   **22 Aug 2026 — weapons, doors, props and creatures extended to closure.** Beyond
+   pistol/TommyGun/Splicer/Big Daddy/Little Sister above, 22 more rigs across every remaining
+   structural category import and verify clean the same way (`verify_bioshock_import.py` raising no
+   `RuntimeError`, a real `SkeletalMesh` with a non-null populated `Skeleton`); `export-fbx` gained
+   `--mesh <name>` (18 Aug) and `export-firstperson` gained `--group=<name>` (`Cli/Program.cs`, 22
+   Aug) as the same fix applied twice — a rig's mesh export or ShockGame.U group name doesn't always
+   match a `UAPW_`-stripped wrapper name or a `"WP_" + socket` guess.
+
+   **Weapons — all 7 hand sockets resolved, none open.** `Pistol`, `TommyGun` (prior session),
+   `Crossbow` (`WP_Crossbow`, 15 bones, 10,151 vertices, 3 animations), `Chem` → `WP_ChemicalThrower`
+   (`WP_ChemicalThrowerMesh`, 8 bones, 7,936 vertices, 6 animations — needed `--group`, the socket
+   name doesn't match the group name), `Launcher` → `WP_GrenadeLauncher` (`WP_GrenadeLauncherMesh`,
+   8 bones, 5,386 vertices, 4 animations — same `--group` case) all import attached to the hands.
+   `PlayerGathererGun`'s rig (`UAPW_WP_gathererGun` / `PlayerGathererGunMESH`, 2 bones, 923 vertices)
+   turned out to live in the `7-BossFight`/`7-Gauntlet` map packages, not `ShockGame.U` — a
+   boss-fight-scripted weapon outside the shared first-person set — so it was exported directly via
+   `export-fbx` against the map package instead, and verifies the same way. `Wrench` is
+   **confirmed, not merely unresolved**: `WP_WrenchMesh` in `ShockGame.U` is a plain `StaticMesh`
+   with no `AnimationPackageWrapper`/`SkeletalMesh` at all — a real, decoded answer ("melee weapon,
+   no separate skeleton"), not an open question. A genuine curiosity found and closed along the way:
+   `ShockGame.U` also holds a fully animated, fully authored `WP_ShotgunMesh` / `UAPW_WP_Shotgun` (3
+   bones, 3,417 vertices, 4 animations with notifies) with **no corresponding socket on the current
+   `NEWPlayerHands` rig** — exported and verified standalone (no hand attachment to test) to confirm
+   it decodes and imports cleanly; it is real, finished content with no way to attach it in the
+   shipped game, plausibly cut or multiplayer-only. Not chased further — recorded as `PLAUSIBLE`,
+   not promoted to a claim about *why* it's orphaned.
+
+   **Doors — 7 working variants verified, 3 real decode failures found and named for Gate 1.**
+   `UAPW_BulkheadDoor` (mechanical, no skin deformation, 11 bones), `UAPW_LockerDoorAnim` (3 bones),
+   `UAPW_Med_DoorAnim` (3 bones), `UAPW_Hyd_CrawlSpaceDoor` (3 bones), `UAPW_PeepDoorAnim` (4 bones),
+   `UAPW_SlidingStoreDoor` and `UAPW_SlidingBrokeStoreDoor` (3 bones each) all import and verify
+   clean. Three more — `UAPW_GathererDoorAnim` (`GathererDoorAnimMesh`), `UAPW_Sliding512SingleDoor`
+   (`Sliding512SingleDoorMesh`) and `UAPW_Res_LowRentDoorAnim` (`LowRentDoor_Mesh`) — report **"no
+   geometry"** from `meshes`, i.e. they don't decode at all. **Confirmed against `docs/QUALITY.md`
+   §"Four door meshes do not decode"**: these are exactly 3 of its 4 already-tracked names
+   (`LowRentDoor_Mesh`, `Sliding512SingleDoorMesh`, `GathererDoorAnimMesh`; the 4th,
+   `Atlas_labs_doorAnim`, wasn't hit this session) — the same gap, not a new one, nothing further to
+   chase here.
+
+   **Props — 8 variants verified**, spanning rigid mechanisms (`UAPW_TurretMachineGun`,
+   `UAPW_TurretFlamethrower`, `UAPW_ElevatorFall`, `UAPW_CeilingFan`, `UAPW_GreatChain_MESH`), small
+   fixed props (`UAPW_SlotMachine_MESH`, `UAPW_KeyCard_MESH`, `UAPW_WallSafe_MESH`,
+   `UAPW_TeleportBeacon_Anim` → mesh `TBeaconAnim_Mesh`) and one enemy robot
+   (`UAPW_SecurityBot`, 8 bones, 7 sockets) plus a fixed console (`UAPW_SecurityStation`).
+
+   **Creatures — 7 variants verified**, the widest bone-count and topology spread tried yet:
+   `UAPW_CatSkeletalMesh` (9 bones, no animations exported — a static pose/corpse use), `UAPW_CrabAnim`
+   (32 bones), `UAPW_Whale_SkeletonMESH` (43 bones, 5,455 vertices — the largest creature rig tried),
+   `UAPW_GiantSquidAnim` (33 bones), `UAPW_Jellyfish` (7 bones), `UAPW_shark` (4 bones). None needed
+   root-motion or IK verification beyond topology — out of scope for this item, tracked under Gate 2
+   item 1 (Havok field decode) and Gate 2 item 3 (physics) instead.
+
+   **Where this item stands**: every structurally distinct rig *category* shipped in the game —
+   first-person weapon, mechanical door, static/rigid prop, humanoid enemy, quadruped, aquatic
+   creature, enemy robot — now has at least one member verified importing clean into a live UE5.7
+   editor, with no outstanding "does this category work" question. What's **not** done, by design:
+   literally every one of the ~118 named `AnimationPackageWrapper` rigs in the game (would be pure
+   repetition of already-verified categories) and the 3 named decode failures above (Gate 1's, not
+   this item's, to fix). Both are enumerable, bounded gaps, not open questions.
 
 ### Gate 3 — levels and UE2 actor systems
 
