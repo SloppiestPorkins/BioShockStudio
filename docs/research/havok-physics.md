@@ -77,28 +77,53 @@ the same object. `HkaRagdollInstanceReader`, `HavokPhysicsTests.RagdollInstanceC
 
 **What this closes**: "17 capsules float in the packfile" is now "here is rigid body N's capsule, and
 here is the constraint list" — the object graph connecting collision shapes to bodies to constraints
-is readable end to end. **What it does not close**: correlating the ragdoll's own 17-bone skeleton
-back onto the 73-bone *animation* skeleton (so a UE5 Physics Asset could say "this capsule is bone
-`Bip01_L_UpperArm`" rather than "rigid body 3") needs either the two `hkaSkeletonMapper` objects this
-character's packfile also carries (unread, still scoped below) or a name/hierarchy correlation between
-the two `hkaSkeleton` objects, neither attempted here.
+is readable end to end. **What it does not close on its own**: correlating the ragdoll's own 17-bone
+skeleton back onto the 73-bone *animation* skeleton — that gap is closed next.
+
+## Decoded: `hkaSkeletonMapper` — `CONFIRMED_BYTES`, 22 Aug 2026
+
+```
+hkaSkeletonMapper : hkReferencedObject
++0   hkReferencedObject                              (vtable + refcount, zero on disk)
+                                                       (m_mapping is padded to +16, not +8 — the
+                                                        embedded hkaSkeletonMapperData needs 16-byte
+                                                        alignment for its later hkQsTransform fields)
++16  hkRefPtr<const hkaSkeleton>  m_skeletonA
++20  hkRefPtr<const hkaSkeleton>  m_skeletonB
++24  hkArray<hkInt16>             m_partitionMap                        (empty on this character)
++36  hkArray<PartitionMappingRange> m_simpleMappingPartitionRanges      (empty)
++48  hkArray<PartitionMappingRange> m_chainMappingPartitionRanges       (empty)
++60  hkArray<SimpleMapping>       m_simpleMappings   (21 or 29 entries — see below)
++72  hkArray<ChainMapping>        m_chainMappings    (1 entry, not individually decoded)
++84  hkArray<hkInt16>             m_unmappedBones    (0 or 42 entries, count only)
+```
+
+Both of `AggressorBabyJane`'s two mappers resolve `SkeletonA`/`SkeletonB` to real, class-named,
+bone-counted `hkaSkeleton` objects: one mapper is 73-bone `"Bip01"` → 17-bone
+`"Ragdoll_Bip01 Pelvis01"`, the other is close to (not exactly) the inverse. Each `SimpleMapping`
+entry is `{hkInt16 boneA, hkInt16 boneB, hkQsTransform aFromBTransform}` — a fixed 64-byte stride
+(4 bytes of indices, 12 bytes padding, 48 bytes of transform, the transform itself not yet decoded).
+**20 of the 21 entries in the sparser (73→17) direction have an exact reverse counterpart in the
+richer (17→73) direction's 29** — e.g. one mapper's `(boneA: 65, boneB: 2)` against the other's
+`(boneA: 2, boneB: 65)` — and every index on both sides falls inside its own skeleton's real bone
+count. **The one exception is understood, not reader error**: bone 4 also maps to ragdoll bone 1 in
+the sparser direction with no reverse entry, plausibly because ragdoll bone 1 is one of the richer
+mapper's 42 separately-counted `m_unmappedBones` rather than a simple mapping — i.e. the sparser
+direction still names a nearest bone where the richer direction considers it genuinely unmapped.
+`HkaSkeletonMapperReader`, `HavokPhysicsTests.SkeletonMappersAreNearExactInversesOfEachOther`.
+
+**What this closes**: a capsule can now be traced end to end to a named animation bone — rigid body
+index → `HkaRagdollInstanceReader`'s `BoneToRigidBodyMap` → ragdoll bone index →
+`HkaSkeletonMapperReader`'s `SimpleMappings` → animation bone index (73-bone `Bip01`). **What it does
+not close**: `ChainMapping`s (1 per mapper, for bone ranges rather than single bones) and the
+`SimpleMapping`/`ChainMapping` transforms themselves are counted but not individually decoded — not
+needed for "which named bone," but would matter for anything that needs the actual retargeting math.
 
 ## Scoped, not yet attempted
 
 Ordered by what would unblock the most next, not by ease.
 
-### 1. `hkaSkeletonMapper` — re-prioritised up, now the real blocker for "which bone"
-
-**This project's own read of `hkaRagdollInstance` changed the priority order here.** Originally
-scoped as "lower priority... not needed to place static capsules on their bones" — that was wrong.
-`m_boneToRigidBodyMap` maps the *ragdoll's own* 17-bone skeleton to rigid bodies, and
-`hkaRagdollInstance::m_skeleton` is that same 17-bone skeleton, confirmed distinct from the 73-bone
-*animation* skeleton this project already exposes. Without correlating the two, a decoded capsule can
-only be labelled "rigid body 3," not "`Bip01_L_UpperArm`" — which is what a usable UE5 Physics Asset
-needs. `hkaSkeletonMapper` (2 objects on this character) is the game's own answer to that
-correlation and should be read before `hkpRigidBody`, not after.
-
-### 2. `hkpRigidBody` — the dynamics half of each capsule
+### 1. `hkpRigidBody` — the dynamics half of each capsule, now the recommended next step
 
 Substantially deeper than `hkpCapsuleShape`: its base, `hkpEntity`, carries a material
 (`hkpMaterial`), a full motion state (`hkpMaxSizeMotion` — position, rotation, linear/angular
@@ -108,7 +133,7 @@ constraint-master array) — **not written to the packfile at all**, which narro
 byte-offset work considerably, but the motion state itself (mass, inertia, centre of mass — the part
 a UE5 Physics Asset actually needs) is real, serialized data that hasn't been located yet.
 
-### 3. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the remaining classes
+### 2. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the remaining classes
 
 A `hkpConstraintInstance` mostly holds housekeeping (priority, a name, a `hkpConstraintData*`
 pointer) and points at the real joint data. `hkpRagdollConstraintData::Atoms` is a fixed sequence of
@@ -118,17 +143,16 @@ seven nested "atom" structs — `hkpSetLocalTransformsConstraintAtom`, `hkpSetup
 class with its own fields (joint limit angles, per-body local transforms, motor parameters). This is
 genuinely the largest remaining piece, comparable in scope to the lightmap descriptor chain that took
 a full session on its own. `hkaRagdollInstance::m_constraints` already gives the object graph (which
-constraint belongs to this character, in order) — the reachability problem items 1–2 still had is
+constraint belongs to this character, in order) — the reachability problem earlier items had is
 solved; what's left is purely "decode each joint's field values."
 
 ## What this unblocks, and what it does not
 
-`hkaRagdollInstance` + `hkpCapsuleShape` are already enough to place every character's collision
-capsules at their correct local transforms relative to *a* rigid body — a real, useful skeleton of
-shapes, even before constraints are decoded (UE5 can import bodies without constraints; it just won't
-hold together as a ragdoll yet). What's still missing before that's a *labelled* UE5 Physics Asset is
-item 1 (which animation bone each rigid body corresponds to) and item 2 (each body's own transform —
-`hkpCapsuleShape` is in the body's *local* space, and nothing yet reads where that local space sits
-in the world/bone frame). Constraints (item 3) are what turn "capsules placed on bones" into "a
-ragdoll that behaves like one." None of the three has been started; this note is the map for whoever
-does.
+`hkaRagdollInstance` + `hkpCapsuleShape` + `hkaSkeletonMapper` together already place every
+character's collision capsules against a *named animation bone*, relative to *a* rigid body — even
+before constraints are decoded (UE5 can import bodies without constraints; it just won't hold together
+as a ragdoll yet). What's still missing before that's a fully usable UE5 Physics Asset is item 1
+(each body's own transform — `hkpCapsuleShape` is in the body's *local* space, and nothing yet reads
+where that local space sits in the world/bone frame, or the body's mass/inertia). Constraints
+(item 2) are what turn "capsules placed on bones" into "a ragdoll that behaves like one." Neither of
+the two remaining items has been started; this note is the map for whoever does.

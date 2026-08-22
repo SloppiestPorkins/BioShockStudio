@@ -373,19 +373,24 @@ material.
    entries land exactly on the first four independently-found `hkpRigidBody` offsets.
    `m_boneToRigidBodyMap` is `[0..16]` (identity) and `m_skeleton` resolves to a real `hkaSkeleton` —
    **but it is this ragdoll's own 17-bone skeleton, confirmed distinct from the 73-bone animation
-   skeleton**, which changed the priority order below. `HkaRagdollInstanceReader`,
-   `HavokPhysicsTests.RagdollInstanceCountsAgreeWithTheWholePackfileCensus`. **Recommended next,
-   re-prioritised**: `hkaSkeletonMapper` (2 objects on this character) — needed to correlate the
-   ragdoll's 17-bone skeleton back onto the 73-bone animation skeleton, i.e. to know *which named bone*
-   a given capsule belongs to, which a UE5 Physics Asset needs and which `hkaRagdollInstance` alone
-   cannot answer (an earlier version of this entry said the mapper was "not needed to place capsules
-   on their bones" — that was wrong, corrected in `docs/research/havok-physics.md`). `hkpRigidBody`
-   after that (deeper — a material and a full motion state, though many `hkpEntity` fields are
+   skeleton**. `HkaRagdollInstanceReader`,
+   `HavokPhysicsTests.RagdollInstanceCountsAgreeWithTheWholePackfileCensus`. **`hkaSkeletonMapper`
+   fully decoded too, `CONFIRMED_BYTES`, same session** — closing the gap the ragdoll instance left:
+   both of this character's mappers resolve to real, class-named, bone-counted `hkaSkeleton` objects
+   (73-bone `Bip01` and 17-bone `Ragdoll_Bip01 Pelvis01`), and their `SimpleMappings` are near-exact
+   inverses of each other — 20 of 21 entries in one direction have an exact reverse counterpart in
+   the other's 29, the one exception understood (a bone plausibly covered by the reverse mapper's
+   separately-counted "unmapped bones" instead). `HkaSkeletonMapperReader`,
+   `HavokPhysicsTests.SkeletonMappersAreNearExactInversesOfEachOther`. **A capsule can now be traced
+   end to end to a named animation bone**: rigid body index → `BoneToRigidBodyMap` → ragdoll bone
+   index → `SimpleMappings` → animation bone index. **Recommended next**: `hkpRigidBody` (deeper — a
+   material and a full motion state, though many `hkpEntity` fields are
    `+nosave`/`+serialized(false)` and so genuinely absent from the packfile, narrowing the real
-   surface). **Constraints (`hkpConstraintInstance`/`hkpRagdollConstraintData`) remain the largest
-   piece** — seven nested "atom" structs per joint — but reachability is now solved (`m_constraints`
-   already gives the object graph), so what's left is purely per-joint field decode. Full record and
-   field-by-field detail: `docs/research/havok-physics.md`.
+   surface; still needed for each body's own world/bone-frame transform and mass/inertia, which
+   nothing decoded so far provides). **Constraints (`hkpConstraintInstance`/`hkpRagdollConstraintData`)
+   remain the largest piece** — seven nested "atom" structs per joint — but reachability is solved
+   (`m_constraints` already gives the object graph), so what's left there is purely per-joint field
+   decode. Full record and field-by-field detail: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
