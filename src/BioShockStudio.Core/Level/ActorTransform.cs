@@ -62,6 +62,45 @@ public readonly record struct UnrealRotator(int Pitch, int Yaw, int Roll)
     /// barrel vault — no twist, no gap. Under the old sign they formed two panels meeting at a
     /// diagonal seam, which is the exact shape in the bug report.
     /// </para>
+    /// <para>
+    /// <b>ROLL IS NEGATED TOO, and this project deliberately disagrees with the reference about
+    /// it.</b> Found the same way as the pitch sign — a user photographed a <c>1-Medical</c> skylight
+    /// rotated wrongly while its neighbours were right — and settled against a ground truth no
+    /// reference implementation is involved in: <b>the game's own BSP tree</b>. A prop stands in a
+    /// room, not inside the masonry, so the share of a rotated actor's geometry that lands in a
+    /// <i>solid</i> leaf is a cost the correct composition minimises. Across six maps and 147,466
+    /// sampled points on actors carrying a non-zero roll:
+    /// </para>
+    /// <list type="table">
+    /// <item><description><c>Rx(+roll)</c>, as shipped and as the reference builds it — <b>25.85%</b> buried</description></item>
+    /// <item><description><c>Rx(-roll)</c> — <b>15.38%</b> buried</description></item>
+    /// <item><description>every other candidate tried (pre-fix pitch, negated yaw, reversed order, reversed with negated roll) — 25.89% to 27.30%</description></item>
+    /// </list>
+    /// <para>
+    /// The alternatives cluster; only this one separates, and it does so by 40%. The classifier
+    /// behind it is itself validated rather than assumed: which leaf side is open space was
+    /// established from the shipped AI navigation graph — 7,207 of 7,378 <c>PathNode</c>/
+    /// <c>PatrolPoint</c> positions across 18 maps fall in a front leaf (97.7%). Rendering the
+    /// reported skylight under all six candidates agrees: only this one assembles the four pieces
+    /// into a continuous barrel vault. <c>BspSolidityTests</c>.
+    /// </para>
+    /// <para>
+    /// <b>Note what this does NOT disturb.</b> A roll of ±180° negates to itself, so the Medical
+    /// Pavilion arch that produced the pitch fix is untouched by this — the two corrections are
+    /// independent, which is why fixing pitch left this one standing.
+    /// </para>
+    /// <para>
+    /// <b>And the comparison is now committed and run over the whole game, not one arch.</b> The
+    /// six-rotation probe above was a throwaway; a rule verified on one view is what produced this
+    /// bug in the first place. <c>ActorTransformReferenceTests</c> transcribes the reference's
+    /// <c>BuildActorTransform</c> literally and compares all sixteen matrix components against it
+    /// for <b>every one of the 12,557 distinct rotation/scale pairs the shipped maps place an actor
+    /// at</b> (all 161 shipped <c>.bsm</c> packages, 118,919 actors, 69,068 rotated), each composed
+    /// with that actor's own location and scale. Worst component difference: <b>0.000011</b>.
+    /// It is also proved able to
+    /// fail — the pre-fix <c>+pitch</c> composition is rejected by all <b>6,215</b> placements
+    /// pitched far enough to distinguish the two, worst difference <b>60</b>.
+    /// </para>
     /// </remarks>
     public Quaternion ToQuaternion()
     {
@@ -69,7 +108,7 @@ public readonly record struct UnrealRotator(int Pitch, int Yaw, int Roll)
         const float toRadians = MathF.PI / 180f;
         return Quaternion.CreateFromAxisAngle(Vector3.UnitZ, degrees.Z * toRadians)
              * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -degrees.Y * toRadians)
-             * Quaternion.CreateFromAxisAngle(Vector3.UnitX, degrees.X * toRadians);
+             * Quaternion.CreateFromAxisAngle(Vector3.UnitX, -degrees.X * toRadians);
     }
 
     public override string ToString() =>
@@ -132,8 +171,33 @@ public sealed record ActorTransform
     /// which ruled out a wrong axis or a wrong order outright. It could not distinguish the pitch
     /// sign, because a mostly-yaw skyline looks the same either way — exactly the gap the arch bug
     /// fell into, and exactly why "renders plausibly" is not the same evidentiary weight as "matches
-    /// the reference construction to 1e-6".
+    /// the reference construction to 1e-6". <b>The game's own numbers say how wide that gap was:</b>
+    /// 6,167 of its 12,557 distinct placements sit at a pitch of exactly 0° or 180°, where the
+    /// wrong sign is not merely hard to see but produces the identical matrix. Essentially half of
+    /// Rapture cannot express this class of bug at all.
     /// </para>
+    /// <para>
+    /// <b>The whole composition — pre-pivot excepted — is now checked against the reference on every
+    /// rotation the game ships</b> (<c>ActorTransformReferenceTests</c>). Two boundaries are worth
+    /// knowing, and both are recorded there rather than left to be rediscovered:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <b>The pre-pivot is outside the comparison.</b> The reference editor does not apply
+    /// <c>PrePivot</c> to an actor at all — the field appears in its source only as a name in a skip
+    /// list — so the term is held at zero there. It rests on this project's own stronger evidence:
+    /// 33,631 of 33,632 world polygons land in a plane of their own brush under
+    /// <c>Location − PrePivot</c>, against 2.9% without it (<c>BrushPlacementTests</c>).
+    /// </description></item>
+    /// <item><description>
+    /// <b>The scale/rotation order is not settled by shipped data.</b> A uniform scale commutes with
+    /// the rotation, and the whole game contains exactly <b>two</b> rotated actors with a
+    /// non-uniform scale — both in <c>1-Welcome</c>, both only 1.8% off uniform. The order is
+    /// verified against the reference under a deliberately non-uniform probe scale instead, which
+    /// establishes that the two <i>implementations</i> agree; what BioShock ships remains unable to
+    /// distinguish them. Same situation as the brush placement rule.
+    /// </description></item>
+    /// </list>
     /// </remarks>
     public Matrix4x4 ToMatrix() =>
         Matrix4x4.CreateTranslation(-PrePivot)
