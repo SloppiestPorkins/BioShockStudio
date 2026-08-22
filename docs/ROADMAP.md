@@ -349,6 +349,25 @@ material.
    lead — do not re-open this specific comparison.
 3. Map Havok collision/ragdoll data to UE5 Physics Assets only once body shapes, constraints and
    units are byte-backed — preserve unsupported blocks losslessly rather than guessing.
+   **Scoping started, 22 Aug 2026** (was genuinely unstarted before — only ragdoll *presence* had
+   ever been checked, `CharacterCatalog.DeclaresRagdoll`, never a payload read). One character
+   (`AggressorBabyJane`) censused: 17 `hkpRigidBody`, 17 `hkpCapsuleShape`, 16
+   `hkpConstraintInstance`/`hkpRagdollConstraintData` pairs, 1 `hkaRagdollInstance`, 2
+   `hkaSkeletonMapper`. **`hkpCapsuleShape` fully decoded, `CONFIRMED_BYTES`** on all 17 of this
+   character's capsules, 0 disagreements — radius and both end-vertices' redundant radius component
+   agree exactly, and every decoded radius/length is a plausible human-body proportion **in metres**
+   (three orders of magnitude smaller than this rig's own centimetre-scaled mesh/animation data — the
+   expected Havok convention, not a bug, but a scale factor nothing here has derived yet).
+   `HkpCapsuleShapeReader`, `HavokPhysicsTests`. **Recommended next**: `hkaRagdollInstance` — small
+   (an array of rigid-body pointers, an array of constraint pointers, a bone-to-rigid-body index
+   array, a skeleton reference), and its `m_boneToRigidBodyMap` directly answers which of the 73
+   bones get a physics body, without inference. `hkpRigidBody` after that (deeper — a material and a
+   full motion state, though many `hkpEntity` fields are `+nosave`/`+serialized(false)` and so
+   genuinely absent from the packfile, narrowing the real surface). **Constraints
+   (`hkpConstraintInstance`/`hkpRagdollConstraintData`) are the largest remaining piece** — seven
+   nested "atom" structs per joint (limits, motor, local transforms) — comparable in scope to the
+   lightmap descriptor chain; do those last, once the object graph from items 1–2 is already known.
+   Full record and field-by-field detail: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly

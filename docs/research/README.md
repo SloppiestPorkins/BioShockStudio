@@ -22,6 +22,7 @@ Every claim in these documents carries a confidence label:
 | [havok-compression.md](havok-compression.md) | Spline compression and quantised quaternions. |
 | [binding.md](binding.md) | Track-to-bone binding, and why it must precede decoding. |
 | [root-motion.md](root-motion.md) | Havok root motion (`m_extractedMotion`) — present on 39.6% of animations, previously unread. |
+| [havok-physics.md](havok-physics.md) | Havok collision/ragdoll data — `hkpCapsuleShape` decoded; census and a scoped plan for the rest. |
 | [skeletalmesh.md](skeletalmesh.md) | Skinned mesh — header, sockets, bone map, geometry, weights. |
 | [staticmesh.md](staticmesh.md) | Static mesh — the props that hang off sockets. |
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
