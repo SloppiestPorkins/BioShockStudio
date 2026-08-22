@@ -119,19 +119,45 @@ not close**: `ChainMapping`s (1 per mapper, for bone ranges rather than single b
 `SimpleMapping`/`ChainMapping` transforms themselves are counted but not individually decoded — not
 needed for "which named bone," but would matter for anything that needs the actual retargeting math.
 
+## Partially decoded: `hkpRigidBody` — shape pointer only, `CONFIRMED_BYTES`; the rest is open
+
+`hkpRigidBody`'s inheritance chain (`hkpEntity` → `hkpWorldObject` → an embedded `hkpLinkedCollidable`
+→ `hkpCollidable` → `hkpCdBody`, plus a separately-embedded `hkpMaxSizeMotion` for the dynamics side)
+is materially deeper than every other class decoded so far — genuinely deep enough that guessing at
+the rest risked publishing wrong offsets as fact, so this note stops at what's actually confirmed.
+
+**Confirmed**: `m_collidable`'s shape pointer resolves to a real `hkpCapsuleShape` on **all 17 of
+`AggressorBabyJane`'s rigid bodies, 0 disagreements** — `HkpRigidBodyReader.ReadShape`,
+`HavokPhysicsTests.EveryRigidBodyPointsAtARealCapsuleShape`. Reachable because
+`hkMultiThreadCheck` (debug-only) and `hkpLinkedCollidable`'s own field (`m_collisionEntries`) are
+both entirely `+nosave`/`+serialized(false)` — they contribute zero bytes to the packfile, so the
+shape pointer sits close to the object's start despite the deep class chain.
+
+**Tried and inconclusive, not published as fact**: a first byte dump of one rigid body found
+plausible-looking candidates — a `0.5`/`0.1` float pair that could be friction/restitution, and a
+`(-0.009282, 0.005066, 0.999944, 0)` quadruple that normalises to almost exactly 1 (a valid unit
+quaternion, or equally plausibly one row of `hkTransform`'s rotation matrix — the two are not
+distinguishable by eyeballing one sample). A principled cross-reference was attempted: this rig's own
+`hkaRagdollInstance` + `hkaSkeletonMapper` chain (above) says rigid body 0 corresponds to animation
+skeleton bone 1 (`Bip01_Pelvis`), so that bone's own bind-pose local translation should show up
+somewhere in the rigid body's bytes, in some scale/frame. It didn't help: `Bip01_Pelvis`'s local
+translation is exactly `(0, 0, 0)` — an unlucky first pick, not diagnostic either way — and a rigid
+body's own transform is in **world space**, not parent-relative, so even a non-zero bone translation
+would need the whole parent chain composed (not one bone read in isolation) before it's comparable.
+**Concrete next step for whoever picks this up**: repeat the cross-reference against a bone with a
+non-zero *world-space* position (composing the chain from root), rather than reading one local
+translation directly.
+
 ## Scoped, not yet attempted
 
-Ordered by what would unblock the most next, not by ease.
+### 1. The rest of `hkpRigidBody` — mass, inertia, velocities, friction/restitution, world transform
 
-### 1. `hkpRigidBody` — the dynamics half of each capsule, now the recommended next step
-
-Substantially deeper than `hkpCapsuleShape`: its base, `hkpEntity`, carries a material
-(`hkpMaterial`), a full motion state (`hkpMaxSizeMotion` — position, rotation, linear/angular
-velocity, inertia tensor, centre of mass), and constraint-owning arrays. Many `hkpEntity` fields are
-marked `+serialized(false)` or `+nosave` in the SDK header (listener lists, cached indices, a
-constraint-master array) — **not written to the packfile at all**, which narrows what actually needs
-byte-offset work considerably, but the motion state itself (mass, inertia, centre of mass — the part
-a UE5 Physics Asset actually needs) is real, serialized data that hasn't been located yet.
+See above for what's confirmed and what was tried. `hkpMotion`'s own header (`hkpMotion.h`) is worth
+reading closely before the next attempt — it names the fields directly: `m_motionState` (which starts
+with the `hkTransform` — 48-byte rotation matrix + 16-byte translation — this rigid body's own
+world-space pose), `m_inertiaAndMassInv` (one `hkVector4`: inverse inertia diagonal in `xyz`, inverse
+mass in `w` — a well-known Havok packing, worth checking for directly), `m_linearVelocity`,
+`m_angularVelocity`. All plausible in the byte dump already taken; none cross-validated yet.
 
 ### 2. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the remaining classes
 

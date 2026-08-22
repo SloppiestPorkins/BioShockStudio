@@ -383,14 +383,22 @@ material.
    separately-counted "unmapped bones" instead). `HkaSkeletonMapperReader`,
    `HavokPhysicsTests.SkeletonMappersAreNearExactInversesOfEachOther`. **A capsule can now be traced
    end to end to a named animation bone**: rigid body index → `BoneToRigidBodyMap` → ragdoll bone
-   index → `SimpleMappings` → animation bone index. **Recommended next**: `hkpRigidBody` (deeper — a
-   material and a full motion state, though many `hkpEntity` fields are
-   `+nosave`/`+serialized(false)` and so genuinely absent from the packfile, narrowing the real
-   surface; still needed for each body's own world/bone-frame transform and mass/inertia, which
-   nothing decoded so far provides). **Constraints (`hkpConstraintInstance`/`hkpRagdollConstraintData`)
-   remain the largest piece** — seven nested "atom" structs per joint — but reachability is solved
-   (`m_constraints` already gives the object graph), so what's left there is purely per-joint field
-   decode. Full record and field-by-field detail: `docs/research/havok-physics.md`.
+   index → `SimpleMappings` → animation bone index. **`hkpRigidBody` partially decoded, same
+   session**: its shape pointer, `CONFIRMED_BYTES` on all 17 rigid bodies (`HkpRigidBodyReader`,
+   `HavokPhysicsTests.EveryRigidBodyPointsAtARealCapsuleShape`) — reachable despite `hkpEntity`'s
+   materially deeper inheritance chain because the intervening classes' own fields
+   (`hkMultiThreadCheck`, `hkpLinkedCollidable`'s `m_collisionEntries`) are entirely
+   `+nosave`/`+serialized(false)`. **The rest of `hkpRigidBody` (mass, inertia, velocities,
+   friction/restitution, the body's own world transform) is deliberately still open** — a first byte
+   dump found plausible candidates (a friction/restitution-looking float pair, a near-unit-length
+   quadruple that could be a rotation component) but a principled cross-reference against this rig's
+   own bind-pose bone chain came up inconclusive (the tested bone's local translation was exactly
+   zero, and a rigid body's transform is world-space, needing the full parent chain composed, not one
+   bone read in isolation) — not published as fact. **Constraints
+   (`hkpConstraintInstance`/`hkpRagdollConstraintData`) remain the largest piece** — seven nested
+   "atom" structs per joint — but reachability is solved (`m_constraints` already gives the object
+   graph), so what's left there is purely per-joint field decode. Full record and field-by-field
+   detail: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
