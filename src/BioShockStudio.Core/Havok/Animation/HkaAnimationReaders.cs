@@ -261,15 +261,7 @@ public static class HkaDefaultAnimatedReferenceFrameReader
         HavokPackfile packfile, HavokSection section, int animationOffset)
     {
         int fieldOffset = animationOffset + HkaSplineCompressedAnimationReader.ExtractedMotionOffset;
-
-        int? local = section.ResolvePointer(fieldOffset);
-        if (local is not null) return (section, local.Value);
-
-        var global = section.ResolveGlobalPointer(fieldOffset);
-        if (global is not null)
-            return (packfile.ResolvedSections[global.Value.DestinationSection], global.Value.DestinationOffset);
-
-        return null;
+        return packfile.ResolvePointerField(section, fieldOffset);
     }
 
     public static AnimatedReferenceFrame Read(HavokSection section, int objectOffset) => new()

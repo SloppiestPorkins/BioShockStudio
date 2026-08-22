@@ -65,4 +65,50 @@ public sealed class HavokPhysicsTests(GameFixture game)
             }
         }
     }
+
+    /// <summary>
+    /// <c>hkaRagdollInstance</c> ties the whole ragdoll together, and its own counts agree with what
+    /// the whole-packfile census finds independently — the object graph is internally consistent, not
+    /// just individually plausible.
+    /// </summary>
+    [RequiresGameFact]
+    public void RagdollInstanceCountsAgreeWithTheWholePackfileCensus()
+    {
+        var (pack, owner) = BabyJane();
+        using (owner)
+        {
+            var ragdollObject = pack.Packfile.EnumerateObjects().Single(o => o.ClassName == HkaRagdollInstanceReader.ClassName);
+            var section = pack.Packfile.ResolvedSections[ragdollObject.SectionIndex];
+            var ragdoll = HkaRagdollInstanceReader.Read(pack.Packfile, section, ragdollObject.Offset);
+
+            int rigidBodyCount = pack.Packfile.EnumerateObjects().Count(o => o.ClassName == HkpRigidBodyClassName);
+            int constraintCount = pack.Packfile.EnumerateObjects().Count(o => o.ClassName == HkpConstraintInstanceClassName);
+
+            Assert.Equal(rigidBodyCount, ragdoll.RigidBodies.Count);
+            Assert.Equal(constraintCount, ragdoll.Constraints.Count);
+            Assert.Equal(17, ragdoll.RigidBodies.Count);
+            Assert.Equal(16, ragdoll.Constraints.Count);
+
+            // Every resolved rigid-body location is a real hkpRigidBody, not a dangling offset.
+            var rigidBodyLocations = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == HkpRigidBodyClassName)
+                .Select(o => (o.SectionIndex, o.Offset))
+                .ToHashSet();
+            foreach (var (bodySection, bodyOffset) in ragdoll.RigidBodies)
+                Assert.Contains((bodySection.Index, bodyOffset), rigidBodyLocations);
+
+            // The bone-to-rigid-body map is a valid index into RigidBodies for every entry.
+            Assert.NotEmpty(ragdoll.BoneToRigidBodyMap);
+            foreach (int index in ragdoll.BoneToRigidBodyMap)
+                Assert.InRange(index, 0, ragdoll.RigidBodies.Count - 1);
+
+            Assert.NotNull(ragdoll.Skeleton);
+            var skeletonObject = pack.Packfile.EnumerateObjects()
+                .FirstOrDefault(o => o.SectionIndex == ragdoll.Skeleton!.Value.Section.Index && o.Offset == ragdoll.Skeleton.Value.Offset);
+            Assert.Equal("hkaSkeleton", skeletonObject?.ClassName);
+        }
+    }
+
+    private const string HkpRigidBodyClassName = "hkpRigidBody";
+    private const string HkpConstraintInstanceClassName = "hkpConstraintInstance";
 }

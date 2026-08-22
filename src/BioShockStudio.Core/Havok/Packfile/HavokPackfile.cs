@@ -95,6 +95,25 @@ public sealed class HavokPackfile
     }
 
     /// <summary>
+    /// Resolves an <c>hkRefPtr</c>/<c>T*</c> field at <paramref name="fieldOffset"/> within
+    /// <paramref name="section"/> to the section and offset it points at, whichever kind of fixup it
+    /// turns out to be. Havok's own headers do not say whether a given pointer field will be a local
+    /// (within-section) or global (cross-section) fixup in the shipped data, so both are checked
+    /// here rather than assumed — the same check <c>HkaDefaultAnimatedReferenceFrameReader</c> and
+    /// <c>HkaRagdollInstanceReader</c> both need. Returns <c>null</c> for an unset pointer.
+    /// </summary>
+    public (HavokSection Section, int Offset)? ResolvePointerField(HavokSection section, int fieldOffset)
+    {
+        int? local = section.ResolvePointer(fieldOffset);
+        if (local is not null) return (section, local.Value);
+
+        var global = section.ResolveGlobalPointer(fieldOffset);
+        if (global is not null) return (ResolvedSections[global.Value.DestinationSection], global.Value.DestinationOffset);
+
+        return null;
+    }
+
+    /// <summary>
     /// Every object in the packfile, from the virtual fixup tables. This is the object graph's
     /// node list: each entry gives a class name and the offset its data starts at.
     /// </summary>
