@@ -4,6 +4,8 @@ using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Export.Fbx;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
+using System.Text.Json;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -128,6 +130,52 @@ public sealed partial class MaterialTests(GameFixture game)
         Assert.True(decoded > 400, $"only {decoded} materials decoded");
         // Some shaders do stop early; the point is that they say so. See docs/research/materials.md.
         Assert.True(partial < decoded / 2, $"{partial} of {decoded} materials were partial");
+    }
+
+    /// <summary>
+    /// The export carries each binding's engine-facing intent, not just the pixels.
+    /// </summary>
+    /// <remarks>
+    /// Gate 1 item 3. A PNG cannot say that a normal map is data rather than colour, or that a
+    /// texture must clamp rather than wrap, so an importer that only reads the images gets both
+    /// wrong. Intent is keyed by slot because the role belongs to the binding: the hands bind
+    /// <c>Hand_DIFF</c> as both facing and edge diffuse, and the same image elsewhere is a mask.
+    /// </remarks>
+    [RequiresGameFact]
+    public void Export_CarriesEachBindingsIntent()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-intent-{Guid.NewGuid():N}");
+
+        try
+        {
+            var material = MaterialExporter.Resolve(package, Mesh(package, "NEWPlayerHands"), directory);
+            Assert.NotNull(material);
+            Assert.NotEmpty(material.TextureIntents);
+
+            // Every slot that resolved to a file states what that file is for.
+            foreach (string slot in material.Textures.Keys)
+                Assert.True(material.TextureIntents.ContainsKey(slot), $"{slot} carries no intent");
+
+            var diffuse = material.TextureIntents.First(p => p.Key.Contains("Diffuse", StringComparison.Ordinal));
+            Assert.Equal(TextureUsage.BaseColor, diffuse.Value.Usage);
+            Assert.Equal(TextureColourSpace.Srgb, diffuse.Value.ColourSpace);
+
+            var normal = material.TextureIntents.First(p => p.Key.Contains("Normal", StringComparison.Ordinal));
+            Assert.Equal(TextureUsage.NormalMap, normal.Value.Usage);
+
+            // The whole point: the normal map must not be tagged as colour.
+            Assert.Equal(TextureColourSpace.Linear, normal.Value.ColourSpace);
+
+            // And it survives serialisation — an in-memory record no importer can read is no use.
+            string json = JsonSerializer.Serialize(material);
+            Assert.Contains("TextureIntents", json, StringComparison.Ordinal);
+            Assert.Contains("Linear", json, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     [RequiresGameFact]

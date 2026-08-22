@@ -129,8 +129,15 @@ public static class MaterialExporter
         Dictionary<string, string> written,
         Dictionary<string, string> files)
     {
+        var intents = new Dictionary<string, TextureIntent>(StringComparer.Ordinal);
+
         foreach (var texture in material.Textures)
         {
+            // Intent is per binding, so it is recorded even when the image itself was already
+            // written for another slot: the same file can be a base colour here and a mask there.
+            var decoded = Decode(package, texture, bulk);
+            if (decoded is not null) intents[texture.Slot] = TextureIntent.For(decoded, texture.Slot);
+
             // The same image is usually bound to several slots — the hands use Hand_DIFF as both the
             // facing and edge diffuse — so it is written once and shared.
             if (written.TryGetValue(texture.TextureName, out string? existing))
@@ -139,7 +146,7 @@ public static class MaterialExporter
                 continue;
             }
 
-            string? file = WriteTexture(package, texture, outputDirectory, bulk);
+            string? file = decoded is null ? null : WritePng(decoded, outputDirectory);
             if (file is null) continue;
 
             written[texture.TextureName] = file;
@@ -153,6 +160,7 @@ public static class MaterialExporter
             SourceExportIndex = material.SourceExportIndex,
             ClassName = material.ClassName,
             Textures = files,
+            TextureIntents = intents,
             Diffuse = Lookup(files, material.DiffuseTexture, material, "Diffuse", "FacingDiffuse", "EdgeDiffuse"),
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,
@@ -182,8 +190,16 @@ public static class MaterialExporter
         return null;
     }
 
-    private static string? WriteTexture(
-        BioShockPackage package, MaterialTexture texture, string outputDirectory, BulkTextureCatalog? bulk)
+    /// <summary>
+    /// Decodes the texture a binding names, without writing anything.
+    /// </summary>
+    /// <remarks>
+    /// Split out from the write because a binding's <i>intent</i> has to be recorded even when the
+    /// image was already written for an earlier slot — the same file is a base colour in one slot
+    /// and a mask in another, and only the binding says which.
+    /// </remarks>
+    private static BioShockTexture? Decode(
+        BioShockPackage package, MaterialTexture texture, BulkTextureCatalog? bulk)
     {
         var export = Resolve(package, texture);
         if (export is null) return null;
@@ -194,8 +210,13 @@ public static class MaterialExporter
         {
             return null;
         }
-        if (decoded is null || decoded.Mips.Count == 0) return null;
 
+        return decoded is null || decoded.Mips.Count == 0 ? null : decoded;
+    }
+
+    /// <summary>Writes a decoded texture beside the scene and returns its relative path.</summary>
+    private static string? WritePng(BioShockTexture decoded, string outputDirectory)
+    {
         string directory = Path.Combine(outputDirectory, TextureDirectory);
         Directory.CreateDirectory(directory);
 

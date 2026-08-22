@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Mesh;
+using BioShockStudio.Core.Textures;
 
 namespace BioShockStudio.Core.Export;
 
@@ -387,6 +388,18 @@ public sealed record SceneMaterial
     /// treating (for example) value 2 as a particular UE5 blend mode.
     /// </remarks>
     public byte? OutputBlending { get; init; }
+
+    /// <summary>
+    /// Engine-facing intent for each texture this material binds, by slot.
+    /// </summary>
+    /// <remarks>
+    /// Gate 1 item 3: an importer needs to know that a normal map is not colour and that a clamped
+    /// texture must not wrap, neither of which is recoverable from the PNG. Keyed by slot rather
+    /// than by file because the role belongs to the binding, not to the image — the same texture
+    /// can be a base colour in one material and a mask in another.
+    /// </remarks>
+    public IReadOnlyDictionary<string, TextureIntent> TextureIntents { get; init; }
+        = new Dictionary<string, TextureIntent>();
 
     /// <summary>True when the shader's property list could not be walked to its end.</summary>
     public required bool Partial { get; init; }

@@ -35,6 +35,19 @@ public sealed record UnrealProperty
     public required int ArrayIndex { get; init; }
     public required byte[] Value { get; init; }
 
+    /// <summary>
+    /// The value of a <see cref="UnrealPropertyType.Bool"/> property, which UE2 stores in the tag
+    /// rather than in a payload.
+    /// </summary>
+    /// <remarks>
+    /// Bit 7 of the info byte is the array flag for every other type and <b>the boolean's value</b>
+    /// for this one — which is exactly why the array index is not read for <c>Bool</c>. Without
+    /// this, a caller can only test whether the property is present, and presence is not the value:
+    /// see <see cref="UnrealProperty"/>'s use in <c>TextureReader</c>. Always false for
+    /// non-<c>Bool</c> properties.
+    /// </remarks>
+    public bool BoolValue { get; init; }
+
     public byte AsByte() => Value.Length >= 1 ? Value[0] : (byte)0;
     public int AsInt() => Value.Length >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(Value) : 0;
     public float AsFloat() => Value.Length >= 4 ? BinaryPrimitives.ReadSingleLittleEndian(Value) : 0f;
@@ -133,6 +146,7 @@ public static class UnrealPropertyReader
                 StructName = structName,
                 ArrayIndex = arrayIndex,
                 Value = value,
+                BoolValue = type == UnrealPropertyType.Bool && isArray,
             });
         }
 

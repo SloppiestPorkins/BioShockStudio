@@ -501,10 +501,25 @@ material.
      `PreviewImage.HasCutoutHoles` the measured alternative. See
      `docs/research/materials.md` "A diffuse's alpha channel is not necessarily opacity" for the
      census and `TransparencyIntentTests` for the pins.
-   - **Still open in this item:** colour space (sRGB vs linear) is not exported at all; normal-map
-     and cubemap intent are not yet surfaced as metadata; no representative UE5 import has been
-     validated. `Cubemap` is a distinct class in the tree (`reference-comparison.md`) and materials
-     name `ReflectionCubemap`/`UseSpecularCubemaps` — neither is decoded yet.
+   - **Intent is now exported, 23 Aug 2026.** `TextureIntent` carries usage, colour space,
+     addressing and the alpha flags, and rides in the scene JSON as `SceneMaterial.TextureIntents`,
+     keyed by slot — the role belongs to the binding, not to the image, since the same file is a
+     base colour in one material and a mask in another. Enums serialise by name so the file's
+     meaning does not depend on an enum order the importer cannot see. Full census in
+     `docs/research/textures.md`; `TextureIntentTests` and `TextureIntentCensusTests` pin it.
+     - **Colour space is not declared by the game at all** — no `sRGB`, `CompressionSettings` or
+       `MipGenSettings` on any of the 30,831 shipped textures, so it is **inferred from usage and
+       labelled inferred**. Same shape as item 1's socket answer: the item's phrasing invited a
+       search for something the container does not have.
+     - **Addressing and alpha intent are declared** and were simply unread: `UClampMode`/
+       `VClampMode` (~3,500 textures, always "clamp"), `bMasked` (105), `bAlphaTexture` (722).
+     - **A decode bug found and fixed on the way:** `UnrealProperty` discarded the value of every
+       `Bool` property, which lives in bit 7 of the info byte. That matters because this game
+       serialises false bools — `bStreamable` is written 4,374 times and is false on every one — so
+       a presence test is not a value test. Now exposed as `UnrealProperty.BoolValue`.
+   - **Still open in this item:** **cubemaps are undecoded** — 287 exports of a distinct `Cubemap`
+     class, with face layout and ordering `UNKNOWN`; and **no representative UE5 import has been
+     validated**, which is the item's other half and needs UE5 itself rather than more decoding.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.

@@ -29,6 +29,23 @@ public enum BioShockTextureFormat
     ThreeDc = 12,
 }
 
+/// <summary>
+/// How a texture is addressed outside 0..1. <c>CONFIRMED_EXTERNAL</c>: UModel's
+/// <c>ETexClampMode</c> (<c>UnMaterial2.h</c>) gives <c>TC_Wrap = 0</c>, <c>TC_Clamp = 1</c>.
+/// </summary>
+/// <remarks>
+/// <c>CONFIRMED_BYTES</c>: censused across all 33 packages, <c>UClampMode</c> appears on 3,467
+/// textures and <c>VClampMode</c> on 3,586, and <b>every one of them carries the value 1</b>. The
+/// property is written only to say "clamp"; wrap is the default and is left absent, which is why
+/// this maps an absent property to <see cref="Wrap"/> rather than to unknown.
+/// </remarks>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+public enum TextureAddress
+{
+    Wrap = 0,
+    Clamp = 1,
+}
+
 /// <summary>One mip level.</summary>
 public sealed record TextureMip
 {
@@ -59,6 +76,27 @@ public sealed record BioShockTexture
 
     /// <summary>How many top levels were stripped out.</summary>
     public int StrippedMipCount { get; init; }
+
+    /// <summary>Addressing outside 0..1, which UE5 needs as a sampler setting.</summary>
+    public TextureAddress AddressU { get; init; }
+
+    /// <summary>Addressing outside 0..1, which UE5 needs as a sampler setting.</summary>
+    public TextureAddress AddressV { get; init; }
+
+    /// <summary>
+    /// The texture declares <c>bMasked</c> — its alpha is a cutout.
+    /// </summary>
+    /// <remarks>
+    /// <c>CONFIRMED_EXTERNAL</c> from UModel's <c>UTexture</c> property table; 105 textures in the
+    /// game declare it. See <c>docs/research/materials.md</c> for why this matters to rendering:
+    /// an alpha channel here is frequently a gloss mask rather than opacity.
+    /// </remarks>
+    public bool DeclaresMasked { get; init; }
+
+    /// <summary>
+    /// The texture declares <c>bAlphaTexture</c> — its alpha is meant for blending. 722 in the game.
+    /// </summary>
+    public bool DeclaresAlphaTexture { get; init; }
 
     /// <summary>True when the mips present reach the size the texture declares.</summary>
     public bool IsComplete => DeclaredWidth == 0 || Width >= DeclaredWidth;
@@ -206,8 +244,36 @@ public static class TextureReader
             DeclaredWidth = width,
             DeclaredHeight = height,
             StrippedMipCount = stripped,
+            AddressU = Address(properties, "UClampMode"),
+            AddressV = Address(properties, "VClampMode"),
+            DeclaresMasked = Flag(properties, "bMasked"),
+            DeclaresAlphaTexture = Flag(properties, "bAlphaTexture"),
         };
     }
+
+    /// <summary>Clamp mode, defaulting to wrap when the property is absent.</summary>
+    private static TextureAddress Address(IReadOnlyList<UnrealProperty> properties, string name)
+    {
+        var property = properties.FirstOrDefault(p => p.Name == name);
+        if (property is null) return TextureAddress.Wrap;
+
+        // One byte, not four: AsInt() returns 0 for anything shorter and would silently report
+        // every clamped texture as wrapping.
+        return property.AsByte() == 1 ? TextureAddress.Clamp : TextureAddress.Wrap;
+    }
+
+    /// <summary>
+    /// A UE2 bool property, which carries its value in the tag rather than in a payload.
+    /// </summary>
+    /// <remarks>
+    /// <b>Presence is not the value.</b> This game does serialise false bools: censused across all
+    /// 33 packages, <c>bStreamable</c> is written on 4,374 textures and is <c>False</c> on every
+    /// one of them. <c>bMasked</c>, <c>bAlphaTexture</c> and <c>bTwoSided</c> happen to be true
+    /// wherever they appear, so a presence test would give the right answer for these three today
+    /// and the wrong one the moment it were reused for a fourth.
+    /// </remarks>
+    private static bool Flag(IReadOnlyList<UnrealProperty> properties, string name) =>
+        properties.Any(p => p.Name == name && p.BoolValue);
 
     /// <summary>
     /// Reads UE2's constant-colour texture variant. <c>Color</c> stores BGRA on disk; previews

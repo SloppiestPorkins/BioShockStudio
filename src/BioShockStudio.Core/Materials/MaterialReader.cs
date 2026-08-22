@@ -70,6 +70,14 @@ public sealed record BioShockMaterial
     /// two signals, the other being whether the texture actually contains cutout holes.
     /// </para>
     /// <para>
+    /// <b>A caveat on the flag test.</b> <see cref="UnhandledProperties"/> is a list of names, so
+    /// this checks that a flag is <i>present</i>, not that it is <i>true</i> — and this game does
+    /// serialise false bools (<c>bStreamable</c> is written on 4,374 textures and is false on every
+    /// one). It is correct for these particular flags because <c>bMasked</c> and
+    /// <c>bAlphaTexture</c> are true wherever they appear, censused across all 33 packages and
+    /// pinned by <c>TextureIntentCensusTests</c>. Read the value via
+    /// <c>UnrealProperty.BoolValue</c> before extending this to any other flag.
+    ///
     /// <c>OutputBlending</c> counts as a declaration of <i>intent</i> only. Its individual values
     /// remain <c>UNKNOWN</c> and nothing here interprets them — see
     /// <c>docs/research/open-questions.md</c> §11, which established that they do not correlate
