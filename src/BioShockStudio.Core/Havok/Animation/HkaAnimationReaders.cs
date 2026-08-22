@@ -222,15 +222,23 @@ public sealed record SplineAnimationHeader
 /// +52  hkArray&lt;hkVector4&gt; m_referenceFrameSamples
 /// </code>
 /// <para>
-/// <b>PLAUSIBLE, not yet promoted</b>: which of a sample's four components carry meaning. Every
-/// sample examined so far has non-zero X and Y and zero Z and W, which is consistent with ground-plane
-/// translation and no extracted yaw, but nothing has cross-validated *which* axis is which against an
-/// independent source (e.g. a matching displacement measured from the skeleton's own root bone
-/// track), so samples are exposed here as raw <see cref="Vector4"/>s rather than interpreted as
-/// "translation" and "yaw". <b>Also open</b>: the values are in Havok's native space and have not
-/// been checked against this project's <c>C = diag(1,-1,1)</c> basis policy
+/// <b>CONFIRMED_EXTERNAL</b>, from the SDK's own field comment on <c>m_referenceFrameSamples</c>:
+/// "we only need a translation and a rotational (w) component around the up direction" — X/Y/Z is a
+/// 3D translation, W is yaw around <see cref="AnimatedReferenceFrame.Up"/>. <b>CONFIRMED_BYTES</b>
+/// that both slots are actually live, not structurally dead: on three more skeleton families
+/// (<c>GathererGirl</c>, both Big Daddy variants — 196 animations beyond the six checked above), Z
+/// grows smoothly on `GathererGirl`'s vent-climb animations and W grows smoothly on all three,
+/// ranging past ±π (an unwrapped "absolute offset from the start" angle, not a bug). Root motion's
+/// units are the same centimetre-ish scale as this project's mesh/bone data, <b>not</b>
+/// <see cref="BioShockStudio.Core.Havok.Physics.HkpCapsuleShapeReader"/>'s metre scale — two
+/// different Havok subsystems, two different authored scales; see
+/// <c>docs/research/root-motion.md</c> for the value ranges.
+/// <b>PLAUSIBLE, not yet promoted</b>: which axis is "forward" vs "right" (X carries the largest
+/// magnitude in most samples, the same axis <see cref="AnimatedReferenceFrame.Forward"/> defaults
+/// to, which is suggestive but not cross-validated against an independent source). <b>Also open</b>:
+/// the values have not been checked against this project's <c>C = diag(1,-1,1)</c> basis policy
 /// (<c>docs/research/ANIMATION_COORDINATE_SYSTEM.md</c>) — do not apply them to an export without
-/// checking that first.
+/// checking that first. See <c>docs/research/root-motion.md</c> for the full record.
 /// </para>
 /// </summary>
 public static class HkaDefaultAnimatedReferenceFrameReader

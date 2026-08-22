@@ -128,4 +128,61 @@ public sealed class RootMotionTests(GameFixture game)
             }
         }
     }
+
+    /// <summary>
+    /// Beyond the one splicer this file otherwise tests: three more skeleton families
+    /// (<c>GathererGirl</c>, both Big Daddy variants), 196 more root-motion animations, 0 sample-count
+    /// mismatches. This is what actually settles the "Z and W are dead" hypothesis an earlier version
+    /// of this reader's doc comment carried — they aren't. <c>GathererGirl</c> (a Little Sister who
+    /// climbs into vents) carries real, growing Z displacement; all three characters carry real,
+    /// growing W. Full values in <c>docs/research/root-motion.md</c>.
+    /// </summary>
+    [RequiresGameFact]
+    public void ZAndWAreLiveOnOtherSkeletonFamilies()
+    {
+        (int WithMotion, int NonZeroZ, int NonZeroW) Census(BioShockPackage package, string wrapperName)
+        {
+            var wrapper = package.Exports
+                .Where(e => e.ObjectName == wrapperName && package.GetClassName(e) == AssetClasses.AnimationPackageWrapper)
+                .MaxBy(e => e.SerialSize)!;
+            var pack = Core.Assets.AnimationPackage.Load(package, wrapper);
+
+            int withMotion = 0, nonZeroZ = 0, nonZeroW = 0;
+            foreach (var animation in pack.Animations)
+            {
+                var section = pack.Packfile.ResolvedSections[animation.SectionIndex];
+                var header = HkaSplineCompressedAnimationReader.Read(section, animation.Offset);
+                if (!header.HasExtractedMotion) continue;
+                withMotion++;
+
+                var target = HkaDefaultAnimatedReferenceFrameReader.ResolveTarget(pack.Packfile, section, animation.Offset);
+                if (target is null) continue;
+                var frame = HkaDefaultAnimatedReferenceFrameReader.Read(target.Value.Section, target.Value.Offset);
+
+                Assert.Equal(header.NumFrames, frame.Samples.Count);
+                foreach (var s in frame.Samples)
+                {
+                    if (MathF.Abs(s.Z) > 0.0001f) nonZeroZ++;
+                    if (MathF.Abs(s.W) > 0.0001f) nonZeroW++;
+                }
+            }
+            return (withMotion, nonZeroZ, nonZeroW);
+        }
+
+        using var medical = BioShockPackage.Open(
+            Path.Combine(Core.Game.GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm"));
+        using var lighthouse = BioShockPackage.Open(game.LighthousePackage);
+
+        var gatherer = Census(medical, "UAPW_GathererGirl");
+        var rosie = Census(lighthouse, "UAPW_ProtectorRosie");
+        var bouncer = Census(medical, "UAPW_NewProtectorBouncer");
+
+        Assert.True(gatherer.WithMotion > 0 && rosie.WithMotion > 0 && bouncer.WithMotion > 0);
+
+        // W (yaw) is live on all three - the field is exercised, not structurally unused.
+        Assert.True(gatherer.NonZeroW > 0 && rosie.NonZeroW > 0 && bouncer.NonZeroW > 0);
+
+        // Z (vertical) is live on at least one - the Little Sister climbing into vents.
+        Assert.True(gatherer.NonZeroZ > 0);
+    }
 }
