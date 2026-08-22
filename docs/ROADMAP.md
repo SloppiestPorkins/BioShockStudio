@@ -790,6 +790,34 @@ dotnet test --filter Tier=Sweep     # whole-game censuses, bulk store, UI, ~20 m
 dotnet test                         # both — the number to report
 ```
 
+### Verification stamp — read this before running anything
+
+**Last full-suite run: 464/464, 22 Aug 2026, 29m02s — measured *before* commit `1c2e4b2`.**
+That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
+measured**. Reported as unrun, not as passing.
+
+**Measured on the current tree, 23 Aug 2026:**
+
+| Run | Result | Cost |
+|---|---|---|
+| `--filter Tier=Fast` | **204/204** | 41s |
+| `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** | 2m17s |
+
+Those two classes are the entire surface `1c2e4b2` could have moved (it touched
+`Core/Mesh/SkeletalMeshSections.cs` and those two test files). The rest of the sweep tier is
+unchanged since the 464/464 run and was **deliberately not re-run** — see
+`docs/ENGINEERING_RULES.md` §60 "Test-run economy", which is a standing user instruction, not a
+shortcut. The recipe:
+
+```bash
+git diff --stat 1c2e4b2..HEAD                          # what could have moved since the stamp
+dotnet test --filter "FullyQualifiedName~<Class>"      # run only what that covers
+```
+
+Run the whole sweep when the diff reaches shared machinery (package reading, the property walker,
+the catalogue, the coordinate basis), when this stamp is many commits stale, or when a handover
+reports the whole-suite total — **and move this stamp forward in the same commit when you do.**
+
 Full suite: **464/464 passing** (measured 22 Aug 2026, 29m02s, after Gate 0 items 1 and 2 including
 the roll correction — `ActorTransformReferenceTests`, `BspSurfaceCensusTests`,
 `BspWorldCoverageTests`, `BspSolidityTests`, `ActorPlacementAgainstTheWorldTests`,

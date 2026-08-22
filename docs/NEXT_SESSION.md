@@ -33,8 +33,18 @@ repository; this file only tells it where to look and what not to re-derive.
 
 ```bash
 dotnet build
-dotnet test --filter Tier=Fast     # seconds; run this constantly
-dotnet test                        # tens of minutes; the figure to report
+dotnet test --filter Tier=Fast     # ~40s; run this constantly
+```
+
+**That is the whole baseline. Do not run the full suite as a first action** — it costs ~19 minutes to
+re-measure what the previous session already measured, which is the specific waste
+`docs/ENGINEERING_RULES.md` §60 "Test-run economy" (a standing user instruction) exists to stop.
+Instead read the **verification stamp** at the top of `docs/ROADMAP.md` "Test health": it names the
+commit the suite was last green at, and `git diff --stat <stamp>..HEAD` is then the complete list of
+what could have moved. Run the sweep classes covering *that*, by name, and nothing else:
+
+```bash
+dotnet test --filter "FullyQualifiedName~<Class>"
 ```
 
 **Don't trust a number written here** — it goes stale within a session or two, which is exactly the

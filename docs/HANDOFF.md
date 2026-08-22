@@ -14,7 +14,7 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | Gate 0 — items 1 and 2 landed; item 3 (lightmaps to default-on) is next in order | `docs/ROADMAP.md`, `src/BioShockStudio.Core/Level/`, `src/BioShockStudio.Core/Services/LevelViewportService.cs`, `tests/BioShockStudio.Tests/{ActorTransformReference,BspSurfaceCensus,BspWorldCoverage}Tests.cs` | 22 Aug 2026 |
+| Claude (this session) | Test-run economy (docs only, landed); Gate 1 item 3 (texture colour-space/normal/mask/cubemap intent) is next in order | `CLAUDE.md`, `docs/{ROADMAP,ENGINEERING_RULES,HANDOFF,NEXT_SESSION}.md`; next: `src/BioShockStudio.Core/Textures/`, `tests/BioShockStudio.Tests/Texture*Tests.cs` | 23 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
 them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A
@@ -34,10 +34,16 @@ which is exactly the failure mode `docs/ROADMAP.md` Part 0.6 exists to stop. For
 a test, see `docs/QUALITY.md`.
 
 ```bash
-dotnet test --filter Tier=Fast      # seconds — run while working
-dotnet test --filter Tier=Sweep     # whole-game censuses, ~10-20min — run before finishing
-dotnet test                         # both — the number to report
+dotnet test --filter Tier=Fast                       # ~40s — run while working
+dotnet test --filter "FullyQualifiedName~<Class>"    # the sweep classes your diff touches
+dotnet test --filter Tier=Sweep                      # ~19min — only when the diff reaches shared code
+dotnet test                                          # both — only when reporting a whole-suite total
 ```
+
+**Re-running the full suite to re-confirm another session's measurement is the waste this project
+kept paying.** Read the verification stamp at the top of `docs/ROADMAP.md` "Test health" before any
+sweep run; `docs/ENGINEERING_RULES.md` §60 "Test-run economy" has the rule (standing user
+instruction, 23 Aug 2026).
 
 **The suite is now split into two tiers.** The whole thing takes about ten minutes and that was
 visibly changing how carefully changes got verified — it was cheaper to reason about a change than

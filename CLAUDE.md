@@ -41,10 +41,17 @@ verified:
 
 ```bash
 dotnet build
-dotnet test --filter Tier=Fast      # ~28s — run this constantly, while working
-dotnet test --filter Tier=Sweep     # ~19min — run this before you finish
-dotnet test                         # both; what a handover reports
+dotnet test --filter Tier=Fast                       # ~40s — run this constantly, while working
+dotnet test --filter "FullyQualifiedName~<Class>"    # minutes — the sweep classes your diff touches
+dotnet test --filter Tier=Sweep                      # ~19min — only when the diff reaches shared code
+dotnet test                                          # both; only when reporting a whole-suite total
 ```
+
+**Do not re-run the full suite to re-confirm a figure another session just measured.** Standing user
+instruction — `docs/ENGINEERING_RULES.md` §60 "Test-run economy". Read the verification stamp at the
+top of `docs/ROADMAP.md` "Test health" first: it names the commit the suite was last green at, so
+`git diff --stat <stamp>..HEAD` tells you the only thing that needs re-running. An unrun tier is
+reported as unrun, never as passing.
 
 **The split is by how much real data a test reads, never by faking any.** There are no synthetic
 fixtures and this does not introduce one: a fast test still reads real shipped bytes, just from one

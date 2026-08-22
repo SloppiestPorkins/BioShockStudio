@@ -544,6 +544,33 @@ same shape as §0.4's "finish one track before starting the next" but one level 
 the four concurrent tracks (UE5/audio/lightmaps/bytecode), this governs the items *within* whichever
 track/gate is currently active.
 
+### Test-run economy — added 23 Aug 2026
+
+**Do not re-run the full suite to re-confirm a measurement another session just made.** Given
+directly by the user, after a session spent ~19 minutes re-running the whole sweep tier to reproduce
+a figure the preceding session had already measured, on a tree whose only new commit touched one
+subsystem. §2 applies: this is a user decision, not an engineering opinion.
+
+The order to work in:
+
+1. **`dotnet test --filter Tier=Fast` constantly** while working — ~40s, 204 tests. Unchanged.
+2. **Before any sweep run, read the verification stamp** in `docs/ROADMAP.md` "Test health": the
+   point the full suite was last green at. `git diff --stat <stamp>..HEAD` is then the complete list
+   of what could possibly have moved since — usually one subsystem, not fifty-five.
+3. **Run only the sweep classes covering that diff**, by name:
+   `dotnet test --filter "FullyQualifiedName~<Class>"`. Closing out `1c2e4b2` this way took
+   **2m17s against ~19min**, over the same surface the commit could have touched.
+4. **Run the whole sweep only when** the diff since the stamp reaches something shared (package
+   reading, the property walker, the catalogue build, the coordinate basis), when the stamp is
+   missing or many commits stale, or when a handover is being written and the whole-suite total is
+   the figure being reported.
+
+**A full run moves the stamp forward, in the same commit.** A stamp that lags is exactly what forces
+the next agent back to running everything — which is the cost this rule exists to stop.
+
+**This does not weaken any evidence rule.** Nothing here permits reporting a number that was not
+measured: an unrun tier is reported as unrun (see the stamp's own wording), never as passing.
+
 ### Process instructions
 
 - **Read the reference projects before deriving from bytes.** `UModel-master/`, `hk2012_2_0_r1/`,
