@@ -400,9 +400,16 @@ material.
    pack of *per-light* contributions in each light's own colour, a surface commonly has several
    (1,122 of `1-Medical`'s descriptors carry 2-10 layers), and this project applies only
    `Lights[0]`. The layers are not channel-packed: 0 of 1,122 put their layers on one tile.
-   **Remaining: sample every layer at its own tile and combine** — the combination rule is `UNKNOWN`
-   and additive is a guess, not evidence. Default-on stays blocked until that is settled; the
-   per-vertex GPU path has the same defect and merely blurs it.
+   **Layer accumulation was then implemented, measured, and reverted** — it is not the answer.
+   Summing every layer moved the render from mean luminance 10.5 to 14.0, because **most surfaces
+   have only one layer** (1,668 of `1-Medical`'s 3,386 descriptors) and a single-layer surface shows
+   the fault just as strongly. **What a tile's RGB means is `UNKNOWN`**, and §5.5e now records five
+   measured constraints on any future answer — three light slots per layer, slot position refuted as
+   a channel selector, only slot 0 ever singly occupied, 58.7% single-channel, and summed layers
+   staying broadly in range. Two readings remain open: the tile is per-light radiance in that light's
+   own colour, or the atlas channels are decoded in the wrong sense for this texture format. Nothing
+   measured yet distinguishes them. Default-on stays blocked; the per-vertex GPU path has the same
+   defect and merely blurs it.
 4. ~~**Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently

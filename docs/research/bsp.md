@@ -593,11 +593,35 @@ green ceiling, a magenta floor. The cause is not the projection and not the samp
   layers, **1,090 keep every layer in the same atlas but 0 of 1,122 put them on the same tile.**
   Each layer has its own footprint and must be sampled separately.
 
-**So the remaining work is accumulation, not decoding**: sample every layer at its own tile and
-combine. The combination rule itself is still `UNKNOWN` — additive is the physically obvious guess
-and this project does not ship guesses. Note that the per-vertex GPU path has the same defect and
-merely hides it: averaging one light's contribution over three corners produces a dull tint rather
-than an obvious flat primary.
+**Accumulation was implemented and it is NOT the answer** — measured, then reverted. Summing every
+layer into the tile the UVs already address changed the render barely at all (mean luminance 10.5 to
+14.0) for a simple reason: **most surfaces have only one layer** — 1,668 of `1-Medical`'s 3,386
+descriptors — so a rule about combining layers cannot explain a fault that a single-layer surface
+shows just as strongly. The red wall's one layer is genuinely a red tile.
+
+**What a tile's RGB means is therefore `UNKNOWN`, and these are the constraints on any future
+answer:**
+
+- **A layer carries exactly three light-actor slots.** Every one of `1-Medical`'s 4,353 layers has
+  three; 10,018 of the 13,059 slots are occupied, 3,041 null.
+- **Slot position does not select a colour channel.** The obvious reading — slot 0 to R, 1 to G, 2 to
+  B — is **refuted**: of the layers with only slot 0 occupied, the tiles are as often pure green or
+  pure blue, and the contingency table is R 40 / G 326 / B 76, a green bias rather than a mapping.
+- **Only slot 0 is ever the singly-occupied one** (753 layers). Slots 1 and 2 are never occupied
+  alone, so the three are filled in order rather than independently.
+- **A single-light layer is usually but not always single-channel**: 442 of 753 (58.7%) put over 90%
+  of their energy in one channel. A strict one-light-one-channel encoding would be near 100%.
+- **Summing layers stays broadly in range**, which is consistent with addition without proving it:
+  across the 853 descriptors with two or more readable layers, the summed peak channel has a median
+  of 182.5 and a 90th percentile of 365; 27.2% exceed 255 and none collapse to black.
+
+**Two possibilities remain open and neither is supported yet:** the tile is a per-light radiance in
+that light's own colour (which would make the saturated primaries real data and the fault something
+else entirely), or the atlas texture's channels are being decoded in the wrong sense for this
+texture format. Nothing here distinguishes them.
+
+Note that the per-vertex GPU path has the same defect and merely hides it: averaging over three
+corners produces a dull tint rather than an obvious flat primary.
 
 ### 5.6 Surfaces that must not be drawn
 
