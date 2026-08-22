@@ -166,4 +166,32 @@ public sealed class HavokPhysicsTests(GameFixture game)
             }
         }
     }
+
+    /// <summary>
+    /// Every rigid body's shape pointer resolves to a real <c>hkpCapsuleShape</c> — held across the
+    /// whole set, not one example.
+    /// </summary>
+    [RequiresGameFact]
+    public void EveryRigidBodyPointsAtARealCapsuleShape()
+    {
+        var (pack, owner) = BabyJane();
+        using (owner)
+        {
+            var capsules = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == HkpCapsuleShapeReader.ClassName)
+                .Select(o => (o.SectionIndex, o.Offset))
+                .ToHashSet();
+            var bodies = pack.Packfile.EnumerateObjects().Where(o => o.ClassName == HkpRigidBodyReader.ClassName).ToList();
+
+            Assert.Equal(17, bodies.Count);
+
+            foreach (var bodyObject in bodies)
+            {
+                var section = pack.Packfile.ResolvedSections[bodyObject.SectionIndex];
+                var shape = HkpRigidBodyReader.ReadShape(pack.Packfile, section, bodyObject.Offset);
+                Assert.NotNull(shape);
+                Assert.Contains((shape!.Value.Section.Index, shape.Value.Offset), capsules);
+            }
+        }
+    }
 }
