@@ -67,6 +67,13 @@ public sealed record AnimationAuditRow
     public bool BlocksLookComplete { get; init; }
 
     /// <summary>
+    /// Whether <c>hkaAnimation::m_extractedMotion</c> resolves to a real object rather than null —
+    /// i.e. whether this animation carries Havok root motion. See
+    /// <see cref="AnimationAuditReport.WithExtractedMotion"/> for the whole-game census.
+    /// </summary>
+    public bool HasExtractedMotion { get; init; }
+
+    /// <summary>
     /// Largest distance any bone travels between two consecutive frames, in centimetres.
     /// <para>
     /// Animation is continuous; a bone that jumps a long way in one frame is a decode fault, not a
@@ -134,6 +141,12 @@ public sealed record AnimationAuditReport
     public int WithEvents => Rows.Count(r => r.EventCount > 0);
     public int TotalEvents => Rows.Sum(r => r.EventCount);
     public int UnboundTracks => Rows.Sum(r => r.TrackCount - r.BoundTrackCount);
+
+    /// <summary>
+    /// Animations whose <c>m_extractedMotion</c> resolves to a real object — i.e. carry Havok root
+    /// motion, as opposed to being driven entirely by the tracks bound to the skeleton's bones.
+    /// </summary>
+    public int WithExtractedMotion => Rows.Count(r => r.HasExtractedMotion);
 
     /// <summary>Animations whose block walk did not consume the block.</summary>
     public int IncompleteBlocks => Rows.Count(r => !r.BlocksLookComplete);
@@ -318,7 +331,7 @@ public static class AnimationAudit
 
             string problem = WhyNotPlayable(decoded, animation, bound);
 
-            var (slack, complete) = BlockWalk(animationPackage, animation);
+            var (slack, complete, hasExtractedMotion) = BlockWalk(animationPackage, animation);
             var jump = WorstJump(animationPackage.Skeleton, decoded);
             var collapse = WorstCollapse(animationPackage.Skeleton, decoded);
 
@@ -329,6 +342,7 @@ public static class AnimationAudit
             {
                 WorstBlockSlack = slack,
                 BlocksLookComplete = complete,
+                HasExtractedMotion = hasExtractedMotion,
                 WorstFrameStep = jump.Distance,
                 WorstFrameStepBone = jump.Bone,
                 WorstFrameStepFrame = jump.Frame,
@@ -396,13 +410,14 @@ public static class AnimationAudit
     /// <see cref="AnimationAuditRow.WorstBlockSlack"/> for why this is the check that separates
     /// "decoded" from "decoded correctly".
     /// </summary>
-    private static (int Slack, bool Complete) BlockWalk(AnimationPackage package, BioShockAnimation animation)
+    private static (int Slack, bool Complete, bool HasExtractedMotion) BlockWalk(
+        AnimationPackage package, BioShockAnimation animation)
     {
         try
         {
             var section = package.Packfile.ResolvedSections[animation.SectionIndex];
             var header = HkaSplineCompressedAnimationReader.Read(section, animation.Offset);
-            if (header.DataOffset is null) return (-1, false);
+            if (header.DataOffset is null) return (-1, false, header.HasExtractedMotion);
 
             var data = section.Data.Span.Slice(header.DataOffset.Value, header.DataSize);
 
@@ -428,15 +443,15 @@ public static class AnimationAudit
             foreach (var block in blocks)
             {
                 if (!block.LooksComplete) complete = false;
-                if (block.Consumed < 0) return (-1, false);
+                if (block.Consumed < 0) return (-1, false, header.HasExtractedMotion);
                 if (block.Slack > worst) worst = block.Slack;
             }
 
-            return (worst, complete);
+            return (worst, complete, header.HasExtractedMotion);
         }
         catch
         {
-            return (-1, false);
+            return (-1, false, false);
         }
     }
 

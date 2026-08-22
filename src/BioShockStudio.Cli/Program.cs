@@ -588,6 +588,7 @@ static int AuditAnimations(string root, string[] args)
     Console.WriteLine($"\nexportable        {report.Decoded} ({(report.Total == 0 ? 0 : 100.0 * report.Decoded / report.Total):0.0}%)");
     Console.WriteLine($"tracks bound to no bone  {report.UnboundTracks}");
     Console.WriteLine($"animations with events   {report.WithEvents} ({report.TotalEvents} events)");
+    Console.WriteLine($"animations with extracted motion (root motion)  {report.WithExtractedMotion}");
 
     // Decoding without throwing is not the same as decoding correctly. These two checks are what
     // separate the two: a block walk that does not consume its block has lost alignment, and a bone

@@ -1,3 +1,4 @@
+using System.Numerics;
 using BioShockStudio.Core.Animation;
 using BioShockStudio.Core.Havok.Objects;
 using BioShockStudio.Core.Havok.Packfile;
@@ -90,7 +91,7 @@ public static class HkaAnimationBindingReader
 /// +12  hkReal    m_duration
 /// +16  hkInt32   m_numberOfTransformTracks
 /// +20  hkInt32   m_numberOfFloatTracks
-/// +24  hkaAnimatedReferenceFrame* m_extractedMotion
+/// +24  hkaAnimatedReferenceFrame* m_extractedMotion   (local or global fixup; see HasExtractedMotion)
 /// +28  hkArray&lt;hkaAnnotationTrack&gt; m_annotationTracks
 /// hkaSplineCompressedAnimation
 /// +40  hkInt32   m_numFrames
@@ -116,6 +117,7 @@ public static class HkaSplineCompressedAnimationReader
     public const int DurationOffset = 12;
     public const int TransformTrackCountOffset = 16;
     public const int FloatTrackCountOffset = 20;
+    public const int ExtractedMotionOffset = 24;
     public const int AnnotationTracksOffset = 28;
     public const int NumFramesOffset = 40;
     public const int NumBlocksOffset = 44;
@@ -146,6 +148,8 @@ public static class HkaSplineCompressedAnimationReader
             Duration = section.ReadSingle(objectOffset + DurationOffset),
             TransformTrackCount = section.ReadInt32(objectOffset + TransformTrackCountOffset),
             FloatTrackCount = section.ReadInt32(objectOffset + FloatTrackCountOffset),
+            HasExtractedMotion = section.ResolvePointer(objectOffset + ExtractedMotionOffset) is not null
+                || section.ResolveGlobalPointer(objectOffset + ExtractedMotionOffset) is not null,
             AnnotationTrackCount = section.ReadArray(objectOffset + AnnotationTracksOffset).Count,
             NumFrames = section.ReadInt32(objectOffset + NumFramesOffset),
             NumBlocks = section.ReadInt32(objectOffset + NumBlocksOffset),
@@ -169,6 +173,14 @@ public sealed record SplineAnimationHeader
     public required float Duration { get; init; }
     public required int TransformTrackCount { get; init; }
     public required int FloatTrackCount { get; init; }
+
+    /// <summary>
+    /// Whether <c>m_extractedMotion</c> resolves to a real object (root motion) rather than null.
+    /// Checked as both a within-section and a cross-section pointer, since Havok does not say which
+    /// an <c>hkRefPtr</c> field will be and this project's own fixup tables are the ground truth.
+    /// </summary>
+    public required bool HasExtractedMotion { get; init; }
+
     public required int AnnotationTrackCount { get; init; }
     public required int NumFrames { get; init; }
     public required int NumBlocks { get; init; }
@@ -184,4 +196,109 @@ public sealed record SplineAnimationHeader
 
     public required int DataSize { get; init; }
     public required int Endian { get; init; }
+}
+
+/// <summary>
+/// Resolves and reads an animation's <c>m_extractedMotion</c> field (Havok root motion), when
+/// present. See <see cref="HkaSplineCompressedAnimationReader.HasExtractedMotion"/> for the
+/// presence check alone.
+/// <para>
+/// <b>CONFIRMED_BYTES</b>, cross-validated on six of <c>AggressorBabyJane</c>'s animations: the
+/// resolved object's class always names <c>hkaDefaultAnimatedReferenceFrame</c> (read from the
+/// packfile's own virtual fixup table, not assumed); <c>m_referenceFrameSamples.Count</c> equals the
+/// owning animation's own <c>NumFrames</c> exactly, every time; <c>m_duration</c> equals the
+/// animation's own duration exactly, every time; <c>m_up</c>/<c>m_forward</c> decode to the class's
+/// documented defaults, <c>(0,0,1)</c>/<c>(1,0,0)</c>, every time; and every sample curve's first
+/// entry is the origin, matching "motion represents the absolute offset from the start of the
+/// animation" in the SDK header. This is four independent cross-checks agreeing, not one lucky read.
+/// </para>
+/// <code>
+/// hkaDefaultAnimatedReferenceFrame : hkaAnimatedReferenceFrame : hkReferencedObject
+/// +0   hkReferencedObject                (vtable + refcount, zero on disk; m_frameType is +nosave
+///                                          on the base class and is not written to the packfile)
+/// +16  hkVector4          m_up           (padded from +8 to a 16-byte SIMD boundary)
+/// +32  hkVector4          m_forward
+/// +48  hkReal             m_duration
+/// +52  hkArray&lt;hkVector4&gt; m_referenceFrameSamples
+/// </code>
+/// <para>
+/// <b>PLAUSIBLE, not yet promoted</b>: which of a sample's four components carry meaning. Every
+/// sample examined so far has non-zero X and Y and zero Z and W, which is consistent with ground-plane
+/// translation and no extracted yaw, but nothing has cross-validated *which* axis is which against an
+/// independent source (e.g. a matching displacement measured from the skeleton's own root bone
+/// track), so samples are exposed here as raw <see cref="Vector4"/>s rather than interpreted as
+/// "translation" and "yaw". <b>Also open</b>: the values are in Havok's native space and have not
+/// been checked against this project's <c>C = diag(1,-1,1)</c> basis policy
+/// (<c>docs/research/ANIMATION_COORDINATE_SYSTEM.md</c>) — do not apply them to an export without
+/// checking that first.
+/// </para>
+/// </summary>
+public static class HkaDefaultAnimatedReferenceFrameReader
+{
+    public const string ClassName = "hkaDefaultAnimatedReferenceFrame";
+
+    private const int UpOffset = 16;
+    private const int ForwardOffset = 32;
+    private const int DurationOffset = 48;
+    private const int SamplesOffset = 52;
+
+    /// <summary>
+    /// Resolves <c>m_extractedMotion</c> at <paramref name="animationOffset"/> +
+    /// <see cref="HkaSplineCompressedAnimationReader.ExtractedMotionOffset"/> to the section and
+    /// offset it points at, or <c>null</c> if the pointer is unset (no root motion). Checks both a
+    /// within-section and a cross-section fixup, since Havok's own headers do not say which an
+    /// <c>hkRefPtr</c> will be.
+    /// </summary>
+    public static (HavokSection Section, int Offset)? ResolveTarget(
+        HavokPackfile packfile, HavokSection section, int animationOffset)
+    {
+        int fieldOffset = animationOffset + HkaSplineCompressedAnimationReader.ExtractedMotionOffset;
+
+        int? local = section.ResolvePointer(fieldOffset);
+        if (local is not null) return (section, local.Value);
+
+        var global = section.ResolveGlobalPointer(fieldOffset);
+        if (global is not null)
+            return (packfile.ResolvedSections[global.Value.DestinationSection], global.Value.DestinationOffset);
+
+        return null;
+    }
+
+    public static AnimatedReferenceFrame Read(HavokSection section, int objectOffset) => new()
+    {
+        Up = ReadVector4(section, objectOffset + UpOffset),
+        Forward = ReadVector4(section, objectOffset + ForwardOffset),
+        Duration = section.ReadSingle(objectOffset + DurationOffset),
+        Samples = ReadSamples(section, objectOffset + SamplesOffset),
+    };
+
+    private static Vector4[] ReadSamples(HavokSection section, int arrayFieldOffset)
+    {
+        var array = section.ReadArray(arrayFieldOffset);
+        if (array.IsEmpty) return [];
+
+        var result = new Vector4[array.Count];
+        for (int i = 0; i < result.Length; i++)
+            result[i] = ReadVector4(section, array.DataOffset!.Value + i * 16);
+        return result;
+    }
+
+    private static Vector4 ReadVector4(HavokSection section, int offset) => new(
+        section.ReadSingle(offset), section.ReadSingle(offset + 4),
+        section.ReadSingle(offset + 8), section.ReadSingle(offset + 12));
+}
+
+/// <summary>Decoded <c>hkaDefaultAnimatedReferenceFrame</c> — an animation's Havok root motion.</summary>
+public sealed record AnimatedReferenceFrame
+{
+    public required Vector4 Up { get; init; }
+    public required Vector4 Forward { get; init; }
+    public required float Duration { get; init; }
+
+    /// <summary>
+    /// One raw sample per animation frame (count equals the owning animation's <c>NumFrames</c>,
+    /// confirmed on every case checked). Component semantics are not yet promoted to a fact — see
+    /// the reader's own doc comment.
+    /// </summary>
+    public required IReadOnlyList<Vector4> Samples { get; init; }
 }
