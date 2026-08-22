@@ -13,33 +13,18 @@ export something that plays back correctly.
 **A shipped package goes in and a skinned, textured, animated Blender file or FBX set comes out.**
 The first-person hands mesh, its skeleton, its weapon sockets, its material and all 130 animations
 extract and play correctly. The FBX is validated by importing it back and comparing against the
-game's own transforms.
+game's own transforms, and multiple character/weapon/door/prop skeleton families now verify clean in
+a live UE5.7 editor import.
 
-| Area | State |
-|---|---|
-| `.bsm` package format | Complete. All 21 map packages plus the script packages parse byte-exact. |
-| Asset index | Complete: 812,435 exports indexed, 14,378 distinct assets browsable. |
-| Havok packfile, fixups, object graph | Complete. |
-| `AnimationPackageRoot` | Complete — the class UEViewer reports as unknown. |
-| `hkaSkeleton` | Complete, original bone indices preserved. |
-| `hkaAnimationBinding` | Complete, from Havok's own track-to-bone array. |
-| Spline decompression | Complete. **16,031 of 16,031 animations decode**, zero failures, 47,560 events. |
-| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis, per-material sections. **954 of 972 exports decode (98.1%)** — the 18 that do not are all doors. |
-| `StaticMesh` | Complete: all 8,668 shipped exports, including the section table. |
-| Materials | 14,328 walked with none partial (`MaterialSwitch`'s own candidate array excepted, not yet decoded); **96.8% of meshes carry a base colour**. |
-| Textures | DXT1/3/5 and DXT5N, PNG + DDS. The 8 GB bulk mip store is indexed and resolved per group. |
-| Levels | Actors, BSP source brushes and the compiled world assemble into a scene: `0-Lighthouse` is 1,141 placed objects, 2,181,021 triangles and 465 lights. Scene JSON + OBJ out. |
-| Blender export | Complete: skinned mesh, armature, actions, sockets, materials. |
-| FBX export | Complete: binary 7.4, validated by round trip through Blender. |
-| 3D preview | Complete: asset viewport with animation playback and weapon attachment, plus a **walkable level viewport** (GPU, with a tested software fallback). |
-| Diagnostics | `AssetDiagnostics` in Core, shared by the `diagnose` command and the window's Problems panel. |
-| Lightmaps | **Not started.** The descriptor chain is documented; levels draw flat-lit. |
-| UE5 import | **Verified on pistol and TommyGun first-person slices.** UE5.7 imports both rigs, Skeletons, sockets and all animations through the documented Blender + editor-plugin bridge. No app UI workflow yet. |
-| Audio | Event → sound-name chain decoded. **Where sample data lives is `UNKNOWN`**, and the investigation is closed. |
+**[`docs/ROADMAP.md`](docs/ROADMAP.md) is the canonical, kept-current status document** — what's done
+(Part 1), what's left in gate order (Part 2), and the whole-game figures behind each claim. This file
+does not keep its own copy, because a second copy is exactly how status pages drift out of sync with
+each other (this one once said lightmaps were "not started" after they'd already been decoded).
 
-
-See [docs/research/](docs/research/) for the evidence behind every claim and
-[docs/research/open-questions.md](docs/research/open-questions.md) for what is still unknown.
+See [docs/research/](docs/research/) for the byte-level evidence behind every claim,
+[docs/QUALITY.md](docs/QUALITY.md) for the headline mesh/material/texture/animation figures each
+pinned by a test, and [docs/research/open-questions.md](docs/research/open-questions.md) for what is
+still unknown.
 
 ## Building
 
@@ -63,26 +48,35 @@ dotnet run --project src/BioShockStudio.Cli -- scan
 
 | Command | Purpose |
 |---|---|
-| `scan` | Parse every shipped package and report table integrity and the class census. |
+| `scan` | Parse every shipped package and report table integrity. |
 | `assets [--class C] [pattern]` | List indexed assets. |
-| `materials <package> [pattern]` | Resolve each mesh's material and the textures it binds. |
-| `properties <package> <object\|--class C> [n]` | Dump an export's property list and what follows it. |
-| `inspect <package> [pattern]` | Show a package's header and exports. |
+| `inspect <package> [pattern]` | Show a package's header, imports and exports. |
 | `havok <package> <object>` | Parse the Havok packfiles inside an export's payload. |
 | `skeleton <package> <object>` | Print a skeleton's hierarchy. |
 | `animations <package> <object> [owner]` | List decoded animations. |
-| `export-blender <package> <object> <out-dir> [owner]` | Write the Blender scene JSON. |
-| `export-fbx <package> <object> <out-dir> [owner]` | Write FBX plus the Unreal manifest. |
-| `export-firstperson <weapon> <out-dir> [--fbx]` | Assemble the hands, the weapon and both animation sets. |
-| `meshes <package> [pattern]` | Decode each mesh's geometry and report what it carries. |
-| `textures <package> [pattern]` | Resolve textures, including the ones whose mips live in the bulk store. |
-| `export-textures <package> <out-dir> [pattern]` | Write PNG and DDS. |
-| `characters <package>` | Group meshes into characters by the ragdoll their packfile declares. |
-| `context <package> <object>` | An asset with everything it depends on resolved. |
-| `animation <package> <object> <name>` | One animation's tracks, frame by frame. |
-| `audit-animations` | Whole-game animation sweep: decode, binding, events, bone rigidity. |
-| `diagnose [package]` | Every diagnostic the tool can produce, with its evidence. |
-| `names <package> [pattern]` | The package's name table. |
+| `meshes <package>` | Report which `SkeletalMesh`es decode to geometry. |
+| `materials <package> [pattern]` | Resolve each mesh's material and the textures it binds. |
+| `properties <package> <object\|--class C\|--index N> [n] [--raw]` | Dump an export's property list and what follows it. |
+| `context <package> <group>` | An asset group and everything it owns. |
+| `level-audit <map>` | Account for every placed UE2 actor and its UE5 decode status. |
+| `export-level <map> <out-dir>` | Write a versioned level JSON plus OBJ for the UE5 pipeline. |
+| `ue5-audit [out.json]` | Decode-check asset containers required by the UE5 pipeline. |
+| `characters <package>` | List animated character assets (packfile declares a ragdoll). |
+| `textures <package> [pattern]` | List textures with format and size. |
+| `sounds <package> [pattern]` | List native `Sound` exports and identified payload formats. |
+| `export-sounds <package> <out-dir> [pattern]` | Write native `Sound` payloads as MP3 where proven. |
+| `audit-audio` | Census native `Sound` exports and their identified payloads. |
+| `decode-stream <bank.fsb> <out.wav> <subsound-index>` | Decode one streamed FSB5 item through the game's x86 FMOD. |
+| `export-textures <package> <out-dir> [pattern]` | Write textures as PNG (and DDS when compressed). |
+| `animation inspect <package> <object> <animation>` | Dump one animation's tracks, samples and events. |
+| `export-blender <package> <object> <out-dir> [owner]` | Write scene JSON for the Blender importer. |
+| `export-fbx <package> <object> <out-dir> [owner] [--mesh <name>]` | Write FBX plus the Unreal manifest. |
+| `audit-animations [out.csv]` | Whole-game animation sweep: decode, binding, events, bone rigidity, root motion. |
+| `diagnose [package] [--animations] [--code C] [--out report.csv]` | Every diagnostic the tool can produce, with its evidence. |
+| `export-firstperson <weapon> <out-dir> [--fbx] [--group=<name>]` | Assemble the hands, the weapon and both animation sets. |
+
+Run `dotnet run --project src/BioShockStudio.Cli -- --help` for the authoritative, always-current list
+with full flag descriptions — this table is a summary of it, not a second source of truth.
 
 Example — the first-person hands animation package:
 

@@ -15,10 +15,10 @@
 > 2026 and it passed clean: both rigs, all 12 animations, `Success - 0 error(s), 7 warning(s)` (the
 > warnings are cosmetic — missing smoothing groups, sockets not in the bind pose — matching what §5
 > already flagged as non-fatal). **The current source of truth for this track is
-> `docs/ROADMAP.md` §4 "UE5 import foundation" and `tools/ue5/README.md`**, not this file. The
-> sections below are kept as the investigation record (§4 in particular is still useful evidence if
-> the same class of bug resurfaces on a new asset type), but treat anything here about the import
-> *not* working as historical, not current.
+> `docs/ROADMAP.md` Gate 2 item 4 and `tools/ue5/README.md`**, not this file. The sections below are
+> kept as the investigation record (§4 in particular is still useful evidence if the same class of
+> bug resurfaces on a new asset type), but treat anything here about the import *not* working as
+> historical, not current.
 >
 > The `SubDeformer` fix in §6 is a genuine, separate exporter bug — that part still stands as-is; it
 > was already merged before ChatGPT's workaround shipped and did not conflict with it.

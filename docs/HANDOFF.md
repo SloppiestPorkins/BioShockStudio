@@ -25,27 +25,18 @@ table is stale or unchecked.
 
 ## Current state
 
-| | |
-|---|---|
-| **Phase** | **PHASE 1C — diagnostics. 1B (Blender animation + asset library) is functionally complete.** |
-| **Former blocker** | **SOLVED.** An omitted channel component is Havok's **identity**, not the bone's reference pose. `docs/research/FIRST_PERSON_ANIMATION.md` |
-| **Tests** | **390 passed, 0 failed, 0 skipped** — 21m17s. Measured 17 Aug 2026, at the end of the audit session; it was 378 in 13m at the start of the day. **The three new tests cost about six minutes**: two sweep every shipped map's brush actors and one decodes six maps' compiled worlds *and* their source brushes to compare them. That is the price of the ground truth, and it is worth knowing before adding a fourth. **This is the only place the count is stated**; it used to be written in three and was stale in all of them. |
-| **Diagnostics** | **Built, surfaced in the viewport, and its largest findings fixed.** `AssetDiagnostics` in Core, the `diagnose` command, the Problems panel and the viewport's "Highlight problems" overlay all run the same checks. Whole-game sweep: 54,335 assets examined, **1,371 diagnostics → 582** after acting on its two largest findings. `docs/QUALITY.md` §"Whole-game diagnostic sweep". |
-| **Materials** | **96.4% of meshes now carry a base colour**, up from 91.1% this session and 73.9% two sessions ago. A texture binding is an object property resolving to a `Texture`, not a name on a list; a `Texture` named in a material slot is itself a material. `docs/research/materials.md`. |
-| **Textures** | **`Format` ordinal 12 decoded — 274 normal maps that produced nothing now decode.** It is **DXT5N**, not the 3DC/BC5 one reference project calls it; the other reference project and the bytes both say otherwise. `texture-undecodable` 320 → 46. `docs/research/bulkcontent.md`. |
-| **Reference projects** | **`docs/research/reference-comparison.md`** — what each of the four says about the structures we read, where they disagree, and which the bytes side with. Two contests settled this session; `UModel-master` went from "nothing mined" to the source of two findings. |
-| **Animation audit** | 33 packages, 883 wrappers, 399 skeletons, 16,031 animations, 16,031 playable, 0 failed, 0 unsupported, 0 unbound tracks, 47,560 events, 0 blocks left unconsumed |
-| **Bone rigidity** | **Now checked.** `audit-animations` reports **252 rows folding a bone into its parent, 27 folding ≥20 bones** — led by `AggressorBabyJane`'s 54-track fire clips at 25 bones on frame 0. These were all counted "playable" before, because the audit only ever looked for NaN, zero frames and unbound tracks. See §6.0c. |
-| **Phase 2** | **All four items done.** BSP source brushes decoded (16,926 `Polys` exports across 21 maps walk to the exact byte, 93,264 polygons); `Model` walks to its `Polys` reference; a level assembles into a `LevelScene` and exports as scene JSON + OBJ; 465 lights read; the world-bounds sentinel identified. **`0-Lighthouse`: 1,141 placed objects, 2,181,021 triangles, 465 lights, 0 skipped — rendered, and it is Rapture's skyline.** A **Level tab** drives it in the application. `docs/research/bsp.md`. |
-
-**All tests pass against the installed game, none skipped.** For the current count see the table
-above; it is stated in one place on purpose, because it was previously written in three and went
-stale in all of them.
+**[`docs/ROADMAP.md`](ROADMAP.md) is the canonical status document** — what's done (Part 1), what's
+left in gate order (Part 2), and the whole-game figures behind each claim, kept current rather than
+duplicated here. This section used to carry its own status table; it went stale (still said "PHASE
+1C — diagnostics" long after UE5 import, audio, lightmaps and physics work had all moved past that),
+which is exactly the failure mode `docs/ROADMAP.md` Part 0.6 exists to stop. For test figures, see
+`docs/ROADMAP.md` "Test health"; for headline mesh/material/texture/animation numbers, each pinned by
+a test, see `docs/QUALITY.md`.
 
 ```bash
-dotnet test --filter Tier=Fast      # ~28s — run while working
-dotnet test --filter Tier=Sweep     # ~10min — run before finishing
-dotnet test                         # both
+dotnet test --filter Tier=Fast      # seconds — run while working
+dotnet test --filter Tier=Sweep     # whole-game censuses, ~10-20min — run before finishing
+dotnet test                         # both — the number to report
 ```
 
 **The suite is now split into two tiers.** The whole thing takes about ten minutes and that was
@@ -91,39 +82,14 @@ The target case, and the thing to check after any change to the pipeline: **the 
 
 ## 2. What works
 
-| Layer | State |
-|---|---|
-| `.bsm` packages | All 21 parse byte-exact. 812,435 exports indexed. |
-| `ShockGame.U` | Parses byte-exact too — holds the first-person weapon viewmodels. |
-| Havok packfile, fixups, object graph | Complete. |
-| `AnimationPackageRoot` | Decoded — the class UEViewer reports as unknown. |
-| `hkaSkeleton`, `hkaAnimationBinding` | Complete, original bone indices preserved. |
-| `hkaSplineCompressedAnimation` | Complete. 130/130 hands animations decode. |
-| `SkeletalMesh` | Header, sockets, bone map, geometry, skin weights, tangent basis. **954/972 exports decode (98.1%)** — the 18 that do not are all doors. |
-| `StaticMesh` | Geometry, UV streams, indices, and the per-material **section table**. **All 8,668 shipped exports decode.** |
-| Per-section materials | **Consumed.** Section *N* draws with `Materials[N]`, in one resolver shared by the preview, scene JSON, FBX and Blender. 1,179 multi-material meshes stop being textured from their first material only. |
-| Material property walk | **Complete. 13,545 materials, 0 partial.** A struct's declared size omits its nested properties' size bytes; corrected only where the nested list lands on a terminator. Was ~half partial in the larger packages. (This said 13,532 in three places here while `QUALITY.md` and `open-questions.md` said 13,545; the sweep measures 13,545 and it is now pinned by `DocumentedFiguresTests`.) |
-| Attachments in the export | Both kinds now travel with their host: static props (the Bouncer's drill, cage, backpack) and **weapon rigs loaded from another package** (the hands arrive holding all six viewmodels). |
-| Socket transforms | **Decoded.** A socket carries an `FCoords` — origin plus three axes — relative to its bone. **200 of 332 sockets carry an offset and 246 a rotation**, all previously ignored. Every first-person weapon socket is identity, which is why this went unnoticed. |
-| Weapon upgrades | **All six weapons' tiers resolve** — 13 meshes. Eleven are in the weapon's own group; `SG_UpgradeB` and `XB_UpgradeB_Mesh`, the two with their own rig, are not, which is why only some weapons showed them. |
-| Materials named by import | **Resolved across packages.** 432 slots name a shader in another *file* — every NPC weapon and ammo pickup points into `ShockGame.U`, all 108 security-camera slots into `ShockAI.U`. **427 now resolve and all 427 decode their texture**; the 5 that do not name a `Texture` rather than a shader. Every one of those meshes used to draw flat grey. |
-| Blender library | One `.blend` per rig: armature, mesh, textures, materials, sockets, every animation as an Action with metadata and event markers, weapon rigs and props on their sockets, plus `validation.json`. |
-| Animation events | `SharedSkeletonAnimationMetadata` → (time, notify) pairs. |
-| Materials | `Shader` and `FacingShader`; a mesh's material list is a counted array. |
-| Textures | DXT1/3/5, RGBA8 → PNG + DDS, alpha preserved. 1054/1062 in 0-Lighthouse. |
-| Bulk content | The 8 GB of stripped mips is indexed and read: 1,530 of 1,539 stripped textures in `1-Medical` come back at full size, each resolved **within its own group** — 112 names are shared between groups and every one of them is different art. |
-| Transparency | The viewport cuts out holes and blends translucent surfaces, from the texture's own alpha. |
-| Blender export | Skinned mesh, armature, actions, sockets, events, materials, weapon attachment. |
-| FBX export | Binary 7.4, validated by round trip through Blender. |
-| Unreal import | **Never attempted.** See §6.4. |
-| Attachments | All four socket kinds resolve: weapon rigs, static props in the host's own group, `*Socket`-suffixed names, and the NPC's own `WP_AI_*` weapon. A viewmodel is never offered to an NPC on a name match alone. |
-| Weapon viewmodels | All ten in `ShockGame.U` decode and draw, textured. |
-| Animation sets | A character's animations carry the game's own set — Melee, Pistol, Ceiling — and the UI filters by it. |
-| Coordinate system | One reflection, `C = diag(1,-1,1)`, applied at four decode boundaries. Left-handed game basis → right-handed internal basis. Meshes, skeletons and animations are no longer mirrored. |
-| Whole-game animation audit | `audit-animations` — 16,031 animations, 0 failures, 0 unbound tracks, 47,560 events. **"100% playable" is not the same as 100% correct:** it now also reports bone rigidity, and 252 rows fold a bone into a parent. |
-| Diagnostics | **`AssetDiagnostics` in Core.** One list of everything the tool knows is broken or degraded, each entry carrying the asset, the package, the subsystem and the **evidence**. Run by the `diagnose` command, the Problems panel and the per-asset panel, so the window and the command line cannot disagree. Whole game: 54,335 assets examined, 1,371 diagnostics. |
-| Application | Discovery, browse 14,378 distinct assets, search, details, texture preview, 3D preview with animation playback and weapon attachment, extraction queue. |
-| Characters | A group is a character if its packfile declares a **ragdoll**. Each mesh in a multi-mesh group is its own character carrying the shared rig — the thirteen splicer variants, the corpses and Sander Cohen all hang off `AggressorBabyJane`. |
+This section used to carry its own line-by-line status table. It went stale the same way §"Current
+state" above did — "Unreal import: Never attempted" long after UE5.7 import was verified on eight-plus
+rig families, a materials figure that disagreed with `QUALITY.md` in three places at once — which is
+the exact drift Part 0.6 of `docs/ROADMAP.md` exists to stop. **For what works, see
+`docs/ROADMAP.md` Part 1** ("What's done"), kept current; **for the byte-level mechanism behind any
+one item** (how sockets, weapon upgrades, cross-package material references, the bulk-mip store, or
+the coordinate reflection actually work), see the relevant `docs/research/*.md` file — that detail was
+never duplicated here in the first place, and still lives only in the research notes.
 
 ## 3. Architecture
 
@@ -503,7 +469,12 @@ a recognisable object means the geometry chain landed somewhere plausible and wr
 **Do not screen-capture the running application to check it.** The capture follows whatever is in
 front on the desktop, not the window you meant — this went wrong once and caught the user's browser.
 
-## 6. What to do next, in priority order
+## 6. Investigation record — individually numbered, most already closed
+
+**Despite the heading, this is not where current priorities live — that's `docs/ROADMAP.md` Part 2.**
+Kept as the detailed record of each investigation (most marked CLOSED/done/resolved below), the same
+role `docs/research/*.md` and §8b/§8c play — not renamed outright because the `§6.0c` cross-references
+scattered through this file and `docs/ROADMAP.md` would all break.
 
 ### 6.0 The former Phase 1 blocker — SOLVED
 
@@ -852,19 +823,11 @@ These are the project's, and they are why its claims have held up.
 
 ## 7b. Where the project actually stands
 
-`docs/QUALITY.md` is a sweep of all 9,672 mesh exports and all 16,025 animations. **Two mesh totals
-appear in these notes and both are right:** 9,672 is the older probe over the map packages, and
-**9,684** is the `diagnose` sweep over all 33 packages including the script packages. Quote the
-sweep's figure for anything current — it is the one pinned by `DocumentedFiguresTests`.
-
-| | Total | Good |
-|---|---|---|
-| Meshes decoded | 9,672 | **9,654 (99.8%)** |
-| Animations decoded | 16,025 | **16,025 (100%)** |
-| Meshes with a diffuse texture | 9,684 | **9,337 (96.4%)** — remeasured by the diagnostic sweep after the material-class work |
-
-Geometry, animation and materials are all in reasonable shape. That file also records which of the
-audit's checks fired on correct data, so the next person does not chase them.
+`docs/QUALITY.md` is the sweep of every mesh, material, texture and animation the game ships, with
+each headline figure pinned by `DocumentedFiguresTests` so a number that stops being true fails a
+test instead of rotting silently in prose — quote that file, not a copy here, for anything current.
+It also records which of the audit's checks fired on correct data, so the next person does not chase
+them.
 
 ## 8. Open unknowns
 

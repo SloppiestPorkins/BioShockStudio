@@ -16,9 +16,9 @@ repository; this file only tells it where to look and what not to re-derive.
    (Part 2), and a Part 0 on process (commit hygiene, the cross-agent claim table, why WIP stays
    narrow). If this file and `ROADMAP.md` disagree, trust `ROADMAP.md` and fix this file.
 3. `docs/HANDOFF.md` — institutional memory: the **Active work claim table at the very top** (add a
-   row before touching a file, check before touching one someone else claims), the current-state
-   table, architecture, and §4's landmines list (things that cost real time to find — read before
-   touching coordinate systems, Havok decoding, BSP zones, or the material walk).
+   row before touching a file, check before touching one someone else claims), architecture (§3), and
+   §4's landmines list (things that cost real time to find — read before touching coordinate systems,
+   Havok decoding, BSP zones, or the material walk).
 4. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy, required before touching any
    transform. `C = diag(1,-1,1)`, applied at five decode boundaries and nowhere else.
 5. `docs/research/reference-comparison.md` and the individual `docs/research/*.md` files for
@@ -33,14 +33,17 @@ repository; this file only tells it where to look and what not to re-derive.
 
 ```bash
 dotnet build
-dotnet test --filter Tier=Fast     # ~30s; run this constantly
-dotnet test                        # ~25-28 min; the figure to report
+dotnet test --filter Tier=Fast     # seconds; run this constantly
+dotnet test                        # tens of minutes; the figure to report
 ```
 
-Expect **439 passed, 0 failed, 0 skipped** (measured 22 Aug 2026, HEAD `4e4caa4`). Record what you
-actually get. If anything fails, classify per §24 before touching code — `DocumentedFiguresTests`
-asserts the headline numbers in `docs/QUALITY.md`; if it goes red, the code may have gotten better
-or worse, or the *documentation* may be what's wrong. Never relax the assertion to make it pass.
+**Don't trust a number written here** — it goes stale within a session or two, which is exactly the
+failure mode `docs/ROADMAP.md` Part 0.6 exists to stop. Run the commands above and record what you
+actually get; `docs/ROADMAP.md` "Test health" has the most recently measured figure if you want a
+sanity check before running. If anything fails, classify per `docs/ENGINEERING_RULES.md` §24 before
+touching code — `DocumentedFiguresTests` asserts the headline numbers in `docs/QUALITY.md`; if it goes
+red, the code may have gotten better or worse, or the *documentation* may be what's wrong. Never relax
+the assertion to make it pass.
 
 **Do not build or run `dotnet test` while another `dotnet test` is running** — testhost locks the
 DLLs (MSB3027) and both runs fail. If you kick off a long background test run, wait for it (or work
@@ -80,45 +83,22 @@ research, and cost only a few minutes to find by reading the actual code and tes
 
 ## What to do, in priority order
 
-**Follow `docs/ROADMAP.md` Part 2** (the gate structure) rather than a list duplicated here, since
-that document is kept current and this one isn't reliably. As of 22 Aug 2026, in short:
-
-- **Gate 0** (trustworthy level viewer): window-placement fidelity, material fidelity, and the
-  viewer visibility matrix are open. Lightmap atlas-pool binding is done (20/21 maps); per-pixel
-  binding and a lit/unlit comparison render remain before it defaults on.
-- **Gate 1** (asset containers): static-mesh collision is deliberately blocked pending a UE5-target
-  decision. Skeletal section-table reachability is at 35% (socket-table-dependent locator); a more
-  robust one would close the rest. Texture UE5-metadata export and material panners/rotators/cubemap
-  inputs are genuinely unstarted.
-- **Gate 2** (animation/rigs/physics): four character skeleton families now verified live in
-  UE5.7 (pistol, TommyGun, splicer, both Big Daddy variants, Little Sister) — extend to other
-  weapons, doors, props using the same recipe (`export-fbx` [+ `--mesh <name>` if the rig has more
-  than one mesh] → `tools/ue5/import_bioshock.py` or the minimal mesh-only pattern in recent commit
-  messages → verify the resulting asset directly in a headless editor run). Havok physics/ragdoll
-  mapping is unstarted; §6.0c's bone-rigidity collapses are genuinely blocked (need
-  `sampleTranslation`, absent from this SDK build).
-- **Gate 3** (levels/UE2 actors): BSP zone connectivity and per-node visibility both decode
-  (`CONFIRMED_BYTES`). Light and script-action placed-actor data both already have full, tested
-  schemas — what's open there is turning that into placed UE5 actors, not decoding more. Audio
-  actors, region/volume actors and effect actors are the next genuinely-open categories in
-  shipped-count order.
-- **Gate 4/5**: mostly untouched this cycle; Gate 5 (a real UE5 importer workflow) is the actual
-  end goal and depends on the earlier gates.
-- **Track B** (UnrealScript bytecode): BioShock's own game logic is readable right now via
-  `tools/uelib-bridge/` — 1,445 classes across 11 of 12 script packages, 0 failures. Use it as
-  documentation when a specific class's behaviour is in question elsewhere in the project, rather
-  than re-researching from bytes. `Engine.U` crashes on load (a real, lower-priority gap); an
-  independent from-scratch bytecode decoder is scoped but not started (`docs/research/bytecode.md`
-  §7) if that's ever wanted separately from reading the decompiled output.
+**Follow `docs/ROADMAP.md` Part 2** (the gate structure). Deliberately not duplicated here as a
+bulleted summary any more — every previous version of that summary went stale within a session or two
+and started disagreeing with the real source of truth, which is exactly what Part 0.6 of that document
+identified as the project's biggest process risk. Read Part 2 directly; it is kept current there and
+nowhere else.
 
 ## Do not start
 
 - **Bulk extraction size (~140 GB).** Explicitly deferred.
-- **§6.0c, the collapsing fire animations.** Four causes eliminated with evidence; needs
-  `sampleTranslation`, absent from this SDK build.
+- **§6.0c, the collapsing fire animations** (`docs/HANDOFF.md` §6.0c). Four candidate causes
+  eliminated with evidence, and the recorded next lead (`evaluateSimple1/2/3`) is now *also* confirmed
+  closed — those functions don't exist in this SDK build either, same as `sampleTranslation`. Do not
+  re-open without either the missing compiled bodies or a genuinely new lead.
 - **Rewriting `Core/Level` or the BSP readers.** Both measured clean.
 
-## Traps that bit this session (22 Aug 2026)
+## Traps accumulated across sessions
 
 - **`unreal.log()`/`print()` output from a UE5 Python script is not reliably captured** when run
   via `-run=pythonscript` from this shell — don't rely on grepping for it to confirm success.
@@ -129,10 +109,10 @@ that document is kept current and this one isn't reliably. As of 22 Aug 2026, in
   to build it via its own project file. `tools/uelib-bridge/uelib-standalone.csproj` compiles its
   sources directly against `net8.0` instead; copy that pattern for any similar third-party
   reference tool.
-- **`export-fbx`'s mesh-name guess (strip `UAPW_` off the wrapper name) only holds for a
-  single-mesh rig.** A multi-mesh group sharing one animation rig (several character variants, or a
-  weapon/prop whose mesh is named differently from its wrapper) needs the `--mesh <name>` override
-  added this cycle, or it silently exports 0 vertices with no error.
+- **A rig's mesh export name, or a weapon's `ShockGame.U` group name, doesn't always match a
+  `UAPW_`-stripped guess.** `export-fbx --mesh <name>` and `export-firstperson --group=<name>`
+  override the guess; both silently produce 0 vertices / "not found" rather than erroring loudly when
+  the guess is wrong, so check vertex/animation counts in the export log.
 - **PowerShell destroys non-ASCII in source files.** Use .NET directly and check `git diff` for
   encoding churn before committing.
 - **`IsVisible="{Binding !SomeObject}"` does not negate a non-boolean in Avalonia** — it renders
@@ -141,6 +121,9 @@ that document is kept current and this one isn't reliably. As of 22 Aug 2026, in
   stdin until timeout. Use `Edit`, or a real script file.
 - **A snapshot of the wrong tab proves nothing.** Selecting a level in the view model does not
   change which tab is showing.
+- **UE5.7 is at `G:\Games\UE_5.7\`, not under `Program Files\Epic Games`** — only the Launcher lives
+  there. The throwaway test project is `C:\Users\Jack\Documents\BioShockUE5\`. Both are outside this
+  repo and gitignored/untracked, so a fresh environment needs them located, not assumed missing.
 
 ## The standard that applies
 
