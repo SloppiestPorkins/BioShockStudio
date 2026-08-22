@@ -359,8 +359,34 @@ material.
    animations — a mechanical enemy rig shipped in nearly every map, mesh name matches the wrapper
    exactly so no `--mesh` override needed) imports and verifies the same way
    (`Success - 0 error(s), 2 warning(s)`).
-   **Still open**: the four weapon sockets above (need a static-mesh attachment path, not
-   `export-firstperson`, if confirmed meshes-only), other doors, other props.
+   **Two more weapons unlocked, 22 Aug 2026**: two of the four "no animated weapon found" sockets
+   above turned out to be real animated rigs after all — `export-firstperson`'s `"WP_" + weapon`
+   group-name guess just didn't hold for them, the same shape of bug `--mesh` fixed for mesh names.
+   `Chem` is `WP_ChemicalThrower` (`WP_ChemicalThrowerMesh`, 8 bones, 7,936 vertices, 6 animations)
+   and `Launcher` is `WP_GrenadeLauncher` (`WP_GrenadeLauncherMesh`, 8 bones, 5,386 vertices, 4
+   animations) in `ShockGame.U`. `export-firstperson` now takes a `--group=<name>` override
+   (`Cli/Program.cs`) the same way `export-fbx` takes `--mesh`; both weapons import cleanly attached
+   to the hands (`Success - 0 error(s), 7 warning(s)` each, same cosmetic shape). Neither carries
+   hand-side animations under this weapon's own name (`0 'Chem'/'Launcher' animations` on the hands
+   rig) — worth another look if the hand-side naming convention differs here too, not chased further
+   this session. **The other two, `Wrench` and `PlayerGathererGun`, are confirmed genuinely
+   different, not just misnamed**: `Wrench` has no `WP_*` group anywhere in `ShockGame.U` at all
+   (melee, plausibly static-mesh-only, no separate skeleton); `PlayerGathererGun`'s animated rig
+   (`UAPW_WP_gathererGun` / `PlayerGathererGunMESH`) exists but lives in the `7-BossFight`/
+   `7-Gauntlet` map packages, not `ShockGame.U` — a boss-fight-scripted weapon outside the shared
+   first-person set, needing a different export path (`export-fbx` against the map package, the way
+   doors and props are done) rather than `export-firstperson`.
+   **A genuine curiosity, not chased**: `ShockGame.U` also holds a fully animated `WP_ShotgunMesh` /
+   `UAPW_WP_Shotgun` (8 bones) with no corresponding socket on the current `NEWPlayerHands` rig —
+   plausibly cut or multiplayer-only content. Recorded, not exported (no attachment point to verify
+   against).
+   **Two more doors and a prop, same session**: `UAPW_LockerDoorAnim` (3 bones, 288 vertices, 4
+   animations, mesh named `LockerDoorAnimMESH` — another `--mesh` case), `UAPW_Med_DoorAnim` (3
+   bones, 26 vertices, 4 animations, exact name match) and `UAPW_SlotMachine_MESH` (5 bones, 1,973
+   vertices, 2 sockets, 7 animations) all import and verify cleanly (`Success - 0 error(s)`,
+   1–2 warnings each, same cosmetic shape).
+   **Still open**: `Wrench`'s static-mesh-only status (unconfirmed either way), a `PlayerGathererGun`
+   export via the map-package path, the orphaned `Shotgun` rig, other doors, other props.
 
 ### Gate 3 — levels and UE2 actor systems
 
