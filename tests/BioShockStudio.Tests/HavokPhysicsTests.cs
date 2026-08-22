@@ -194,4 +194,58 @@ public sealed class HavokPhysicsTests(GameFixture game)
             }
         }
     }
+
+    /// <summary>
+    /// Every constraint's data pointer resolves to a real <c>hkpRagdollConstraintData</c>, and both
+    /// entity pointers resolve to real <c>hkpRigidBody</c> objects — held across the whole set, and
+    /// the resulting graph is a coherent hierarchy, not a coincidence: rigid body 0 (the pelvis) is
+    /// one of the two entities on several constraints, the shape a root-radiating skeletal hierarchy
+    /// produces.
+    /// </summary>
+    [RequiresGameFact]
+    public void EveryConstraintConnectsTwoRealRigidBodiesToRealConstraintData()
+    {
+        var (pack, owner) = BabyJane();
+        using (owner)
+        {
+            var bodies = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == HkpRigidBodyReader.ClassName)
+                .Select(o => (o.SectionIndex, o.Offset))
+                .ToHashSet();
+            var constraintData = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == "hkpRagdollConstraintData")
+                .Select(o => (o.SectionIndex, o.Offset))
+                .ToHashSet();
+            var constraints = pack.Packfile.EnumerateObjects().Where(o => o.ClassName == HkpConstraintInstanceReader.ClassName).ToList();
+
+            Assert.Equal(16, constraints.Count);
+
+            int pelvisConnections = 0;
+            var pelvis = bodies.OrderBy(b => b.Offset).First(); // rigid body 0, per docs/research/havok-physics.md
+            foreach (var constraintObject in constraints)
+            {
+                var section = pack.Packfile.ResolvedSections[constraintObject.SectionIndex];
+                var constraint = HkpConstraintInstanceReader.Read(pack.Packfile, section, constraintObject.Offset);
+
+                Assert.NotNull(constraint.Data);
+                Assert.Contains((constraint.Data!.Value.Section.Index, constraint.Data.Value.Offset), constraintData);
+
+                Assert.NotNull(constraint.EntityA);
+                Assert.Contains((constraint.EntityA!.Value.Section.Index, constraint.EntityA.Value.Offset), bodies);
+
+                Assert.NotNull(constraint.EntityB);
+                Assert.Contains((constraint.EntityB!.Value.Section.Index, constraint.EntityB.Value.Offset), bodies);
+
+                if ((constraint.EntityA.Value.Section.Index, constraint.EntityA.Value.Offset) == pelvis ||
+                    (constraint.EntityB.Value.Section.Index, constraint.EntityB.Value.Offset) == pelvis)
+                {
+                    pelvisConnections++;
+                }
+            }
+
+            // A root-radiating hierarchy connects several joints directly to the root; a coincidence
+            // would not.
+            Assert.True(pelvisConnections >= 3, $"only {pelvisConnections} constraints touch the pelvis body");
+        }
+    }
 }
