@@ -52,25 +52,51 @@ regardless of the art scale), not a bug, and it means **nothing decoded here sho
 mesh/animation coordinates without an explicitly confirmed, separately-tested scale factor** — a
 UE5 Physics Asset importer would need that conversion, and it has not been derived yet.
 
+## Decoded: `hkaRagdollInstance` — `CONFIRMED_BYTES`, 22 Aug 2026
+
+```
+hkaRagdollInstance : hkReferencedObject
++0   hkReferencedObject                    (vtable + refcount, zero on disk)
++8   hkArray<hkpRigidBody*>       m_rigidBodies
++20  hkArray<hkpConstraintInstance*>  m_constraints
++32  hkArray<int>                 m_boneToRigidBodyMap
++44  hkRefPtr<const hkaSkeleton>  m_skeleton
+```
+
+Every field cross-validates against the whole-packfile census, not just its own header shape:
+`m_rigidBodies` resolves to exactly **17** elements (matching the independently-counted `hkpRigidBody`
+total above), `m_constraints` to exactly **16**; the array's own data lands exactly at
+`objectOffset + 48` — the object's own size, i.e. Havok packed the array contents immediately after
+the referencing object, with no gap — and its first four resolved pointers land exactly on the
+offsets of the first four `hkpRigidBody` objects `HavokPackfile.EnumerateObjects` finds independently,
+in order. `m_boneToRigidBodyMap` is `[0, 1, ..., 16]` — identity — meaning this ragdoll's *own*
+17-bone skeleton (not the 73-bone animation skeleton) maps every one of its bones straight onto a
+rigid body; `m_skeleton` resolves to a real, class-named `hkaSkeleton`, confirmed distinct from
+`AnimationPackage.Skeleton` (the 73-bone one this project already exposes) rather than assumed to be
+the same object. `HkaRagdollInstanceReader`, `HavokPhysicsTests.RagdollInstanceCountsAgreeWithTheWholePackfileCensus`.
+
+**What this closes**: "17 capsules float in the packfile" is now "here is rigid body N's capsule, and
+here is the constraint list" — the object graph connecting collision shapes to bodies to constraints
+is readable end to end. **What it does not close**: correlating the ragdoll's own 17-bone skeleton
+back onto the 73-bone *animation* skeleton (so a UE5 Physics Asset could say "this capsule is bone
+`Bip01_L_UpperArm`" rather than "rigid body 3") needs either the two `hkaSkeletonMapper` objects this
+character's packfile also carries (unread, still scoped below) or a name/hierarchy correlation between
+the two `hkaSkeleton` objects, neither attempted here.
+
 ## Scoped, not yet attempted
 
 Ordered by what would unblock the most next, not by ease.
 
-### 1. `hkaRagdollInstance` — small, high-value, recommended next
+### 1. `hkaSkeletonMapper` — re-prioritised up, now the real blocker for "which bone"
 
-```
-+?  hkArray<hkpRigidBody*>       m_rigidBodies
-+?  hkArray<hkpConstraintInstance*>  m_constraints
-+?  hkArray<int>                 m_boneToRigidBodyMap
-+?  hkRefPtr<const hkaSkeleton>  m_skeleton
-```
-
-Four fields, all arrays or a single pointer — the same shapes (`hkArray`, `hkRefPtr`) this project
-already reads correctly for `hkaAnimationBinding` and `m_extractedMotion`. **This is the highest-value
-target of the six remaining classes**: `m_boneToRigidBodyMap` directly answers which of the 73 bones
-get a physics body, without inference from bone names or positions, and the two arrays are the object
-graph's own index into every rigid body and constraint this character owns — reading this one object
-would turn "17 capsules float in the packfile" into "here is bone N's capsule."
+**This project's own read of `hkaRagdollInstance` changed the priority order here.** Originally
+scoped as "lower priority... not needed to place static capsules on their bones" — that was wrong.
+`m_boneToRigidBodyMap` maps the *ragdoll's own* 17-bone skeleton to rigid bodies, and
+`hkaRagdollInstance::m_skeleton` is that same 17-bone skeleton, confirmed distinct from the 73-bone
+*animation* skeleton this project already exposes. Without correlating the two, a decoded capsule can
+only be labelled "rigid body 3," not "`Bip01_L_UpperArm`" — which is what a usable UE5 Physics Asset
+needs. `hkaSkeletonMapper` (2 objects on this character) is the game's own answer to that
+correlation and should be read before `hkpRigidBody`, not after.
 
 ### 2. `hkpRigidBody` — the dynamics half of each capsule
 
@@ -82,7 +108,7 @@ constraint-master array) — **not written to the packfile at all**, which narro
 byte-offset work considerably, but the motion state itself (mass, inertia, centre of mass — the part
 a UE5 Physics Asset actually needs) is real, serialized data that hasn't been located yet.
 
-### 3. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the six
+### 3. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the remaining classes
 
 A `hkpConstraintInstance` mostly holds housekeeping (priority, a name, a `hkpConstraintData*`
 pointer) and points at the real joint data. `hkpRagdollConstraintData::Atoms` is a fixed sequence of
@@ -91,21 +117,18 @@ seven nested "atom" structs — `hkpSetLocalTransformsConstraintAtom`, `hkpSetup
 `hkpConeLimitConstraintAtom` (twice — cone and "planes"), `hkpBallSocketConstraintAtom` — each its own
 class with its own fields (joint limit angles, per-body local transforms, motor parameters). This is
 genuinely the largest remaining piece, comparable in scope to the lightmap descriptor chain that took
-a full session on its own. Recommend attempting only after `hkaRagdollInstance` and `hkpRigidBody` are
-both read, since by then the object graph (which constraint belongs to which pair of bodies) is
-already known and this becomes "decode one joint's field values" rather than "decode one joint's
-field values and also work out which bodies it connects."
-
-### 4. `hkaSkeletonMapper` — lower priority
-
-Maps the 17-bone ragdoll skeleton onto the 73-bone animation skeleton. Needed for a complete runtime
-ragdoll blend, not needed to place static capsules on their bones — deprioritised until 1–3 above are
-done and something actually consumes the mapping.
+a full session on its own. `hkaRagdollInstance::m_constraints` already gives the object graph (which
+constraint belongs to this character, in order) — the reachability problem items 1–2 still had is
+solved; what's left is purely "decode each joint's field values."
 
 ## What this unblocks, and what it does not
 
-Reading `hkaRagdollInstance` and `hkpRigidBody` would be enough to place every character's collision
-capsules on their correct bones — a real, useful UE5 Physics Asset skeleton, even before constraints
-are decoded (UE5 can import bodies without constraints; it just won't hold together as a ragdoll yet).
-Constraints (item 3) are what turn "capsules placed on bones" into "a ragdoll that behaves like one."
-Neither has been started; this note is the map for whoever does.
+`hkaRagdollInstance` + `hkpCapsuleShape` are already enough to place every character's collision
+capsules at their correct local transforms relative to *a* rigid body — a real, useful skeleton of
+shapes, even before constraints are decoded (UE5 can import bodies without constraints; it just won't
+hold together as a ragdoll yet). What's still missing before that's a *labelled* UE5 Physics Asset is
+item 1 (which animation bone each rigid body corresponds to) and item 2 (each body's own transform —
+`hkpCapsuleShape` is in the body's *local* space, and nothing yet reads where that local space sits
+in the world/bone frame). Constraints (item 3) are what turn "capsules placed on bones" into "a
+ragdoll that behaves like one." None of the three has been started; this note is the map for whoever
+does.

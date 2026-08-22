@@ -366,16 +366,26 @@ material.
    agree exactly, and every decoded radius/length is a plausible human-body proportion **in metres**
    (three orders of magnitude smaller than this rig's own centimetre-scaled mesh/animation data — the
    expected Havok convention, not a bug, but a scale factor nothing here has derived yet).
-   `HkpCapsuleShapeReader`, `HavokPhysicsTests`. **Recommended next**: `hkaRagdollInstance` — small
-   (an array of rigid-body pointers, an array of constraint pointers, a bone-to-rigid-body index
-   array, a skeleton reference), and its `m_boneToRigidBodyMap` directly answers which of the 73
-   bones get a physics body, without inference. `hkpRigidBody` after that (deeper — a material and a
-   full motion state, though many `hkpEntity` fields are `+nosave`/`+serialized(false)` and so
-   genuinely absent from the packfile, narrowing the real surface). **Constraints
-   (`hkpConstraintInstance`/`hkpRagdollConstraintData`) are the largest remaining piece** — seven
-   nested "atom" structs per joint (limits, motor, local transforms) — comparable in scope to the
-   lightmap descriptor chain; do those last, once the object graph from items 1–2 is already known.
-   Full record and field-by-field detail: `docs/research/havok-physics.md`.
+   `HkpCapsuleShapeReader`, `HavokPhysicsTests`. **`hkaRagdollInstance` also fully decoded,
+   `CONFIRMED_BYTES`, same session**: every field cross-validates against the whole-packfile census —
+   `m_rigidBodies` resolves to exactly 17 elements, `m_constraints` to exactly 16, the array data
+   sits exactly where Havok's own packing predicts (immediately after the object), and its first four
+   entries land exactly on the first four independently-found `hkpRigidBody` offsets.
+   `m_boneToRigidBodyMap` is `[0..16]` (identity) and `m_skeleton` resolves to a real `hkaSkeleton` —
+   **but it is this ragdoll's own 17-bone skeleton, confirmed distinct from the 73-bone animation
+   skeleton**, which changed the priority order below. `HkaRagdollInstanceReader`,
+   `HavokPhysicsTests.RagdollInstanceCountsAgreeWithTheWholePackfileCensus`. **Recommended next,
+   re-prioritised**: `hkaSkeletonMapper` (2 objects on this character) — needed to correlate the
+   ragdoll's 17-bone skeleton back onto the 73-bone animation skeleton, i.e. to know *which named bone*
+   a given capsule belongs to, which a UE5 Physics Asset needs and which `hkaRagdollInstance` alone
+   cannot answer (an earlier version of this entry said the mapper was "not needed to place capsules
+   on their bones" — that was wrong, corrected in `docs/research/havok-physics.md`). `hkpRigidBody`
+   after that (deeper — a material and a full motion state, though many `hkpEntity` fields are
+   `+nosave`/`+serialized(false)` and so genuinely absent from the packfile, narrowing the real
+   surface). **Constraints (`hkpConstraintInstance`/`hkpRagdollConstraintData`) remain the largest
+   piece** — seven nested "atom" structs per joint — but reachability is now solved (`m_constraints`
+   already gives the object graph), so what's left is purely per-joint field decode. Full record and
+   field-by-field detail: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
