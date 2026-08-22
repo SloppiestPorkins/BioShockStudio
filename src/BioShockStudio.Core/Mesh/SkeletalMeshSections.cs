@@ -129,11 +129,143 @@ public static class SkeletalMeshSectionReader
         ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names) =>
         Read(payload, names, validateAgainstGeometry: false);
 
+    /// <summary>
+    /// The table as found by walking forward from the socket table. Exposed so the two routes can be
+    /// compared against each other — see <c>SkeletalMeshSectionCoverageTests</c>.
+    /// </summary>
+    public static IReadOnlyList<SkeletalMeshSection>? ReadViaSockets(
+        ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names) =>
+        SkeletalMeshReader.DescribeGeometry(payload) is { } geometry
+            ? ReadForwardFromSockets(payload, names, geometry, validateAgainstGeometry: true)
+            : null;
+
+    /// <summary>
+    /// The table as found by counting backward from the bone map, needing no socket table.
+    /// </summary>
+    public static IReadOnlyList<SkeletalMeshSection>? ReadViaBoneMap(ReadOnlySpan<byte> payload) =>
+        SkeletalMeshReader.DescribeGeometry(payload) is { } geometry
+            ? ReadBackwardFromBoneMap(payload, geometry, validateAgainstGeometry: true)
+            : null;
+
     private static IReadOnlyList<SkeletalMeshSection>? Read(
         ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names, bool validateAgainstGeometry)
     {
         if (SkeletalMeshReader.DescribeGeometry(payload) is not { } geometry) return null;
 
+        return ReadForwardFromSockets(payload, names, geometry, validateAgainstGeometry)
+               ?? ReadBackwardFromBoneMap(payload, geometry, validateAgainstGeometry);
+    }
+
+    /// <summary>
+    /// Finds the table by counting <b>backwards</b> from the bone map, without the socket table.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The forward walk is only available when a mesh's socket table validates, and most do
+    /// not.</b> It starts at the sockets and steps over <c>AttachCoords</c>, the LOD count and the
+    /// header to reach the sections — so a mesh that carries no sockets, or whose socket names will
+    /// not resolve, loses its section table for a reason that has nothing to do with the sections.
+    /// Measured before this existed: <b>331 of 944</b> skeletal meshes with geometry (35%) got a
+    /// table. The rest drew entirely in their first material.
+    /// </para>
+    /// <para>
+    /// <b>The layout allows the search to run the other way, and the other way needs nothing but the
+    /// geometry.</b> The section array ends exactly where the bone map's count begins, so for a
+    /// candidate count <c>N</c> the array occupies <c>18N</c> bytes ending at that anchor — and the
+    /// <c>FCompactIndex</c> encoding <c>N</c> must itself end exactly where the array starts. That is
+    /// a strong constraint: the count has to describe the very gap it precedes, at a variable-width
+    /// encoding, and a wrong <c>N</c> lands the index somewhere that does not decode to <c>N</c>.
+    /// </para>
+    /// <para>
+    /// <b>Corroborated by the header and settled by the face sum.</b> Where the eight bytes before
+    /// the count are the <c>TRIBES_HDR</c> — a <c>check</c> of 4 — that candidate is preferred; and
+    /// every candidate still has to pass the same test the forward walk does, that the sections'
+    /// face counts add up to exactly the index buffer's triangles. A table that fails it is reported
+    /// as no table rather than clamped, because a wrong material pairing is invisible to every count
+    /// (<c>docs/HANDOFF.md</c> §4).
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<SkeletalMeshSection>? ReadBackwardFromBoneMap(
+        ReadOnlySpan<byte> payload, SkeletalMeshReader.GeometryExtent geometry, bool validateAgainstGeometry)
+    {
+        int anchor = geometry.BoneMapOffset - CompactIndexWidth(payload, geometry.BoneMapOffset);
+        if (anchor <= 0 || anchor > payload.Length) return null;
+
+        IReadOnlyList<SkeletalMeshSection>? withoutHeader = null;
+
+        for (int sectionCount = 1; sectionCount <= 512; sectionCount++)
+        {
+            int sectionsStart = anchor - sectionCount * SectionStride;
+            if (sectionsStart < 1) break;
+
+            if (!CountEndsAt(payload, sectionsStart, sectionCount)) continue;
+
+            var sections = Decode(payload, sectionsStart, sectionCount, geometry, validateAgainstGeometry);
+            if (sections is null) continue;
+
+            // The header is corroboration, not a requirement: prefer a candidate that has it, but do
+            // not discard one that does not — the face sum has already had to agree.
+            int countStart = sectionsStart - CompactIndexWidth(payload, sectionsStart);
+            if (countStart >= 8
+                && BinaryPrimitives.ReadInt32LittleEndian(payload[(countStart - 8)..]) == VengeanceCheck)
+                return sections;
+
+            withoutHeader ??= sections;
+        }
+
+        return withoutHeader;
+    }
+
+    /// <summary>Whether an <c>FCompactIndex</c> encoding <paramref name="value"/> ends exactly at <paramref name="end"/>.</summary>
+    private static bool CountEndsAt(ReadOnlySpan<byte> payload, int end, int value)
+    {
+        for (int width = 1; width <= 5; width++)
+        {
+            int start = end - width;
+            if (start < 0) return false;
+
+            int probe = start;
+            int decoded;
+            try { decoded = ReadCompactIndex(payload, ref probe); }
+            catch { continue; }
+
+            if (probe == end && decoded == value) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Builds and validates the table sitting at a known offset.</summary>
+    private static IReadOnlyList<SkeletalMeshSection>? Decode(
+        ReadOnlySpan<byte> payload, int offset, int sectionCount,
+        SkeletalMeshReader.GeometryExtent geometry, bool validateAgainstGeometry)
+    {
+        if (offset < 0 || offset + sectionCount * SectionStride > payload.Length) return null;
+
+        var sections = new SkeletalMeshSection[sectionCount];
+        int runningFace = 0;
+
+        for (int i = 0; i < sectionCount; i++)
+        {
+            int at = offset + i * SectionStride;
+            sections[i] = new SkeletalMeshSection(
+                Read16(payload, at), Read16(payload, at + 2), Read16(payload, at + 4),
+                Read16(payload, at + 6), Read16(payload, at + 8), Read16(payload, at + 10),
+                Read16(payload, at + 12), Read16(payload, at + 14), Read16(payload, at + 16))
+            {
+                FirstFaceInBuffer = runningFace,
+            };
+            runningFace += sections[i].NumFaces;
+        }
+
+        if (!validateAgainstGeometry) return sections;
+        return runningFace == geometry.IndexCount / 3 ? sections : null;
+    }
+
+    private static IReadOnlyList<SkeletalMeshSection>? ReadForwardFromSockets(
+        ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names,
+        SkeletalMeshReader.GeometryExtent geometry, bool validateAgainstGeometry)
+    {
         try
         {
             // Inside the guard: a mesh whose socket table does not validate throws while resolving a

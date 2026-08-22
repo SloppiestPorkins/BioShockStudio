@@ -463,6 +463,23 @@ material.
    geometry (35%). Close the 4 remaining unreadable door variants (unrelated), and find a more
    robust locator for the section table that doesn't depend on the socket table resolving first, to
    close the other 65%.
+
+   **The locator is done, 22 Aug 2026: 331 of 944 exports (35%) → 966 of 967 (99.9%).** The layout
+   allows the search to run backwards, and backwards needs nothing but the geometry — the section
+   array ends exactly where the bone map's count begins, so a candidate count is testable by whether
+   its own `FCompactIndex` ends exactly where the array would start, corroborated by the
+   `TRIBES_HDR` before it and settled by the same face-sum check the forward walk uses.
+   - **The evidence is the agreement, not the coverage.** A locator finding *more* tables would be
+     worthless if it found *different* ones. The forward and backward walks produce **byte-identical
+     tables on every mesh where both succeed, 0 disagreements**; forward-only is 0, so the backward
+     route is a strict superset. Both are kept, because their continued agreement is an ongoing
+     check. `SkeletalMeshSectionCoverageTests`.
+   - **`mesh-materials-without-sections` is now 0**, from 94 — the whole diagnostic total moved
+     427 → 333, exactly the 94, with no other code changing. Classified per `ENGINEERING_RULES.md`
+     §24 as a correct improvement before either the code or the figure was touched;
+     `docs/QUALITY.md` and `DocumentedFiguresTests` updated to the measured values.
+   - **Still open in this item:** the 4 unreadable door variants, which are unrelated to the section
+     table (`docs/HANDOFF.md` §6.2 establishes they carry no vertex data at all).
 3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
 4. ~~**Materials** — decode `OutputBlending` (blend mode) semantics~~ — **already settled, not an

@@ -123,16 +123,25 @@ public sealed class DocumentedFiguresTests
     /// <c>geometry.Sections</c> was always empty and the sweep couldn't tell a mesh whose section
     /// table genuinely didn't resolve from one that resolved fine and just names >1 material — fixed
     /// by calling the package-aware overload. See <c>docs/QUALITY.md</c>.
+    /// <para>
+    /// Then 427/19/314/94 to <b>333/19/314/0</b>, 22 Aug 2026: the whole 94-finding drop is
+    /// <c>mesh-materials-without-sections</c> going to zero, and 427 − 94 = 333 exactly, with no
+    /// other code moving. <c>SkeletalMeshSectionReader</c> gained a second route to the section
+    /// table that counts backward from the bone map instead of walking forward from the socket
+    /// table, so a mesh with no sockets no longer loses its sections for an unrelated reason:
+    /// coverage went from <b>331 of 944 exports (35%) to 966 of 967 (99.9%)</b>, and the two routes
+    /// produce byte-identical tables wherever both succeed. <c>SkeletalMeshSectionCoverageTests</c>.
+    /// </para>
     /// </remarks>
     [RequiresGameFact]
     public void TheDiagnosticTotalsStillHold()
     {
         var report = Measured();
 
-        Assert.Equal(427, report.Diagnostics.Count);
+        Assert.Equal(333, report.Diagnostics.Count);
         Assert.Equal(19, report.Count(DiagnosticSeverity.Broken));
         Assert.Equal(314, report.Count(DiagnosticSeverity.Degraded));
-        Assert.Equal(94, report.Count(DiagnosticSeverity.Note));
+        Assert.Equal(0, report.Count(DiagnosticSeverity.Note));
     }
 
     /// <summary>
@@ -154,7 +163,10 @@ public sealed class DocumentedFiguresTests
         Assert.Equal(202, CountOf(report, DiagnosticCodes.MeshNoDiffuse));
         Assert.Equal(110, CountOf(report, DiagnosticCodes.MeshSlotUnresolved));
         Assert.Equal(2, CountOf(report, DiagnosticCodes.MeshUvOutOfRange));
-        Assert.Equal(94, CountOf(report, DiagnosticCodes.MeshNoSections));
+        // Zero since the section table gained a second locator, 22 Aug 2026. Kept as an assertion
+        // rather than deleted: this code firing again would mean skeletal meshes are back to drawing
+        // several materials in one, which is invisible to every other count.
+        Assert.Equal(0, CountOf(report, DiagnosticCodes.MeshNoSections));
     }
 
     /// <summary>
