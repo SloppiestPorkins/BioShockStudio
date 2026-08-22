@@ -381,3 +381,52 @@ strength of it.
 the walk loses alignment — the same failure mode as the `MaskMaterial` size above, and possibly the
 same cause. Until then static meshes export and draw without materials, and say so rather than
 guessing.
+
+## A diffuse's alpha channel is not necessarily opacity
+
+**Status: `CONFIRMED_EXTERNAL` for the flag names, `CONFIRMED_BYTES` for the census. 23 Aug 2026.**
+
+Found from a user report that parts of solid props were invisible in the level viewport.
+
+The GL level shader never blends — it writes `fragColour` with alpha `1.0` — so its only transparency
+mechanism is `discard` below 0.35, and it was applying that to *every* textured fragment. That is
+correct for the game's cutouts (gratings, foliage, decals on quads) and wrong for everything whose
+alpha channel carries something else. A texture whose alpha is a gloss or specular mask sits around
+0.3 across the whole surface, so the discard removed all of it and the prop disappeared.
+
+**The game does declare intent.** UModel's `UTexture` property table (`UnMaterial2.h`) has
+`bMasked` ("alpha is a cutout") and `bAlphaTexture` ("alpha is for blending"), and Nyko's SDK lists
+both alongside the shader-side `Opacity`. Censused over `0-Lighthouse`'s 1,592 materials (1,456
+resolving a diffuse):
+
+| | count |
+|---|---|
+| diffuse carries non-opaque alpha | 211 |
+| ...of which declare transparency (`Opacity`, `bAlphaTexture`, `Masked`, `OutputBlending > 0`) | 75 |
+| ...of which declare nothing at all | 136 |
+| ...of those, also with <1% fully-transparent texels | **26** |
+
+**Two signals, either sufficient**, is what the renderer now uses (`BioShockMaterial
+.DeclaresTransparency`, `PreviewImage.HasCutoutHoles`). Requiring a declaration alone would force
+136 materials opaque, ~110 of which are hole-bearing cutouts that draw correctly today — turning
+the game's gratings into solid rectangles would be a worse bug than the one being fixed. Requiring
+holes alone would flatten genuinely soft effects. Only the 26 with neither are forced solid.
+
+**What separates them is measurable and not subtle.** A genuine cutout has a population of fully
+transparent texels (smoke 26%, decals far more); a mask channel has essentially none and sits
+mid-range instead — `Liquor_Store_Sign_Diffuse` and `martini_neon` measure 0.0% holes with 100% of
+texels mid-range, `GraniteColor_NOR` 0.0%/80.0%.
+
+**A related finding, recorded but not chased:** on a few materials the *diffuse slot itself*
+resolves to something that is not a base colour — `GraniteColor_NOR` and `facade_side_normal` are
+normal maps, `BulletConcDecal_Heightmap` is a heightmap. Whether those are mis-authored in the game
+or mis-resolved by this project's slot walk is **`UNKNOWN`** and deliberately not investigated here.
+They are handled by the same rule either way, because their alpha is not opacity.
+
+**Still `UNKNOWN`:** `OutputBlending`'s individual values, unchanged by this work (see
+`open-questions.md` §11). It is read here only as a declaration that transparency was *intended*,
+never interpreted.
+
+Pinned by `TransparencyIntentTests`, which asserts both directions — the mask cases and the
+undeclared-cutout cases — because the dangerous direction is forcing surfaces opaque.
+

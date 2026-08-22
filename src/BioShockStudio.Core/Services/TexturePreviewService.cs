@@ -34,6 +34,46 @@ public sealed record PreviewImage(int Width, int Height, byte[] Rgba)
             return found;
         }
     }
+
+    /// <summary>
+    /// True when enough of this image is fully punched through to be a cutout — a grating, foliage,
+    /// a decal on a quad — rather than a channel that merely happens to hold values below 255.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The distinguishing measurement, taken across <c>0-Lighthouse</c>: a genuine cutout has a
+    /// population of fully-transparent texels (smoke 26%, gratings and decals far more), whereas an
+    /// alpha channel storing a gloss or specular mask sits in the middle of the range and has
+    /// essentially none — <c>Liquor_Store_Sign_Diffuse</c>, <c>martini_neon</c> and
+    /// <c>glassShard</c> all measure 0.0% holes with ~100% of texels mid-range.
+    /// </para>
+    /// <para>
+    /// One percent rather than zero because block compression reconstructs a few stray texels near
+    /// a hard alpha edge, so an exact-zero test would call a real cutout a mask on some textures.
+    /// </para>
+    /// </remarks>
+    public bool HasCutoutHoles
+    {
+        get
+        {
+            if (_hasCutoutHoles is { } known) return known;
+
+            int pixels = Rgba.Length / 4, holes = 0;
+            for (int i = 3; i < Rgba.Length; i += 4)
+                if (Rgba[i] < CutoutAlpha) holes++;
+
+            _hasCutoutHoles = pixels > 0 && holes * 100.0 / pixels >= CutoutHolePercent;
+            return _hasCutoutHoles.Value;
+        }
+    }
+
+    private bool? _hasCutoutHoles;
+
+    /// <summary>At or below this, a texel is a hole. Matches the software renderer's threshold.</summary>
+    private const byte CutoutAlpha = 8;
+
+    /// <summary>How much of an image must be punched through before its alpha reads as a cutout.</summary>
+    private const double CutoutHolePercent = 1.0;
 }
 
 /// <summary>A texture's header facts plus the mip sizes available to preview.</summary>

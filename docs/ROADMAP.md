@@ -492,6 +492,22 @@ material.
    **So Gate 1 item 2 is complete.**
 3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
+   - **Started 23 Aug 2026, from the transparency side, driven by a user bug report** rather than by
+     working the item top-down: parts of solid props were drawing invisible in the level viewport.
+     The cause was the item's own subject — **the renderer had no notion of texture intent at all**
+     and read every diffuse's alpha as opacity. `BioShockMaterial.DeclaresTransparency` now carries
+     the game's own declaration (`Opacity`/`bAlphaTexture`/`Masked`/`OutputBlending`, names
+     `CONFIRMED_EXTERNAL` from UModel's `UTexture` table and Nyko's SDK) and
+     `PreviewImage.HasCutoutHoles` the measured alternative. See
+     `docs/research/materials.md` "A diffuse's alpha channel is not necessarily opacity" for the
+     census and `TransparencyIntentTests` for the pins.
+   - **Still open in this item:** colour space (sRGB vs linear) is not exported at all; normal-map
+     and cubemap intent are not yet surfaced as metadata; no representative UE5 import has been
+     validated. `Cubemap` is a distinct class in the tree (`reference-comparison.md`) and materials
+     name `ReflectionCubemap`/`UseSpecularCubemaps` — neither is decoded yet.
+   - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
+     or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
+     that is the game's authoring or this project's slot walk is `UNKNOWN`.
 4. ~~**Materials** — decode `OutputBlending` (blend mode) semantics~~ — **already settled, not an
    open item.** `docs/research/open-questions.md` §11: `OutputBlending`'s declared values do not
    correlate with the alpha actually present in that material's own diffuse texture, so it is not

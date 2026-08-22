@@ -55,6 +55,27 @@ public sealed record PreviewSurface(
     /// very different facts. See <see cref="UnpaintedMaterials"/>.
     /// </remarks>
     public bool NoBaseColourByDesign { get; init; }
+
+    /// <summary>
+    /// True when this run's alpha channel may be read as opacity. False means draw it solid.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Defaults to <c>true</c>, so every caller that does not set it keeps the behaviour it had.
+    /// It is set where a surface is built from a material, which is the only place both signals are
+    /// known: whether the material <i>declares</i> transparency
+    /// (<see cref="Materials.BioShockMaterial.DeclaresTransparency"/>) and whether the texture
+    /// actually contains cutout holes (<see cref="Services.PreviewImage.HasCutoutHoles"/>).
+    /// </para>
+    /// <para>
+    /// <b>Either signal is enough</b>, deliberately. Requiring a declaration alone would turn 136
+    /// of <c>0-Lighthouse</c>'s materials opaque, ~110 of which are hole-bearing cutouts that draw
+    /// correctly today. Requiring holes alone would flatten genuinely soft effects. Only the
+    /// surfaces with neither — 26 in that map — are forced solid, which is the set whose alpha was
+    /// never opacity in the first place.
+    /// </para>
+    /// </remarks>
+    public bool AlphaIsOpacity { get; init; } = true;
 }
 
 /// <summary>

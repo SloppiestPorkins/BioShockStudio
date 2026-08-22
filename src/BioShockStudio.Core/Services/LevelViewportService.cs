@@ -400,15 +400,18 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                     decoded = material is null ? null : ReadMaterial(package, material.Value);
                 }
 
+                var diffuse = Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed);
+
                 result.Add(new PreviewSurface(
                     section.FirstIndex, section.IndexCount, decoded?.Name,
-                    Image(package, decoded, decoded?.DiffuseTexture, textures, borrowed),
+                    diffuse,
                     // BSP has a normal but no shipped tangent basis in this representation. A
                     // tangent-space map without that basis would be confidently wrong, so preserve
                     // it for export but do not feed it to the preview shader.
                     null, null)
                 {
                     NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(decoded?.ClassName),
+                    AlphaIsOpacity = AlphaIsOpacity(decoded, diffuse),
                 });
 
                 sizes.Add(AuthoredSize(package, decoded, decoded?.DiffuseTexture, borrowed));
@@ -422,14 +425,36 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
         bool hasTangentBasis = geometry.Vertices.Any(vertex =>
             vertex.Tangent.LengthSquared() > 1e-8f && vertex.Binormal.LengthSquared() > 1e-8f);
 
-        return ([.. surfaces.Select(s => new PreviewSurface(
-            s.FirstIndex, s.IndexCount, s.Material?.Name,
-            Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed),
-            hasTangentBasis ? Image(package, s.Material, s.Material?.NormalTexture, textures, borrowed) : null,
-            hasTangentBasis ? Image(package, s.Material, s.Material?.SpecularTexture, textures, borrowed) : null)
+        return ([.. surfaces.Select(s =>
         {
-            NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(s.Material?.ClassName),
+            var diffuse = Image(package, s.Material, s.Material?.DiffuseTexture, textures, borrowed);
+
+            return new PreviewSurface(
+                s.FirstIndex, s.IndexCount, s.Material?.Name,
+                diffuse,
+                hasTangentBasis ? Image(package, s.Material, s.Material?.NormalTexture, textures, borrowed) : null,
+                hasTangentBasis ? Image(package, s.Material, s.Material?.SpecularTexture, textures, borrowed) : null)
+            {
+                NoBaseColourByDesign = UnpaintedMaterials.HasNoBaseColourByDesign(s.Material?.ClassName),
+                AlphaIsOpacity = AlphaIsOpacity(s.Material, diffuse),
+            };
         })], sizes);
+    }
+
+    /// <summary>
+    /// Whether a surface's alpha channel may be read as opacity.
+    /// </summary>
+    /// <remarks>
+    /// Two independent signals, either of which is enough: the material declaring transparency, or
+    /// the texture actually carrying cutout holes. A surface with neither has an alpha channel that
+    /// means something else — a gloss or specular mask, or a "diffuse" slot that resolved to a
+    /// normal map — and drawing it as opacity is what made solid props vanish in the level
+    /// viewport. See <see cref="PreviewSurface.AlphaIsOpacity"/> for the measured counts.
+    /// </remarks>
+    private static bool AlphaIsOpacity(BioShockMaterial? material, PreviewImage? diffuse)
+    {
+        if (diffuse is null) return true;
+        return material?.DeclaresTransparency == true || diffuse.HasCutoutHoles;
     }
 
     /// <summary>

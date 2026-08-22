@@ -49,6 +49,48 @@ public sealed record BioShockMaterial
     public byte? OutputBlending { get; init; }
 
     /// <summary>
+    /// True when this material says, somewhere, that its alpha channel means opacity.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CONFIRMED_EXTERNAL</c> for the flag names: UModel's <c>UTexture</c> property table
+    /// (<c>UnMaterial2.h</c>) declares <c>bMasked</c> ("alpha is a cutout") and
+    /// <c>bAlphaTexture</c> ("alpha is for blending"), and Nyko's SDK lists both alongside
+    /// <c>Opacity</c> on the shader side. <c>CONFIRMED_BYTES</c> here: censused across
+    /// <c>0-Lighthouse</c>, of the 211 materials whose diffuse carries non-opaque alpha, <b>75
+    /// declare one of these and 136 declare nothing at all</b>.
+    /// </para>
+    /// <para>
+    /// <b>Why this is not just cosmetic.</b> A diffuse's alpha channel in this game is often not
+    /// opacity — it carries a gloss or specular mask, and on a few materials the "diffuse" slot
+    /// resolves to a normal map or a heightmap outright (<c>GraniteColor_NOR</c>,
+    /// <c>BulletConcDecal_Heightmap</c>). A renderer that treats every alpha channel as opacity
+    /// makes those surfaces vanish. What it must not do is the reverse — force everything opaque
+    /// and turn the game's gratings, foliage and decals into solid rectangles — so this is one of
+    /// two signals, the other being whether the texture actually contains cutout holes.
+    /// </para>
+    /// <para>
+    /// <c>OutputBlending</c> counts as a declaration of <i>intent</i> only. Its individual values
+    /// remain <c>UNKNOWN</c> and nothing here interprets them — see
+    /// <c>docs/research/open-questions.md</c> §11, which established that they do not correlate
+    /// with the alpha actually present.
+    /// </para>
+    /// </remarks>
+    public bool DeclaresTransparency =>
+        Masked
+        || OutputBlending is > 0
+        || UnhandledProperties.Any(IsTransparencyDeclaration);
+
+    /// <summary>Property names that assert "alpha is opacity", on either the shader or texture side.</summary>
+    private static bool IsTransparencyDeclaration(string name) =>
+        name.Equals("Opacity", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("OpacityBitmap", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("OpacityTextureAnimator", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("bAlphaTexture", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("bMasked", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("ClipMask", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Properties present on the object but not interpreted, by name. Kept so a reader can see what
     /// was dropped rather than assuming the decode was complete.
     /// </summary>
