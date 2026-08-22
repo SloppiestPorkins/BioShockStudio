@@ -605,6 +605,27 @@ mean, not how they are unpacked, is still missing.
   memory.
 - `docs/research/QUALITY.md` note: the audit now *detects* this, so any change can be measured
   against `AnimationAudit.WorstCollapse` rather than by eye.
+- **Disassembling the compiled Havok `.lib`/`.pdb` to recover `sampleTranslation` or
+  `evaluateSimple1/2/3`'s actual bodies — considered and explicitly declined, 22 Aug 2026.**
+  Havok's own license (`hk2012_2_0_r1/Havok Limited Use License Agreement for PC XS 12-19-2011.txt`
+  §4.2) prohibits reverse engineering, disassembling or decompiling the product "even for purposes
+  of interoperability or error correction." This is a hard line, not a project-scope choice — **do
+  not attempt this**, regardless of how the item is otherwise framed. The license's own §4.2 names
+  the legitimate alternative: a written request to Havok for interoperability information, which is
+  a business decision for whoever holds the license, not something a coding session can do.
+- **A fifth thing checked, same session, and still clean**: whether *this project's own* block/byte
+  walk — as opposed to Havok's algorithm — loses alignment on the four fire clips specifically.
+  `AnimationAuditRow.WorstBlockSlack` is `8`, `0`, `0`, `12` across `PI_Fire`/`PI_Fire_B`/`PI_fire_C`/
+  `smg_fire` — all comfortably inside the 0–15 byte range a correctly-aligned walk produces (a block
+  pads to 16 bytes). This isn't a Havok-algorithm candidate like the four above; it rules out "our
+  own reader loses its place reading these specific animations" as the explanation, which hadn't
+  been checked from this specific angle before. The bug is confirmed to be in what the correctly-read
+  values *mean*, not in whether they were read from the right bytes.
+- **A workaround (clamping/rescuing the specific collapsing bones post-decode) was considered and
+  rejected, same session.** This section's own text a few lines up already explains why: "inventing a
+  rule to rescue one animation of 16,031 is how the original fault got in." A labelled workaround
+  would repeat that shape of mistake with better documentation, not avoid it. Left as a real,
+  understood, unfixed defect rather than a hidden one.
 
 ---
 
