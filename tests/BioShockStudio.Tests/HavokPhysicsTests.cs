@@ -111,4 +111,59 @@ public sealed class HavokPhysicsTests(GameFixture game)
 
     private const string HkpRigidBodyClassName = "hkpRigidBody";
     private const string HkpConstraintInstanceClassName = "hkpConstraintInstance";
+
+    /// <summary>
+    /// The two <c>hkaSkeletonMapper</c>s on this character are near-exact inverses of each other —
+    /// the same bone correspondence read in both directions for all but one entry, which is a strong
+    /// internal cross-check for a bone-index mapping (a data-entry mistake in one direction would not
+    /// generally also produce a coherent inverse in the other). The one exception is understood, not
+    /// a reader bug — see <c>HkaSkeletonMapperReader</c>'s own doc comment.
+    /// </summary>
+    [RequiresGameFact]
+    public void SkeletonMappersAreNearExactInversesOfEachOther()
+    {
+        var (pack, owner) = BabyJane();
+        using (owner)
+        {
+            var mapperObjects = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == HkaSkeletonMapperReader.ClassName)
+                .ToList();
+            Assert.Equal(2, mapperObjects.Count);
+
+            var mappers = mapperObjects
+                .Select(o => HkaSkeletonMapperReader.Read(pack.Packfile, pack.Packfile.ResolvedSections[o.SectionIndex], o.Offset))
+                .ToList();
+
+            var seventyThreeToSeventeen = mappers.Single(m => m.SimpleMappings.Any() && m.SimpleMappings[0].BoneA > 16);
+            var seventeenToSeventyThree = mappers.Single(m => m != seventyThreeToSeventeen);
+
+            Assert.NotEmpty(seventyThreeToSeventeen.SimpleMappings);
+
+            // The two directions are not the same size (21 vs 29 on this character), and are not a
+            // strict subset of one another either - one entry in the 73-to-17 direction (bone 4 to
+            // ragdoll bone 1) has no reverse counterpart, plausibly because ragdoll bone 1 is one of
+            // the 17-to-73 mapper's 42 counted-but-undecoded "unmapped bones" instead of a simple
+            // mapping. What holds, and is the real cross-check: the large majority still agree
+            // exactly in both directions - not a coincidence at this rate.
+            var forward = seventyThreeToSeventeen.SimpleMappings.ToHashSet();
+            var reversed = seventeenToSeventyThree.SimpleMappings.Select(m => ((short)m.BoneB, (short)m.BoneA)).ToHashSet();
+            int agreeing = forward.Count(pair => reversed.Contains(pair));
+            Assert.True(agreeing >= forward.Count - 2,
+                $"only {agreeing} of {forward.Count} forward mappings have an exact reverse counterpart");
+
+            // Bone indices stay inside each skeleton's own real bone count.
+            var boneCounts = pack.Packfile.EnumerateObjects()
+                .Where(o => o.ClassName == "hkaSkeleton")
+                .Select(o => Core.Havok.Skeleton.HkaSkeletonReader.Read(pack.Packfile.ResolvedSections[o.SectionIndex], o.Offset).BoneCount)
+                .ToHashSet();
+            Assert.Contains(73, boneCounts);
+            Assert.Contains(17, boneCounts);
+
+            foreach (var (boneA, boneB) in seventyThreeToSeventeen.SimpleMappings)
+            {
+                Assert.InRange(boneA, (short)0, (short)72);
+                Assert.InRange(boneB, (short)0, (short)16);
+            }
+        }
+    }
 }
