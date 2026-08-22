@@ -530,6 +530,20 @@ decision to port something to UE5 is not itself evidence that the underlying dec
   `src/BioShockStudio.Core/Level/` — **read it before writing anything new**, and do not treat the
   unlock as permission to rewrite what is there.
 
+### Roadmap discipline — added 22 Aug 2026
+
+**Work a roadmap's items in order, not by jumping to whichever looks interesting.** Applies to
+`docs/ROADMAP.md` Part 2's gates and their numbered items (e.g. Gate 2 items 1–4): pick the next
+undone item in sequence and drive it to done before starting another. Do not open item 4 while item
+2 is half-finished because it looked more tractable, and do not work two items in parallel.
+
+**"Done" means fully cleared, not merely started or mostly working.** Do not mark an item done, or
+move off it, while it still has an open sub-part, an unresolved discrepancy, or a "still to do"
+note attached to it — finish it or explicitly record it as blocked before moving on. This is the
+same shape as §0.4's "finish one track before starting the next" but one level down: §0.4 governs
+the four concurrent tracks (UE5/audio/lightmaps/bytecode), this governs the items *within* whichever
+track/gate is currently active.
+
 ### Process instructions
 
 - **Read the reference projects before deriving from bytes.** `UModel-master/`, `hk2012_2_0_r1/`,

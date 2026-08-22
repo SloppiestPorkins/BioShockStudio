@@ -20,6 +20,8 @@ Full text in `docs/ENGINEERING_RULES.md`; these are the ones worth having in fro
 - **User scope beats agent curiosity.** "Write it up and move on" means stop, document, and move on —
   not keep pulling the thread because a new clue appeared. §55 has a worked example of getting this
   exactly wrong.
+- **Work a roadmap in order — no jumping around.** Take the next undone item in `docs/ROADMAP.md`
+  Part 2 sequentially and finish it *fully* before starting another. §60 "Roadmap discipline".
 - **Capture discoveries; do not chase them.** `DISCOVER → VERIFY → RECORD → DEFER → CONTINUE`.
 - **Never guess when the bytes can be inspected**, and never promote a hypothesis to a fact. Label
   confidence, always.
