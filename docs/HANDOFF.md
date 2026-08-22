@@ -14,7 +14,7 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | Roadmap execution (`docs/ROADMAP.md` Part 2, in priority order) | `Cli/Program.cs` (`export-fbx --mesh`), UE5 skeleton-family validation, `docs/ROADMAP.md` | 19 Aug 2026 |
+| Claude (this session) | Gate 2 item 4 — UE5 skeleton-family validation, weapons/doors/props | `docs/ROADMAP.md`, throwaway UE5 project at `C:\Users\Jack\Documents\BioShockUE5\` | 22 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
 them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A

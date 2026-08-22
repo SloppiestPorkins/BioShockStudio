@@ -343,7 +343,24 @@ material.
    **Little Sister done, same session**: `GathererGirl` (60 bones, 5,495 vertices, 6 sockets —
    named for the game's own "Gatherer" terminology) imports cleanly
    (`Success - 0 error(s), 5 warning(s)`) and verifies the same way.
-   **Still open**: other weapons, doors, props.
+   **First weapon beyond pistol/TommyGun, and first door, done 22 Aug 2026**: `WP_Crossbow` (15
+   bones, 10,151 vertices, 3 sockets, 3 animations, attached via `export-firstperson Crossbow`)
+   imports cleanly alongside the hands rig (`Success - 0 error(s), 7 warning(s)`, same cosmetic
+   shape). `UAPW_BulkheadDoor` (11 bones, 2,640 vertices, 10 sockets, 6 animations — a mechanical
+   rig with no skin deformation rather than a character, and another `--mesh` case: its mesh export
+   is named `BulkheadDoorANIM`, not a `UAPW_`-stripped match) imports cleanly on its own
+   (`Success - 0 error(s), 2 warning(s)`). Both verified the same way as the character rigs: a real
+   `SkeletalMesh` with a non-null, populated `Skeleton`, via `verify_bioshock_import.py` raising no
+   `RuntimeError`. Of the hands' 19 weapon sockets, only `Wrench`, `Launcher`, `Chem` and
+   `PlayerGathererGun` resolved to no animated `WP_<name>` group in `ShockGame.U` when tried
+   (`export-firstperson` reported "No animated weapon found") — those are plausibly static-mesh-only
+   weapons (no separate skeleton), not yet confirmed either way.
+   **First prop, same session**: `UAPW_TurretMachineGun` (11 bones, 6,317 vertices, 6 sockets, 2
+   animations — a mechanical enemy rig shipped in nearly every map, mesh name matches the wrapper
+   exactly so no `--mesh` override needed) imports and verifies the same way
+   (`Success - 0 error(s), 2 warning(s)`).
+   **Still open**: the four weapon sockets above (need a static-mesh attachment path, not
+   `export-firstperson`, if confirmed meshes-only), other doors, other props.
 
 ### Gate 3 — levels and UE2 actor systems
 
