@@ -109,9 +109,11 @@ static int Usage()
           diagnose [package] [--animations] [--code C] [--out report.csv]
                                         Report every asset this tool knows is broken or degraded,
                                         with the evidence. One package, or the whole game.
-          export-firstperson <weapon> <out-dir> [--fbx] [--preview=<animation>]
+          export-firstperson <weapon> <out-dir> [--fbx] [--preview=<animation>] [--group=<name>]
                                         Assemble the hands, the weapon and both animation sets.
                                         --preview also writes a mesh-plus-animation file to look at.
+                                        --group overrides the "WP_<weapon>" group-name guess, for
+                                        weapons whose socket name doesn't match their own group.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -1331,10 +1333,12 @@ static int ExportFirstPerson(string root, string[] args)
     bool asFbx = args.Contains("--fbx", StringComparer.OrdinalIgnoreCase);
     string? preview = args.FirstOrDefault(a => a.StartsWith("--preview=", StringComparison.OrdinalIgnoreCase))
         ?["--preview=".Length..];
+    string? groupOverride = args.FirstOrDefault(a => a.StartsWith("--group=", StringComparison.OrdinalIgnoreCase))
+        ?["--group=".Length..];
 
     if (positional.Count < 2)
     {
-        Console.Error.WriteLine("usage: export-firstperson <weapon> <out-dir> [--fbx]");
+        Console.Error.WriteLine("usage: export-firstperson <weapon> <out-dir> [--fbx] [--group=<name>]");
         return 1;
     }
 
@@ -1363,7 +1367,7 @@ static int ExportFirstPerson(string root, string[] args)
     Console.WriteLine($"socket: '{socket.Name}' attaches to bone '{socket.BoneName}'");
 
     using var weaponPackage = BioShockPackage.Open(weaponPackagePath);
-    string group = "WP_" + weapon;
+    string group = groupOverride ?? "WP_" + weapon;
 
     var weaponWrapper = weaponPackage.Exports
         .Where(e => IsInGroup(weaponPackage, e, group)
@@ -1377,7 +1381,8 @@ static int ExportFirstPerson(string root, string[] args)
 
     if (weaponWrapper is null || weaponMeshExport is null)
     {
-        Console.Error.WriteLine($"No animated weapon found in group '{group}' of ShockGame.U.");
+        Console.Error.WriteLine($"No animated weapon found in group '{group}' of ShockGame.U. " +
+                                "If the socket name doesn't match the weapon's own group name, pass --group=<name>.");
         return 1;
     }
 
