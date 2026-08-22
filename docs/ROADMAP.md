@@ -437,9 +437,20 @@ material.
      "keep looking and take the densest" rule sat under a comment claiming payloads hold several
      levels; it never has to choose on any mesh in the game. Caveat recorded: a cruder LOD in a
      *different vertex format* would not satisfy the search constraints and is not excluded.
+   - ~~**Socket metadata**~~ **answered, 22 Aug 2026: static meshes have none.** Censused across all
+     8,668 exports — no `AttachAliases`, `AttachBoneNames`, `AttachCoords` or `Sockets` on any of
+     them. The relationship runs the other way: a static mesh *hangs off* a skeletal mesh's socket,
+     which is already decoded. The item's phrase invited a search for something the container does
+     not have. `StaticMeshPropertyTests`.
    - **The kDOP tail stays deferred by the item's own condition** — no concrete UE5 collision or
-     navigation target has been chosen, so decoding it would be work in search of a consumer.
-   - **Socket metadata is the remaining actionable part.**
+     navigation target has been chosen. **But the same census makes that deferral cheaper than it
+     looked:** the game declares collision *intent* in plain properties — `NeverCollide` (954
+     meshes), `UseSimpleBoxCollision`, `UseSimpleVisionCollision`, `UseSimpleFootIKCollision`,
+     `HavokCollisionTypeStatic`/`Dynamic` — so a UE5 bridge wanting collision can carry that across
+     without decoding a kDOP tree at all. The census also turned up `LightMapCoordinateIndex` and
+     `LightMapScale`, which are the static-mesh side of Gate 0 item 3.
+   - **So item 1 is complete apart from the kDOP tail, which is deferred by design rather than
+     unfinished.**
 2. ~~**Skeletal meshes** — close the 4 remaining unreadable door variants; the 153
    `mesh-materials-without-sections` skeletal meshes have a known fix (the section table exists per
    `UnMeshBioshock.cpp`'s `FStaticLODModelBio`, it just isn't consumed yet — this is scoped work,
