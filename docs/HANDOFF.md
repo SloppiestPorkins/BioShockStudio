@@ -388,6 +388,16 @@ Each of these produced a plausible, wrong result before it was understood.
   once. Three features in the last session were implemented, tested, and invisible — a column
   squeezed to zero width, an error message never displayed, and a zoom whose wheel event was eaten
   by a `ScrollViewer`. None were findable from the code.
+- **A diffuse texture's alpha channel is not necessarily opacity** (23 Aug 2026). Many of this
+  game's diffuse maps carry a gloss or specular mask in alpha, and a few diffuse slots resolve to a
+  normal map or heightmap outright. The GL level shader does not blend at all — it writes alpha
+  `1.0` and its only transparency is a `discard` below 0.35 — so reading alpha as opacity
+  unconditionally made solid props vanish. Before touching transparency anywhere, read
+  `docs/research/materials.md` "A diffuse's alpha channel is not necessarily opacity": the rule
+  needs **two** signals (the material's declaration, or measured cutout holes) and the dangerous
+  direction is forcing surfaces opaque, which would turn the game's gratings into solid rectangles.
+  Note the software preview renderer still decides transparency from observed alpha alone and has
+  **not** been changed to match.
 
 ## 5. Validation
 
