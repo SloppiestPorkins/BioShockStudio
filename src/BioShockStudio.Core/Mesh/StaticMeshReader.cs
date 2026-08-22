@@ -186,10 +186,65 @@ public static class StaticMeshReader
     /// it is independent evidence that the block found is the mesh's own geometry.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// One level of detail: how much geometry it carries, in the order the payload stores it.
+    /// </summary>
+    public readonly record struct StaticMeshLevel(int VertexCount, int TriangleCount);
+
+    /// <summary>
+    /// Every geometry chain in a static mesh payload, in file order — its levels of detail.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>That a payload holds several was asserted in a comment and is now measured.</b>
+    /// <see cref="ReadGeometry"/> has always scanned past each chain and kept the densest, because
+    /// the first one stored is often the crude one; but "a payload holds several levels of detail"
+    /// was a claim in that comment with no census behind it, and the research note still listed LODs
+    /// under "still unknown — whether further vertex blocks follow the tail has not been checked".
+    /// This is the same shape of drift as the section table, where a note said work was outstanding
+    /// that the code had already done.
+    /// </para>
+    /// <para>
+    /// The chains are exactly the ones <see cref="ReadGeometry"/> considers, found by the same
+    /// constraints — a UV stream as long as the vertex array, an index count that is a whole number
+    /// of triangles, a largest index of <c>vertexCount - 1</c>, unit basis vectors, and every
+    /// position inside the <c>FBox</c> stored before the count. So this reports what the reader
+    /// sees rather than a second opinion about the format.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<StaticMeshLevel> LevelsOfDetail(ReadOnlySpan<byte> payload)
+    {
+        var levels = new List<StaticMeshLevel>();
+        foreach (var found in LocateAll(payload))
+            levels.Add(new StaticMeshLevel(found.VertexCount, found.IndexCount / 3));
+        return levels;
+    }
+
     private static bool TryLocateGeometry(ReadOnlySpan<byte> payload, out GeometryLayout layout)
     {
         layout = default;
         bool found = false;
+
+        // Takes the densest chain. MEASURED, and the answer is that this never has to choose:
+        // every one of the game's 8,668 static meshes carries exactly ONE chain
+        // (StaticMeshLevelOfDetailTests). The rule is kept because it costs nothing and a mesh with
+        // a second block would otherwise be decoded at whichever detail the file stored first — but
+        // the comment that used to sit here, asserting that "a payload holds several levels of
+        // detail", was describing a container this game does not ship.
+        foreach (var candidate in LocateAll(payload))
+            if (!found || candidate.VertexCount > layout.VertexCount)
+            {
+                layout = candidate;
+                found = true;
+            }
+
+        return found;
+    }
+
+    /// <summary>Every geometry chain the payload contains, in file order.</summary>
+    private static List<GeometryLayout> LocateAll(ReadOnlySpan<byte> payload)
+    {
+        var results = new List<GeometryLayout>();
 
         for (int at = 0; at < payload.Length - 16; at++)
         {
@@ -247,22 +302,15 @@ public static class StaticMeshReader
 
             if (!WithinDeclaredBounds(payload, at, vertexOffset, vertexCount)) continue;
 
-            // A payload holds several levels of detail. Keep looking and take the densest, rather
-            // than the first one encountered — which is whichever the file happens to store first,
-            // and is often the crude one.
-            if (!found || vertexCount > layout.VertexCount)
-            {
-                layout = new GeometryLayout(
-                    at, vertexOffset, vertexCount, uvOffset, streamCount, indexOffset, indexCount);
-                found = true;
-            }
+            results.Add(new GeometryLayout(
+                at, vertexOffset, vertexCount, uvOffset, streamCount, indexOffset, indexCount));
 
             // Resume past this chain rather than re-scanning inside it, so the whole payload costs
             // one pass instead of one per byte.
             at = indexOffset + indexCount * 2 - 1;
         }
 
-        return found;
+        return results;
     }
 
     /// <summary>

@@ -138,7 +138,22 @@ not bound, and drawing them in one space would imply they were.
   Not needed for geometry and not read.
 - **The variable-length header.** Located by search rather than understood, exactly as with
   `SkeletalMesh`.
-- **LODs.** Whether further vertex blocks follow the tail has not been checked.
+- ~~**LODs.** Whether further vertex blocks follow the tail has not been checked.~~ **Checked, 22 Aug
+  2026 — there are none.** Across every shipped map, **8,668 static meshes yield 8,668 geometry
+  chains: exactly one each**, with no mesh carrying a second. `StaticMeshLevelOfDetailTests` pins the
+  census, and `StaticMeshReader.LevelsOfDetail` exposes the chains so the question can be re-asked
+  rather than re-argued.
+
+  **This also corrects the reader.** `TryLocateGeometry` scans past each chain and keeps the densest,
+  under a comment asserting that "a payload holds several levels of detail" — it never has to choose,
+  on any mesh in the game. The rule is kept (it costs nothing and would decode a second block at the
+  right detail rather than the stored-first one) but the claim behind it was describing a container
+  this game does not ship. **BioShock Remastered's static meshes are single-LOD**, which is worth
+  knowing before a UE5 bridge is built expecting an LOD chain to carry across.
+
+  **What it does not rule out:** a cruder level stored in a *different vertex format* would not
+  satisfy the constraints this search uses and would not be found. Five independent constraints
+  agreeing 8,668 times is strong evidence, not proof of absence.
 
 ## The section table — found via Nyko's SDK, verified here
 

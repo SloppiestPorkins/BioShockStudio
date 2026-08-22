@@ -431,6 +431,15 @@ material.
 
 1. **Static meshes** — collision/kDOP tail, LODs and socket metadata; only decode the currently
    opaque collision blocks once a concrete UE5 target (collision/navigation/ray query) is known.
+   - ~~**LODs**~~ **answered, 22 Aug 2026: there are none.** 8,668 shipped static meshes yield
+     **8,668 geometry chains — exactly one each**. `StaticMeshReader.LevelsOfDetail` exposes them and
+     `StaticMeshLevelOfDetailTests` pins the census. This also corrects the reader, whose
+     "keep looking and take the densest" rule sat under a comment claiming payloads hold several
+     levels; it never has to choose on any mesh in the game. Caveat recorded: a cruder LOD in a
+     *different vertex format* would not satisfy the search constraints and is not excluded.
+   - **The kDOP tail stays deferred by the item's own condition** — no concrete UE5 collision or
+     navigation target has been chosen, so decoding it would be work in search of a consumer.
+   - **Socket metadata is the remaining actionable part.**
 2. ~~**Skeletal meshes** — close the 4 remaining unreadable door variants; the 153
    `mesh-materials-without-sections` skeletal meshes have a known fix (the section table exists per
    `UnMeshBioshock.cpp`'s `FStaticLODModelBio`, it just isn't consumed yet — this is scoped work,
