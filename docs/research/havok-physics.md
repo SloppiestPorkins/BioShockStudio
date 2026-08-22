@@ -148,37 +148,73 @@ would need the whole parent chain composed (not one bone read in isolation) befo
 non-zero *world-space* position (composing the chain from root), rather than reading one local
 translation directly.
 
+## Decoded: `hkpConstraintInstance` — `CONFIRMED_BYTES`, 22 Aug 2026 — the full constraint topology
+
+```
+hkpConstraintInstance : hkReferencedObject
++0   hkReferencedObject                (vtable + refcount, zero on disk)
++8   hkpConstraintOwner*  m_owner      (+nosave — occupies its slot, permanently null, no fixup)
++12  hkpConstraintData*   m_data
++16  hkpModifierConstraintAtom* m_constraintModifiers   (null on every constraint checked)
++20  hkpEntity*  m_entities[0]
++24  hkpEntity*  m_entities[1]
++28  hkUint8 m_priority, hkBool m_wantRuntime, hkUint8 m_destructionRemapInfo (+ padding)
++32  hkStringPtr m_name                (null on every constraint checked — unnamed)
++36  hkUlong m_userData
+```
+
+`Data`, `EntityA` and `EntityB` all resolve on **all 16 of this character's constraints, 0
+disagreements** — `Data` to a real `hkpRagdollConstraintData`, both entities to real `hkpRigidBody`
+objects (`HkpConstraintInstanceReader`,
+`HavokPhysicsTests.EveryConstraintConnectsTwoRealRigidBodiesToRealConstraintData`). The resulting
+graph is coherent, not just individually plausible: several constraints connect directly to rigid
+body 0 (this character's pelvis), which is the shape a real hierarchy radiating from a root produces.
+
+**A correction to an assumption this investigation had been carrying too far**: `m_owner` is
+`+nosave` but the byte dump shows it still occupies its 4-byte slot at `+8` (permanently null, no
+fixup entry) rather than being omitted from the layout the way this note previously assumed for
+every `+nosave` field. The two readings are indistinguishable when the skipped field happens to sit
+inside alignment padding anyway (as with `hkaAnimatedReferenceFrame`'s `m_frameType` in
+`root-motion.md`, where the next field needed 16-byte alignment regardless) — this class, where the
+following field has no such alignment requirement, is what made the difference visible.
+
+**What this closes**: the full constraint graph — which two bodies each joint connects — is readable,
+on top of the shape/bone/rigid-body correlation the earlier classes already closed. **What remains**:
+`hkpRagdollConstraintData::Atoms` — the actual joint limits, motor parameters and per-body local
+transforms — is a fixed sequence of seven nested "atom" structs
+(`hkpSetLocalTransformsConstraintAtom`, `hkpSetupStabilizationAtom`, `hkpRagdollMotorConstraintAtom`,
+`hkpAngFrictionConstraintAtom`, `hkpTwistLimitConstraintAtom`, `hkpConeLimitConstraintAtom` twice —
+cone and "planes" — `hkpBallSocketConstraintAtom`), each its own class with its own fields. This is
+genuinely the largest remaining piece in the whole physics investigation, comparable in scope to the
+lightmap descriptor chain that took a full session on its own — reachability is solved
+(`hkpConstraintInstance::Data` already points at each one), so what's left there is purely "decode
+seven structs' worth of field values," not finding them.
+
 ## Scoped, not yet attempted
 
 ### 1. The rest of `hkpRigidBody` — mass, inertia, velocities, friction/restitution, world transform
 
-See above for what's confirmed and what was tried. `hkpMotion`'s own header (`hkpMotion.h`) is worth
-reading closely before the next attempt — it names the fields directly: `m_motionState` (which starts
-with the `hkTransform` — 48-byte rotation matrix + 16-byte translation — this rigid body's own
-world-space pose), `m_inertiaAndMassInv` (one `hkVector4`: inverse inertia diagonal in `xyz`, inverse
-mass in `w` — a well-known Havok packing, worth checking for directly), `m_linearVelocity`,
-`m_angularVelocity`. All plausible in the byte dump already taken; none cross-validated yet.
+See its own section above for what's confirmed and what was tried. `hkpMotion`'s own header
+(`hkpMotion.h`) is worth reading closely before the next attempt — it names the fields directly:
+`m_motionState` (which starts with the `hkTransform` — 48-byte rotation matrix + 16-byte translation —
+this rigid body's own world-space pose), `m_inertiaAndMassInv` (one `hkVector4`: inverse inertia
+diagonal in `xyz`, inverse mass in `w` — a well-known Havok packing, worth checking for directly),
+`m_linearVelocity`, `m_angularVelocity`. All plausible in the byte dump already taken; none
+cross-validated yet.
 
-### 2. `hkpConstraintInstance` + `hkpRagdollConstraintData` — the deepest of the remaining classes
+### 2. `hkpRagdollConstraintData::Atoms` — the last, largest piece
 
-A `hkpConstraintInstance` mostly holds housekeeping (priority, a name, a `hkpConstraintData*`
-pointer) and points at the real joint data. `hkpRagdollConstraintData::Atoms` is a fixed sequence of
-seven nested "atom" structs — `hkpSetLocalTransformsConstraintAtom`, `hkpSetupStabilizationAtom`,
-`hkpRagdollMotorConstraintAtom`, `hkpAngFrictionConstraintAtom`, `hkpTwistLimitConstraintAtom`,
-`hkpConeLimitConstraintAtom` (twice — cone and "planes"), `hkpBallSocketConstraintAtom` — each its own
-class with its own fields (joint limit angles, per-body local transforms, motor parameters). This is
-genuinely the largest remaining piece, comparable in scope to the lightmap descriptor chain that took
-a full session on its own. `hkaRagdollInstance::m_constraints` already gives the object graph (which
-constraint belongs to this character, in order) — the reachability problem earlier items had is
-solved; what's left is purely "decode each joint's field values."
+Seven nested atom structs per joint — see the constraint section above for the full list and why it's
+comparable in scope to the lightmap descriptor chain. Reachability is solved; what's left is pure
+field decode, joint by joint, atom by atom.
 
 ## What this unblocks, and what it does not
 
-`hkaRagdollInstance` + `hkpCapsuleShape` + `hkaSkeletonMapper` together already place every
-character's collision capsules against a *named animation bone*, relative to *a* rigid body — even
-before constraints are decoded (UE5 can import bodies without constraints; it just won't hold together
-as a ragdoll yet). What's still missing before that's a fully usable UE5 Physics Asset is item 1
-(each body's own transform — `hkpCapsuleShape` is in the body's *local* space, and nothing yet reads
-where that local space sits in the world/bone frame, or the body's mass/inertia). Constraints
-(item 2) are what turn "capsules placed on bones" into "a ragdoll that behaves like one." Neither of
-the two remaining items has been started; this note is the map for whoever does.
+`hkaRagdollInstance` + `hkpCapsuleShape` + `hkaSkeletonMapper` + `hkpConstraintInstance` together
+already place every character's collision capsules against a *named animation bone*, know which body
+belongs to which shape, and know the *full joint graph* connecting every body — everything a UE5
+Physics Asset's skeleton-of-bodies-and-constraints structure needs, except the constraints' own limit
+angles and each body's world-space transform/mass (`hkpRigidBody`, still open — see above). The
+`hkpRagdollConstraintData::Atoms` chain is what turns "a graph of which bodies connect" into "a
+ragdoll that behaves like a specific character's joints" (elbows bend one way, shoulders in a cone,
+etc.) — genuinely the last piece, and the biggest one left.

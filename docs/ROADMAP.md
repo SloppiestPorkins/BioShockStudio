@@ -394,11 +394,21 @@ material.
    quadruple that could be a rotation component) but a principled cross-reference against this rig's
    own bind-pose bone chain came up inconclusive (the tested bone's local translation was exactly
    zero, and a rigid body's transform is world-space, needing the full parent chain composed, not one
-   bone read in isolation) — not published as fact. **Constraints
-   (`hkpConstraintInstance`/`hkpRagdollConstraintData`) remain the largest piece** — seven nested
-   "atom" structs per joint — but reachability is solved (`m_constraints` already gives the object
-   graph), so what's left there is purely per-joint field decode. Full record and field-by-field
-   detail: `docs/research/havok-physics.md`.
+   bone read in isolation) — not published as fact. **`hkpConstraintInstance` fully decoded,
+   `CONFIRMED_BYTES`, same session**: the full constraint topology — `Data`, `EntityA`, `EntityB` all
+   resolve on all 16 of this character's constraints, 0 disagreements, to a real
+   `hkpRagdollConstraintData` and two real `hkpRigidBody` objects each, and the resulting graph is
+   coherent (several constraints touch rigid body 0, the pelvis — a root-radiating hierarchy, not a
+   coincidence). `HkpConstraintInstanceReader`,
+   `HavokPhysicsTests.EveryConstraintConnectsTwoRealRigidBodiesToRealConstraintData`. Along the way,
+   corrected an assumption this investigation had over-applied: `+nosave` doesn't always mean a field
+   is omitted from the layout — `hkpConstraintInstance::m_owner` is `+nosave` but still occupies its
+   4-byte slot (permanently null). **What's left, and it's the last and largest piece**:
+   `hkpRagdollConstraintData::Atoms` — seven nested "atom" structs per joint holding the actual limit
+   angles, motor parameters and per-body local transforms — comparable in scope to the lightmap
+   descriptor chain that took a full session on its own. Reachability is solved
+   (`hkpConstraintInstance::Data` already points at each one); what remains is pure per-atom field
+   decode. Full record and field-by-field detail: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
