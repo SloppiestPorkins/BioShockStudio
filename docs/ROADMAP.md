@@ -45,7 +45,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | UE5 import | **Working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. See Gate 2 item 4 for the full list. No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
-| Tests | Full suite **437/437 passing** (measured 19 Aug 2026). See "Test health" below. |
+| Tests | Full suite **446/446 passing** (measured 22 Aug 2026). See "Test health" below. |
 
 ---
 
@@ -586,12 +586,12 @@ dotnet test --filter Tier=Sweep     # whole-game censuses, bulk store, UI, ~20 m
 dotnet test                         # both — the number to report
 ```
 
-Fast tier: **199/199 passing** (measured 22 Aug 2026, after the UE5 skeleton-family sweep,
+Fast tier: **202/202 passing** (measured 22 Aug 2026, after the UE5 skeleton-family sweep,
 `export-firstperson --group`, root-motion and Havok-physics decode work).
 
-Full suite: last classified at **437/437** (19 Aug 2026, after the 7 failures below were classified
-and fixed, and after a second-order dispatch fix on top of the first — see below); **item 0.1 above
-is done and stays done** unless a fresh run reports otherwise. Classification, per test:
+Full suite: **446/446 passing** (measured 22 Aug 2026, same session — 9m22s). Classification below is
+from the 19 Aug 2026 pass that first closed item 0.1; **item 0.1 stays done** unless a fresh run
+reports a new failure, and this full run reported none. Classification, per test:
 
 - `DocumentedFiguresTests` (4 checks) and `DiagnosticsTests.AReportSaysHowMuchItExamined` —
   **a real regression, fixed, in two parts.** First: `AssetDiagnostics.ScanExport` checked
