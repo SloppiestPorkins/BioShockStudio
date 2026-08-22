@@ -339,7 +339,14 @@ material.
    a real shipped animation).
 2. §6.0c — the 252 bone-rigidity collapses (27 folding ≥20 bones), including `AggressorBabyJane`'s
    fire clips — needs `sampleTranslation`, which the current SDK build doesn't expose. Genuinely
-   blocked, not merely unstarted.
+   blocked, not merely unstarted. **Re-checked, 22 Aug 2026**: the recorded next lead
+   ("compare against `evaluateSimple1/2/3` at u=0") is now also confirmed closed, not just untried —
+   those functions are declared and referenced but their bodies are nowhere in the SDK source tree
+   (grepped, not assumed), the same missing-`.cpp` situation as `sampleTranslation`. What *is*
+   readable in that area (`findSpan`, `getBlockAndTime`, `recompose`) was compared against this
+   project's own `NurbsBasis` and agrees. See `docs/HANDOFF.md` §6.0c "Where to look next" for the
+   full record. No further ground here without either the missing compiled bodies or a genuinely new
+   lead — do not re-open this specific comparison.
 3. Map Havok collision/ragdoll data to UE5 Physics Assets only once body shapes, constraints and
    units are byte-backed — preserve unsupported blocks losslessly rather than guessing.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.

@@ -610,8 +610,28 @@ mean, not how they are unpacked, is still missing.
   answer lives.
 - The block header: `getBlockAndTime` divides by `m_maxFramesPerBlock - 1`. Frame 0 is the worst
   frame in all four clips (25 of 54 bones, against 1–4 on later frames), which still points at
-  evaluation at *t = 0* rather than at per-track semantics. **Check what our reader does at u = 0
-  against `evaluateSimple1/2/3`** — that is the one part of the .inl not yet compared line by line.
+  evaluation at *t = 0* rather than at per-track semantics.
+- ~~Check what our reader does at u = 0 against `evaluateSimple1/2/3` — that is the one part of the
+  .inl not yet compared line by line.~~ **Checked, 22 Aug 2026, and this lead is closed — not a
+  cause eliminated, but a place to look that turns out not to exist.**
+  `hkaSplineCompressedAnimation.inl` is the *entire* file (256 lines, license footer after); grepping
+  it and the whole SDK source tree for `evaluateSimple1` finds exactly two hits, both non-bodies: the
+  declaration in the `.h` and the function-pointer table entry in the `.inl` that calls it
+  (`{ HK_NULL, evaluateSimple1, evaluateSimple2, evaluateSimple3 }`). The actual degree-1/2/3 basis
+  evaluation bodies are not in this SDK build at all — same situation as `sampleTranslation`, not a
+  separate, comparable lead. What *is* fully readable and was compared: `findSpan` (cited in the SDK's
+  own comment as "Algorithm A2.1, The NURBS Book p68"), `getBlockAndTime`, `recompose`, and the
+  mask/quantization unpacking. This project's own `NurbsBasis.FindSpan`/`BasisFunctions`
+  (`NurbsCurve.cs`) already implements the general Cox-de Boor recursion for the same public,
+  textbook algorithm (Piegl & Tiller, cited by name), already found and fixed one real off-by-one bug
+  in `FindSpan` against real bytes (see that file's own doc comment), and is `t=0`-safe by inspection
+  — the `t <= _knots[Degree]` clamp returns span `Degree` at the lower domain bound, which is the
+  textbook-correct span for a clamped knot vector. Havok's specialised fast paths and the general
+  recursion are mathematically equivalent for a correctly implemented curve, so there is no further
+  ground to gain here without either the missing `.cpp`/`.lib` bodies (disassembly, out of scope for
+  this project) or a genuinely new lead. **Do not re-open this specific comparison** — it has now been
+  tried and the source needed for it does not exist in this SDK build, confirmed by grep, not by
+  memory.
 - `docs/research/QUALITY.md` note: the audit now *detects* this, so any change can be measured
   against `AnimationAudit.WorstCollapse` rather than by eye.
 
