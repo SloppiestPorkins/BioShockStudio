@@ -201,6 +201,42 @@ public sealed record RenderOptions
     /// <summary>Draw deliberately unpainted effect materials such as godrays and water.</summary>
     public bool ShowEffects { get; init; } = true;
 
+    /// <summary>
+    /// Modulate a surface by its baked lightmap atlas, sampled <b>per pixel</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Per pixel is the whole point of a lightmap, and this renderer had none at all.</b> Baked
+    /// light reached only the GPU viewport, and there only per <i>vertex</i> — sampled into
+    /// <c>MeshVertex.BakedLight</c> by <c>LevelViewportService</c> and interpolated across the
+    /// triangle. BSP surfaces are large flat polygons, so a per-vertex sample of a lightmap throws
+    /// away almost everything the lightmap contains: a wall lit by a lamp in its middle has four
+    /// corner samples and reconstructs a flat gradient.
+    /// </para>
+    /// <para>
+    /// It also meant the lightmap work could not be <i>looked at</i> in a test — the software
+    /// renderer is the path this project renders and checks, and it drew every level unlit. That is
+    /// why <c>docs/ROADMAP.md</c> Gate 0 item 3 asks for a lit/unlit comparison render before this
+    /// becomes a default.
+    /// </para>
+    /// <para>
+    /// <b>Off by default, and the comparison says the result is NOT yet right.</b> Sampling per
+    /// pixel is what made the underlying fault visible: every surface draws a flat saturated
+    /// primary, because the atlas is a pack of <i>per-light</i> contributions in each light's own
+    /// colour and this project applies only <c>descriptor.Lights[0]</c>. A surface commonly has
+    /// several — 1,122 of <c>1-Medical</c>'s descriptors carry 2 to 10 layers — so a wall lit by a
+    /// red lamp and a white one renders pure red. The layers are not channel-packed into one tile
+    /// (0 of 1,122 share one), so each must be sampled at its own footprint and the results
+    /// combined; the combination rule is <c>UNKNOWN</c>. <c>docs/research/bsp.md</c> §5.5e.
+    /// </para>
+    /// <para>
+    /// Kept, off, because it is the plumbing the real implementation needs and because it is the
+    /// only path that can show the fault at all — the per-vertex GPU path has the same defect and
+    /// blurs it into a dull tint.
+    /// </para>
+    /// </remarks>
+    public bool BakedLightmaps { get; init; }
+
     public byte BackgroundGrey { get; init; } = 32;
 }
 
@@ -328,6 +364,7 @@ public static class SoftwareRenderer
         var textures = new PreviewImage?[surfaceCount];
         var normalMaps = new PreviewImage?[surfaceCount];
         var specularMaps = new PreviewImage?[surfaceCount];
+        var lightMaps = new PreviewImage?[surfaceCount];
 
         for (int s = 0; s < surfaceCount; s++)
         {
@@ -335,6 +372,7 @@ public static class SoftwareRenderer
             textures[s] = options.Textured ? surface.Texture : null;
             normalMaps[s] = options.Shaded && options.Textured ? surface.NormalMap : null;
             specularMaps[s] = options.Shaded && options.Textured ? surface.SpecularMap : null;
+            lightMaps[s] = options.BakedLightmaps ? surface.LightMapTexture : null;
         }
 
         // Alpha is taken from the diffuse texture rather than from the material's blend mode, whose
@@ -429,6 +467,7 @@ public static class SoftwareRenderer
 
                 var normalMap = surface >= 0 ? normalMaps[surface] : null;
                 var specularMap = surface >= 0 ? specularMaps[surface] : null;
+                var lightMap = surface >= 0 ? lightMaps[surface] : null;
 
                 // A run whose slot named nothing, or that no section covers at all. Both draw grey
                 // and neither is distinguishable from grey paint without saying so.
@@ -488,6 +527,24 @@ public static class SoftwareRenderer
                     float red = r * shade;
                     float green = g * shade;
                     float blue = bl * shade;
+
+                    // The baked lightmap, sampled per pixel at this fragment's own atlas coordinate
+                    // rather than interpolated from three corner samples. It REPLACES the headlamp
+                    // for this surface: the headlamp exists so unlit geometry stays inspectable, and
+                    // a surface that carries the game's own baked light does not need it — keeping
+                    // both washes the bake out to the point where lit and unlit look alike, which
+                    // would defeat the comparison this exists to make possible.
+                    if (lightMap is not null)
+                    {
+                        var lightUv = model.Vertices[a].LightMapUv * bary.X
+                                      + model.Vertices[b].LightMapUv * bary.Y
+                                      + model.Vertices[c].LightMapUv * bary.Z;
+
+                        var (lr8, lg8, lb8, _) = SampleRgba(lightMap, lightUv);
+                        red = r * (lr8 / 255f);
+                        green = g * (lg8 / 255f);
+                        blue = bl * (lb8 / 255f);
+                    }
 
                     // The level's own lights, when a caller supplied them. They ADD to the headlamp
                     // rather than replacing it, so a corner no light reaches is dim rather than
