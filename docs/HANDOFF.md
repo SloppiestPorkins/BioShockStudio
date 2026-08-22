@@ -15,6 +15,7 @@ means no row is currently claimed, not that no one is working — always check t
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 | Claude (this session) | Test-run economy (docs only, landed); Gate 1 item 3 (texture colour-space/normal/mask/cubemap intent) is next in order | `CLAUDE.md`, `docs/{ROADMAP,ENGINEERING_RULES,HANDOFF,NEXT_SESSION}.md`; next: `src/BioShockStudio.Core/Textures/`, `tests/BioShockStudio.Tests/Texture*Tests.cs` | 23 Aug 2026 |
+| Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
 them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A

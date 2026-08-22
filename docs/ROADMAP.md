@@ -478,8 +478,18 @@ material.
      427 → 333, exactly the 94, with no other code changing. Classified per `ENGINEERING_RULES.md`
      §24 as a correct improvement before either the code or the figure was touched;
      `docs/QUALITY.md` and `DocumentedFiguresTests` updated to the measured values.
-   - **Still open in this item:** the 4 unreadable door variants, which are unrelated to the section
-     table (`docs/HANDOFF.md` §6.2 establishes they carry no vertex data at all).
+   - **The 4 unreadable door variants were already closed, and this line asking to "close" them was
+     stale.** `docs/HANDOFF.md` §6.2 settles them `CORROBORATED` on three independent lines: the
+     payloads separate with no overlap (everything that decodes is ≥2,443 bytes, every one of these
+     ≤1,291), their groups hold open/close animations and door-leaf socket names but no drawable
+     mesh — `AtlasLabsDoorAnim` ships `Model`/`Polys`, which is BSP — and other doors decode fine.
+     They carry no vertex data at all, so there is no unread stride to hunt for, and
+     `SkeletalMeshGeometryTests.TheMeshesWithoutGeometryAreTooSmallToHoldAny` pins the names, the
+     count and the separation. **The genuine remaining gap in this container is byte-exact accounting
+     of a `SkeletalMesh` payload** — the vertex chain is still located by search — which is worth
+     more than the doors ever were.
+
+   **So Gate 1 item 2 is complete.**
 3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
 4. ~~**Materials** — decode `OutputBlending` (blend mode) semantics~~ — **already settled, not an
