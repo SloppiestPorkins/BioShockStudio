@@ -70,26 +70,79 @@ all four counts:
 `RootMotionTests.SampleCountTracksFrameCountAcrossSeveralAnimations` holds points 3 and 4 across ten
 animations, not one.
 
+## Field meaning — `CONFIRMED_EXTERNAL`, correcting an earlier over-hedge in this file
+
+**X, Y, Z is a 3D translation and W is a yaw rotation around the up axis** — stated directly by the
+SDK header's own field-level comment on `m_referenceFrameSamples`, not inferred: "We store the motion
+track as a vector4 since we only need a translation and a rotational (w) component around the up
+direction." This is a literal reading of the source, not a guess dressed up as one.
+
+**Corrected: this was previously written as "2 live components, 2 dead" — that was wrong.** All four
+sample components examined so far (six animations, hundreds of frames, all on `AggressorBabyJane`)
+have non-zero X and Y and exactly zero Z and W. The right reading is not "two of the four slots are
+unused" — the class's own comment says all four carry meaning by design — it is that *these
+particular animations* (death and getup clips) don't move vertically or turn while playing, which is
+physically ordinary for that content. `Z` and `W` being reserved-but-unexercised in the six samples
+checked is not evidence they're structurally dead.
+
+## Z and W are live — `CONFIRMED_BYTES`, three more skeleton families
+
+**Not a dead field.** A breadth sweep this session found real, meaningful non-zero values in both
+slots this file previously called "unexercised":
+
+| Character | Root-motion animations | Samples with non-zero Z | Samples with non-zero W |
+|---|---|---|---|
+| `AggressorBabyJane` (splicer) | 6 checked in detail | 0 | 0 |
+| `GathererGirl` (Little Sister) | 77 | **1,766** | **2,451** |
+| `ProtectorRosie` (Big Daddy) | 59 | 0 | **1,261** |
+| `NewProtectorBouncer` (Big Daddy) | 60 | 0 | **1,273** |
+
+`RootMotionTests.ZAndWAreLiveOnOtherSkeletonFamilies` holds this, plus 0 sample-count mismatches
+across all 196 animations — the same `NumFrames`-agreement cross-check from the layout section,
+now validated on three more rigs, not one.
+
+**W (yaw) is live on every character checked.** `GA_BouncerToss` (a Big Daddy throwing a Little
+Sister) samples grow smoothly from `w=0` to `w=-0.23` over its first five frames — a real, continuous
+curve, not noise. The whole-game W range is `[-3.70, 7.59]` — **beyond ±π**, which is not a bug: an
+"absolute offset from the start of the animation" (the SDK's own phrase) is an *unwrapped* angle that
+can exceed a full turn if the character spins more than once, which is exactly what an accumulating
+reference frame should do.
+
+**Z (vertical) is live on `GathererGirl` specifically, and the reason is legible from the animation
+names.** `GA_EnterVentAlone`/`GA_EnterVentProtectorBouncer`/`GA_EnterVentProtectorRosie` — a Little
+Sister climbing into a ceiling vent — carry smoothly growing Z (up to ~5.5 units by frame 4) and
+exactly **zero** W, while `GA_BouncerToss` carries W and no Z. Different clips exercise different
+slots depending on what the motion actually is, which is the shape a correctly-decoded field should
+have and a misread one should not.
+
+**A genuinely new finding this reveals, not previously flagged: root-motion values are not in the
+same units as `hkpCapsuleShape`'s physics geometry.** Z ranges as wide as `[-144, 187]` were observed
+on `GathererGirl` — implausible as metres (a 144–187 *metre* vertical vent climb), entirely plausible
+in the same centimetre-ish units the rest of this project's mesh/animation/bone data already uses.
+Root motion lives in `hkaAnimation` (the animation subsystem, same object family as the spline tracks
+that already decode in mesh/bone units) rather than `hkpRigidBody`/`hkpShape` (the physics subsystem,
+confirmed metre-scaled in `docs/research/havok-physics.md`) — two different Havok subsystems, two
+different authored scales, and this project now has confirmed evidence for both rather than assuming
+one convention applies everywhere.
+
 ## What is `PLAUSIBLE`, not yet `CONFIRMED_BYTES`
 
-**Which of a sample's four components carry meaning.** Every sample examined so far — six animations,
-hundreds of frames — has non-zero X and Y and exactly zero Z and W. That is consistent with
-ground-plane translation and no extracted yaw, but nothing here has cross-validated *which* axis is
-which against an independent source (e.g. a displacement measured from the skeleton's own root bone
-track over the same animation). `AnimatedReferenceFrame.Samples` is exposed as raw `Vector4`s rather
-than as interpreted "translation" and "yaw" fields for exactly this reason — the class's own comment
-suggests XY-plane translation plus a W-slot yaw component
-(`MotionExtractionOptions.m_allowFrontBack`/`m_allowRightLeft`/`m_allowTurning`), but BioShock's
-authored data does not obviously match that packing (both X and Y are live, not one plus a separate
-W), so promoting a specific "X is forward, Y is right" reading would be a guess.
+**Whether X is "forward" and Y is "right" in some fixed world/local convention, or track something
+else entirely** (e.g. X/Y as two arbitrary in-plane axes with no fixed forward/right meaning until
+combined with the animation's own facing). `m_forward` defaults to `(1,0,0)` — the same axis (X) that
+carries the largest magnitude in most samples checked — which is suggestive, but nothing here
+cross-validates it against an independent source (e.g. a displacement measured from the skeleton's
+own root bone track over the same animation), so promoting a specific "X is forward, Y is right"
+reading would still be a guess. `AnimatedReferenceFrame.Samples` is exposed as raw `Vector4`s rather
+than as interpreted "translation" and "yaw" fields for exactly this reason.
 
 ## What is genuinely `UNKNOWN`
 
-**Whether the non-`AggressorBabyJane` root-motion animations (6,350 of the 6,356) look the same
-shape.** All six checked here are one character's death/getup clips. `docs/ENGINEERING_RULES.md`'s
-"never trust a single sample" is about a single *animation*; six is better than one but is still one
-*skeleton family*. A wider sweep (several different characters/creatures, not just one splicer) would
-strengthen or correct the pattern above before anything downstream depends on it.
+**Whether the remaining ~6,150 root-motion animations (of 6,356) outside these four skeleton
+families look the same shape.** Four families and 202 animations is a real breadth check, not one
+sample — but creatures (whale/shark/squid swim paths, already flagged by `audit-animations`' own
+"largest single-frame bone jumps" list) and other doors/props/turrets have not been checked and could
+still surprise.
 
 ## What is explicitly out of scope here
 

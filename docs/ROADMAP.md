@@ -326,13 +326,21 @@ material.
    layout doc comment but never read — the same shape of gap as the skeletal mesh section table.
    Now read (`HkaDefaultAnimatedReferenceFrameReader`) and censused: **6,356 of 16,031 animations
    (39.6%) carry it**, resolving to a real `hkaDefaultAnimatedReferenceFrame` object whose
-   `up`/`forward`/`duration`/sample-count all cross-validate against the owning animation, four
-   independent ways, on every one of six animations checked (`RootMotionTests`). **Still open,
-   `PLAUSIBLE` not `CONFIRMED_BYTES`**: which of a sample's four components is "forward" vs "yaw"
-   (every sample checked has two live components, not the class's documented one-translation-plus-
-   one-yaw shape); whether the pattern holds outside one splicer's death/getup clips; and wiring it
-   into the exporter at all, which crosses into Gate 5's export-pipeline territory and needs the
-   coordinate-basis policy applied first. See `docs/research/root-motion.md` for the full record.
+   `up`/`forward`/`duration`/sample-count all cross-validate against the owning animation.
+   **A sample's field meaning is `CONFIRMED_EXTERNAL`** (X/Y/Z translation, W yaw around up — the
+   SDK's own comment on `m_referenceFrameSamples`) **and both Z and W are `CONFIRMED_BYTES` live, not
+   structurally dead** — a breadth check across three more skeleton families (`GathererGirl`, both Big
+   Daddy variants, 196 more root-motion animations) found smoothly growing Z on the Little Sister's
+   vent-climb animations and smoothly growing W (unwrapped past ±π — an "absolute offset from the
+   start" angle, not a bug) on all three. **A genuinely new finding along the way**: root motion's
+   units are the same centimetre-ish scale as this project's mesh/bone data, not the metre scale
+   `hkpCapsuleShape` (Gate 2 item 3, below) turned out to use — two different Havok subsystems, two
+   different authored scales, both now confirmed rather than assumed. **Still `PLAUSIBLE`**: which
+   world/local axis X and Y actually are (forward/right or something else). **Still `UNKNOWN`**:
+   whether the remaining ~6,150 root-motion animations outside these four families (creatures'
+   swim/flight paths look most likely to differ) look the same shape. Wiring any of this into the
+   exporter is separately out of scope, crossing into Gate 5's export-pipeline territory and needing
+   the coordinate-basis policy applied first. See `docs/research/root-motion.md` for the full record.
    **Compression edge cases: genuinely still open** — nothing this cycle touched the spline
    decompression path itself (0 failures across all 16,031 already, per `open-questions.md` §3, so
    there is no known-broken case to chase, only unvalidated edge behaviour that hasn't been forced by
