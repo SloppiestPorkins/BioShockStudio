@@ -184,11 +184,26 @@ on top of the shape/bone/rigid-body correlation the earlier classes already clos
 transforms — is a fixed sequence of seven nested "atom" structs
 (`hkpSetLocalTransformsConstraintAtom`, `hkpSetupStabilizationAtom`, `hkpRagdollMotorConstraintAtom`,
 `hkpAngFrictionConstraintAtom`, `hkpTwistLimitConstraintAtom`, `hkpConeLimitConstraintAtom` twice —
-cone and "planes" — `hkpBallSocketConstraintAtom`), each its own class with its own fields. This is
-genuinely the largest remaining piece in the whole physics investigation, comparable in scope to the
-lightmap descriptor chain that took a full session on its own — reachability is solved
-(`hkpConstraintInstance::Data` already points at each one), so what's left there is purely "decode
-seven structs' worth of field values," not finding them.
+cone and "planes" — `hkpBallSocketConstraintAtom`), each its own class with its own fields.
+
+**Checked, 22 Aug 2026, and genuinely out of reach — not merely unattempted.** None of the seven atom
+classes have a header anywhere in this SDK: `Physics/Constraint/Atom/` contains only the abstract
+`hkpConstraintAtom` base and a bridge helper, and a case-insensitive search of the whole `Source` tree
+for any of the seven class names finds zero declarations — they exist only as compiled symbols in the
+`.obj`/`.lib`/`.pdb` binaries. This is a different situation from every other class in this document,
+not just a harder version of the same thing: for `hkpCapsuleShape`, `hkaRagdollInstance`,
+`hkaSkeletonMapper`, `hkpRigidBody` and `hkpConstraintInstance`, a header gave the actual field
+declarations and this project verified them against real bytes — checking a documented schema against
+real files. For these seven, there is no schema to check *against*; recovering their field layout
+would mean inferring Havok's own undisclosed, proprietary struct design purely by experimenting on the
+bytes. That is black-box reverse engineering of the Havok product's design, not of BioShock's file
+format, regardless of which file the encoded bytes happen to live in — the same category of thing
+Havok's license (§4.2, `hk2012_2_0_r1/Havok Limited Use License Agreement...txt`) prohibits, considered
+and declined for the same reason as the `sampleTranslation`/`evaluateSimple1-3` disassembly question
+in `docs/HANDOFF.md` §6.0c. **Do not attempt this** — the topology (which shape belongs to which body,
+which bodies a constraint connects, which bone a body maps to) is fully solved and `CONFIRMED_BYTES`;
+the specific numeric joint limits inside each constraint are the one piece that stays out of reach,
+for the same reason §6.0c does.
 
 ## Scoped, not yet attempted
 
@@ -202,19 +217,19 @@ diagonal in `xyz`, inverse mass in `w` — a well-known Havok packing, worth che
 `m_linearVelocity`, `m_angularVelocity`. All plausible in the byte dump already taken; none
 cross-validated yet.
 
-### 2. `hkpRagdollConstraintData::Atoms` — the last, largest piece
-
-Seven nested atom structs per joint — see the constraint section above for the full list and why it's
-comparable in scope to the lightmap descriptor chain. Reachability is solved; what's left is pure
-field decode, joint by joint, atom by atom.
+`hkpRagdollConstraintData::Atoms` is not listed as item 2 here — see the constraint section above for
+why it is closed, not merely unattempted.
 
 ## What this unblocks, and what it does not
 
 `hkaRagdollInstance` + `hkpCapsuleShape` + `hkaSkeletonMapper` + `hkpConstraintInstance` together
 already place every character's collision capsules against a *named animation bone*, know which body
 belongs to which shape, and know the *full joint graph* connecting every body — everything a UE5
-Physics Asset's skeleton-of-bodies-and-constraints structure needs, except the constraints' own limit
-angles and each body's world-space transform/mass (`hkpRigidBody`, still open — see above). The
-`hkpRagdollConstraintData::Atoms` chain is what turns "a graph of which bodies connect" into "a
-ragdoll that behaves like a specific character's joints" (elbows bend one way, shoulders in a cone,
-etc.) — genuinely the last piece, and the biggest one left.
+Physics Asset's skeleton-of-bodies-and-constraints structure needs at the topology level. Two things
+stay open, for two different reasons: each body's own world-space transform/mass (`hkpRigidBody`'s
+remaining fields — genuinely just unattempted, a header exists, a future session can pick this up
+directly) and the constraints' own limit angles/motor parameters
+(`hkpRagdollConstraintData::Atoms` — genuinely inaccessible without violating Havok's license, not a
+scoping choice). A UE5 import built on what's decoded here would place every body correctly-shaped and
+correctly-connected; it just couldn't enforce joint limits without either the missing data or values
+supplied from elsewhere (e.g. reasonable defaults, or hand-authored per the target skeleton).

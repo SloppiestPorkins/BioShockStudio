@@ -403,12 +403,21 @@ material.
    `HavokPhysicsTests.EveryConstraintConnectsTwoRealRigidBodiesToRealConstraintData`. Along the way,
    corrected an assumption this investigation had over-applied: `+nosave` doesn't always mean a field
    is omitted from the layout — `hkpConstraintInstance::m_owner` is `+nosave` but still occupies its
-   4-byte slot (permanently null). **What's left, and it's the last and largest piece**:
-   `hkpRagdollConstraintData::Atoms` — seven nested "atom" structs per joint holding the actual limit
-   angles, motor parameters and per-body local transforms — comparable in scope to the lightmap
-   descriptor chain that took a full session on its own. Reachability is solved
-   (`hkpConstraintInstance::Data` already points at each one); what remains is pure per-atom field
-   decode. Full record and field-by-field detail: `docs/research/havok-physics.md`.
+   4-byte slot (permanently null). **`hkpRagdollConstraintData::Atoms` — the seven nested "atom"
+   structs holding the actual joint limit angles and motor parameters — checked and found genuinely
+   out of reach, not merely unattempted.** None of the seven atom classes have a header anywhere in
+   this SDK, not even their field declarations — unlike every other class decoded this session, where
+   a header gave the real field list to verify against bytes. Recovering their layout would mean
+   inferring Havok's own undisclosed struct design purely by experimenting on the bytes, the same
+   category of reverse engineering Havok's license (§4.2) prohibits as the
+   `sampleTranslation`/`evaluateSimple1-3` disassembly question in §6.0c — considered explicitly,
+   including after a direct request to proceed on the reasoning that private/non-commercial use
+   changes the license terms (it doesn't; §4.2 restricts the act itself). **Declined, for the same
+   reason as §6.0c.** Gate 2 item 3 therefore closes here: the full topology — every shape's owning
+   body, every body's owning bone, and the complete constraint graph — is `CONFIRMED_BYTES`; the
+   joint limits and `hkpRigidBody`'s remaining fields (mass/inertia/world transform — a real header
+   exists for these, genuinely just unattempted, not blocked) are what a future session would pick up.
+   Full record: `docs/research/havok-physics.md`.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly

@@ -626,6 +626,16 @@ mean, not how they are unpacked, is still missing.
   rule to rescue one animation of 16,031 is how the original fault got in." A labelled workaround
   would repeat that shape of mistake with better documentation, not avoid it. Left as a real,
   understood, unfixed defect rather than a hidden one.
+- **The same license boundary came up again, same session, in a different form**: the seven
+  `hkpRagdollConstraintData::Atoms` classes (Gate 2 item 3's ragdoll joint limits) have no header
+  anywhere in this SDK at all — not even their field *declarations*, unlike every other Havok class
+  this project has decoded. Recovering their layout would mean inferring Havok's own undisclosed
+  struct design by experimenting on the bytes rather than checking a documented schema against real
+  files, which is the same category of thing §4.2 prohibits. Declined for the same reason as this
+  section, considered explicitly (not just assumed) after a direct request to proceed anyway, on the
+  reasoning that private/non-commercial use changes the license terms — it doesn't; §4.2 restricts
+  the act, not what happens to the result afterward. See `docs/research/havok-physics.md`'s
+  `hkpConstraintInstance` section for the full record.
 
 ---
 
