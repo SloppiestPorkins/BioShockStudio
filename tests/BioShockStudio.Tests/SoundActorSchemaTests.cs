@@ -35,6 +35,30 @@ namespace BioShockStudio.Tests;
 [Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class SoundActorSchemaTests(GameFixture game)
 {
+    [RequiresGameFact]
+    public void MedicalSoundMarkersAreClassifiedByTheirDecodedSchemaNames()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        var markers = context.Actors.Where(actor => actor.Source.ClassName == "SoundMarker").ToList();
+
+        Assert.Equal(36, markers.Count);
+        var withSchema = markers.Where(marker =>
+            marker.Properties.Any(property => property.Name is "Schema1" or "Schema2")).ToList();
+        Assert.Equal(26, withSchema.Count);
+        Assert.All(withSchema, marker =>
+        {
+            var schemaProperties = marker.Properties.Where(property => property.Name is "Schema1" or "Schema2").ToList();
+            Assert.All(schemaProperties, property => Assert.False(string.IsNullOrWhiteSpace(PropertyValues.AsName(property, package))));
+        });
+
+        var coverage = LevelCoverageReport.Build(context);
+        Assert.Equal(345, coverage.Classes.Sum(row =>
+            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.AudioPending)));
+        Assert.Equal(0, Assert.Single(coverage.Classes, row => row.ClassName == "SoundMarker")
+            .StatusCounts.GetValueOrDefault(LevelActorCoverage.Unclassified));
+    }
+
     private static void Log(string line)
     {
         if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is { Length: > 0 } path)

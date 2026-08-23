@@ -934,8 +934,15 @@ material.
    the common actor record already exported (identity, transform, region, tag/ownership) plus the
    engine bookkeeping references `Level`, `PhysicsVolume` and `CheckpointTypePadding`. They now
    report as `MarkerPending`, meaning a UE5 placeholder representation has not been selected rather
-   than that bytes remain undecoded. `MarkerActorSchemaTests`. **Next:** the remaining 188 genuinely
-   unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
+   than that bytes remain undecoded. `MarkerActorSchemaTests`.
+
+   **Medical `SoundMarker` classification corrected, 23 Aug 2026.** All 36 are now `AudioPending`
+   rather than `Unclassified`. Twenty-six carry at least one exact, readable `Schema1`/`Schema2`
+   FName; ten omit both and therefore use only the class/common actor identity. This agrees with the
+   retained whole-game sound-actor census instead of inventing a missing payload for the ten.
+   `SoundActorSchemaTests.MedicalSoundMarkersAreClassifiedByTheirDecodedSchemaNames`. **Next:** the
+   remaining 152 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
