@@ -99,9 +99,14 @@ public sealed class StreamAudioService
 
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("Could not start the x86 FMOD decoder.");
-        string stderr = await process.StandardError.ReadToEndAsync(cancellation);
-        string stdout = await process.StandardOutput.ReadToEndAsync(cancellation);
+        // Drain both redirected pipes concurrently. A large --list response can fill stdout's OS
+        // pipe while the parent waits for stderr EOF, deadlocking the helper and caller.
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellation);
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellation);
         await process.WaitForExitAsync(cancellation);
+        string[] output = await Task.WhenAll(stderrTask, stdoutTask);
+        string stderr = output[0];
+        string stdout = output[1];
         return new HelperResult(process.ExitCode, stdout, (stderr + Environment.NewLine + stdout).Trim());
     }
 

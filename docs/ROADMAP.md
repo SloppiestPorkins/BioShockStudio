@@ -1074,6 +1074,16 @@ material.
      `docs/research/audio.md` SS4 already records.
    - **`Schema1`/`Schema2` is the concrete new lead**: structured values, 317 and 131 actors, and
      they look like direct keys into an ambience system. `SoundActorSchemaTests`.
+   - **Exact FSB resolution implemented, 23 Aug 2026.** The game FMOD runtime reports 2,047 unique
+     names in 20 English banks and the same names across 45 localised banks, for 10,882 shipped
+     sample locations. Exact matching resolves **177 of 3,247 actors, all `SoundMarker`s**. It
+     resolves zero of 2,893 `AmbientSound`s and zero of two `MusicBox` actors; those tag/label names
+     therefore still need the sound-event/schema route rather than fuzzy matching. Each resolved
+     marker now identifies exact bank/index/language variants through `StreamSampleCatalog` and
+     `AudioActorResolver`. `AudioActorResolutionTests`.
+   - **A native-helper deadlock was found by the full census and fixed.** `StreamAudioService` read
+     redirected stderr to EOF before stdout; a large `--list` filled the stdout pipe and blocked the
+     child and parent. Both streams are now drained concurrently. The complete 65-bank sweep passes.
    - **Note:** recorded by the Claude session while auditing the roadmap. The audio track is worked
      concurrently by another session, so this stops at what the level actors declare.
 2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.

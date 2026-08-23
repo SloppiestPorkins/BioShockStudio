@@ -339,3 +339,22 @@ already records. This finding does not move that blocker; it shows what is waiti
 of it, and gives the ambience-schema names as a concrete thing to resolve against once the sound
 data is located.
 
+## Exact placed-actor to FSB resolution
+
+**Status: `CONFIRMED_BYTES` across all 65 banks and 21 maps, 23 Aug 2026.**
+`StreamSampleCatalog` asks the shipped FMOD runtime for every subsound name and indexes the exact
+name to bank/index/language locations. The banks contain **10,882 locations but 2,047 unique names**:
+20 English banks hold those 2,047 entries, while 45 language banks repeat the appropriate names.
+
+`AudioActorResolver` compares only the actor-declared `Tag`, `Label`, `Schema1` and `Schema2` FNames
+with that exact index. It resolves **177 of 3,247 placed sound actors, all `SoundMarker`s**. No
+`AmbientSound` (0 of 2,893) and no `MusicBox` (0 of 2) resolves directly. This is a useful negative:
+labels such as `2_sixtywattlight`, `LightSquare` and `Bubbles` are not FSB sample names and must not
+be normalised or fuzzily matched into one. Their remaining relationship is still the event/schema
+route.
+
+The full census also found a process-I/O deadlock: the managed service drained redirected stderr
+before stdout, so a large FMOD `--list` response could fill the stdout pipe and block both sides.
+`StreamAudioService` now drains both pipes concurrently. `AudioActorResolutionTests` retains the
+65-bank/21-map census in the sweep tier.
+
