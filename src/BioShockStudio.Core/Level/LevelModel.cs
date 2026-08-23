@@ -273,6 +273,9 @@ public sealed record LevelActor
     /// <summary>Typed AI population declaration; null for actors without spawner properties.</summary>
     public SpawnerActorData? Spawner { get; init; }
 
+    /// <summary>The reflection cubemap selected by a placed probe.</summary>
+    public AssetReference? Cubemap { get; init; }
+
     public required ActorTransform Transform { get; init; }
 
     /// <summary>The static mesh this actor draws, from its own properties or its class defaults.</summary>

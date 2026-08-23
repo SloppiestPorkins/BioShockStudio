@@ -226,6 +226,7 @@ public static class LevelSceneExporter
                     SpawnZones = actor.Spawner.SpawnZones.ToList(),
                     Complete = actor.Spawner.Complete,
                 },
+                Cubemap = Describe(actor.Cubemap),
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -595,6 +596,7 @@ public sealed record LevelActorDocument
     public LevelRegionDocument? Region { get; init; }
     public List<string> TrainingConcepts { get; init; } = [];
     public LevelSpawnerActorDocument? Spawner { get; init; }
+    public LevelReferenceDocument? Cubemap { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }

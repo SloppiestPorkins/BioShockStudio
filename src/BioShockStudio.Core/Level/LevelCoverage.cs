@@ -42,6 +42,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded AI population spawner awaiting a UE5 gameplay representation.</summary>
     SpawnerPending,
 
+    /// <summary>A decoded cubemap probe awaiting a UE5 reflection-capture representation.</summary>
+    ReflectionProbePending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -143,6 +146,7 @@ public sealed record LevelCoverageReport
         if (HasAny(actor, "Actions", "Concepts")) return LevelActorCoverage.ScriptPending;
         if (actor.Source.ClassName == "Marker") return LevelActorCoverage.MarkerPending;
         if (actor.Spawner is not null) return LevelActorCoverage.SpawnerPending;
+        if (actor.Cubemap is not null) return LevelActorCoverage.ReflectionProbePending;
 
         return LevelActorCoverage.Unclassified;
     }

@@ -954,7 +954,12 @@ material.
    name-index arrays; overridden archetypes and spawn zones retain the numbered-FName array form.
    All 23 open-category declarations decode completely and reach the manifest. The distinction
    between the two array encodings is tested rather than normalised away. `SpawnerActorSchemaTests`.
-   **Next:** the remaining 103 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   **Medical reflection probes wired end-to-end, 23 Aug 2026.** The 29 `CubemapProbe` actors were
+   already known to name real cubemaps, but that reference existed only in retained property bytes.
+   It is now a typed resolved actor reference, reaches the manifest, and reports as
+   `ReflectionProbePending` for UE5 reflection-capture placement. All 29 Medical references resolve;
+   the earlier whole-game proof remains 281 of 281. `CubemapProbeActorTests`.
+   **Next:** the remaining 74 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

@@ -45,7 +45,7 @@ public static class LevelAnalyzer
         "PressureEffectsDuration", "TimeLastPressureChange", "SpawnZones", "EffectsContexts",
         "ManualExcludes", "Concepts", "GlobalPatrol", "InitialPatrol", "RepopulationPatrol",
         "InitialLabel", "GlobalAITypes", "InitialAITypes", "RepopulationAITypes",
-        "OverriddenAIArchetypeNames",
+        "OverriddenAIArchetypeNames", "Cubemap",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -136,6 +136,7 @@ public static class LevelAnalyzer
             RegionActor = RegionActor(package, source.ClassName, payload),
             TrainingConcepts = NameArray(package, payload, "Concepts"),
             Spawner = Spawner(package, source.ClassName, payload),
+            Cubemap = Reference(package, defaults, payload, "Cubemap", "Cubemap"),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")

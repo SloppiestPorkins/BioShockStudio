@@ -26,6 +26,26 @@ namespace BioShockStudio.Tests;
 [Trait(Tiers.Name, Tiers.Sweep)]
 public sealed class CubemapProbeActorTests(GameFixture game)
 {
+    [RequiresGameFact]
+    public void EveryMedicalProbeReachesTheManifestAsAResolvedReflectionCapture()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        var probes = context.Actors.Where(actor => actor.Source.ClassName == "CubemapProbe").ToList();
+
+        Assert.Equal(29, probes.Count);
+        Assert.All(probes, probe => Assert.Equal(ResolutionStatus.Resolved, probe.Cubemap?.Status));
+        var coverage = LevelCoverageReport.Build(context);
+        Assert.Equal(29, coverage.Classes.Sum(row =>
+            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ReflectionProbePending)));
+
+        var document = BioShockStudio.Core.Export.LevelSceneExporter.ToDocument(
+            LevelSceneBuilder.Build(package, context), includeGeometry: false);
+        var exported = document.Actors.Where(actor => actor.ClassName == "CubemapProbe").ToList();
+        Assert.Equal(probes.Count, exported.Count);
+        Assert.All(exported, probe => Assert.Equal(nameof(ResolutionStatus.Resolved), probe.Cubemap?.Status));
+    }
+
     private static void Log(string line)
     {
         if (Environment.GetEnvironmentVariable("BIOSHOCK_PROBE_LOG") is { Length: > 0 } path)
