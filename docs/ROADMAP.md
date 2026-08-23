@@ -987,7 +987,13 @@ material.
    is present on all six; actor B and friction/tau settings on three hinges; two other hinges carry
    the limited-hinge flag. Nullable booleans retain absence versus false, and no actor link fails
    resolution. `HavokConstraintActorSchemaTests`. **Next:** the remaining 18 genuinely unclassified
-   actors. The now 345 Medical audio actors' declaration was
+   actors.
+
+   **Anti-portals decoded, 23 Aug 2026.** Each of the three `AntiPortalActor`s carries one resolved
+   `AntiPortal` object reference. Those references now reach the manifest as `VisibilityPending`,
+   leaving representation/occlusion behaviour to the UE5 bridge rather than treating the actors as
+   unknown. `AntiPortalActorSchemaTests`. **Next:** the remaining 15 genuinely unclassified actors.
+   The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

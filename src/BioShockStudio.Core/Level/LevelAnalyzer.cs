@@ -52,6 +52,7 @@ public static class LevelAnalyzer
         "ForceType", "ForceShape", "ForceFilter", "LootSlot", "hkAttachedActorA",
         "hkAttachedActorB", "bDisableCollisions", "hkUseLimitedHinge",
         "hkLimitedHingeFrictionValue", "hkLimitedHingeTauFactor",
+        "AntiPortal",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -147,6 +148,7 @@ public static class LevelAnalyzer
             HavokForce = HavokForce(package, defaults, source.ClassName, payload),
             LootSlot = Reference(package, defaults, payload, "LootSlot", null),
             HavokConstraint = HavokConstraint(package, defaults, source.ClassName, payload),
+            AntiPortal = Reference(package, defaults, payload, "AntiPortal", null),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")

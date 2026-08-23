@@ -260,6 +260,7 @@ public static class LevelSceneExporter
                     LimitedHingeTauFactor = actor.HavokConstraint.LimitedHingeTauFactor,
                     Complete = actor.HavokConstraint.Complete,
                 },
+                AntiPortal = Describe(actor.AntiPortal),
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -634,6 +635,7 @@ public sealed record LevelActorDocument
     public LevelHavokForceActorDocument? HavokForce { get; init; }
     public LevelReferenceDocument? LootSlot { get; init; }
     public LevelHavokConstraintActorDocument? HavokConstraint { get; init; }
+    public LevelReferenceDocument? AntiPortal { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }

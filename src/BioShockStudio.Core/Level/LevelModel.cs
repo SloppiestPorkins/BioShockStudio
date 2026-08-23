@@ -319,6 +319,9 @@ public sealed record LevelActor
     public AssetReference? LootSlot { get; init; }
     public HavokConstraintActorData? HavokConstraint { get; init; }
 
+    /// <summary>The occlusion volume/model selected by an anti-portal actor.</summary>
+    public AssetReference? AntiPortal { get; init; }
+
     public required ActorTransform Transform { get; init; }
 
     /// <summary>The static mesh this actor draws, from its own properties or its class defaults.</summary>

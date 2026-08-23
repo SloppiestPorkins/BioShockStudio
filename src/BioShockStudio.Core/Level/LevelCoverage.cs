@@ -57,6 +57,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded Havok actor constraint awaiting a UE5 physics-constraint representation.</summary>
     PhysicsConstraintPending,
 
+    /// <summary>A decoded anti-portal reference awaiting a UE5 visibility/occlusion representation.</summary>
+    VisibilityPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -163,6 +166,7 @@ public sealed record LevelCoverageReport
         if (actor.HavokForce is not null) return LevelActorCoverage.PhysicsForcePending;
         if (actor.LootSlot is not null) return LevelActorCoverage.InteractionPending;
         if (actor.HavokConstraint is not null) return LevelActorCoverage.PhysicsConstraintPending;
+        if (actor.AntiPortal is not null) return LevelActorCoverage.VisibilityPending;
 
         return LevelActorCoverage.Unclassified;
     }
