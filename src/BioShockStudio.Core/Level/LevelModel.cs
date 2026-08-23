@@ -336,6 +336,27 @@ public sealed record LevelInfoActorData
     public bool Complete { get; init; }
 }
 
+public sealed record ShockAiScoutData
+{
+    public IReadOnlyList<int> PointCollectionReferences { get; init; } = [];
+    public Vector3? LastPathfindingOrigin { get; init; }
+    public Vector3? LastPathfindingLocation { get; init; }
+    public float? LastPathfindingTime { get; init; }
+    public float? LastPathfindingFailedTime { get; init; }
+    public float? LastPathfindingResult { get; init; }
+    public AssetReference? Controller { get; init; }
+    public bool? JumpCapable { get; init; }
+    public bool? CanFly { get; init; }
+    public bool? CanUseCeiling { get; init; }
+    public float? LastValidAnchorTime { get; init; }
+    public Vector3? Floor { get; init; }
+    public AssetReference? HeadVolume { get; init; }
+    public float? CollisionRadius { get; init; }
+    public float? CollisionHeight { get; init; }
+    public int? DestructionNotification { get; init; }
+    public bool Complete { get; init; }
+}
+
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
 public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record MapHudRegionData(string HudRegion, string Description);
@@ -386,6 +407,7 @@ public sealed record LevelActor
     public VendingActorData? Vending { get; init; }
     public InteractionActorData? Interaction { get; init; }
     public LevelInfoActorData? LevelInfo { get; init; }
+    public ShockAiScoutData? ShockAiScout { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

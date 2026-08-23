@@ -60,6 +60,9 @@ public static class LevelAnalyzer
         "CameraRotationDynamic", "GlowSettings", "ToneMapSettings", "NavigationPointList",
         "PressureRegions", "MapUIRegions", "MapHUDRegions", "LabelFictionalMapName",
         "RequiredAnimationGroups", "LevelAnimInfo",
+        "PointCollection", "LastPathfindingOrigin", "LastPathfindingLocation",
+        "LastPathfindingTime", "LastPathfindingFailedTime", "LastPathfindingResult", "Controller",
+        "bJumpCapable", "bCanFly", "bCanUseCeiling", "LastValidAnchorTime", "Floor", "HeadVolume",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -160,6 +163,7 @@ public static class LevelAnalyzer
             Vending = Vending(package, defaults, source.ClassName, payload),
             Interaction = Interaction(package, source.ClassName, payload),
             LevelInfo = LevelInfo(package, defaults, source.ClassName, payload),
+            ShockAiScout = ShockAiScout(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -496,6 +500,50 @@ public static class LevelAnalyzer
             AmbientColorHighMultiplier = Float("CurrentAmbientColorHighMultiplier"),
             AmbientColorLowMultiplier = Float("CurrentAmbientColorLowMultiplier"),
             AmbientContrastPower = Float("CurrentAmbientContrastPower"),
+            Complete = complete,
+        };
+    }
+
+    private static ShockAiScoutData? ShockAiScout(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className != "ShockAIScout") return null;
+        bool complete = true;
+        float? Float(string name) => payload.Find(name) is { Type: UnrealPropertyType.Float, Value.Length: 4 } value
+            ? BinaryPrimitives.ReadSingleLittleEndian(value.Value) : null;
+        Vector3? Vector(string name) => payload.Find(name) is
+            { Type: UnrealPropertyType.Struct, StructName: "Vector" } value ? PropertyValues.AsVector(value) : null;
+        bool? Bool(string name) => payload.Find(name) is { Type: UnrealPropertyType.Bool } value
+            ? value.BoolValue : null;
+        IReadOnlyList<int> points = [];
+        if (payload.Find("PointCollection") is { Type: UnrealPropertyType.Array } pointProperty
+            && PropertyValues.TryAsReferenceArrayExact(pointProperty, out var pointIndices))
+            points = pointIndices.Select(index => index.Value).ToList();
+        else complete = false;
+        int? notification = payload.Find("SendDestructionNotification") is
+            { Type: UnrealPropertyType.Int, Value.Length: 4 } notify
+            ? BinaryPrimitives.ReadInt32LittleEndian(notify.Value) : null;
+        var controller = Reference(package, defaults, payload, "Controller", null);
+        var headVolume = Reference(package, defaults, payload, "HeadVolume", null);
+        if (controller?.Status == ResolutionStatus.Failed || headVolume?.Status == ResolutionStatus.Failed) complete = false;
+        return new ShockAiScoutData
+        {
+            PointCollectionReferences = points,
+            LastPathfindingOrigin = Vector("LastPathfindingOrigin"),
+            LastPathfindingLocation = Vector("LastPathfindingLocation"),
+            LastPathfindingTime = Float("LastPathfindingTime"),
+            LastPathfindingFailedTime = Float("LastPathfindingFailedTime"),
+            LastPathfindingResult = Float("LastPathfindingResult"),
+            Controller = controller,
+            JumpCapable = Bool("bJumpCapable"),
+            CanFly = Bool("bCanFly"),
+            CanUseCeiling = Bool("bCanUseCeiling"),
+            LastValidAnchorTime = Float("LastValidAnchorTime"),
+            Floor = Vector("Floor"),
+            HeadVolume = headVolume,
+            CollisionRadius = Float("CollisionRadius"),
+            CollisionHeight = Float("CollisionHeight"),
+            DestructionNotification = notification,
             Complete = complete,
         };
     }

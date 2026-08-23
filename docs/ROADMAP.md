@@ -1025,7 +1025,15 @@ material.
    region structs, 11 HUD-description structs and two required-animation-group structs. A new exact
    tagged-struct-array reader validates every element terminator and full array consumption; all five
    arrays reach the manifest at their shipped counts and no navigation reference fails resolution.
-   `LevelInfoActorSchemaTests`. **Next:** only `ShockAIScout` remains unclassified.
+   `LevelInfoActorSchemaTests`.
+
+   **Final actor completed, 23 Aug 2026 — Medical `Unclassified` is zero.** The saved singleton
+   `ShockAIScout` is runtime state, not authored content to recreate blindly. Its one-element null
+   point collection, pathfinding origin/location/timers/result, controller/head-volume links,
+   movement-capability flags, last anchor time, floor/collision state and raw destruction-notification
+   integer now export as `RuntimeStatePending`. `ShockAiScoutActorSchemaTests` pins both the complete
+   manifest record and a zero `Unclassified` total. **Gate 3 item 3 is complete for its stated
+   `1-Medical` shipped-count ledger.**
    The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.

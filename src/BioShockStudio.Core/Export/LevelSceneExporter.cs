@@ -317,6 +317,26 @@ public static class LevelSceneExporter
                     AmbientContrastPower = actor.LevelInfo.AmbientContrastPower,
                     Complete = actor.LevelInfo.Complete,
                 },
+                ShockAiScout = actor.ShockAiScout is null ? null : new LevelShockAiScoutDocument
+                {
+                    PointCollectionReferences = actor.ShockAiScout.PointCollectionReferences.ToList(),
+                    LastPathfindingOrigin = actor.ShockAiScout.LastPathfindingOrigin is { } origin ? ToArray(origin) : null,
+                    LastPathfindingLocation = actor.ShockAiScout.LastPathfindingLocation is { } pathLocation ? ToArray(pathLocation) : null,
+                    LastPathfindingTime = actor.ShockAiScout.LastPathfindingTime,
+                    LastPathfindingFailedTime = actor.ShockAiScout.LastPathfindingFailedTime,
+                    LastPathfindingResult = actor.ShockAiScout.LastPathfindingResult,
+                    Controller = Describe(actor.ShockAiScout.Controller),
+                    JumpCapable = actor.ShockAiScout.JumpCapable,
+                    CanFly = actor.ShockAiScout.CanFly,
+                    CanUseCeiling = actor.ShockAiScout.CanUseCeiling,
+                    LastValidAnchorTime = actor.ShockAiScout.LastValidAnchorTime,
+                    Floor = actor.ShockAiScout.Floor is { } floor ? ToArray(floor) : null,
+                    HeadVolume = Describe(actor.ShockAiScout.HeadVolume),
+                    CollisionRadius = actor.ShockAiScout.CollisionRadius,
+                    CollisionHeight = actor.ShockAiScout.CollisionHeight,
+                    DestructionNotification = actor.ShockAiScout.DestructionNotification,
+                    Complete = actor.ShockAiScout.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -696,6 +716,7 @@ public sealed record LevelActorDocument
     public LevelVendingActorDocument? Vending { get; init; }
     public LevelInteractionActorDocument? Interaction { get; init; }
     public LevelInfoActorDocument? LevelInfo { get; init; }
+    public LevelShockAiScoutDocument? ShockAiScout { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -816,6 +837,27 @@ public sealed record LevelInfoActorDocument
     public float? AmbientColorHighMultiplier { get; init; }
     public float? AmbientColorLowMultiplier { get; init; }
     public float? AmbientContrastPower { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelShockAiScoutDocument
+{
+    public required List<int> PointCollectionReferences { get; init; }
+    public float[]? LastPathfindingOrigin { get; init; }
+    public float[]? LastPathfindingLocation { get; init; }
+    public float? LastPathfindingTime { get; init; }
+    public float? LastPathfindingFailedTime { get; init; }
+    public float? LastPathfindingResult { get; init; }
+    public LevelReferenceDocument? Controller { get; init; }
+    public bool? JumpCapable { get; init; }
+    public bool? CanFly { get; init; }
+    public bool? CanUseCeiling { get; init; }
+    public float? LastValidAnchorTime { get; init; }
+    public float[]? Floor { get; init; }
+    public LevelReferenceDocument? HeadVolume { get; init; }
+    public float? CollisionRadius { get; init; }
+    public float? CollisionHeight { get; init; }
+    public int? DestructionNotification { get; init; }
     public required bool Complete { get; init; }
 }
 
