@@ -125,34 +125,21 @@ public sealed class SoundEventTests(GameFixture game)
         }
     }
 
-    /// <summary>
-    /// A specification this reader does not recognise resolves to nothing rather than to a name.
-    /// </summary>
-    /// <remarks>
-    /// 18 of the 19 specification bytes are <c>UNKNOWN</c> and are used only as a shape check. This
-    /// asserts the refusal actually happens: across a whole map, every response either matches the
-    /// template and names a real entry in the name table, or reports unresolved. A reader that
-    /// decoded whatever it was given would fail this by producing rubbish names.
-    /// </remarks>
+    /// <summary>Every Medical response consumes its complete variable-length specification array.</summary>
     [RequiresGameFact]
-    public void AnUnrecognisedSpecificationIsUnresolvedRatherThanGuessed()
+    public void EveryMedicalSpecificationVariationIsDecoded()
     {
         using var package = BioShockPackage.Open(Map("1-Medical"));
         var responses = SoundEventReader.Read(package);
-
-        var names = package.Names.Select(n => n.Name).ToHashSet(StringComparer.Ordinal);
-
-        foreach (var response in responses)
-        {
-            Assert.False(string.IsNullOrEmpty(response.Event));
-
-            if (response.SoundName is null) continue;
-
-            Assert.Contains(response.SoundName, names);
-        }
-
-        // Both outcomes have to occur somewhere in the map, or this is not testing the refusal.
-        Assert.Contains(responses, r => r.IsResolved);
+        Assert.Equal(package.Exports.Count(export => package.GetClassName(export) == SoundEventReader.ClassName),
+            responses.Count);
+        Assert.All(responses, response => Assert.True(response.SpecificationComplete, response.ObjectName));
+        Assert.All(responses.Where(response => response.SpecificationPresent),
+            response => Assert.True(response.IsResolved, response.ObjectName));
+        Assert.Contains(responses, response => !response.SpecificationPresent);
+        Assert.Contains(responses, response => response.Specifications.Count > 1);
+        Assert.All(responses.SelectMany(response => response.Specifications), specification =>
+            Assert.Equal(specification.Mode == 0x06 ? 25 : 26, specification.RawPayload.Length));
     }
 
     /// <summary>The bulk catalogue does not contain the pistol reload effects.</summary>

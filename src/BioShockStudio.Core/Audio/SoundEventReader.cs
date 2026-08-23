@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Audio;
@@ -22,10 +24,22 @@ public sealed record SoundEventResponse(
     string ObjectName,
     string Event,
     string SourceClassName,
-    string? SoundName)
+    bool SpecificationPresent,
+    IReadOnlyList<SoundEventSpecification> Specifications,
+    byte? FilteredState,
+    IReadOnlyList<int> Chances,
+    IReadOnlyList<string> LevelContexts,
+    bool? LevelContextsMoved,
+    bool ConditionsComplete)
 {
-    public bool IsResolved => SoundName is not null;
+    public string? SoundName => Specifications.FirstOrDefault()?.SoundName;
+    public IReadOnlyList<string> SoundNames => Specifications.Select(specification => specification.SoundName).ToList();
+    public bool IsResolved => Specifications.Count > 0;
+    public bool SpecificationComplete => !SpecificationPresent || Specifications.Count > 0;
 }
+
+/// <summary>One exact variable-length entry from a response's <c>Specification</c> array.</summary>
+public sealed record SoundEventSpecification(string SoundName, byte Mode, byte[] RawPayload);
 
 /// <summary>
 /// Reads <c>EventResponse_SoundEffectsSubsystem</c> objects — the bridge from an animation event to a
@@ -43,23 +57,19 @@ public sealed record SoundEventResponse(
 /// weapons_pistol_reload_one
 /// </code>
 /// <para>
-/// <b>How the sound name is read, and why it is not a guess.</b> <c>Specification</c> is an array
-/// property whose single element is 19 bytes. Across the three reload responses only one field
-/// varies, and read as an <c>FCompactIndex</c> it gives 5057, 5065 and 5063 — which are, in the
-/// package's own name table, <c>weapons_pistol_reload_one</c>, <c>_two</c> and <c>_three</c>. Three
-/// independent values each landing on the semantically correct sound is the check; a wrong framing
-/// does not do that three times.
+/// <b>How the sound names are read, and why it is not a guess.</b> <c>Specification</c> is an array
+/// of 25-byte mode-6 or 26-byte mode-7 entries. Each contains a numbered FName into the package's
+/// own name table. Across all 21 maps, 106,000 response objects contain 110,120 entries and every
+/// array boundary consumes exactly; 1,760 responses carry several alternatives.
 /// </para>
 /// <para>
-/// <b>The rest of the 19 bytes is <c>UNKNOWN</c> and is preserved rather than interpreted.</b> The
-/// reader only accepts a specification whose constant bytes match the observed template, and returns
-/// a null sound name otherwise. That makes the read self-validating in the same way the material
-/// struct-size correction is: a blob of a different shape cannot satisfy it and is reported as
-/// unresolved instead of being decoded into a plausible wrong name.
+/// <b>The other bytes remain <c>UNKNOWN</c> and are preserved rather than interpreted.</b> The reader
+/// validates the count, mode-specific entry length, two stable marker bytes and full consumption.
+/// A response with no <c>Specification</c> remains explicitly distinct from malformed bytes.
 /// </para>
 /// <para>
-/// Nothing here decodes audio. It resolves a <i>name</i>. Whether a sample of that name ships, and
-/// where, is a separate and still-open question — see <c>docs/research/audio.md</c>.
+/// Nothing here decodes audio. It resolves names and selection declarations; native and FSB sample
+/// location are separate routes — see <c>docs/research/audio.md</c>.
 /// </para>
 /// </remarks>
 public static class SoundEventReader
@@ -107,70 +117,94 @@ public static class SoundEventReader
         if (eventName.Length == 0) return null;
 
         var specification = properties.FirstOrDefault(p => p.Name == "Specification");
+        var chance = properties.FirstOrDefault(p => p.Name == "Chance");
+        var levelContext = properties.FirstOrDefault(p => p.Name == "LevelContext");
+        bool conditionsComplete = true;
+        IReadOnlyList<int> chances = [];
+        if (chance is not null && !TryIntArray(chance.Value, out chances)) conditionsComplete = false;
+        IReadOnlyList<string> contexts = [];
+        if (levelContext is not null
+            && !PropertyValues.TryAsNameArrayExact(levelContext, package, out contexts)) conditionsComplete = false;
+        byte? filteredState = properties.FirstOrDefault(p => p.Name == "FilteredState") is
+            { Type: UnrealPropertyType.Byte, Value.Length: > 0 } filtered ? filtered.Value[0] : null;
+        bool? contextsMoved = properties.FirstOrDefault(p => p.Name == "bLevelContextsMoved") is
+            { Type: UnrealPropertyType.Bool } moved ? moved.BoolValue : null;
 
         return new SoundEventResponse(
             export.ObjectName,
             eventName,
             Name("SourceClassName") ?? string.Empty,
-            specification is null ? null : SoundNameFrom(package, specification.Value));
+            specification is not null,
+            specification is null ? [] : SpecificationsFrom(package, specification.Value),
+            filteredState, chances, contexts, contextsMoved, conditionsComplete);
     }
 
     /// <summary>
-    /// The 19-byte specification element as observed on every response checked so far. The bytes
-    /// marked <c>..</c> are the name reference; everything else is required to match.
+    /// Reads the exact variable-length specification array: 25-byte mode-6 entries and 26-byte
+    /// mode-7 entries. The count, every entry boundary and final byte consumption must agree.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The element looks like this, and only the marked bytes are constant:
-    /// </para>
-    /// <code>
-    /// 1-Medical      01 13000000 00 56 06  41 4F  00000000 14000000 00 05 84000000
-    /// 0-Lighthouse   01 09000000 00 56 06  44 2C  00000000 08000000 00 05 83000000
-    ///                ▲▲          ▲▲ ▲▲ ▲▲  name
-    /// </code>
-    /// <para>
-    /// <b>Most of the surrounding bytes are package-local and vary.</b> An earlier version of this
-    /// reader required the whole 1-Medical byte pattern, which made every other package's copy
-    /// unresolved — caught by a test that read the events from one package and the responses from
-    /// another. Only <c>[0]</c>, <c>[5]</c>, <c>[6]</c> and <c>[7]</c> hold across packages, so only
-    /// those are checked. What they mean is <c>UNKNOWN</c>; they are a shape check, not an
-    /// interpretation.
-    /// </para>
-    /// <para>
-    /// <b>The <c>06</c> at [7] is part of the shape, not part of the index.</b> Reading the index
-    /// one byte early yields 6 — the name <c>Tag</c> — on every response, which looks like a
-    /// plausible resolved name rather than an error. A regression test caught that too.
-    /// </para>
-    /// <para>
-    /// It is not <c>06</c> everywhere: level-actor responses such as
-    /// <c>ActorScriptTrigger_RedLightAudio</c> carry <c>56 07</c>. Those are deliberately
-    /// <b>not</b> decoded — only the shape proven against the pistol reload is read, in two
-    /// packages, and anything else is reported unresolved.
-    /// </para>
+    /// The earlier single-19-byte interpretation was refuted by the whole-game census. Shipped
+    /// responses contain 110,120 entries, including 1,760 responses with more than one alternative.
+    /// The package-local leading integer and unknown tail remain preserved in <see cref="SoundEventSpecification.RawPayload"/>.
     /// </remarks>
-    private static readonly (int Offset, byte Value)[] SpecificationShape =
-        [(0, 0x01), (5, 0x00), (6, 0x56), (7, 0x06)];
-
-    /// <summary>Where the name reference begins, once the shape above has matched.</summary>
-    private const int SoundNameOffset = 8;
-
-    private static string? SoundNameFrom(BioShockPackage package, byte[] value)
+    private static IReadOnlyList<SoundEventSpecification> SpecificationsFrom(
+        BioShockPackage package, byte[] value)
     {
-        if (value.Length < SoundNameOffset + 2) return null;
-
-        foreach (var (at, expected) in SpecificationShape)
-            if (value[at] != expected) return null;
-
-        int offset = SoundNameOffset;
-        int index;
-        try { index = ReadCompactIndex(value, ref offset); }
+        var result = new List<SoundEventSpecification>();
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(value, ref offset);
+            if (count < 0 || count > value.Length) return [];
+            for (int i = 0; i < count; i++)
+            {
+                int elementStart = offset;
+                if (offset + 8 > value.Length || value[offset + 4] != 0x00 || value[offset + 5] != 0x56)
+                    return [];
+                byte mode = value[offset + 6];
+                int elementSize = mode switch { 0x06 => 25, 0x07 => 26, _ => 0 };
+                if (elementSize == 0 || elementStart + elementSize > value.Length) return [];
+                offset += 7;
+                int nameIndex = ReadCompactIndex(value, ref offset);
+                if (nameIndex < 0 || nameIndex >= package.Names.Count || offset + 4 > elementStart + elementSize)
+                    return [];
+                int nameNumber = BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(offset));
+                offset += 4;
+                string name = package.Names[nameIndex].Name;
+                if (nameNumber != 0) name += nameNumber - 1;
+                result.Add(new SoundEventSpecification(
+                    name, mode, value.AsSpan(elementStart, elementSize).ToArray()));
+                offset = elementStart + elementSize;
+            }
+            return offset == value.Length ? result : [];
+        }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
                                        or ArgumentOutOfRangeException)
         {
-            return null;
+            return [];
         }
+    }
 
-        return index >= 0 && index < package.Names.Count ? package.Names[index].Name : null;
+    private static bool TryIntArray(byte[] value, out IReadOnlyList<int> values)
+    {
+        values = [];
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(value, ref offset);
+            if (count < 0 || offset + count * 4 != value.Length) return false;
+            var result = new List<int>(count);
+            for (int i = 0; i < count; i++, offset += 4)
+                result.Add(BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(offset)));
+            values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     private static string? ResolveName(BioShockPackage package, byte[] value)

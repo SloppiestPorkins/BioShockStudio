@@ -1084,6 +1084,15 @@ material.
    - **A native-helper deadlock was found by the full census and fixed.** `StreamAudioService` read
      redirected stderr to EOF before stdout; a large `--list` filled the stdout pipe and blocked the
      child and parent. Both streams are now drained concurrently. The complete 65-bank sweep passes.
+   - **Response variation and conditions decoded, 23 Aug 2026.** The former reader handled one
+     mode-6 sound from a supposed 19-byte blob and silently left mode 7/multiple alternatives
+     unresolved. The real `Specification` is an exact array of 25-byte mode-6 or 26-byte mode-7
+     entries. Across all maps, **106,000 response objects contain 110,120 sound entries**; 1,760
+     responses contain several alternatives, and all arrays now decode completely. Parallel
+     `Chance` arrays have exactly one integer per sound entry (values 0/20/30/50/70/75/80/100), and
+     51,620 responses carry 123,500 exact level-context FNames. `FilteredState` and
+     `bLevelContextsMoved` are retained too. This establishes variation and condition data without
+     asserting that the chance integer is a percentage or choosing a winner. `SoundEventCoverageTests`.
    - **Note:** recorded by the Claude session while auditing the roadmap. The audio track is worked
      concurrently by another session, so this stops at what the level actors declare.
 2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.

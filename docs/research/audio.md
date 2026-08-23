@@ -2,8 +2,8 @@
 
 **Implementation:** `src/BioShockStudio.Core/Audio/SoundEventReader.cs`
 **Tests:** `tests/BioShockStudio.Tests/SoundEventTests.cs`
-**Status:** the event→sound-name link is decoded. **No audio sample has been decoded, and none is
-played.** Where the sound effect data lives is `UNKNOWN`.
+**Status:** the event→sound-name list and its chance/context declarations are decoded. Native MP3
+and streamed FSB samples are both decoded/exportable through the later sections' implemented paths.
 
 This note exists because an animation's events are the authoritative timing source for anything
 audio, and the project already reads them: 47,560 events across the game, each with a time, a name
@@ -60,9 +60,9 @@ means one thing for the first-person `Hands` and could mean another for a differ
 actor class is what stops one actor's event resolving to another's sound. A resolver that ignores it
 would be guessing.
 
-## 3. The sound name inside `Specification` — how it was read
+## 3. The sound name inside `Specification` — original narrow proof, superseded below
 
-`Specification` is an array property with one 19-byte element. Across the three reload responses
+The original pistol-reload sample looked like an array with one 19-byte payload. Across those three reload responses
 **only one field varies**, in the same position:
 
 ```
@@ -185,8 +185,8 @@ Nothing in the application or the exporters consumes it yet.
 
 1. **Where do sound-effect samples ship?** §4. Test `BulkTextureCatalog` against a known sound name
    first — it is a few lines and it either finds them or rules the bulk store out.
-2. **What are the other 18 bytes of `Specification`?** Constant across everything inspected. More
-   responses, from actors other than `Hands`, would show which of them vary.
+2. ~~**What are the other bytes of `Specification`?**~~ The whole-game array framing and its two
+   shipped modes are decoded below; unknown tail bytes remain preserved per entry.
 3. **Is mode 15 really Vorbis here?** Decode one sample and hear it, or do not claim it.
 4. **Do all notify classes resolve this way?** Only `AnimNotify_EffectEvent` has been traced.
    `AnimNotify_UseAbility`, `AnimNotify_InitiateDamage` and
@@ -357,4 +357,20 @@ The full census also found a process-I/O deadlock: the managed service drained r
 before stdout, so a large FMOD `--list` response could fill the stdout pipe and block both sides.
 `StreamAudioService` now drains both pipes concurrently. `AudioActorResolutionTests` retains the
 65-bank/21-map census in the sweep tier.
+
+## Response alternatives, chance and level contexts
+
+**Status: `CONFIRMED_BYTES` across all 106,000 shipped response objects, 23 Aug 2026.** The old
+single-19-byte `Specification` interpretation was wrong. The property is an array whose entries are
+exactly 25 bytes in mode 6 or 26 bytes in mode 7. There are **110,120 entries** total: 62,084 mode 6
+and 48,036 mode 7. **1,760 responses contain more than one sound alternative.** Another 420 response
+objects intentionally omit `Specification`; absence is now distinct from malformed bytes.
+
+`Chance` is a parallel compact-count array of int32 values and its count equals the specification
+count on every response that has sounds. Shipped values are 0, 20, 30, 50, 70, 75, 80 and 100.
+That pairing is `CONFIRMED_BYTES`; interpreting the integer as a percentage remains `LIKELY`, not
+promoted to a rule. `LevelContext` is an exact numbered-FName array: 51,620 responses carry 123,500
+context entries. `FilteredState` is a byte (0/1), and `bLevelContextsMoved` retains its serialized
+bool value. These fields are exposed on `SoundEventResponse`; selecting the runtime winner remains
+engine-behaviour work. `SoundEventCoverageTests` pins every count and full-array consumption.
 
