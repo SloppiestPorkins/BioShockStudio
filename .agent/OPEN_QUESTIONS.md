@@ -36,24 +36,13 @@ finds them or rules the bulk store out; either answer is worth having and it is 
 
 ---
 
-## Q2 — What does `SoundSpecEntry.Flag` (0–27) select?
+## Q2 — CLOSED, 23 Aug 2026: `SoundSpecEntry.Flag` is `Material.EMaterialVisualType`
 
-**Question.** Sample names group cleanly by this byte (`bullet_hit`: 0/1 default, 7/8 metal,
-11 cardboard), which reads like impact surface. Nothing outside the names supports that.
-
-**Why it matters.** It is the difference between exporting 78 undifferentiated alternatives and
-exporting a surface-keyed sound set. It also decides whether A18 can be promoted from `PLAUSIBLE`.
-
-**Evidence already gathered.** The name grouping, whole-game flag range 0–27. See
-`KNOWN_ASSUMPTIONS.md` A18.
-
-**Relevant files.** `src/BioShockStudio.Core/Audio/SoundEffectSpecificationReader.cs`,
-`tools/uelib-bridge/` output (1,445 decompiled UnrealScript classes, 11 of 12 script packages).
-
-**Best next investigation.** Grep the decompiled UnrealScript for the enum or the field name. The
-game's own source is in the repository now and nobody has looked for this in it.
-
-**Agent.** Research.
+**Answer.** Confirmed by decompiling `IGSoundEffectsSubsystem.U`: `Flag` is declared
+`Material.EMaterialVisualType`, a 28-value (0–27) physical-surface enum, independently documented in
+`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md` as driving
+"footstep/impact/decal selection." Full value table and evidence in `KNOWN_ASSUMPTIONS.md` A18
+(promoted from `PLAUSIBLE` to `HIGH`/`CONFIRMED_EXTERNAL`). Follow-up implementation task: TASK-010.
 
 ---
 

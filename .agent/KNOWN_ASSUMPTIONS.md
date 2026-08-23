@@ -363,23 +363,52 @@ them.
 
 ---
 
-## A18 — `Flag` groups sound alternatives — this one is **not** proven
+## A18 — `Flag` is `Material.EMaterialVisualType`, the physical-surface enum — **PROMOTED, 23 Aug 2026**
 
-**Assumption in the notes (not in behaviour).** `SoundSpecEntry.Flag` (0–27) appears to group a
-specification's alternatives by impact surface: on `bullet_hit`, flags 0/1 are all
-`bullet_hit_default_*`, 7/8 are `metalThin`/`metalThick`, 11 is `cardboard`.
+**Assumption, now confirmed.** `SoundSpecEntry.Flag` (0–27) is BioShock's own
+`Material.EMaterialVisualType` enum value, not a project-invented grouping. Decompiling
+`IGSoundEffectsSubsystem.U` (`tools/uelib-bridge`) shows the field declared as
+`var config Material.EMaterialVisualType Flag;` in `SoundEffectSpecification.uc`, and the same type
+is the parameter of the (native) `PickSoundToPlay(Material.EMaterialVisualType inTextureFlags, ...)`.
+`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md` independently
+describes the same field: "physical-surface class (Stone, Glass, Flesh, Water, …) — drives
+footstep/impact/decal selection, not rendering." Its full 28-value declaration (0–27, matching the
+observed range exactly) is in `Bioshock1REMSDK-WIP--main/tools/property_db.json`:
 
-**Evidence.** Sample names only. Nothing outside the names supports the surface reading.
+```
+0 MVT_Default        7  MVT_ThinMetal     14 MVT_Flesh          21 MVT_ElectricalGlass
+1 MVT_Concrete        8  MVT_ThickMetal    15 MVT_Carpet         22 MVT_ElectricalMetal
+2 MVT_Stone           9  MVT_Wood          16 MVT_Dirt           23 MVT_ExteriorGlass
+3 MVT_ThinGlass       10 MVT_Plastic       17 MVT_WaterPipe      24 MVT_Mud
+4 MVT_ThickGlass      11 MVT_Cardboard     18 MVT_Plant          25 MVT_BreakableGlass
+5 MVT_ThinCloth       12 MVT_Plaster       19 MVT_FleshAlternate 26 MVT_Paper
+6 MVT_ThickCloth      13 MVT_Water         20 MVT_OpaqueGlass    27 MVT_Trash
+```
 
-**Confidence.** **LOW / PLAUSIBLE.** The code decodes and exposes the number and does **not** act on
-it.
+The original sample-name-only hypothesis is now exactly confirmed by the game's own declared enum:
+`MVT_ThinMetal`(7)/`MVT_ThickMetal`(8) matches "7/8 are metalThin/metalThick" and `MVT_Cardboard`(11)
+matches "11 is cardboard" precisely.
+
+**Evidence.** CONFIRMED_EXTERNAL — two independent sources agree: the decompiled UnrealScript field
+declaration itself, and Nyko's SDK's independently-authored materials documentation.
+
+**Confidence.** HIGH (identity of the field). The *behavioural* claim — that the game actually
+dispatches `PickSoundToPlay` by the caller's surface-visual-type argument — is not itself decompilable
+(the function is native, `__NFUN_`-only in the UnrealScript output) but is exactly what its own
+signature and name state, and matches the SDK doc's plain description.
 
 **Files.** `src/BioShockStudio.Core/Audio/SoundEffectSpecificationReader.cs`,
-`tests/BioShockStudio.Tests/SoundEffectSpecificationTests.cs`.
+`tests/BioShockStudio.Tests/SoundEffectSpecificationTests.cs`; new evidence at
+`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md:68`,
+`Bioshock1REMSDK-WIP--main/tools/property_db.json:15772-15800`, and a fresh decompile of
+`IGSoundEffectsSubsystem.U` → `SoundEffectSpecification.uc:60,170` (not committed — decompiled output
+is never committed, `tools/uelib-bridge/README.md`).
 
-**Safe to change?** This is the one entry here that is *open*. Promoting it to behaviour requires
-evidence from outside the sample names — the UnrealScript in `tools/uelib-bridge/` output is the
-obvious place to look.
+**Safe to change?** Exposing `Flag` as the named `MaterialVisualType` enum (28 values, above) rather
+than a raw byte is now well-evidenced and low-risk — logged as **TASK-010**. Actually *acting* on it
+(surface-keyed sound selection at export time) is a larger Gate-4-adjacent feature decision, not
+implied by this evidence alone, and should go through a Research → Lead-decision step first the way
+`AGENT_PROTOCOL.md` requires for any behavioural change.
 
 ---
 

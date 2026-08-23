@@ -170,7 +170,14 @@ terms and scope for a negative.
 
 **Risk:** LOW — read-only.
 
-**Status:** READY
+**Status:** **DONE, 23 Aug 2026.** Done directly by the Lead — this needed decompiling a package first
+(actual execution: `dotnet build tools/uelib-bridge/uelib-standalone.csproj` then
+`dotnet run --project tools/uelib-bridge -- <out-dir> IGSoundEffectsSubsystem.U`), which the current
+orchestrator's Research role can't do (text-only, no code execution) — noted as a real gap in
+`.agent-control/CLAUDE_ORCHESTRATION.md`'s limitations, not silently worked around. Found in
+`SoundEffectSpecification.uc:60`: `var config Material.EMaterialVisualType Flag;`. Full 28-value
+enum table and cross-reference against `Bioshock1REMSDK-WIP--main` in `KNOWN_ASSUMPTIONS.md` A18,
+now `HIGH`/`CONFIRMED_EXTERNAL`. Closed as Q2 in `OPEN_QUESTIONS.md`. Follow-up: **TASK-010**.
 
 ---
 
@@ -201,7 +208,36 @@ is the lead's.
 
 **Risk:** LOW — read-only.
 
-**Status:** READY
+**Status:** **DONE (partial precision), 23 Aug 2026.** Dispatched to the local research agent first;
+its report is **not trustworthy as-is** and is kept here as a documented example of why every worker
+result gets verified, not summarized. It grepped for the bare string `MapsDirectory` and classified
+every hit as either the 21-package or 161-package enumeration by which nearby literal appeared,
+without checking *how* `MapsDirectory(...)` was used at each site — so it misclassified
+`StaticMeshGeometryTests.cs` (which only builds a path to `1-Medical.bsm`, a **single package**, via
+`Path.Combine(GameLocator.MapsDirectory(...), "1-Medical.bsm")`) as an "all-161 census." Spot-checked
+directly by the Lead and confirmed wrong.
+
+**Corrected finding**, from the Lead re-grepping for the actual enumeration call
+(`Directory.GetFiles`/`Directory.EnumerateFiles` applied to `MapsDirectory`, not just any use of the
+helper): roughly 26 files do a genuine whole-game census this way; roughly 11 use
+`GameLocator.EnumeratePackages` (21 non-localised). The single confirmed, concrete, already-costed
+instance of this mattering is exactly what `KNOWN_ASSUMPTIONS.md` A9 already documents:
+`SoundEventCoverageTests` (161, `Directory.GetFiles(MapsDirectory)`) = 106,000 responses, vs
+`SoundEffectSpecificationCoverageTests` (21, `GameLocator.EnumeratePackages`) = 33,227 specifications —
+both correct for what they measure, not comparable, no decoder difference.
+
+**Not fully exhaustively verified past that one instance** — the Lead did not hand-check all ~26 files
+individually for whether their whole-game iteration actually feeds an asserted whole-game *count* (vs.
+e.g. "every skeleton across all packages decodes," where the total file count isn't itself asserted
+and the enumeration choice doesn't create a stale-figure risk the way TASK-000/009's pattern did).
+**Recorded honestly as a partial result rather than a false claim of completeness** (Q7's own
+recommendation — non-localised-21 as the default convention, all-161 counts explicitly labelled — is
+unchanged and still the Lead's standing recommendation for any *new* whole-game census test).
+
+**Evidence chain:** local research agent's raw grep hit list (file+line, mechanically correct);
+Lead's own targeted re-grep and spot-check (`CoordinateSystemTests.cs:344` confirmed a genuine
+`Directory.EnumerateFiles` census; `StaticMeshGeometryTests.cs:23` confirmed a single-package
+`Path.Combine`, disproving the worker's classification of it).
 
 ---
 
@@ -439,6 +475,43 @@ still break it, and that's an accepted, understood risk rather than an unknown o
 `SoundActorSchemaTests`'s ambiguous 345-vs-36 scope needs a Research pass on author intent before
 anyone touches it. (3) `EffectActorSchemaTests`'s 142-vs-134 classification-precedence gap is noted in
 `OPEN_QUESTIONS.md`.
+
+---
+
+## TASK-010
+
+**Title:** Expose `SoundSpecEntry.Flag` as the named `MaterialVisualType` enum instead of a raw byte
+
+**Goal:** `KNOWN_ASSUMPTIONS.md` A18 (now `HIGH`/`CONFIRMED_EXTERNAL` — TASK-002) established `Flag` is
+BioShock's `Material.EMaterialVisualType`, a 28-value physical-surface enum, not a project-invented
+number. Add a `MaterialVisualType` C# enum with the 28 named values (`MVT_Default` = 0 … `MVT_Trash` =
+27, full table in A18) to `src/BioShockStudio.Core/Audio/` and expose `SoundSpecEntry.Flag` as that
+type (or add a parallel named property) instead of a bare `byte`.
+
+**Why it matters:** Turns an opaque number into a name a human or a UE5 export step can act on
+directly, at essentially zero risk — this is a pure decode-fidelity improvement (exposing what the
+byte already means), not new behaviour. Does **not** imply implementing surface-keyed sound *selection*
+at runtime/export time — that's a separate, larger Gate-4-adjacent decision A18 explicitly defers.
+
+**Agent:** Coder (the enum table and evidence are already fully in `KNOWN_ASSUMPTIONS.md` A18 — no
+Research step needed first).
+
+**Dependencies:** none.
+
+**Files likely involved:** `src/BioShockStudio.Core/Audio/SoundEffectSpecificationReader.cs`,
+`tests/BioShockStudio.Tests/SoundEffectSpecificationTests.cs`.
+
+**Acceptance criteria:** `SoundSpecEntry.Flag`'s type change compiles and every existing test that
+reads it still passes (update assertions to the named form, don't just retype and leave numeric
+comparisons — check `SoundEffectSpecificationTests.cs`, `SoundEffectSpecificationCoverageTests.cs`
+first for any that would need updating). A regression test asserting a couple of known values by name
+(e.g. `bullet_hit`'s flag-11 alternative is `MVT_Cardboard`) is a natural addition, not required.
+
+**Evidence required:** none new — cite `KNOWN_ASSUMPTIONS.md` A18 for the enum table.
+
+**Risk:** LOW — additive, decode-fidelity-only, no behavioural change.
+
+**Status:** READY
 
 ---
 
