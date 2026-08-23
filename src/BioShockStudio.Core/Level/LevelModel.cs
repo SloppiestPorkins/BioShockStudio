@@ -150,6 +150,29 @@ public sealed record ActorRegion
     public bool HasLeaf => Leaf != 0;
 }
 
+/// <summary>Typed collision and trigger fields carried by region/volume actors.</summary>
+public sealed record RegionActorData
+{
+    public bool? BlockActors { get; init; }
+    public bool? BlockHavok { get; init; }
+    public bool? BlockNonZeroExtentTraces { get; init; }
+    public bool? BlockPlayers { get; init; }
+    public bool? BlockZeroExtentTraces { get; init; }
+    public bool? CollideActors { get; init; }
+    public bool? Disabled { get; init; }
+    public bool? Enabled { get; init; }
+    public bool? TriggerOnlyOnce { get; init; }
+    public bool? TriggerWhenNotSeen { get; init; }
+    public float? CollisionRadius { get; init; }
+    public float? CollisionHeight { get; init; }
+    public float? MinimumDistance { get; init; }
+    public string? TriggeredBy { get; init; }
+    public IReadOnlyList<string> TriggerOnlyByLabels { get; init; } = [];
+    public IReadOnlyList<string> TriggeredByFilter { get; init; } = [];
+    public IReadOnlyList<AssetReference> TriggerOnlyByClasses { get; init; } = [];
+    public bool Complete { get; init; }
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -170,6 +193,9 @@ public sealed record LevelActor
     /// <see cref="ActorRegion"/> for the cross-check that confirms it.
     /// </remarks>
     public ActorRegion? Region { get; init; }
+
+    /// <summary>Typed gameplay-volume fields; null for actors outside the region/trigger family.</summary>
+    public RegionActorData? RegionActor { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

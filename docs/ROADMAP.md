@@ -910,8 +910,16 @@ material.
    leaves. `ActorRegionTests`; `docs/research/bsp.md`. **This also completed the cubemap chain**:
    surface — zone (BSP node) — `CubemapProbe` (this `Region`) — `Cubemap`.
 
-   **Next in line, still genuinely open**: 309 audio actors, 253
-   region/volume actors, 134 effect actors, then 338 genuinely unclassified actors. Navigation has a
+   **Region/volume schema started, 23 Aug 2026.** All 253 Medical region-category actors now export
+   `Region` plus a typed collision/trigger record rather than leaving those values as property hex.
+   The retained census covers 86 `TriggerVolume`, 59 `ZoneInfo`, 56 `BlockingVolume` and the seven
+   smaller classes; all records are complete. Trigger label/class filters, one-shot/disabled/enabled
+   state, radius/height/distance and collision flags are decoded with absent-vs-false preserved.
+   `RegionActorSchemaTests`; `docs/research/bsp.md`. **Next within this category:** `ZoneInfo`'s
+   ambient/fog/reverb fields, still raw. After region actors: 134 effect actors, then 338 genuinely
+   unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
+   unresolved sound-event targets remain audio-system work, not another actor-payload decode.
+   Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
    undecoded.
 4. ~~A deterministic level importer: create/update actor instances from the manifest, attach assets,

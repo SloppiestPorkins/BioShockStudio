@@ -178,6 +178,32 @@ public static class LevelSceneExporter
                 DrawScale = actor.Transform.DrawScale,
                 DrawScale3D = ToArray(actor.Transform.DrawScale3D),
                 PrePivot = ToArray(actor.Transform.PrePivot),
+                Region = actor.Region is null ? null : new LevelRegionDocument
+                {
+                    Leaf = actor.Region.Leaf,
+                    ZoneNumber = actor.Region.ZoneNumber,
+                },
+                RegionActor = actor.RegionActor is null ? null : new LevelRegionActorDocument
+                {
+                    BlockActors = actor.RegionActor.BlockActors,
+                    BlockHavok = actor.RegionActor.BlockHavok,
+                    BlockNonZeroExtentTraces = actor.RegionActor.BlockNonZeroExtentTraces,
+                    BlockPlayers = actor.RegionActor.BlockPlayers,
+                    BlockZeroExtentTraces = actor.RegionActor.BlockZeroExtentTraces,
+                    CollideActors = actor.RegionActor.CollideActors,
+                    Disabled = actor.RegionActor.Disabled,
+                    Enabled = actor.RegionActor.Enabled,
+                    TriggerOnlyOnce = actor.RegionActor.TriggerOnlyOnce,
+                    TriggerWhenNotSeen = actor.RegionActor.TriggerWhenNotSeen,
+                    CollisionRadius = actor.RegionActor.CollisionRadius,
+                    CollisionHeight = actor.RegionActor.CollisionHeight,
+                    MinimumDistance = actor.RegionActor.MinimumDistance,
+                    TriggeredBy = actor.RegionActor.TriggeredBy,
+                    TriggerOnlyByLabels = actor.RegionActor.TriggerOnlyByLabels.ToList(),
+                    TriggeredByFilter = actor.RegionActor.TriggeredByFilter.ToList(),
+                    TriggerOnlyByClasses = actor.RegionActor.TriggerOnlyByClasses.Select(Describe).ToList(),
+                    Complete = actor.RegionActor.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -498,6 +524,8 @@ public sealed record LevelActorDocument
     public required float DrawScale { get; init; }
     public required float[] DrawScale3D { get; init; }
     public required float[] PrePivot { get; init; }
+    public LevelRegionDocument? Region { get; init; }
+    public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
     public string? Brush { get; init; }
@@ -514,6 +542,35 @@ public sealed record LevelActorDocument
     public required List<LevelPropertyDocument> Properties { get; init; }
     public required string TrailerHex { get; init; }
     public required bool Truncated { get; init; }
+}
+
+public sealed record LevelRegionDocument
+{
+    public required int Leaf { get; init; }
+    public required byte ZoneNumber { get; init; }
+}
+
+/// <summary>Byte-backed collision and trigger schema for UE2 region actors.</summary>
+public sealed record LevelRegionActorDocument
+{
+    public bool? BlockActors { get; init; }
+    public bool? BlockHavok { get; init; }
+    public bool? BlockNonZeroExtentTraces { get; init; }
+    public bool? BlockPlayers { get; init; }
+    public bool? BlockZeroExtentTraces { get; init; }
+    public bool? CollideActors { get; init; }
+    public bool? Disabled { get; init; }
+    public bool? Enabled { get; init; }
+    public bool? TriggerOnlyOnce { get; init; }
+    public bool? TriggerWhenNotSeen { get; init; }
+    public float? CollisionRadius { get; init; }
+    public float? CollisionHeight { get; init; }
+    public float? MinimumDistance { get; init; }
+    public string? TriggeredBy { get; init; }
+    public required List<string> TriggerOnlyByLabels { get; init; }
+    public required List<string> TriggeredByFilter { get; init; }
+    public required List<LevelReferenceDocument?> TriggerOnlyByClasses { get; init; }
+    public required bool Complete { get; init; }
 }
 
 /// <summary>One actor property reference exactly as its package table identifies it.</summary>

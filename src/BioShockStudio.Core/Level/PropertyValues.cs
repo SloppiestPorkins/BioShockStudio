@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Text;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Level;
@@ -34,6 +35,51 @@ public static class PropertyValues
         int number = BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(offset));
         string name = package.Names[index].Name;
         return number == 0 ? name : name + (number - 1);
+    }
+
+    /// <summary>A BioShock UTF-16 <c>Str</c>: compact character count, text, and a null terminator.</summary>
+    public static string? AsString(UnrealProperty property)
+    {
+        int offset = 0;
+        int count;
+        try { count = ReadCompactIndex(property.Value, ref offset); }
+        catch { return null; }
+        if (count <= 0) return count == 0 ? string.Empty : null;
+        int bytes = (count - 1) * 2;
+        if (offset + bytes + 2 != property.Value.Length) return null;
+        return Encoding.Unicode.GetString(property.Value, offset, bytes);
+    }
+
+    /// <summary>An exact array of FNames: compact count, then name-index/number pairs.</summary>
+    public static bool TryAsNameArrayExact(
+        UnrealProperty property, BioShockPackage package, out IReadOnlyList<string> values)
+    {
+        values = [];
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(property.Value, ref offset);
+            if (count < 0 || count > property.Value.Length) return false;
+            var result = new List<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int nameIndex = ReadCompactIndex(property.Value, ref offset);
+                if (nameIndex < 0 || nameIndex >= package.Names.Count || offset + 4 > property.Value.Length)
+                    return false;
+                int number = BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(offset));
+                offset += 4;
+                string name = package.Names[nameIndex].Name;
+                result.Add(number == 0 ? name : name + (number - 1));
+            }
+            if (offset != property.Value.Length) return false;
+            values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                       or InvalidDataException)
+        {
+            return false;
+        }
     }
 
     /// <summary>A twelve-byte <c>Vector</c> struct.</summary>

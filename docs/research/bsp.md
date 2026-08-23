@@ -891,3 +891,22 @@ chain left open earlier the same day: a **surface** knows its zone (from the BSP
 `Cubemap`. Material — zone — probe — cubemap is now traceable end to end, which is what
 `docs/research/materials.md` recorded as the missing link.
 
+### Region and trigger actors now have a typed manifest schema
+
+**Status: `CONFIRMED_BYTES` on all 253 region-category actors in `1-Medical`, 23 Aug 2026.**
+`RegionActorSchemaTests` pins the class census and checks the level manifest end to end.
+
+The decoded `Actor.Region` had not been wired into `LevelActorDocument`, so UE5 received neither
+`iLeaf` nor `ZoneNumber` despite Core already knowing both. Both now export for every decoded actor.
+Region-family actors also expose the gameplay fields that were previously only opaque property hex:
+collision booleans, radius/height, enabled/disabled and one-shot state, distance, label filters,
+class-reference filters, and string trigger source. A nullable bool preserves the important
+difference between an explicitly serialised false and an absent property whose class default applies.
+
+The Medical evidence is exact: 86 `TriggerVolume`, 59 `ZoneInfo`, 56 `BlockingVolume`, 14 each of
+`InPlayerViewTrigger` and `CascadingWaterVolume`, 13 `FluidVolume`, 4 `TriggerRadius`, 3 `Volume`,
+2 `PathBlockingVolume`, and one each `DefaultPhysicsVolume`/`SkyZoneInfo`. All 253 typed records are
+complete. Of the trigger volumes, 76 carry label filters, 63 serialise `TriggerOnlyOnce`, 26
+serialise `Disabled`, 8 carry class filters, and one carries a `TriggeredBy` string. The next schema
+slice is `ZoneInfo`'s ambient/fog/reverb fields; they remain raw and are not claimed decoded here.
+
