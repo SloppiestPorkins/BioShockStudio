@@ -522,13 +522,18 @@ material.
      in the game resolve all six faces** (`CubemapReader`, `CubemapTests`, plus the whole-game
      check in `TextureIntentCensusTests`). Face *ordering* stays `UNKNOWN` — the game names them
      only `_Face_0..5` — so declaration order is preserved rather than a convention guessed at.
-   - **Item 3's remaining half is BLOCKED, not unstarted: no representative UE5 import has been
-     validated, and there is no UE5 engine on this machine to validate against** (checked 23 Aug
-     2026 — `C:\Program Files\Epic Games` holds the Launcher and DirectX redistributable, no
-     `UE_5.x` engine directory, no `UnrealEditor` on PATH). Everything an importer would consume is
-     exported and unit-tested; what is missing is the engine, so this cannot be closed by more
-     decoding. **Unblock by installing UE5**, then import a representative asset and look at it —
-     per the project's own "render it" rule, a numeric round-trip would not settle it.
+   - **Item 3's remaining half is unstarted, NOT blocked: no representative UE5 import has been
+     validated.** Everything an importer would consume is exported and unit-tested; what is missing
+     is the import run and someone looking at the result — per the project's own "render it" rule,
+     a numeric round-trip would not settle it.
+     - **Correction, 23 Aug 2026.** This entry previously claimed the item was *blocked* because no
+       UE5 engine existed on this machine, on the strength of Epic's folder under `Program Files`
+       containing only the Launcher. **That was wrong.** UE5.7 is at `G:\\Games\\UE_5.7\\`, which
+       `docs/HANDOFF_UE5_IMPORT.md` and `docs/NEXT_SESSION.md` both state explicitly — the latter
+       warning in as many words that it is *not* under Epic's `Program Files` folder. Gate 2 item 4's
+       record of successful imports was a second contradiction sitting in this same file.
+       **Read the handoff before probing the filesystem**: the answer was already written down, and
+       a "blocked" label asserted from a partial check is worse than no label at all.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.
