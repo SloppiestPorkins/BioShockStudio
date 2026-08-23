@@ -978,7 +978,11 @@ material.
    class-specific gameplay field: a `LootSlot` object reference. All 11 references resolve to
    shipped exports and now reach the manifest as `InteractionPending`; the rest of each record is
    already-covered transform, region, ownership and engine bookkeeping. `PickupActorSchemaTests`.
-   **Next:** the remaining 30 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   **Training markers completed, 23 Aug 2026.** The six `TrainingMarker` actors declare no
+   training-specific field at all; their retained ledger is only the already-covered common actor
+   record plus collision/bookkeeping state. They now join plain `Marker` as `MarkerPending`, rather
+   than implying a missing schema. `MarkerActorSchemaTests.TrainingMarkersAlsoContainOnlyTheCommonActorRecord`.
+   **Next:** the remaining 24 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

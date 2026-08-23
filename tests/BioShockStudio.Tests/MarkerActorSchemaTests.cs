@@ -35,4 +35,21 @@ public sealed class MarkerActorSchemaTests(GameFixture game)
             Assert.NotNull(marker.Region);
         });
     }
+
+    [RequiresGameFact]
+    public void TrainingMarkersAlsoContainOnlyTheCommonActorRecord()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        var markers = context.Actors.Where(actor => actor.Source.ClassName == "TrainingMarker").ToList();
+
+        Assert.Equal(6, markers.Count);
+        var row = Assert.Single(LevelCoverageReport.Build(context).Classes, item => item.ClassName == "TrainingMarker");
+        Assert.Equal(new[] { "CheckpointTypePadding", "ColLocation", "Level", "PhysicsVolume", "Touching" },
+            row.OutstandingProperties);
+        Assert.Equal(6, row.StatusCounts.GetValueOrDefault(LevelActorCoverage.MarkerPending));
+
+        var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
+        Assert.Equal(markers.Count, document.Actors.Count(actor => actor.ClassName == "TrainingMarker"));
+    }
 }
