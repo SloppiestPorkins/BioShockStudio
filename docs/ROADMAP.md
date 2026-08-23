@@ -1005,7 +1005,14 @@ material.
    raw `SendDestructionNotification` integer as `InteractionPending`. The integer is retained under
    its shipped declaration without guessing whether its numeric values are an actor index, event ID
    or another gameplay handle. `VendingActorSchemaTests`. **Next:** the remaining six genuinely
-   unclassified actors. The now 345 Medical audio actors' declaration was
+   unclassified actors.
+
+   **Empty path/script boundary instances classified, 23 Aug 2026.** One `PathNode` serialises no
+   path list and one `Script` serialises no action array; those absent optional arrays had left one
+   actor of each class unclassified. Exact class identity now keeps all 495 Medical path nodes in
+   `NavigationPending` and all 300 scripts in `ScriptPending`, without fabricating empty payload
+   entries. `CoverageBoundaryActorTests`. **Next:** the remaining four genuinely unclassified
+   actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
