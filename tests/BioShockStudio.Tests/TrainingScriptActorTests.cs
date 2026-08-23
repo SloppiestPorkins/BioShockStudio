@@ -23,8 +23,8 @@ public sealed class TrainingScriptActorTests(GameFixture game)
             Assert.False(string.IsNullOrWhiteSpace(concept)));
 
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(325, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ScriptPending)));
+        Assert.Equal(26, coverage.Classes.Sum(row => row.ClassName == "TrainingScript"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ScriptPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.ClassName == "TrainingScript").ToList();

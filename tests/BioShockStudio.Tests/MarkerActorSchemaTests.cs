@@ -23,8 +23,8 @@ public sealed class MarkerActorSchemaTests(GameFixture game)
         var coverage = LevelCoverageReport.Build(context);
         var markerRow = Assert.Single(coverage.Classes, row => row.ClassName == "Marker");
         Assert.Equal(new[] { "CheckpointTypePadding", "Level", "PhysicsVolume" }, markerRow.OutstandingProperties);
-        Assert.Equal(150, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.MarkerPending)));
+        Assert.Equal(150, coverage.Classes.Sum(row => row.ClassName == "Marker"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.MarkerPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.ClassName == "Marker").ToList();

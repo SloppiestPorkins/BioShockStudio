@@ -23,8 +23,9 @@ public sealed class VendingActorSchemaTests(GameFixture game)
         Assert.All(actors, actor => Assert.NotNull(actor.Vending!.DestructionNotification));
 
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(14, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending)));
+        Assert.Equal(3, coverage.Classes.Sum(row => row.ClassName == "PlaceableVendingStation"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending) : 0));
+
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.Vending is not null).ToList();
         Assert.Equal(actors.Count, exported.Count);

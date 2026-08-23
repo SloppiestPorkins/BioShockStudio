@@ -20,8 +20,8 @@ public sealed class PickupActorSchemaTests(GameFixture game)
         Assert.Equal(11, actors.Count);
         Assert.All(actors, actor => Assert.Equal(ResolutionStatus.Resolved, actor.LootSlot?.Status));
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(11, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending)));
+        Assert.Equal(11, coverage.Classes.Sum(row => row.ClassName == "MedHypoPickup"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.ClassName == "MedHypoPickup").ToList();
