@@ -24,11 +24,12 @@ Run headless:
 """
 
 import json
+import math
 import os
 
 import unreal
 
-SUPPORTED_FORMAT_VERSION = 3
+SUPPORTED_FORMAT_VERSION = 4
 
 # Unreal rotator units to degrees. The manifest stores the game's own integer pitch/yaw/roll.
 ROTATOR_TO_DEGREES = 360.0 / 65536.0
@@ -165,7 +166,129 @@ def _import_actors(manifest, existing, report, handled):
             report["unsupported"] += 1
 
 
-def main(manifest_path, import_actors=True):
+def _decompose(matrix):
+    """A row-major 4x4 from the manifest, as (location, rotation, scale) for UE5.
+
+    Decomposed by hand rather than through unreal.Matrix: the manifest stores System.Numerics'
+    row-vector convention, and getting the convention wrong produces a level that looks plausible
+    and is subtly inside out -- a failure this project has already paid for once in the BSP
+    viewport. Doing the arithmetic explicitly keeps the convention visible.
+    """
+    rows = [matrix[0:3], matrix[4:7], matrix[8:11]]
+    location = matrix[12:15]
+
+    scale = []
+    basis = []
+    for row in rows:
+        length = math.sqrt(row[0] * row[0] + row[1] * row[1] + row[2] * row[2])
+        scale.append(length)
+        basis.append([c / length for c in row] if length > 1e-6 else [0.0, 0.0, 0.0])
+
+    # Rotation from the orthonormalised basis, via a quaternion, so a non-uniformly scaled
+    # instance still yields a valid rotation.
+    m00, m01, m02 = basis[0]
+    m10, m11, m12 = basis[1]
+    m20, m21, m22 = basis[2]
+
+    trace = m00 + m11 + m22
+    if trace > 0.0:
+        r = math.sqrt(1.0 + trace) * 2.0
+        w, x, y, z = 0.25 * r, (m12 - m21) / r, (m20 - m02) / r, (m01 - m10) / r
+    elif m00 > m11 and m00 > m22:
+        r = math.sqrt(1.0 + m00 - m11 - m22) * 2.0
+        w, x, y, z = (m12 - m21) / r, 0.25 * r, (m10 + m01) / r, (m20 + m02) / r
+    elif m11 > m22:
+        r = math.sqrt(1.0 + m11 - m00 - m22) * 2.0
+        w, x, y, z = (m20 - m02) / r, (m10 + m01) / r, 0.25 * r, (m21 + m12) / r
+    else:
+        r = math.sqrt(1.0 + m22 - m00 - m11) * 2.0
+        w, x, y, z = (m01 - m10) / r, (m20 + m02) / r, (m21 + m12) / r, 0.25 * r
+
+    quat = unreal.Quat(x=x, y=y, z=z, w=w)
+    return (unreal.Vector(*location), quat.rotator(), unreal.Vector(*scale))
+
+
+def _import_asset_meshes(manifest, manifest_dir, content_root, report):
+    """Import each unique asset's local-space mesh once, as a UE5 StaticMesh.
+
+    Keyed by asset rather than instance for the reason the exporter writes them that way: a brush
+    used forty times is one mesh and forty transforms, not forty meshes.
+    """
+    meshes = {}
+
+    for asset in manifest.get("assets") or []:
+        path = asset.get("file")
+        if not path:
+            continue
+
+        source = os.path.join(manifest_dir, path.replace("/", os.sep))
+        if not os.path.exists(source):
+            report["skipped"] += 1
+            continue
+
+        stem = os.path.splitext(os.path.basename(source))[0]
+        destination = f"{content_root}/Meshes"
+        asset_path = f"{destination}/{stem}"
+
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            meshes[asset["key"]] = unreal.EditorAssetLibrary.load_asset(asset_path)
+            continue
+
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", source)
+        task.set_editor_property("destination_path", destination)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("save", True)
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+
+        mesh = next((o for o in task.get_objects() if isinstance(o, unreal.StaticMesh)), None)
+        if mesh is None:
+            report["skipped"] += 1
+            continue
+
+        meshes[asset["key"]] = mesh
+
+    _log("%d of %d assets imported as static meshes"
+         % (len(meshes), len(manifest.get("assets") or [])))
+    return meshes
+
+
+def _import_instances(manifest, meshes, existing, report, handled):
+    """Place every geometry instance as a StaticMeshActor carrying the asset's mesh."""
+    for instance in manifest.get("instances") or []:
+        key = "instance:" + instance["actorKey"] + ":" + instance["asset"]
+        if key in handled:
+            continue
+        handled.add(key)
+
+        mesh = meshes.get(instance["asset"])
+        if mesh is None:
+            report["unsupported"] += 1
+            continue
+
+        location, rotation, scale = _decompose(instance["transform"])
+
+        actor = existing.get(key)
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(
+                unreal.StaticMeshActor, location, rotation)
+            if actor is None:
+                report["skipped"] += 1
+                continue
+            report["created"] += 1
+        else:
+            report["updated"] += 1
+            actor.set_actor_location(location, False, False)
+            actor.set_actor_rotation(rotation, False)
+
+        actor.static_mesh_component.set_static_mesh(mesh)
+        actor.set_actor_scale3d(scale)
+        actor.set_actor_label(instance.get("label") or instance.get("actor") or key)
+        actor.tags = [unreal.Name(KEY_TAG_PREFIX + key)]
+        existing[key] = actor
+
+def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel"):
     """Import one level manifest. Returns the created/updated/skipped/unsupported report."""
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -189,6 +312,12 @@ def main(manifest_path, import_actors=True):
 
     handled = set()
     _import_lights(manifest, existing, report, handled)
+
+    # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
+    meshes = _import_asset_meshes(
+        manifest, os.path.dirname(os.path.abspath(manifest_path)), content_root, report)
+    _import_instances(manifest, meshes, existing, report, handled)
+
     if import_actors:
         _import_actors(manifest, existing, report, handled)
 

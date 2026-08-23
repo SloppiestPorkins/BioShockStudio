@@ -260,3 +260,26 @@ and they unlock the most.
 **So Phase 4 is not "implement 186 actions".** It is roughly: ~20 for a working vertical slice,
 ~50 for most of the game, ~75 for near-complete coverage, and a long tail that can be implemented
 on demand as specific levels need it.
+
+### Phase 1.1 done — level geometry as real UE5 meshes
+
+Verified in UE5.7 on `0-Lighthouse`: **1,274 `StaticMeshActor`s placed from 422 imported static
+meshes, 0 skipped.**
+
+**Exported per asset, not per instance.** The existing world OBJ bakes every instance into world
+space — right for opening a level in a viewer, wrong for an engine import, because it discards
+instancing entirely and a brush used forty times arrives as forty copies. `LevelExportFormats
+.AssetMeshes` writes one local-space OBJ per unique asset instead, and the manifest's per-instance
+transforms place them. For `0-Lighthouse` that is **21 MB against the flattened world's 123 MB**,
+for the same geometry.
+
+Manifest bumped to **version 4** (assets now carry a `file`), and `validate_level_manifest.py`
+follows.
+
+The instance transform is decomposed by hand rather than through `unreal.Matrix`: the manifest
+stores System.Numerics' row-vector convention, and getting that wrong yields a level that looks
+plausible and is subtly inside out — a failure this project has already paid for once in the BSP
+viewport.
+
+**Still placeholders:** 1,401 actors with no geometry to attach, reported as `unsupported` exactly
+as before. Materials are the next gap — the meshes import untextured.

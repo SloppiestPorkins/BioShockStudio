@@ -15,7 +15,7 @@ import sys
 from collections import Counter
 
 
-SUPPORTED_VERSION = 3
+SUPPORTED_VERSION = 4
 
 
 def validate(path):

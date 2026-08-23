@@ -23,7 +23,18 @@ public enum LevelExportFormats
     /// <summary>Compact UE5 handoff: actor graph and asset identities, with no duplicated mesh buffers.</summary>
     Ue5Manifest = 4,
 
-    All = SceneJson | Obj | Ue5Manifest,
+    /// <summary>
+    /// One OBJ per unique asset, in <b>local</b> space, for import as individual UE5 static meshes.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="Obj"/>, which bakes every instance into world space in one file.
+    /// That is right for opening a level in a viewer and wrong for an engine import: it discards
+    /// instancing entirely, so a brush used 40 times arrives as 40 copies of its geometry. These
+    /// files keep one mesh per asset and let the manifest's per-instance transforms place them.
+    /// </remarks>
+    AssetMeshes = 8,
+
+    All = SceneJson | Obj | Ue5Manifest | AssetMeshes,
 }
 
 /// <summary>
@@ -48,7 +59,7 @@ public enum LevelExportFormats
 public static class LevelSceneExporter
 {
     /// <summary>Schema version for the level-to-UE5 handoff. Bump only for incompatible changes.</summary>
-    public const int LevelManifestVersion = 3;
+    public const int LevelManifestVersion = 4;
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = false,
@@ -73,10 +84,18 @@ public static class LevelSceneExporter
             written.Add(path);
         }
 
+        // Written before the manifest, because the manifest records each asset's mesh path.
+        var assetFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (formats.HasFlag(LevelExportFormats.AssetMeshes))
+        {
+            assetFiles = WriteAssetMeshes(scene, directory, written);
+        }
+
         if (formats.HasFlag(LevelExportFormats.Ue5Manifest))
         {
             string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
-            File.WriteAllText(path, JsonSerializer.Serialize(ToDocument(scene, includeGeometry: false),
+            File.WriteAllText(path, JsonSerializer.Serialize(
+                ToDocument(scene, includeGeometry: false, assetFiles),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -92,7 +111,10 @@ public static class LevelSceneExporter
     }
 
     /// <summary>The scene as a serialisable document.</summary>
-    public static LevelDocument ToDocument(LevelScene scene, bool includeGeometry = true) => new()
+    public static LevelDocument ToDocument(
+        LevelScene scene,
+        bool includeGeometry = true,
+        IReadOnlyDictionary<string, string>? assetFiles = null) => new()
     {
         FormatVersion = LevelManifestVersion,
         Package = scene.PackageName,
@@ -109,6 +131,7 @@ public static class LevelSceneExporter
                 Name = g.Key.ObjectName,
                 Kind = g.First().Kind.ToString(),
                 ExportIndex = g.Key.ExportIndex,
+                File = assetFiles is not null && assetFiles.TryGetValue(g.Key.Key, out string? file) ? file : null,
                 VertexCount = g.First().Geometry.Vertices.Count,
                 TriangleCount = g.First().Geometry.TriangleCount,
                 Vertices = includeGeometry ? g.First().Geometry.Vertices.Select(v => ToArray(v.Position)).ToList() : null,
@@ -244,6 +267,68 @@ public static class LevelSceneExporter
     /// <c>LevelExportTests.NoLevelInstanceCarriesANonUniformScale</c> checks the assumption still
     /// holds — the check fails loudly if the game ever disagrees.
     /// </remarks>
+    /// <summary>
+    /// Writes one local-space OBJ per unique asset and returns their paths by asset key.
+    /// </summary>
+    /// <remarks>
+    /// Grouped by asset rather than walked per instance: a level's 1,274 instances resolve to a few
+    /// hundred distinct assets, and writing per instance would duplicate every shared brush.
+    /// </remarks>
+    private static Dictionary<string, string> WriteAssetMeshes(
+        LevelScene scene, string directory, List<string> written)
+    {
+        const string subdirectory = "Meshes";
+        string meshDirectory = Path.Combine(directory, subdirectory);
+        Directory.CreateDirectory(meshDirectory);
+
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var group in scene.Instances.GroupBy(i => i.Asset))
+        {
+            var geometry = group.First().Geometry;
+            if (geometry.Vertices.Count == 0) continue;
+
+            string stem = Sanitise(group.Key.ObjectName) + "_" + group.Key.ExportIndex;
+            string relative = subdirectory + "/" + stem + ".obj";
+            string path = Path.Combine(meshDirectory, stem + ".obj");
+
+            File.WriteAllText(path, BuildAssetObj(group.Key.ObjectName, geometry));
+            files[group.Key.Key] = relative;
+            written.Add(path);
+        }
+
+        return files;
+    }
+
+    /// <summary>One asset's geometry, untransformed.</summary>
+    private static string BuildAssetObj(string name, Mesh.MeshGeometry geometry)
+    {
+        var builder = new StringBuilder();
+        var culture = CultureInfo.InvariantCulture;
+
+        builder.Append("# BioShockStudio asset mesh: ").AppendLine(name);
+        builder.AppendLine("# local space, right-handed, +X forward, +Y left, +Z up, centimetres");
+        builder.Append("o ").AppendLine(Sanitise(name));
+
+        foreach (var vertex in geometry.Vertices)
+        {
+            builder.Append("v ").Append(vertex.Position.X.ToString("0.####", culture)).Append(' ')
+                   .Append(vertex.Position.Y.ToString("0.####", culture)).Append(' ')
+                   .Append(vertex.Position.Z.ToString("0.####", culture)).AppendLine();
+        }
+
+        var indices = geometry.Indices;
+        for (int i = 0; i + 2 < indices.Count; i += 3)
+        {
+            builder.Append("f ")
+                   .Append(indices[i] + 1).Append(' ')
+                   .Append(indices[i + 1] + 1).Append(' ')
+                   .Append(indices[i + 2] + 1).AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
     public static string BuildObj(LevelScene scene)
     {
         var builder = new StringBuilder();
@@ -356,6 +441,15 @@ public sealed record LevelAssetDocument
     public List<float[]>? Uvs { get; init; }
     public List<int>? Indices { get; init; }
     public required List<LevelSectionDocument> Sections { get; init; }
+
+    /// <summary>
+    /// Path of this asset's local-space mesh, relative to the manifest, when one was written.
+    /// </summary>
+    /// <remarks>
+    /// Null when the export did not request <see cref="LevelExportFormats.AssetMeshes"/>. An
+    /// importer with no file here can still place the actor, it just has no geometry to attach.
+    /// </remarks>
+    public string? File { get; init; }
 }
 
 public sealed record LevelSectionDocument

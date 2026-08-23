@@ -587,8 +587,22 @@ public sealed class LevelSceneTests(GameFixture game)
         try
         {
             var written = LevelSceneExporter.Write(scene, directory);
-            Assert.Equal(3, written.Count);
-            Assert.All(written, path => Assert.True(new FileInfo(path).Length > 1024, $"{path} is tiny"));
+
+            // Three documents plus one local-space mesh per unique asset. The mesh count is not
+            // pinned exactly - it is a property of the map, not of the exporter - but the three
+            // documents are, and so is the fact that meshes are written at all.
+            var documents = written
+                .Where(p => p.EndsWith(".json", StringComparison.Ordinal)
+                            || p.EndsWith(".obj", StringComparison.Ordinal) && !p.Contains("Meshes"))
+                .ToList();
+            Assert.Equal(3, documents.Count);
+            Assert.All(documents, path => Assert.True(new FileInfo(path).Length > 1024, $"{path} is tiny"));
+
+            // An asset mesh may legitimately be tiny - a twelve-triangle brush is a few hundred
+            // bytes - so these are checked for existence and content, not for size.
+            var meshes = written.Where(p => p.Contains("Meshes")).ToList();
+            Assert.True(meshes.Count > 100, $"only {meshes.Count} asset meshes were written");
+            Assert.All(meshes, path => Assert.True(new FileInfo(path).Length > 0, $"{path} is empty"));
 
             string json = File.ReadAllText(written.First(p => p.EndsWith(".json", StringComparison.Ordinal)));
             var document = JsonSerializer.Deserialize<LevelDocument>(
@@ -642,10 +656,12 @@ public sealed class LevelSceneTests(GameFixture game)
             Log($"scene JSON: {document.Assets.Count} assets for {document.Instances.Count} instances");
 
             // The OBJ is checked by counting its faces against the scene, not by trusting the writer.
-            string obj = File.ReadAllText(written.First(p => p.EndsWith(".obj", StringComparison.Ordinal)));
+            string worldObjPath = written.Single(
+                p => p.EndsWith(".obj", StringComparison.Ordinal) && !p.Contains("Meshes"));
+            string obj = File.ReadAllText(worldObjPath);
             int faces = obj.Split('\n').Count(line => line.StartsWith("f ", StringComparison.Ordinal));
             int vertices = obj.Split('\n').Count(line => line.StartsWith("v ", StringComparison.Ordinal));
-            Log($"OBJ: {vertices} vertices, {faces} faces, {new FileInfo(written[1]).Length / 1024 / 1024} MB");
+            Log($"OBJ: {vertices} vertices, {faces} faces, {new FileInfo(worldObjPath).Length / 1024 / 1024} MB");
 
             Assert.Equal(scene.TriangleCount, faces);
             Assert.Equal(scene.VertexCount, vertices);
