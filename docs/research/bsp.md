@@ -809,3 +809,44 @@ This gives what the item asked for: not just "zone A connects to zone B", but **
 that joins them**, with its vertices, plane and the ordered zone pair - which is what a UE5 level
 streaming or occlusion bridge would need.
 
+## Every actor knows its zone: `Actor.Region`
+
+**Status: `CONFIRMED_BYTES` across all 21 maps, 23 Aug 2026.** Pinned by `ActorRegionTests`.
+
+Found while censusing Gate 3 item 3's open actor categories, where it was **the single most common
+uninterpreted property in the game** — present on every actor of every class, 118,379 of 118,919.
+
+It is UE2's `FPointRegion`, serialised as a **nested tagged property list** rather than a raw
+struct, and the walk consumes all 30 bytes:
+
+| Field | Meaning |
+|---|---|
+| `Zone` | object reference to the zone's `ZoneInfo` actor |
+| `iLeaf` | index into the compiled world's leaf array |
+| `ZoneNumber` | the zone the actor stands in |
+
+### It cross-checks itself
+
+`iLeaf` indexes the BSP leaves, and every leaf already carries its own zone (`BspLeaf.Zone`,
+decoded separately from the leaf array). So `ZoneNumber` and `Leaves[iLeaf].Zone` are the same fact
+serialised twice, from different bytes. **They agree on 96,136 of 96,376 actors — 99.75%.**
+
+### Two residuals, recorded rather than tuned away
+
+**`iLeaf == 0` means "no leaf assigned", not leaf index 0.** 20,159 actors carry it, and only 760 of
+those happen to match leaf 0's zone — chance, not meaning. The test asserts it behaves like a
+sentinel rather than silently excluding it.
+
+**240 actors (0.25%) genuinely disagree**, all at very low leaf indices and disproportionately
+`Brush` and `StaticMeshActor`. `PLAUSIBLE`: a brush actor carries its own `Model`, so its region may
+index that model's leaves rather than the compiled world's. Not investigated and not asserted either
+way — the figure is stated so it cannot quietly drift.
+
+### Why this matters beyond the decode
+
+Every actor's zone is what a UE5 level-streaming or occlusion bridge needs, and it also completes a
+chain left open earlier the same day: a **surface** knows its zone (from the BSP node's
+`iZone` pair), a **`CubemapProbe`** knows its zone (from this `Region`), and the probe names the
+`Cubemap`. Material — zone — probe — cubemap is now traceable end to end, which is what
+`docs/research/materials.md` recorded as the missing link.
+

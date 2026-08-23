@@ -119,6 +119,37 @@ public sealed record EmitterTemplateData
 }
 
 /// <summary>One placed world object.</summary>
+/// <summary>
+/// UE2's <c>FPointRegion</c>: where in the compiled world an actor stands.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>CONFIRMED_BYTES</c>, 23 Aug 2026. The property is a nested tagged list whose walk consumes
+/// all 30 bytes, giving <c>Zone</c>, <c>iLeaf</c> and <c>ZoneNumber</c> - the same three fields
+/// UE2 declares.
+/// </para>
+/// <para>
+/// <b>It cross-checks itself.</b> <c>iLeaf</c> indexes the BSP leaves, each of which carries its
+/// own zone, so <see cref="ZoneNumber"/> and <c>Leaves[iLeaf].Zone</c> state the same fact twice
+/// from different bytes. They agree on 96,136 of 96,376 actors (99.75%) game-wide.
+/// </para>
+/// <para>
+/// <b><see cref="Leaf"/> of 0 means "no leaf assigned", not leaf index 0</b> - 20,159 actors carry
+/// it and only 760 happen to match leaf 0's zone.
+/// </para>
+/// </remarks>
+public sealed record ActorRegion
+{
+    /// <summary>Index into the compiled world's leaf array, or 0 for "none".</summary>
+    public required int Leaf { get; init; }
+
+    /// <summary>The zone the actor is in.</summary>
+    public required byte ZoneNumber { get; init; }
+
+    /// <summary>True when <see cref="Leaf"/> actually names a leaf.</summary>
+    public bool HasLeaf => Leaf != 0;
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -128,6 +159,17 @@ public sealed record LevelActor
 
     /// <summary>The actor's <c>Tag</c>, which the game uses to group behaviour.</summary>
     public string? Tag { get; init; }
+
+    /// <summary>
+    /// Which zone the actor stands in, from its <c>Region</c> property. Null when it has none or
+    /// the struct does not parse.
+    /// </summary>
+    /// <remarks>
+    /// <c>Region</c> is UE2's <c>FPointRegion</c> and is present on <b>every</b> actor in the game -
+    /// it was the single most common uninterpreted property before this. See
+    /// <see cref="ActorRegion"/> for the cross-check that confirms it.
+    /// </remarks>
+    public ActorRegion? Region { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

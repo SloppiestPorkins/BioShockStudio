@@ -20,7 +20,7 @@ public static class LevelAnalyzer
     {
         "Location", "Rotation", "DrawScale", "DrawScale3D", "PrePivot",
         "StaticMesh", "Mesh", "SkeletalMesh", "Skins", "Brush",
-        "Owner", "Base", "Label", "Tag", "OwnerGroups",
+        "Owner", "Base", "Label", "Tag", "OwnerGroups", "Region",
         "Actions",
     };
 
@@ -69,6 +69,32 @@ public static class LevelAnalyzer
         return Summarise(package, packageName, actors, failed, uninterpreted);
     }
 
+    /// <summary>
+    /// Reads <c>Region</c>, UE2's <c>FPointRegion</c>, as a nested tagged property list.
+    /// </summary>
+    /// <remarks>
+    /// Every actor in the game carries one. Returns null rather than a partial region when the
+    /// nested walk fails, so a caller cannot mistake a parse failure for zone 0.
+    /// </remarks>
+    private static ActorRegion? ReadRegion(BioShockPackage package, ActorPayload payload)
+    {
+        if (payload.Find("Region") is not { Value.Length: > 0 } region) return null;
+
+        List<UnrealProperty> fields;
+        try { fields = UnrealPropertyReader.Read(region.Value, package.Names, out _); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        var leaf = fields.FirstOrDefault(f => f.Name == "iLeaf");
+        var zone = fields.FirstOrDefault(f => f.Name == "ZoneNumber");
+        if (leaf is null || zone is null) return null;
+
+        return new ActorRegion { Leaf = leaf.AsInt(), ZoneNumber = zone.AsByte() };
+    }
+
     private static LevelActor BuildActor(
         BioShockPackage package, ClassDefaults defaults, SourceId source, ActorPayload payload,
         Dictionary<string, int> uninterpreted)
@@ -82,6 +108,7 @@ public static class LevelAnalyzer
             Source = source,
             Label = ReadName(package, payload, "Label"),
             Tag = ReadName(package, payload, "Tag"),
+            Region = ReadRegion(package, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
