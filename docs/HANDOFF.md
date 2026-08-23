@@ -14,7 +14,6 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Codex | **Gate 3 item 3**: remaining Medical actor schemas in shipped-count order, starting with `AggressorSpawner` | `src/BioShockStudio.Core/Level/`, `src/BioShockStudio.Core/Export/LevelSceneExporter.cs`, `tests/BioShockStudio.Tests/*Actor*Tests.cs`, `docs/ROADMAP.md` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 > **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims
