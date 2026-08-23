@@ -615,10 +615,22 @@ answer:**
   across the 853 descriptors with two or more readable layers, the summed peak channel has a median
   of 182.5 and a 90th percentile of 365; 27.2% exceed 255 and none collapse to black.
 
-**Two possibilities remain open and neither is supported yet:** the tile is a per-light radiance in
-that light's own colour (which would make the saturated primaries real data and the fault something
-else entirely), or the atlas texture's channels are being decoded in the wrong sense for this
-texture format. Nothing here distinguishes them.
+**The texture-format branch is now narrowed, 23 Aug 2026.** All **14** atlas-pool textures in
+`1-Medical` declare ordinary `DXT1` and every carried mip decodes through the same BC1 path used by
+the game's visible colour textures. There is no special ordinal, normal-map format, or atlas-only
+header flag selecting another channel interpretation. `LightmapAtlasFormatTests` pins both the
+count and format. A hidden lightmap-specific convention is not impossible, but "the format decoder
+is simply wrong" now requires DXT1 to mean something different only for this group despite the
+package declaring the same format.
+
+**The direct actor-colour comparison was attempted and correctly stopped for lack of evidence.** Of
+the 753 singly-occupied layers, only one referenced actor exposes a locally readable non-zero
+`LightColor`; the rest inherit their colour through class imports whose defaults live in script
+packages, beyond the map-local `ClassDefaults` chain. One sample cannot settle a channel mapping.
+The next discriminating step is therefore explicit: resolve those imported class-default chains,
+then compare each single-actor tile's RGB vector with its referenced light's shipped colour. Until
+that census exists, per-light radiance remains plausible but unconfirmed and default-on stays
+blocked.
 
 Note that the per-vertex GPU path has the same defect and merely hides it: averaging over three
 corners produces a dull tint rather than an obvious flat primary.

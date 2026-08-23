@@ -408,8 +408,13 @@ material.
    a channel selector, only slot 0 ever singly occupied, 58.7% single-channel, and summed layers
    staying broadly in range. Two readings remain open: the tile is per-light radiance in that light's
    own colour, or the atlas channels are decoded in the wrong sense for this texture format. Nothing
-   measured yet distinguishes them. Default-on stays blocked; the per-vertex GPU path has the same
-   defect and merely blurs it.
+   measured yet distinguishes them. **The second branch is now narrowed, 23 Aug:** all 14
+   `1-Medical` atlas-pool textures declare ordinary DXT1 and decode through the shared BC1 path;
+   there is no special format ordinal or header flag (`LightmapAtlasFormatTests`). Direct colour
+   correlation cannot yet be measured honestly because 752/753 single-light layers inherit
+   `LightColor` through class imports whose defaults live in script packages. Resolving those
+   external class-default chains is the next discriminator. Default-on stays blocked; the
+   per-vertex GPU path has the same defect and merely blurs it.
 4. ~~**Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently
