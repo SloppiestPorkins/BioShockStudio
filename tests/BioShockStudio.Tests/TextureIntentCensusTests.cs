@@ -34,7 +34,8 @@ public sealed class TextureIntentCensusTests(GameFixture game)
         var classCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var propertyCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var propertyValues = new Dictionary<string, Dictionary<string, int>>(StringComparer.Ordinal);
-        int textures = 0;
+        int textures = 0, cubemaps = 0, completeCubemaps = 0;
+        var partialCubemaps = new List<string>();
 
         // Values worth knowing the distribution of, not just the presence.
         string[] enumerated = ["LODSet", "Format", "UClampMode", "VClampMode", "CompressionSettings", "MipGenSettings"];
@@ -54,6 +55,18 @@ public sealed class TextureIntentCensusTests(GameFixture game)
                     continue;
 
                 classCounts[className] = classCounts.GetValueOrDefault(className) + 1;
+
+                if (className == CubemapReader.ClassName)
+                {
+                    cubemaps++;
+                    var cubemap = CubemapReader.Read(package, export);
+                    if (cubemap?.IsComplete == true) completeCubemaps++;
+                    else if (partialCubemaps.Count < 20)
+                        partialCubemaps.Add($"{Path.GetFileName(file)}/{export.ObjectName}: "
+                            + $"{cubemap?.Faces.Count ?? 0} faces, "
+                            + $"{cubemap?.UnreadableFaces.Count ?? 0} unreadable");
+                }
+
                 if (className != "Texture") continue;
                 if (export.SerialSize < 64) continue;
 
@@ -128,6 +141,12 @@ public sealed class TextureIntentCensusTests(GameFixture game)
         // Cubemaps are a distinct class and they do ship. Undecoded as of 23 Aug 2026.
         Assert.True(classCounts.GetValueOrDefault("Cubemap") > 100,
             "no Cubemap exports found, so the class is not the cubemap carrier after all");
+
+        // Every cubemap in the game resolves all six faces. One package resolving was not enough
+        // to claim the format: this is the whole-game check behind that claim.
+        Log($"{cubemaps:N0} cubemaps, {completeCubemaps:N0} complete");
+        foreach (string line in partialCubemaps) Log("      " + line);
+        Assert.Equal(cubemaps, completeCubemaps);
 
         // Addressing is declared, and only ever as "clamp" — which is why an absent property is
         // read as wrap rather than as unknown.

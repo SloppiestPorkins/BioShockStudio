@@ -517,9 +517,14 @@ material.
        `Bool` property, which lives in bit 7 of the info byte. That matters because this game
        serialises false bools — `bStreamable` is written 4,374 times and is false on every one — so
        a presence test is not a value test. Now exposed as `UnrealProperty.BoolValue`.
-   - **Still open in this item:** **cubemaps are undecoded** — 287 exports of a distinct `Cubemap`
-     class, with face layout and ordering `UNKNOWN`; and **no representative UE5 import has been
-     validated**, which is the item's other half and needs UE5 itself rather than more decoding.
+   - **Cubemaps decoded, 23 Aug 2026.** No new payload format at all: a `Cubemap`'s six `Faces`
+     entries are object references to plain `Texture` exports named `<cubemap>_Face_N`. **All 287
+     in the game resolve all six faces** (`CubemapReader`, `CubemapTests`, plus the whole-game
+     check in `TextureIntentCensusTests`). Face *ordering* stays `UNKNOWN` — the game names them
+     only `_Face_0..5` — so declaration order is preserved rather than a convention guessed at.
+   - **Still open in this item: no representative UE5 import has been validated.** That is the
+     item's remaining half and it needs UE5 itself rather than more decoding — everything the
+     importer would consume is now exported and unit-tested.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.

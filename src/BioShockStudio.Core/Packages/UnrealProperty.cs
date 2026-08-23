@@ -52,6 +52,32 @@ public sealed record UnrealProperty
     public int AsInt() => Value.Length >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(Value) : 0;
     public float AsFloat() => Value.Length >= 4 ? BinaryPrimitives.ReadSingleLittleEndian(Value) : 0f;
 
+    /// <summary>
+    /// Reads an <see cref="UnrealPropertyType.Object"/> property's value as a package reference.
+    /// </summary>
+    /// <remarks>
+    /// The value is an <c>FCompactIndex</c>: positive selects an export, negative an import, zero is
+    /// null. Returns false rather than throwing when the bytes do not form one, so a caller walking
+    /// a property list does not have to guard every reference itself.
+    /// </remarks>
+    public bool TryAsObjectReference(out PackageIndex reference)
+    {
+        reference = default;
+        if (Value.Length == 0) return false;
+
+        int offset = 0;
+        try
+        {
+            reference = new PackageIndex(UnrealPropertyReader.ReadCompactIndexAt(Value, ref offset));
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return false;
+        }
+    }
+
     public override string ToString() => $"{Name} ({Type})";
 }
 
@@ -321,6 +347,12 @@ public static class UnrealPropertyReader
         offset += 4;
         return value;
     }
+
+    /// <summary>
+    /// <see cref="ReadCompactIndex"/>, exposed for <see cref="UnrealProperty.TryAsObjectReference"/>.
+    /// </summary>
+    internal static int ReadCompactIndexAt(ReadOnlySpan<byte> data, ref int offset) =>
+        ReadCompactIndex(data, ref offset);
 
     private static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
     {

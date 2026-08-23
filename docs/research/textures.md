@@ -61,10 +61,18 @@ the census did exactly this and produced a clean, plausible, entirely wrong tabl
 
 ## Still open
 
-- **Cubemaps are undecoded.** 287 exports of a distinct `Cubemap` class, and materials name
-  `ReflectionCubemap` / `UseSpecularCubemaps`. `TextureIntent` has a `Cubemap` usage for the slot
-  side, but nothing reads the class's payload — face layout, ordering and whether the faces are
-  separate `Texture` objects are all `UNKNOWN`.
+- ~~**Cubemaps are undecoded.**~~ **Decoded, 23 Aug 2026 — and there was nothing hard in it.** A
+  `Cubemap` introduces no new payload format: its export is an ordinary property list whose six
+  `Faces` entries are `Object` references to plain `Texture` exports named `<cubemap>_Face_N`,
+  which `TextureReader` already handled. **All 287 cubemaps in the game resolve all six faces**
+  (`CubemapReader`, pinned by `CubemapTests` and by the whole-game check in
+  `TextureIntentCensusTests`). The gap was that nothing looked for them, not that their contents
+  were unknown — the same shape as the skeletal-mesh section table and `m_extractedMotion` before
+  it.
+  - **Face *ordering* is `UNKNOWN`.** The game names them only `_Face_0` to `_Face_5` and nothing
+    read so far states which is +X, -X, +Y and so on. `BioShockCubemap.Faces` preserves declaration
+    order exactly rather than guessing a convention, which would bake a wrong rotation into every
+    reflection.
 - **No representative UE5 import has been validated.** The metadata is exported and unit-tested;
   it has not been round-tripped through UE5 and looked at, which is the other half of the item.
 - **A few diffuse slots resolve to something that is not a base colour** — `GraniteColor_NOR` and
