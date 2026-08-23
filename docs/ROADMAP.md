@@ -611,8 +611,8 @@ material.
 
 ### Gate 2 — animation, rigs and physics
 
-1. Decode remaining Havok animation fields affecting playback: blend hints, compression edge cases,
-   additive semantics, root motion, events beyond what's already surfaced.
+1. ~~Decode remaining Havok animation fields affecting playback: blend hints, compression edge cases,
+   additive semantics, root motion, events beyond what's already surfaced.~~
    **Blend hints/additive semantics: already settled** — `CONFIRMED_EXTERNAL` then census, every one
    of the game's animations is `blendHint` 0 (`NORMAL`); `open-questions.md` §3.
    **Events: already complete** — 47,560 events across all 16,031 animations, 0 blocks left
@@ -663,8 +663,8 @@ material.
    project's own `NurbsBasis` and agrees. See `docs/HANDOFF.md` §6.0c "Where to look next" for the
    full record. No further ground here without either the missing compiled bodies or a genuinely new
    lead — do not re-open this specific comparison.
-3. Map Havok collision/ragdoll data to UE5 Physics Assets only once body shapes, constraints and
-   units are byte-backed — preserve unsupported blocks losslessly rather than guessing.
+3. ~~Map Havok collision/ragdoll data to UE5 Physics Assets only once body shapes, constraints and
+   units are byte-backed — preserve unsupported blocks losslessly rather than guessing.~~
    **Scoping started, 22 Aug 2026** (was genuinely unstarted before — only ragdoll *presence* had
    ever been checked, `CharacterCatalog.DeclaresRagdoll`, never a payload read). One character
    (`AggressorBabyJane`) censused: 17 `hkpRigidBody`, 17 `hkpCapsuleShape`, 16
@@ -755,7 +755,7 @@ material.
      confirmed is that the exceptions are confined to a single rig, which a wrong offset would not
      manage.
    - The joint-limit `Atoms` stay **declined on licence grounds** - do not re-open.
-4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
+4. ~~Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.~~
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
    (`Success - 0 error(s), 5 warning(s)`, the same cosmetic warning shape as the weapon rigs) and
