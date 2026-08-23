@@ -52,7 +52,7 @@ public static class LevelAnalyzer
         "ForceType", "ForceShape", "ForceFilter", "LootSlot", "hkAttachedActorA",
         "hkAttachedActorB", "bDisableCollisions", "hkUseLimitedHinge",
         "hkLimitedHingeFrictionValue", "hkLimitedHingeTauFactor",
-        "AntiPortal",
+        "AntiPortal", "LayerName", "RegionNames", "ScaleMarkerName",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -149,6 +149,7 @@ public static class LevelAnalyzer
             LootSlot = Reference(package, defaults, payload, "LootSlot", null),
             HavokConstraint = HavokConstraint(package, defaults, source.ClassName, payload),
             AntiPortal = Reference(package, defaults, payload, "AntiPortal", null),
+            MapUiMarker = MapUiMarker(package, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -320,6 +321,25 @@ public static class LevelAnalyzer
             UseLimitedHinge = Bool("hkUseLimitedHinge"),
             LimitedHingeFrictionValue = Float("hkLimitedHingeFrictionValue"),
             LimitedHingeTauFactor = Float("hkLimitedHingeTauFactor"),
+        };
+    }
+
+    private static MapUiMarkerData? MapUiMarker(
+        BioShockPackage package, string className, ActorPayload payload)
+    {
+        if (className != "MapUILayerMarker") return null;
+        string? layer = ReadName(package, payload, "LayerName");
+        string? scale = ReadName(package, payload, "ScaleMarkerName");
+        IReadOnlyList<string> regions = [];
+        bool complete = payload.Find("RegionNames") is { Type: UnrealPropertyType.Array } property
+                        && PropertyValues.TryAsNameArrayExact(property, package, out regions);
+        if (layer is null || scale is null) complete = false;
+        return new MapUiMarkerData
+        {
+            LayerName = layer ?? string.Empty,
+            ScaleMarkerName = scale ?? string.Empty,
+            RegionNames = complete ? regions : [],
+            Complete = complete,
         };
     }
 

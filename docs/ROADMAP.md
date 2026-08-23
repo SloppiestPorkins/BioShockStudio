@@ -993,7 +993,12 @@ material.
    `AntiPortal` object reference. Those references now reach the manifest as `VisibilityPending`,
    leaving representation/occlusion behaviour to the UE5 bridge rather than treating the actors as
    unknown. `AntiPortalActorSchemaTests`. **Next:** the remaining 15 genuinely unclassified actors.
-   The now 345 Medical audio actors' declaration was
+
+   **Map UI markers decoded, 23 Aug 2026.** Three `MapUILayerMarker`s export their layer name,
+   scale-marker name and exact numbered-FName region lists (1, 15 and 24 entries) as
+   `MapMarkerPending`. The three `MapUILayerScaleMarker`s carry no class-specific field and now join
+   the plain marker category. `MapUiMarkerSchemaTests`. **Next:** the remaining nine genuinely
+   unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

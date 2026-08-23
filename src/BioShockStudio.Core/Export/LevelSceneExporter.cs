@@ -261,6 +261,13 @@ public static class LevelSceneExporter
                     Complete = actor.HavokConstraint.Complete,
                 },
                 AntiPortal = Describe(actor.AntiPortal),
+                MapUiMarker = actor.MapUiMarker is null ? null : new LevelMapUiMarkerDocument
+                {
+                    LayerName = actor.MapUiMarker.LayerName,
+                    ScaleMarkerName = actor.MapUiMarker.ScaleMarkerName,
+                    RegionNames = actor.MapUiMarker.RegionNames.ToList(),
+                    Complete = actor.MapUiMarker.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -636,6 +643,7 @@ public sealed record LevelActorDocument
     public LevelReferenceDocument? LootSlot { get; init; }
     public LevelHavokConstraintActorDocument? HavokConstraint { get; init; }
     public LevelReferenceDocument? AntiPortal { get; init; }
+    public LevelMapUiMarkerDocument? MapUiMarker { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -701,6 +709,14 @@ public sealed record LevelHavokConstraintActorDocument
     public bool? UseLimitedHinge { get; init; }
     public float? LimitedHingeFrictionValue { get; init; }
     public float? LimitedHingeTauFactor { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelMapUiMarkerDocument
+{
+    public required string LayerName { get; init; }
+    public required string ScaleMarkerName { get; init; }
+    public required List<string> RegionNames { get; init; }
     public required bool Complete { get; init; }
 }
 

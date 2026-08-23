@@ -280,6 +280,14 @@ public sealed record HavokConstraintActorData
                             && AttachedActorB?.Status != ResolutionStatus.Failed;
 }
 
+public sealed record MapUiMarkerData
+{
+    public required string LayerName { get; init; }
+    public required string ScaleMarkerName { get; init; }
+    public required IReadOnlyList<string> RegionNames { get; init; }
+    public bool Complete { get; init; }
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -321,6 +329,7 @@ public sealed record LevelActor
 
     /// <summary>The occlusion volume/model selected by an anti-portal actor.</summary>
     public AssetReference? AntiPortal { get; init; }
+    public MapUiMarkerData? MapUiMarker { get; init; }
 
     public required ActorTransform Transform { get; init; }
 
