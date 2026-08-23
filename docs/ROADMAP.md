@@ -958,10 +958,26 @@ material.
      updated**. Both report created/updated/skipped/unsupported per run.
 2. Keep source exports immutable — Blender-normalized and UE5-generated files already live under
    `_ue5_normalized/`, separate from the source export, which is the right shape to keep.
-3. Build one UE5 validation map containing an instance of every supported asset class, then a
-   per-level import report.
+3. ~~Build one UE5 validation map containing an instance of every supported asset class, then a
+   per-level import report.~~ **Done, 23 Aug 2026 — `tools/ue5/build_validation_map.py`, built and
+   verified in UE5.7 with `missing: []`.** Holds a skeletal mesh, a point light, the level
+   importer's placeholder class, and the textures with their intent read back from the assets.
+   The per-level import report is what `import_level.py` returns and logs.
+   - **It states what is *not* supported too** — level geometry (OBJ, not imported as UE5 meshes),
+     UE5 material graphs (bindings exported, no graph generated), cubemaps (decoded and
+     probe-located, not imported as reflection captures) — so the map cannot imply broader coverage
+     than exists. The report's `missing` field is the one that matters: a class claimed as
+     supported but not instanced is a failure, reported rather than skipped.
 4. Only add an app-facing "export to UE5" workflow once the command-line import reproduces cleanly
    on a fresh UE5 project — deliberately not sooner.
+   **Precondition tested 23 Aug 2026 and it is *nearly* met, with one documented caveat.** A rig
+   import into a genuinely fresh project succeeds for meshes, skeletons, animations and textures,
+   but **fails at socket restoration**: `BioShockImportTools` is a **C++** plugin, so copying the
+   folder in (as `tools/ue5/README.md` step 1 said) does not make
+   `unreal.BioShockSocketLibrary` exist. The project must either be a C++ project, or receive
+   prebuilt binaries. README corrected.
+   - **The item itself is a product decision, not a decode**, and stays unstarted pending a call on
+     whether the app should carry this workflow at all.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

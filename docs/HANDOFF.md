@@ -14,7 +14,7 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | Gates 1-3 largely closed; see ROADMAP. **UE5 is at `G:\\Games\\UE_5.7\\` and is NOT blocked** — an earlier claim this session that it was missing has been corrected. Next: run a representative UE5 import to close Gate 1 item 3, then Gate 3 item 3's remaining actor schemas | `src/BioShockStudio.Core/`, `tools/ue5/`, `tests/BioShockStudio.Tests/` | 23 Aug 2026 |
+| Claude (this session) | **UE5 pipeline closed out**: Gate 1 item 3, Gate 3 item 4, Gate 5 items 1 and 3 all done and verified in UE5.7 (textures with intent, idempotent rig + level import, validation map). Gate 5 item 4 is a product decision, precondition tested. Remaining decode work: Gate 3 item 3's region/effect/unclassified actor schemas | `src/BioShockStudio.Core/`, `tools/ue5/`, `tests/BioShockStudio.Tests/` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
