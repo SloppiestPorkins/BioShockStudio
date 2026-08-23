@@ -927,7 +927,14 @@ material.
    coverage ledger reports 134 `EffectPending` because eight emitter-bearing actors are classified
    earlier by geometry/light translation precedence; that difference is not missing emitter data.
    `EffectActorSchemaTests` pins both counts and the end-to-end export. What remains is selecting a
-   Niagara representation, not decoding the shipped declaration. **Next:** 338 genuinely
+   Niagara representation, not decoding the shipped declaration.
+
+   **Plain markers completed, 23 Aug 2026.** The largest formerly unclassified class is **150
+   `Marker` actors**. Their retained property ledger contains no class-specific field at all: only
+   the common actor record already exported (identity, transform, region, tag/ownership) plus the
+   engine bookkeeping references `Level`, `PhysicsVolume` and `CheckpointTypePadding`. They now
+   report as `MarkerPending`, meaning a UE5 placeholder representation has not been selected rather
+   than that bytes remain undecoded. `MarkerActorSchemaTests`. **Next:** the remaining 188 genuinely
    unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

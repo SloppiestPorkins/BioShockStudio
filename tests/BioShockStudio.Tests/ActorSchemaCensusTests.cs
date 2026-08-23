@@ -36,7 +36,7 @@ public sealed class ActorSchemaCensusTests(GameFixture game)
                 foreach (var (status, count) in row.StatusCounts)
                 {
                     string key = status.ToString();
-                    if (key is not ("AudioPending" or "RegionPending" or "EffectPending" or "Unclassified"))
+                    if (key is not ("AudioPending" or "RegionPending" or "EffectPending" or "MarkerPending" or "Unclassified"))
                         continue;
 
                     categoryCounts[key] = categoryCounts.GetValueOrDefault(key) + count;
