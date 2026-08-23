@@ -132,6 +132,17 @@ data, the service should tell it.
 
 Each of these produced a plausible, wrong result before it was understood.
 
+- **A numbered FName renders `nameN`, with no separator — and one reader wrote `name_N`.**
+  `BioShockPackage.ReadFName` appends `extra - 1` directly (CONFIRMED_EXTERNAL against UEViewer's
+  BioShock branch), and every other reader in the project follows it. `SoundEventReader` wrote
+  `name_N` instead. Nothing threw and no test went red: the name it produced simply matched no
+  export, so **100 sound references game-wide resolved to nothing** and looked like missing data
+  rather than a rendering bug. Found only by asking why `ambience_common_bubbles_2` had no
+  specification when `ambience_common_bubbles2` was sitting in the same package. If a name-keyed
+  lookup misses in this codebase, check the numbering convention before concluding the target is
+  absent. Fixed 23 Aug 2026; `SoundActorSpecificationTests.ANumberedSpecificationNameMatchesItsExport`
+  pins it.
+
 - **Every asset this project produced was mirrored, for two years of commits, because there was no
   coordinate conversion at all.** BioShock's basis is left-handed (+X forward, +Y right, +Z up);
   every consumer — the preview rasteriser, FBX as Blender reads it, Blender, glTF — is right-handed.

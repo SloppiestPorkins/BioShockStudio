@@ -203,7 +203,11 @@ public static class SoundEventReader
             if (index < 0 || index >= package.Names.Count || offset + 4 != value.Length) return false;
             int number = BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(offset));
             name = package.Names[index].Name;
-            if (number > 0) name += $"_{number - 1}";
+            // The suffix carries no separator - the same rendering the package's own FName reader
+            // uses, confirmed against UEViewer's BioShock branch. Writing "name_N" here instead made
+            // every numbered specification name miss the export it refers to: the response naming
+            // ambience_common_bubbles number 2 points at the export ambience_common_bubbles2.
+            if (number > 0) name += (number - 1).ToString();
             return true;
         }
         catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException

@@ -1115,6 +1115,24 @@ material.
      every one of the 81,775 entries, so the name is the only link to the sample.
      `SoundEffectSpecificationCoverageTests`, `SoundEffectSpecificationTests`;
      `docs/research/audio.md`.
+   - **The placed-actor blocker is closed, 23 Aug 2026.** `AmbientSound` reaches its specification
+     through the event response named `AmbientSoundSpawned_<Tag>`; `SoundMarker` names its
+     specification outright through `Schema1`/`Schema2`. The prefix is structural, not a
+     resemblance: all **10,360** shipped `AmbientSoundSpawned_*` responses carry `Event="Spawned"`
+     and `SourceClassName="AmbientSound"`, no exceptions. **3,068 of 3,247 sound actors now resolve
+     to a shipped `SoundEffectSpecification`** — `AmbientSound` 2,751/2,893, `SoundMarker` 317/352,
+     `MusicBox` 0/2 — against **177** by exact FSB name matching, and 0 `AmbientSound`s before.
+     Matching stays exact; the 179 that do not resolve mostly carry only an editor default label.
+     A one-line rendering bug in `SoundEventReader` (numbered FNames written `name_N` where every
+     other reader in the project writes `nameN`) was silently costing 100 references and is fixed.
+     `SoundActorSpecificationIndex`; `SoundActorSpecificationCoverageTests`,
+     `SoundActorSpecificationTests`.
+   - **What is still open is narrower and concrete.** Of the 5,726 distinct sample names the
+     specifications reference, 2,080 are native `Sound` exports and 1,676 are in the FSB5 banks
+     (disjoint sets); **1,970 (34.4%) are in neither store**. That is the remaining part of
+     `docs/research/audio.md` §4 — now an exact list of names rather than "where does sound-effect
+     data ship". Chance/level-context selection (which alternative wins) is engine behaviour and
+     remains deliberately undecided.
    - **Note:** the earlier "those settings do not exist" reading was recorded by the Claude session
      while auditing the roadmap, and was correct about the actors and wrong about the game. The
      audio track was worked concurrently by another session until 23 Aug 2026, when this session

@@ -112,7 +112,16 @@ self-validating pattern as the `MaskMaterial` struct-size correction. Requiring 
 
 `Chance` (`01 64000000` — one element, value 100) is `LIKELY` a percentage, and is not read.
 
-## 4. Where the sound data is — `UNKNOWN`, and this is the blocker
+## 4. Where the sound data is — partly located; the actor-resolution half is closed
+
+> **Updated 23 Aug 2026.** When this section was written, nothing connected a placed sound actor to
+> any shipped sound data, and that was the project's audio blocker. **The resolution half is now
+> closed** — see "Placed actor to specification" below: 3,068 of 3,247 sound actors reach a shipped
+> `SoundEffectSpecification`, which names its samples. What remains open is narrower and concrete:
+> **1,970 of the 5,726 named samples are in neither the native `Sound` exports nor the FSB5 banks.**
+> That is a list of exact names now, not an open question about where audio ships. The rest of this
+> section is the original investigation and is kept because its negative results still hold.
+
 
 `ContentBaked/pc/Sounds_Windows/` holds **65 `.fsb` files, 2.1 GB**.
 
@@ -468,3 +477,65 @@ under two different flags, which is why the array is a list and not a set of nam
 is the obvious reading and is **not** promoted to a fact: the correspondence has nothing outside the
 sample names supporting it yet.
 
+
+## Placed actor to specification — `CONFIRMED_BYTES`
+
+**Status: `CONFIRMED_BYTES` across all 21 maps, 23 Aug 2026.** `SoundActorSpecificationCoverageTests`
+for the sweep, `SoundActorSpecificationTests` for the individual readings.
+`SoundActorSpecificationIndex` implements it.
+
+Section 4 above recorded the blocker: the actors name their audio, only 7 of 3,247 names hit
+anything in the level package, and exact matching against the FSB sample names resolved 177 actors —
+all `SoundMarker`s, and no `AmbientSound` at all. The missing step was one indirection further out.
+
+```
+AmbientSound  Tag "LighthouseWavelets"
+       ↓  the event response named AmbientSoundSpawned_<Tag>
+EventResponse_SoundEffectsSubsystem   Event "Spawned", SourceClassName "AmbientSound"
+       ↓  its Specification names one
+SoundEffectSpecification "ambience_0_wavelets"
+       ↓  its SoundSpecs array
+sample "ambience_0_wavelets" in unit "ambience_0_Lighthouse"
+```
+
+**The prefix is structural, not a name resemblance.** All **10,360** shipped
+`AmbientSoundSpawned_*` responses carry `Event == "Spawned"` and `SourceClassName == "AmbientSound"`,
+with no exceptions. A prefix that meant nothing would not do that.
+
+`SoundMarker` takes the other route and names its specification outright through `Schema1`/`Schema2`.
+The two routes are disjoint in the shipped data — no `AmbientSound` names a specification directly,
+and no `SoundMarker` goes through a spawned event — which is what makes them two routes rather than
+one heuristic with exceptions.
+
+| | Actors | Resolved | Route |
+|---|---|---|---|
+| `AmbientSound` | 2,893 | **2,751** (95.1%) | spawned event |
+| `SoundMarker` | 352 | **317** (90.1%) | direct |
+| `MusicBox` | 2 | 0 | — |
+| **Total** | **3,247** | **3,068** (94.5%) | (was 177) |
+
+The 179 that do not resolve declare no name any shipped object answers to; many carry only an editor
+default (`SoundMarker3`, `AmbientSound`). Matching is exact throughout — nothing is normalised and
+nothing is fuzzily matched, which is what the earlier `LightSquare`/`Bubbles` negative warned
+against.
+
+### One rendering bug was costing 100 references
+
+`SoundEventReader` rendered a numbered FName as `name_N` while every other reader in the project —
+and `BioShockPackage`'s own FName reader, confirmed against UEViewer's BioShock branch — renders it
+as `nameN` with no separator. The response naming `ambience_common_bubbles` number 2 therefore
+produced `ambience_common_bubbles_2`, which matches no export; the export is
+`ambience_common_bubbles2`. Nothing failed and nothing threw: the name simply resolved to nothing,
+on 100 references game-wide. Unifying the rendering left **3** unresolved.
+
+### Where the named samples ship
+
+| Store | Distinct names |
+|---|---|
+| Native `Sound` exports in the map packages | **2,080** |
+| Streamed FSB5 banks | **1,676** |
+| **Located** | **3,756** of 5,726 |
+| **In neither** | **1,970** (34.4%) |
+
+The two stores do not overlap on a single name. The 1,970 remainder is the honest state of
+section 4: still open, but now an exact list rather than an open question.
