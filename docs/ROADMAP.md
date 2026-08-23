@@ -705,6 +705,24 @@ material.
    joint limits and `hkpRigidBody`'s remaining fields (mass/inertia/world transform — a real header
    exists for these, genuinely just unattempted, not blocked) are what a future session would pick up.
    Full record: `docs/research/havok-physics.md`.
+
+   **`hkpRigidBody`'s world transform and mass properties decoded, 23 Aug 2026 - `CONFIRMED_BYTES`
+   across 207 ragdolls and 1,426 rigid bodies.** `m_transform` at `+240`, `m_inertiaAndMassInv` at
+   `+416`. **Found by search and confirmed by structure, not by offset arithmetic** through
+   `hkpEntity`'s inheritance chain - which is what the previous inconclusive pass had attempted.
+   Four independent properties agree: exactly one offset gives an orthonormal basis; its determinant
+   is +1 on **1,426 of 1,426** bodies; the translations show bilateral limb symmetry **and the
+   inertia values mirror in the same pairs**; and `1/w` is a clean authored mass on every simulated
+   body in the game (5 kg x351, 10 x202, 1 x132, 30 x105, 20 x80). Positions are metres, matching
+   the capsules. **40 bodies are fixed (infinite mass)** - doors, wall cameras, a blast door post, a
+   slot machine, a scripted plane crash - which a UE5 bridge needs, since a fixed body is a
+   kinematic constraint rather than a simulated one. `RigidBodyMotionTests`,
+   `RigidBodyMotionCoverageTests`.
+   - **A disproved assumption, recorded:** "a character has an `hkaRagdollInstance`, a prop does
+     not" is **false** - props carry them too. So there is no structural prop/character
+     discriminator here, and the categorisation above is by name, logged rather than asserted.
+   - **Still open, unattempted rather than blocked:** velocities, damping, friction, restitution.
+     The joint-limit `Atoms` stay **declined on licence grounds** - do not re-open.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly

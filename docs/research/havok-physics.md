@@ -233,3 +233,71 @@ directly) and the constraints' own limit angles/motor parameters
 scoping choice). A UE5 import built on what's decoded here would place every body correctly-shaped and
 correctly-connected; it just couldn't enforce joint limits without either the missing data or values
 supplied from elsewhere (e.g. reasonable defaults, or hand-authored per the target skeleton).
+
+## `hkpRigidBody`: world transform and mass properties
+
+**Status: `CONFIRMED_BYTES` across all 33 packages, 23 Aug 2026.** 207 ragdolls, 1,426 rigid bodies.
+Pinned by `RigidBodyMotionTests` and `RigidBodyMotionCoverageTests`.
+
+The fields the previous pass left explicitly unattempted (not blocked). Two offsets, relative to the
+rigid body object:
+
+| Offset | Field |
+|---|---|
+| `+240` | `hkMotionState::m_transform` - three rotation columns then translation |
+| `+416` | `hkpMotion::m_inertiaAndMassInv` - inverse inertia in xyz, inverse mass in w |
+
+### Found by search, confirmed by structure - not by offset arithmetic
+
+Deriving these by hand through `hkpEntity` to `hkpWorldObject` to `hkpCollidable` to `hkpCdBody`
+plus the embedded `hkpMaxSizeMotion`, each with its own mix of real and `+nosave` fields, is exactly
+the kind of derivation that yields a confident wrong answer. Instead every 16-byte-aligned position
+was tested for an orthonormal 3x3 basis, and **exactly one offset hits, on all 17 bodies of the
+first character tried**.
+
+Four independent structural properties then agree, which is what promotes this past "plausible":
+
+1. **Orthonormality** - one offset, every body.
+2. **Right-handedness** - determinant +1 on **1,426 of 1,426** bodies game-wide, so it is a rotation
+   rather than a coincidence of magnitudes.
+3. **Bilateral symmetry** - a humanoid ragdoll's limbs come in near-exact plus/minus pairs on the
+   lateral axis (0.209, 0.30, 0.38, 0.765, 1.168 on `AggressorBabyJane`), and *the inertia values
+   mirror in the same pairs* (15.30579/15.30573, 89.37517/89.37514, 587.34/587.53). Random data
+   does not mirror itself, twice, independently.
+4. **Round masses** - `1/w` is a clean authored value on **every simulated body in the game**:
+   60, 30, 10, 5, 1 kg on this character, totalling 224; game-wide the commonest are 5 (x351),
+   10 (x202), 1 (x132), 30 (x105), 20 (x80). A misread offset gives arbitrary reals.
+
+Positions are **metres**, agreeing with `hkpCapsuleShape` and not with the centimetre-scaled mesh
+and animation data - the same two-scale situation already recorded for root motion.
+
+### Fixed bodies
+
+**40 bodies have zero inverse mass** - Havok's infinite-mass fixed/keyframed body, exposed as
+`HkpRigidBodyMotion.IsFixed`. They belong to `LoadRoomDoorAnim`, `SecurityCameraSmall`,
+`SecurityCameraSmallWall`, `BlastDoorPost`, `SlotMachine_MESH` and `Wel_PlaneCrash` - doors,
+wall-mounted cameras, a blast door post, a slot machine and a scripted set-piece. That they sort
+themselves into exactly the set of things which ought to be anchored to the world is further
+corroboration of the offset. **A UE5 bridge needs this distinction**: a fixed body becomes a
+kinematic constraint, not a simulated one.
+
+**`UNKNOWN`, and deliberately not asserted:** there is no structural way found here to say "prop"
+rather than "character". The obvious candidate - "a character has an `hkaRagdollInstance` and a prop
+does not" - **is false**: doors, cameras and the slot machine all carry one. The categorisation
+above is by name, and is recorded as observation rather than encoded as a rule.
+
+### Two over-strict tests, both corrected
+
+Worth recording because the pattern cost two cycles: the coverage test first demanded **whole**
+kilograms and reported 160 failures, every one of which was 7.5, 1.5 or 0.2 kg - authored values
+too (a flower vase weighs 0.2 kg). It then counted the 40 infinite-mass bodies as failures. **Both
+times the test was wrong and the decode was right.** A test that encodes a guess about the data is
+not a check on the decode.
+
+### Still open
+
+`hkpRigidBody`'s velocities, damping, friction and restitution are untouched - a real header exists
+for them, so they are unattempted rather than blocked, the same status this section's subject had
+before today. `hkpRagdollConstraintData::Atoms` (the joint limits) remains **declined on licence
+grounds** - see the entry above; do not re-open it.
+
