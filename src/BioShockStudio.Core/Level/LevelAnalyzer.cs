@@ -27,6 +27,8 @@ public static class LevelAnalyzer
         "TriggerOnlyOnce", "TriggerWhenNotSeen", "CollisionRadius", "CollisionHeight",
         "MinimumDistance", "TriggeredBy", "TriggerOnlyByLabel", "triggeredByFilter",
         "TriggerOnlyByClass",
+        "MainScale", "PostScale", "WaterMesh1", "Axis", "MovingInWaterPenalty", "Priority",
+        "bNoDelete",
         "CurrentAmbientVectorHigh", "CurrentAmbientColorHigh", "CurrentAmbientColorHighMultiplier",
         "CurrentAmbientColorLowMultiplier", "CurrentAmbientContrastPower", "CurrentAmbientXGroundRatio",
         "NormalPressureAmbientVectorHigh", "NormalPressureAmbientColorHigh",
@@ -344,8 +346,53 @@ public static class LevelAnalyzer
             };
         }
 
+        ActorScaleData? Scale(string name)
+        {
+            if (payload.Find(name) is not { Type: UnrealPropertyType.Struct, StructName: "Scale" } property)
+                return null;
+            try
+            {
+                var fields = UnrealPropertyReader.Read(property.Value, package.Names, out int end, out bool truncated, 0);
+                var scale = fields.FirstOrDefault(field => field.Name == "Scale"
+                                                            && field.Type == UnrealPropertyType.Struct
+                                                            && field.StructName == "Vector");
+                var sheerRate = fields.FirstOrDefault(field => field.Name == "SheerRate"
+                                                                && field.Type == UnrealPropertyType.Float);
+                var sheerAxis = fields.FirstOrDefault(field => field.Name == "SheerAxis"
+                                                                && field.Type == UnrealPropertyType.Byte);
+                if (truncated || end != property.Value.Length || scale is null || sheerRate is null || sheerAxis is null
+                    || PropertyValues.AsVector(scale) is not { } vector)
+                {
+                    complete = false;
+                    return null;
+                }
+                return new ActorScaleData
+                {
+                    Scale = vector,
+                    SheerRate = sheerRate.AsFloat(),
+                    SheerAxis = sheerAxis.AsByte(),
+                };
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                           or ArgumentOutOfRangeException)
+            {
+                complete = false;
+                return null;
+            }
+        }
+
+        AssetReference? waterMesh = null;
+        if (payload.Find("WaterMesh1") is { Type: UnrealPropertyType.Object } water
+            && PropertyValues.AsReference(water) is { } waterIndex && !waterIndex.IsNull)
+        {
+            waterMesh = Describe(package, waterIndex, "actor", null);
+            if (waterMesh is null) complete = false;
+        }
+
         return new RegionActorData
         {
+            MainScale = Scale("MainScale"),
+            PostScale = Scale("PostScale"),
             BlockActors = Bool("bBlockActors"),
             BlockHavok = Bool("bBlockHavok"),
             BlockNonZeroExtentTraces = Bool("bBlockNonZeroExtentTraces"),
@@ -363,6 +410,11 @@ public static class LevelAnalyzer
             TriggerOnlyByLabels = Names("TriggerOnlyByLabel"),
             TriggeredByFilter = Names("triggeredByFilter"),
             TriggerOnlyByClasses = classReferences,
+            WaterMesh = waterMesh,
+            WaterAxis = payload.Find("Axis") is { Type: UnrealPropertyType.Byte } axis ? axis.AsByte() : null,
+            MovingInWaterPenalty = Float("MovingInWaterPenalty"),
+            Priority = payload.Find("Priority") is { Type: UnrealPropertyType.Int } priority ? priority.AsInt() : null,
+            NoDelete = Bool("bNoDelete"),
             Zone = zone,
             Complete = complete,
         };

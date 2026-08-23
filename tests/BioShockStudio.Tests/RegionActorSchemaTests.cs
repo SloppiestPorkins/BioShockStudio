@@ -57,6 +57,19 @@ public sealed class RegionActorSchemaTests(GameFixture game)
         Assert.Single(zones.Where(actor => actor.RegionActor!.Zone!.HighFog is not null));
         Assert.Equal(4, zones.Count(actor => actor.RegionActor!.Zone!.ManualExcludes.Count > 0));
 
+        Assert.Equal(174, actors.Count(actor => actor.RegionActor!.MainScale is not null));
+        Assert.Equal(174, actors.Count(actor => actor.RegionActor!.PostScale is not null));
+        var water = actors.Where(actor => actor.Source.ClassName == "CascadingWaterVolume").ToList();
+        Assert.Equal(14, water.Count);
+        Assert.All(water, actor => Assert.NotNull(actor.RegionActor!.WaterMesh));
+        Assert.Equal(6, water.Count(actor => actor.RegionActor!.WaterAxis is not null));
+        var fluid = actors.Where(actor => actor.Source.ClassName == "FluidVolume").ToList();
+        Assert.Equal(3, fluid.Count(actor => actor.RegionActor!.MovingInWaterPenalty is not null));
+        Assert.Single(fluid.Where(actor => actor.RegionActor!.Enabled is not null));
+        var defaultPhysics = Assert.Single(actors.Where(actor => actor.Source.ClassName == "DefaultPhysicsVolume"));
+        Assert.NotNull(defaultPhysics.RegionActor!.Priority);
+        Assert.NotNull(defaultPhysics.RegionActor.NoDelete);
+
         // The manifest is the UE5 handoff. A field decoded only in LevelActor is not done.
         using (var package = BioShockPackage.Open(game.MedicalPackage))
         {

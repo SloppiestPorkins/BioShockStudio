@@ -154,6 +154,8 @@ public sealed record ActorRegion
 /// <summary>Typed collision and trigger fields carried by region/volume actors.</summary>
 public sealed record RegionActorData
 {
+    public ActorScaleData? MainScale { get; init; }
+    public ActorScaleData? PostScale { get; init; }
     public bool? BlockActors { get; init; }
     public bool? BlockHavok { get; init; }
     public bool? BlockNonZeroExtentTraces { get; init; }
@@ -171,8 +173,20 @@ public sealed record RegionActorData
     public IReadOnlyList<string> TriggerOnlyByLabels { get; init; } = [];
     public IReadOnlyList<string> TriggeredByFilter { get; init; } = [];
     public IReadOnlyList<AssetReference> TriggerOnlyByClasses { get; init; } = [];
+    public AssetReference? WaterMesh { get; init; }
+    public byte? WaterAxis { get; init; }
+    public float? MovingInWaterPenalty { get; init; }
+    public int? Priority { get; init; }
+    public bool? NoDelete { get; init; }
     public ZoneActorData? Zone { get; init; }
     public bool Complete { get; init; }
+}
+
+public sealed record ActorScaleData
+{
+    public required Vector3 Scale { get; init; }
+    public required float SheerRate { get; init; }
+    public required byte SheerAxis { get; init; }
 }
 
 public sealed record ZoneAmbientData

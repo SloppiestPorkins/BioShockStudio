@@ -918,3 +918,10 @@ arrays, while all four `ManualExcludes` occurrences are object-reference arrays.
 rejects a plausible prefix of the wrong element type. Counts pinned by the same test: 56 zones carry
 reverb and spawn-zone data, 55 a map UI region, and 13 current/normal fog data.
 
+**The region category is complete, same session.** The remaining common `MainScale`/`PostScale`
+values are nested `Scale` structs (`Scale` vector, `SheerRate`, `SheerAxis`) and decode exactly on all
+174 brush-backed region actors. All 14 `CascadingWaterVolume` actors resolve `WaterMesh1` and six
+serialise `Axis`; three of 13 `FluidVolume` actors serialise `MovingInWaterPenalty` and one an enabled
+override; `DefaultPhysicsVolume` carries typed priority and `bNoDelete`. No class-specific gameplay
+field from the retained 253-actor census remains only as hex.
+

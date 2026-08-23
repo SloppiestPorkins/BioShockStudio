@@ -917,9 +917,11 @@ material.
    state, radius/height/distance and collision flags are decoded with absent-vs-false preserved.
    `RegionActorSchemaTests`; `docs/research/bsp.md`. **`ZoneInfo` completed in the next slice:** all
    59 Medical zones now export their ambient-pressure states, fog variants, reverb, map/pressure
-   regions and typed name/reference arrays. **Next within this category:** the smaller specialised
-   volume fields (`CascadingWaterVolume`, `FluidVolume`, `DefaultPhysicsVolume`). After region
-   actors: 134 effect actors, then 338 genuinely
+   regions and typed name/reference arrays. **Region actors completed in the final slice:** all 174
+   brush-backed actors export exact nested main/post scale structs; cascading-water mesh/axis,
+   fluid penalty/enabled state and default-volume priority/lifetime flags are typed too. No
+   class-specific gameplay field in the retained 253-actor census remains only as hex. **Next:**
+   134 effect actors, then 338 genuinely
    unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

@@ -185,6 +185,8 @@ public static class LevelSceneExporter
                 },
                 RegionActor = actor.RegionActor is null ? null : new LevelRegionActorDocument
                 {
+                    MainScale = ScaleDocument(actor.RegionActor.MainScale),
+                    PostScale = ScaleDocument(actor.RegionActor.PostScale),
                     BlockActors = actor.RegionActor.BlockActors,
                     BlockHavok = actor.RegionActor.BlockHavok,
                     BlockNonZeroExtentTraces = actor.RegionActor.BlockNonZeroExtentTraces,
@@ -202,6 +204,11 @@ public static class LevelSceneExporter
                     TriggerOnlyByLabels = actor.RegionActor.TriggerOnlyByLabels.ToList(),
                     TriggeredByFilter = actor.RegionActor.TriggeredByFilter.ToList(),
                     TriggerOnlyByClasses = actor.RegionActor.TriggerOnlyByClasses.Select(Describe).ToList(),
+                    WaterMesh = Describe(actor.RegionActor.WaterMesh),
+                    WaterAxis = actor.RegionActor.WaterAxis,
+                    MovingInWaterPenalty = actor.RegionActor.MovingInWaterPenalty,
+                    Priority = actor.RegionActor.Priority,
+                    NoDelete = actor.RegionActor.NoDelete,
                     Zone = ZoneDocument(actor.RegionActor.Zone),
                     Complete = actor.RegionActor.Complete,
                 },
@@ -299,6 +306,13 @@ public static class LevelSceneExporter
         SpawnZones = zone.SpawnZones.ToList(),
         EffectsContexts = zone.EffectsContexts.ToList(),
         ManualExcludes = zone.ManualExcludes.Select(Describe).ToList(),
+    };
+
+    private static LevelActorScaleDocument? ScaleDocument(ActorScaleData? scale) => scale is null ? null : new()
+    {
+        Scale = ToArray(scale.Scale),
+        SheerRate = scale.SheerRate,
+        SheerAxis = scale.SheerAxis,
     };
 
     private static LevelZoneAmbientDocument? AmbientDocument(ZoneAmbientData? ambient) => ambient is null ? null : new()
@@ -593,6 +607,8 @@ public sealed record LevelRegionDocument
 /// <summary>Byte-backed collision and trigger schema for UE2 region actors.</summary>
 public sealed record LevelRegionActorDocument
 {
+    public LevelActorScaleDocument? MainScale { get; init; }
+    public LevelActorScaleDocument? PostScale { get; init; }
     public bool? BlockActors { get; init; }
     public bool? BlockHavok { get; init; }
     public bool? BlockNonZeroExtentTraces { get; init; }
@@ -610,8 +626,20 @@ public sealed record LevelRegionActorDocument
     public required List<string> TriggerOnlyByLabels { get; init; }
     public required List<string> TriggeredByFilter { get; init; }
     public required List<LevelReferenceDocument?> TriggerOnlyByClasses { get; init; }
+    public LevelReferenceDocument? WaterMesh { get; init; }
+    public byte? WaterAxis { get; init; }
+    public float? MovingInWaterPenalty { get; init; }
+    public int? Priority { get; init; }
+    public bool? NoDelete { get; init; }
     public LevelZoneActorDocument? Zone { get; init; }
     public required bool Complete { get; init; }
+}
+
+public sealed record LevelActorScaleDocument
+{
+    public required float[] Scale { get; init; }
+    public required float SheerRate { get; init; }
+    public required byte SheerAxis { get; init; }
 }
 
 public sealed record LevelZoneAmbientDocument
