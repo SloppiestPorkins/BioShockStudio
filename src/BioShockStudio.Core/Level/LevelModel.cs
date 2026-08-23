@@ -268,6 +268,18 @@ public sealed record HavokForceActorData
                             && ForceFilter?.Status != ResolutionStatus.Failed;
 }
 
+public sealed record HavokConstraintActorData
+{
+    public required AssetReference AttachedActorA { get; init; }
+    public AssetReference? AttachedActorB { get; init; }
+    public bool? DisableCollisions { get; init; }
+    public bool? UseLimitedHinge { get; init; }
+    public float? LimitedHingeFrictionValue { get; init; }
+    public float? LimitedHingeTauFactor { get; init; }
+    public bool Complete => AttachedActorA.Status != ResolutionStatus.Failed
+                            && AttachedActorB?.Status != ResolutionStatus.Failed;
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -305,6 +317,7 @@ public sealed record LevelActor
 
     /// <summary>The inventory/loot declaration selected by a placed pickup.</summary>
     public AssetReference? LootSlot { get; init; }
+    public HavokConstraintActorData? HavokConstraint { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

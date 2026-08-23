@@ -250,6 +250,16 @@ public static class LevelSceneExporter
                     Complete = actor.HavokForce.Complete,
                 },
                 LootSlot = Describe(actor.LootSlot),
+                HavokConstraint = actor.HavokConstraint is null ? null : new LevelHavokConstraintActorDocument
+                {
+                    AttachedActorA = Describe(actor.HavokConstraint.AttachedActorA)!,
+                    AttachedActorB = Describe(actor.HavokConstraint.AttachedActorB),
+                    DisableCollisions = actor.HavokConstraint.DisableCollisions,
+                    UseLimitedHinge = actor.HavokConstraint.UseLimitedHinge,
+                    LimitedHingeFrictionValue = actor.HavokConstraint.LimitedHingeFrictionValue,
+                    LimitedHingeTauFactor = actor.HavokConstraint.LimitedHingeTauFactor,
+                    Complete = actor.HavokConstraint.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -623,6 +633,7 @@ public sealed record LevelActorDocument
     public LevelProjectorActorDocument? Projector { get; init; }
     public LevelHavokForceActorDocument? HavokForce { get; init; }
     public LevelReferenceDocument? LootSlot { get; init; }
+    public LevelHavokConstraintActorDocument? HavokConstraint { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -677,6 +688,17 @@ public sealed record LevelHavokForceActorDocument
     public required LevelReferenceDocument ForceType { get; init; }
     public required LevelReferenceDocument ForceShape { get; init; }
     public LevelReferenceDocument? ForceFilter { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelHavokConstraintActorDocument
+{
+    public required LevelReferenceDocument AttachedActorA { get; init; }
+    public LevelReferenceDocument? AttachedActorB { get; init; }
+    public bool? DisableCollisions { get; init; }
+    public bool? UseLimitedHinge { get; init; }
+    public float? LimitedHingeFrictionValue { get; init; }
+    public float? LimitedHingeTauFactor { get; init; }
     public required bool Complete { get; init; }
 }
 

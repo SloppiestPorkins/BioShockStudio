@@ -49,7 +49,9 @@ public static class LevelAnalyzer
         "OverriddenAIArchetypeNames", "Cubemap", "Material", "Tile", "MaxTraceDistance",
         "ZBiasOverride", "ScaleInTime", "AngleGradient", "bProjectOnBackfaces",
         "bProjectStaticMesh", "bProjectSkeletalMesh", "bShouldBeAttached",
-        "ForceType", "ForceShape", "ForceFilter", "LootSlot",
+        "ForceType", "ForceShape", "ForceFilter", "LootSlot", "hkAttachedActorA",
+        "hkAttachedActorB", "bDisableCollisions", "hkUseLimitedHinge",
+        "hkLimitedHingeFrictionValue", "hkLimitedHingeTauFactor",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -144,6 +146,7 @@ public static class LevelAnalyzer
             Projector = Projector(package, defaults, source.ClassName, payload),
             HavokForce = HavokForce(package, defaults, source.ClassName, payload),
             LootSlot = Reference(package, defaults, payload, "LootSlot", null),
+            HavokConstraint = HavokConstraint(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -294,6 +297,27 @@ public static class LevelAnalyzer
             ForceType = forceType,
             ForceShape = forceShape,
             ForceFilter = Reference(package, defaults, payload, "ForceFilter", null),
+        };
+    }
+
+    private static HavokConstraintActorData? HavokConstraint(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className is not ("HavokHingeConstraint" or "HavokBSConstraint")) return null;
+        var actorA = Reference(package, defaults, payload, "hkAttachedActorA", null);
+        if (actorA is null) return null;
+        bool? Bool(string name) => payload.Find(name) is { Type: UnrealPropertyType.Bool } value
+            ? value.BoolValue : null;
+        float? Float(string name) => payload.Find(name) is { Type: UnrealPropertyType.Float, Value.Length: 4 } value
+            ? BinaryPrimitives.ReadSingleLittleEndian(value.Value) : null;
+        return new HavokConstraintActorData
+        {
+            AttachedActorA = actorA,
+            AttachedActorB = Reference(package, defaults, payload, "hkAttachedActorB", null),
+            DisableCollisions = Bool("bDisableCollisions"),
+            UseLimitedHinge = Bool("hkUseLimitedHinge"),
+            LimitedHingeFrictionValue = Float("hkLimitedHingeFrictionValue"),
+            LimitedHingeTauFactor = Float("hkLimitedHingeTauFactor"),
         };
     }
 

@@ -982,7 +982,12 @@ material.
    training-specific field at all; their retained ledger is only the already-covered common actor
    record plus collision/bookkeeping state. They now join plain `Marker` as `MarkerPending`, rather
    than implying a missing schema. `MarkerActorSchemaTests.TrainingMarkersAlsoContainOnlyTheCommonActorRecord`.
-   **Next:** the remaining 24 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   **Havok actor constraints decoded, 23 Aug 2026.** Five `HavokHingeConstraint`s and one
+   `HavokBSConstraint` now export their attached-actor graph as `PhysicsConstraintPending`. Actor A
+   is present on all six; actor B and friction/tau settings on three hinges; two other hinges carry
+   the limited-hinge flag. Nullable booleans retain absence versus false, and no actor link fails
+   resolution. `HavokConstraintActorSchemaTests`. **Next:** the remaining 18 genuinely unclassified
+   actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
