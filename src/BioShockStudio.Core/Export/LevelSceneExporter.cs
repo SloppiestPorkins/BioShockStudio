@@ -285,6 +285,38 @@ public static class LevelSceneExporter
                     Hackable = actor.Interaction.Hackable,
                     ShowHudElements = actor.Interaction.ShowHudElements,
                 },
+                LevelInfo = actor.LevelInfo is null ? null : new LevelInfoActorDocument
+                {
+                    TimeSeconds = actor.LevelInfo.TimeSeconds,
+                    Title = actor.LevelInfo.Title,
+                    FictionalMapName = actor.LevelInfo.FictionalMapName,
+                    Summary = Describe(actor.LevelInfo.Summary),
+                    SpawningManager = Describe(actor.LevelInfo.SpawningManager),
+                    GlowSettings = Describe(actor.LevelInfo.GlowSettings),
+                    ToneMapSettings = Describe(actor.LevelInfo.ToneMapSettings),
+                    LevelAnimInfo = Describe(actor.LevelInfo.LevelAnimInfo),
+                    HasPathNodes = actor.LevelInfo.HasPathNodes,
+                    CameraLocationDynamic = actor.LevelInfo.CameraLocationDynamic is { } dynamicLocation ? ToArray(dynamicLocation) : null,
+                    CameraLocationTop = actor.LevelInfo.CameraLocationTop is { } top ? ToArray(top) : null,
+                    CameraLocationFront = actor.LevelInfo.CameraLocationFront is { } front ? ToArray(front) : null,
+                    CameraLocationSide = actor.LevelInfo.CameraLocationSide is { } side ? ToArray(side) : null,
+                    CameraRotationDynamic = actor.LevelInfo.CameraRotationDynamic is { } rotation
+                        ? [rotation.Pitch, rotation.Yaw, rotation.Roll] : null,
+                    NavigationPoints = actor.LevelInfo.NavigationPoints.Select(reference => Describe(reference)!).ToList(),
+                    PressureRegions = actor.LevelInfo.PressureRegions.Select(region =>
+                        new LevelPressureRegionDocument(region.Name, region.Pressure, region.EffectsDuration)).ToList(),
+                    MapUiRegions = actor.LevelInfo.MapUiRegions.Select(region =>
+                        new LevelMapUiRegionDocument(region.MapUiRegion, region.HudRegion, region.Revealed, region.LastVisited)).ToList(),
+                    MapHudRegions = actor.LevelInfo.MapHudRegions.Select(region =>
+                        new LevelMapHudRegionDocument(region.HudRegion, region.Description)).ToList(),
+                    RequiredAnimationGroups = actor.LevelInfo.RequiredAnimationGroups.Select(group =>
+                        new LevelRequiredAnimationGroupDocument(group.PackageName, group.GroupName)).ToList(),
+                    AmbientXGroundRatio = actor.LevelInfo.AmbientXGroundRatio,
+                    AmbientColorHighMultiplier = actor.LevelInfo.AmbientColorHighMultiplier,
+                    AmbientColorLowMultiplier = actor.LevelInfo.AmbientColorLowMultiplier,
+                    AmbientContrastPower = actor.LevelInfo.AmbientContrastPower,
+                    Complete = actor.LevelInfo.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -663,6 +695,7 @@ public sealed record LevelActorDocument
     public LevelMapUiMarkerDocument? MapUiMarker { get; init; }
     public LevelVendingActorDocument? Vending { get; init; }
     public LevelInteractionActorDocument? Interaction { get; init; }
+    public LevelInfoActorDocument? LevelInfo { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -757,6 +790,39 @@ public sealed record LevelInteractionActorDocument
     public bool? Hackable { get; init; }
     public bool? ShowHudElements { get; init; }
 }
+
+public sealed record LevelInfoActorDocument
+{
+    public float? TimeSeconds { get; init; }
+    public string? Title { get; init; }
+    public string? FictionalMapName { get; init; }
+    public LevelReferenceDocument? Summary { get; init; }
+    public LevelReferenceDocument? SpawningManager { get; init; }
+    public LevelReferenceDocument? GlowSettings { get; init; }
+    public LevelReferenceDocument? ToneMapSettings { get; init; }
+    public LevelReferenceDocument? LevelAnimInfo { get; init; }
+    public bool? HasPathNodes { get; init; }
+    public float[]? CameraLocationDynamic { get; init; }
+    public float[]? CameraLocationTop { get; init; }
+    public float[]? CameraLocationFront { get; init; }
+    public float[]? CameraLocationSide { get; init; }
+    public int[]? CameraRotationDynamic { get; init; }
+    public required List<LevelReferenceDocument> NavigationPoints { get; init; }
+    public required List<LevelPressureRegionDocument> PressureRegions { get; init; }
+    public required List<LevelMapUiRegionDocument> MapUiRegions { get; init; }
+    public required List<LevelMapHudRegionDocument> MapHudRegions { get; init; }
+    public required List<LevelRequiredAnimationGroupDocument> RequiredAnimationGroups { get; init; }
+    public float? AmbientXGroundRatio { get; init; }
+    public float? AmbientColorHighMultiplier { get; init; }
+    public float? AmbientColorLowMultiplier { get; init; }
+    public float? AmbientContrastPower { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelPressureRegionDocument(string Name, byte Pressure, float EffectsDuration);
+public sealed record LevelMapUiRegionDocument(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
+public sealed record LevelMapHudRegionDocument(string HudRegion, string Description);
+public sealed record LevelRequiredAnimationGroupDocument(string PackageName, string GroupName);
 
 public sealed record LevelRegionDocument
 {

@@ -63,6 +63,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded map-UI layer marker awaiting a UE5/editor map representation.</summary>
     MapMarkerPending,
 
+    /// <summary>A decoded map-root world-settings record awaiting a UE5 world-settings representation.</summary>
+    WorldSettingsPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -174,6 +177,7 @@ public sealed record LevelCoverageReport
         if (actor.HavokConstraint is not null) return LevelActorCoverage.PhysicsConstraintPending;
         if (actor.AntiPortal is not null) return LevelActorCoverage.VisibilityPending;
         if (actor.MapUiMarker is not null) return LevelActorCoverage.MapMarkerPending;
+        if (actor.LevelInfo is not null) return LevelActorCoverage.WorldSettingsPending;
         if (actor.Vending is not null) return LevelActorCoverage.InteractionPending;
         if (actor.Interaction is not null) return LevelActorCoverage.InteractionPending;
 

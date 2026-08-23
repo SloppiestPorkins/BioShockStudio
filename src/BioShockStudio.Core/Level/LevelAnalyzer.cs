@@ -55,6 +55,11 @@ public static class LevelAnalyzer
         "AntiPortal", "LayerName", "RegionNames", "ScaleMarkerName", "VendingTableName",
         "VendingTable", "HackInfoName", "StaticMeshInstance", "SendDestructionNotification",
         "bCanBeHacked", "DoorLabel", "bHackable", "bShowHudElements",
+        "TimeSeconds", "Title", "Summary", "SpawningManager", "bHasPathNodes",
+        "CameraLocationDynamic", "CameraLocationTop", "CameraLocationFront", "CameraLocationSide",
+        "CameraRotationDynamic", "GlowSettings", "ToneMapSettings", "NavigationPointList",
+        "PressureRegions", "MapUIRegions", "MapHUDRegions", "LabelFictionalMapName",
+        "RequiredAnimationGroups", "LevelAnimInfo",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -154,6 +159,7 @@ public static class LevelAnalyzer
             MapUiMarker = MapUiMarker(package, source.ClassName, payload),
             Vending = Vending(package, defaults, source.ClassName, payload),
             Interaction = Interaction(package, source.ClassName, payload),
+            LevelInfo = LevelInfo(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -384,6 +390,113 @@ public static class LevelAnalyzer
             HackInfoName = ReadName(package, payload, "HackInfoName"),
             Hackable = Bool("bHackable"),
             ShowHudElements = Bool("bShowHudElements"),
+        };
+    }
+
+    private static LevelInfoActorData? LevelInfo(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className != "LevelInfo") return null;
+        bool complete = true;
+        float? Float(string name) => payload.Find(name) is { Type: UnrealPropertyType.Float, Value.Length: 4 } value
+            ? BinaryPrimitives.ReadSingleLittleEndian(value.Value) : null;
+        Vector3? Vector(string name) => payload.Find(name) is
+            { Type: UnrealPropertyType.Struct, StructName: "Vector" } value ? PropertyValues.AsVector(value) : null;
+        UnrealRotator? Rotator(string name) => payload.Find(name) is
+            { Type: UnrealPropertyType.Struct, StructName: "Rotator" } value ? PropertyValues.AsRotator(value) : null;
+
+        IReadOnlyList<IReadOnlyList<UnrealProperty>> Structs(string name)
+        {
+            if (payload.Find(name) is { Type: UnrealPropertyType.Array } property
+                && PropertyValues.TryAsStructArrayExact(property, package, out var values)) return values;
+            complete = false;
+            return [];
+        }
+        string? FieldName(IReadOnlyList<UnrealProperty> fields, string name) =>
+            fields.FirstOrDefault(field => field.Name == name) is { Type: UnrealPropertyType.Name } value
+                ? PropertyValues.AsName(value, package) : null;
+        string? FieldString(IReadOnlyList<UnrealProperty> fields, string name) =>
+            fields.FirstOrDefault(field => field.Name == name) is { Type: UnrealPropertyType.Str } value
+                ? PropertyValues.AsString(value) : null;
+        float? FieldFloat(IReadOnlyList<UnrealProperty> fields, string name) =>
+            fields.FirstOrDefault(field => field.Name == name) is { Type: UnrealPropertyType.Float, Value.Length: 4 } value
+                ? BinaryPrimitives.ReadSingleLittleEndian(value.Value) : null;
+        bool? FieldBool(IReadOnlyList<UnrealProperty> fields, string name) =>
+            fields.FirstOrDefault(field => field.Name == name) is { Type: UnrealPropertyType.Bool } value
+                ? value.BoolValue : null;
+
+        var navigationPoints = new List<AssetReference>();
+        if (payload.Find("NavigationPointList") is { Type: UnrealPropertyType.Array } navigationProperty
+            && PropertyValues.TryAsReferenceArrayExact(navigationProperty, out var navigationIndices))
+        {
+            foreach (var index in navigationIndices)
+            {
+                if (Describe(package, index, "actor", null) is { } reference) navigationPoints.Add(reference);
+                else complete = false;
+            }
+        }
+        else complete = false;
+
+        var pressureRegions = Structs("PressureRegions").Select(fields =>
+        {
+            string? name = FieldName(fields, "PressureRegion");
+            byte? pressure = fields.FirstOrDefault(field => field.Name == "Pressure") is
+                { Type: UnrealPropertyType.Byte, Value.Length: > 0 } value ? value.Value[0] : null;
+            float? duration = FieldFloat(fields, "EffectsDuration");
+            if (name is null || pressure is null || duration is null) complete = false;
+            return new PressureRegionData(name ?? string.Empty, pressure ?? 0, duration ?? 0);
+        }).ToList();
+        var mapUiRegions = Structs("MapUIRegions").Select(fields =>
+        {
+            string? map = FieldName(fields, "MapUIRegion");
+            string? hud = FieldName(fields, "HUDRegion");
+            float? visited = FieldFloat(fields, "TimeLastVisited");
+            if (map is null || hud is null || visited is null) complete = false;
+            return new MapUiRegionData(map ?? string.Empty, hud ?? string.Empty,
+                FieldBool(fields, "Revealed"), visited ?? 0);
+        }).ToList();
+        var mapHudRegions = Structs("MapHUDRegions").Select(fields =>
+        {
+            string? hud = FieldName(fields, "HUDRegion");
+            string? description = FieldString(fields, "Description");
+            if (hud is null || description is null) complete = false;
+            return new MapHudRegionData(hud ?? string.Empty, description ?? string.Empty);
+        }).ToList();
+        var animationGroups = Structs("RequiredAnimationGroups").Select(fields =>
+        {
+            string? packageName = FieldName(fields, "AnimPackageName");
+            string? groupName = FieldName(fields, "AnimGroupName");
+            if (packageName is null || groupName is null) complete = false;
+            return new RequiredAnimationGroupData(packageName ?? string.Empty, groupName ?? string.Empty);
+        }).ToList();
+
+        return new LevelInfoActorData
+        {
+            TimeSeconds = Float("TimeSeconds"),
+            Title = payload.Find("Title") is { Type: UnrealPropertyType.Str } title ? PropertyValues.AsString(title) : null,
+            FictionalMapName = payload.Find("LabelFictionalMapName") is { Type: UnrealPropertyType.Str } fictional
+                ? PropertyValues.AsString(fictional) : null,
+            Summary = Reference(package, defaults, payload, "Summary", null),
+            SpawningManager = Reference(package, defaults, payload, "SpawningManager", null),
+            GlowSettings = Reference(package, defaults, payload, "GlowSettings", null),
+            ToneMapSettings = Reference(package, defaults, payload, "ToneMapSettings", null),
+            LevelAnimInfo = Reference(package, defaults, payload, "LevelAnimInfo", null),
+            HasPathNodes = payload.Find("bHasPathNodes") is { Type: UnrealPropertyType.Bool } paths ? paths.BoolValue : null,
+            CameraLocationDynamic = Vector("CameraLocationDynamic"),
+            CameraLocationTop = Vector("CameraLocationTop"),
+            CameraLocationFront = Vector("CameraLocationFront"),
+            CameraLocationSide = Vector("CameraLocationSide"),
+            CameraRotationDynamic = Rotator("CameraRotationDynamic"),
+            NavigationPoints = navigationPoints,
+            PressureRegions = pressureRegions,
+            MapUiRegions = mapUiRegions,
+            MapHudRegions = mapHudRegions,
+            RequiredAnimationGroups = animationGroups,
+            AmbientXGroundRatio = Float("CurrentAmbientXGroundRatio"),
+            AmbientColorHighMultiplier = Float("CurrentAmbientColorHighMultiplier"),
+            AmbientColorLowMultiplier = Float("CurrentAmbientColorLowMultiplier"),
+            AmbientContrastPower = Float("CurrentAmbientContrastPower"),
+            Complete = complete,
         };
     }
 

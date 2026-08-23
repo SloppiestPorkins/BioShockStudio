@@ -308,6 +308,39 @@ public sealed record InteractionActorData
     public bool? ShowHudElements { get; init; }
 }
 
+public sealed record LevelInfoActorData
+{
+    public float? TimeSeconds { get; init; }
+    public string? Title { get; init; }
+    public string? FictionalMapName { get; init; }
+    public AssetReference? Summary { get; init; }
+    public AssetReference? SpawningManager { get; init; }
+    public AssetReference? GlowSettings { get; init; }
+    public AssetReference? ToneMapSettings { get; init; }
+    public AssetReference? LevelAnimInfo { get; init; }
+    public bool? HasPathNodes { get; init; }
+    public Vector3? CameraLocationDynamic { get; init; }
+    public Vector3? CameraLocationTop { get; init; }
+    public Vector3? CameraLocationFront { get; init; }
+    public Vector3? CameraLocationSide { get; init; }
+    public UnrealRotator? CameraRotationDynamic { get; init; }
+    public IReadOnlyList<AssetReference> NavigationPoints { get; init; } = [];
+    public IReadOnlyList<PressureRegionData> PressureRegions { get; init; } = [];
+    public IReadOnlyList<MapUiRegionData> MapUiRegions { get; init; } = [];
+    public IReadOnlyList<MapHudRegionData> MapHudRegions { get; init; } = [];
+    public IReadOnlyList<RequiredAnimationGroupData> RequiredAnimationGroups { get; init; } = [];
+    public float? AmbientXGroundRatio { get; init; }
+    public float? AmbientColorHighMultiplier { get; init; }
+    public float? AmbientColorLowMultiplier { get; init; }
+    public float? AmbientContrastPower { get; init; }
+    public bool Complete { get; init; }
+}
+
+public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
+public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
+public sealed record MapHudRegionData(string HudRegion, string Description);
+public sealed record RequiredAnimationGroupData(string PackageName, string GroupName);
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -352,6 +385,7 @@ public sealed record LevelActor
     public MapUiMarkerData? MapUiMarker { get; init; }
     public VendingActorData? Vending { get; init; }
     public InteractionActorData? Interaction { get; init; }
+    public LevelInfoActorData? LevelInfo { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

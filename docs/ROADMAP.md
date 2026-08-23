@@ -1017,7 +1017,15 @@ material.
    **Keypad/toolbox interactions decoded, 23 Aug 2026.** The singleton `DoorKeypadControl` exports
    its door label, hack-info name and nullable hackable flag; `dyn_toolbox_open` exports its nullable
    HUD-elements flag. Both now report as `InteractionPending`, with absence kept distinct from false.
-   `InteractionActorSchemaTests`. **Next:** only `LevelInfo` and `ShockAIScout` remain unclassified.
+   `InteractionActorSchemaTests`.
+
+   **`LevelInfo` world settings decoded, 23 Aug 2026.** The map-root actor now exports title/map
+   labels, time/path state, four editor cameras, ambient scalars, summary/spawning/glow/tone-map/
+   animation-info references, **974 navigation references**, four pressure-region structs, 44 map-UI
+   region structs, 11 HUD-description structs and two required-animation-group structs. A new exact
+   tagged-struct-array reader validates every element terminator and full array consumption; all five
+   arrays reach the manifest at their shipped counts and no navigation reference fails resolution.
+   `LevelInfoActorSchemaTests`. **Next:** only `ShockAIScout` remains unclassified.
    The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.

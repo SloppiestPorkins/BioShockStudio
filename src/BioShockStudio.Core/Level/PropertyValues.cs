@@ -228,6 +228,36 @@ public static class PropertyValues
         }
     }
 
+    /// <summary>An exact array of tagged-property structs, each terminated by its own <c>None</c>.</summary>
+    public static bool TryAsStructArrayExact(
+        UnrealProperty property, BioShockPackage package,
+        out IReadOnlyList<IReadOnlyList<UnrealProperty>> values)
+    {
+        values = [];
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(property.Value, ref offset);
+            if (count < 0 || count > property.Value.Length) return false;
+            var result = new List<IReadOnlyList<UnrealProperty>>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int start = offset;
+                var fields = UnrealPropertyReader.Read(property.Value, package.Names, out offset, start);
+                if (offset <= start || offset > property.Value.Length) return false;
+                result.Add(fields);
+            }
+            if (offset != property.Value.Length) return false;
+            values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                       or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     internal static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
     {
         byte b = data[offset++];
