@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Numerics;
 using BioShockStudio.Core.Packages;
 
@@ -45,7 +46,9 @@ public static class LevelAnalyzer
         "PressureEffectsDuration", "TimeLastPressureChange", "SpawnZones", "EffectsContexts",
         "ManualExcludes", "Concepts", "GlobalPatrol", "InitialPatrol", "RepopulationPatrol",
         "InitialLabel", "GlobalAITypes", "InitialAITypes", "RepopulationAITypes",
-        "OverriddenAIArchetypeNames", "Cubemap",
+        "OverriddenAIArchetypeNames", "Cubemap", "Material", "Tile", "MaxTraceDistance",
+        "ZBiasOverride", "ScaleInTime", "AngleGradient", "bProjectOnBackfaces",
+        "bProjectStaticMesh", "bProjectSkeletalMesh", "bShouldBeAttached",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -137,6 +140,7 @@ public static class LevelAnalyzer
             TrainingConcepts = NameArray(package, payload, "Concepts"),
             Spawner = Spawner(package, source.ClassName, payload),
             Cubemap = Reference(package, defaults, payload, "Cubemap", "Cubemap"),
+            Projector = Projector(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -236,6 +240,41 @@ public static class LevelAnalyzer
             RepopulationAiTypes = IndexNames("RepopulationAITypes"),
             OverriddenAiArchetypeNames = NumberedNames("OverriddenAIArchetypeNames"),
             SpawnZones = NumberedNames("SpawnZones"),
+            Complete = complete,
+        };
+    }
+
+    private static ProjectorActorData? Projector(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className is not ("GoreLight_Decal" or "Caustic_Projector" or "Projector")) return null;
+        bool complete = true;
+        int? Int(string name) => payload.Find(name) is { Type: UnrealPropertyType.Int } value
+            && value.Value.Length == 4 ? BinaryPrimitives.ReadInt32LittleEndian(value.Value) : null;
+        float? Float(string name) => payload.Find(name) is { Type: UnrealPropertyType.Float } value
+            && value.Value.Length == 4 ? BinaryPrimitives.ReadSingleLittleEndian(value.Value) : null;
+        bool? Bool(string name) => payload.Find(name) is { Type: UnrealPropertyType.Bool } value
+            ? value.BoolValue : null;
+        Vector3? tile = payload.Find("Tile") is { Type: UnrealPropertyType.Struct, StructName: "Vector" } tileProperty
+            ? PropertyValues.AsVector(tileProperty) : null;
+        PropertyValues.ProjectorGradient? gradient = null;
+        if (payload.Find("AngleGradient") is { Type: UnrealPropertyType.Struct, StructName: "ProjectorGradient" } angle)
+        {
+            if (PropertyValues.TryAsProjectorGradientExact(angle, package, out var decoded)) gradient = decoded;
+            else complete = false;
+        }
+        return new ProjectorActorData
+        {
+            Material = Reference(package, defaults, payload, "Material", null),
+            Tile = tile,
+            MaxTraceDistance = Int("MaxTraceDistance"),
+            ZBiasOverride = Int("ZBiasOverride"),
+            ScaleInTime = Float("ScaleInTime"),
+            AngleGradient = gradient,
+            ProjectOnBackfaces = Bool("bProjectOnBackfaces"),
+            ProjectStaticMesh = Bool("bProjectStaticMesh"),
+            ProjectSkeletalMesh = Bool("bProjectSkeletalMesh"),
+            ShouldBeAttached = Bool("bShouldBeAttached"),
             Complete = complete,
         };
     }

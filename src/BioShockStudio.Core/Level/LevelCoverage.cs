@@ -45,6 +45,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded cubemap probe awaiting a UE5 reflection-capture representation.</summary>
     ReflectionProbePending,
 
+    /// <summary>A decoded UE2 projector/decal awaiting a UE5 decal representation.</summary>
+    ProjectorPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -147,6 +150,7 @@ public sealed record LevelCoverageReport
         if (actor.Source.ClassName == "Marker") return LevelActorCoverage.MarkerPending;
         if (actor.Spawner is not null) return LevelActorCoverage.SpawnerPending;
         if (actor.Cubemap is not null) return LevelActorCoverage.ReflectionProbePending;
+        if (actor.Projector is not null) return LevelActorCoverage.ProjectorPending;
 
         return LevelActorCoverage.Unclassified;
     }

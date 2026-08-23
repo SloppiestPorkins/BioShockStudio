@@ -227,6 +227,21 @@ public static class LevelSceneExporter
                     Complete = actor.Spawner.Complete,
                 },
                 Cubemap = Describe(actor.Cubemap),
+                Projector = actor.Projector is null ? null : new LevelProjectorActorDocument
+                {
+                    Material = Describe(actor.Projector.Material),
+                    Tile = actor.Projector.Tile is { } tile ? ToArray(tile) : null,
+                    MaxTraceDistance = actor.Projector.MaxTraceDistance,
+                    ZBiasOverride = actor.Projector.ZBiasOverride,
+                    ScaleInTime = actor.Projector.ScaleInTime,
+                    FadeInEnd = actor.Projector.AngleGradient?.FadeInEnd,
+                    FadeOutStart = actor.Projector.AngleGradient?.FadeOutStart,
+                    ProjectOnBackfaces = actor.Projector.ProjectOnBackfaces,
+                    ProjectStaticMesh = actor.Projector.ProjectStaticMesh,
+                    ProjectSkeletalMesh = actor.Projector.ProjectSkeletalMesh,
+                    ShouldBeAttached = actor.Projector.ShouldBeAttached,
+                    Complete = actor.Projector.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -597,6 +612,7 @@ public sealed record LevelActorDocument
     public List<string> TrainingConcepts { get; init; } = [];
     public LevelSpawnerActorDocument? Spawner { get; init; }
     public LevelReferenceDocument? Cubemap { get; init; }
+    public LevelProjectorActorDocument? Projector { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -627,6 +643,22 @@ public sealed record LevelSpawnerActorDocument
     public required List<string> RepopulationAiTypes { get; init; }
     public required List<string> OverriddenAiArchetypeNames { get; init; }
     public required List<string> SpawnZones { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelProjectorActorDocument
+{
+    public LevelReferenceDocument? Material { get; init; }
+    public float[]? Tile { get; init; }
+    public int? MaxTraceDistance { get; init; }
+    public int? ZBiasOverride { get; init; }
+    public float? ScaleInTime { get; init; }
+    public float? FadeInEnd { get; init; }
+    public float? FadeOutStart { get; init; }
+    public bool? ProjectOnBackfaces { get; init; }
+    public bool? ProjectStaticMesh { get; init; }
+    public bool? ProjectSkeletalMesh { get; init; }
+    public bool? ShouldBeAttached { get; init; }
     public required bool Complete { get; init; }
 }
 

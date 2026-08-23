@@ -16,6 +16,8 @@ namespace BioShockStudio.Core.Level;
 /// </summary>
 public static class PropertyValues
 {
+    public readonly record struct ProjectorGradient(float FadeInEnd, float FadeOutStart);
+
     /// <summary>An <c>Object</c> or <c>Class</c> property's reference, or null when it will not decode.</summary>
     public static PackageIndex? AsReference(UnrealProperty property)
     {
@@ -101,6 +103,44 @@ public static class PropertyValues
             }
             if (offset != property.Value.Length) return false;
             values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                       or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The exact two-float tagged layout of a BioShock <c>ProjectorGradient</c>.</summary>
+    public static bool TryAsProjectorGradientExact(
+        UnrealProperty property, BioShockPackage package, out ProjectorGradient gradient)
+    {
+        gradient = default;
+        int offset = 0;
+        try
+        {
+            float ReadFloat(string expectedName)
+            {
+                int nameIndex = ReadCompactIndex(property.Value, ref offset);
+                if (nameIndex < 0 || nameIndex >= package.Names.Count
+                    || package.Names[nameIndex].Name != expectedName || offset + 9 > property.Value.Length)
+                    throw new InvalidDataException();
+                int number = BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(offset));
+                offset += 4;
+                if (number != 0 || property.Value[offset++] != 0x24) throw new InvalidDataException();
+                float value = BinaryPrimitives.ReadSingleLittleEndian(property.Value.AsSpan(offset));
+                offset += 4;
+                return value;
+            }
+
+            float fadeInEnd = ReadFloat("FadeInEnd");
+            float fadeOutStart = ReadFloat("FadeOutStart");
+            int terminator = ReadCompactIndex(property.Value, ref offset);
+            if (terminator < 0 || terminator >= package.Names.Count
+                || package.Names[terminator].Name != "None" || offset + 4 != property.Value.Length
+                || BinaryPrimitives.ReadInt32LittleEndian(property.Value.AsSpan(offset)) != 0) return false;
+            gradient = new ProjectorGradient(fadeInEnd, fadeOutStart);
             return true;
         }
         catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException

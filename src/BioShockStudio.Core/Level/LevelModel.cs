@@ -243,6 +243,21 @@ public sealed record SpawnerActorData
     public bool Complete { get; init; }
 }
 
+public sealed record ProjectorActorData
+{
+    public AssetReference? Material { get; init; }
+    public Vector3? Tile { get; init; }
+    public int? MaxTraceDistance { get; init; }
+    public int? ZBiasOverride { get; init; }
+    public float? ScaleInTime { get; init; }
+    public PropertyValues.ProjectorGradient? AngleGradient { get; init; }
+    public bool? ProjectOnBackfaces { get; init; }
+    public bool? ProjectStaticMesh { get; init; }
+    public bool? ProjectSkeletalMesh { get; init; }
+    public bool? ShouldBeAttached { get; init; }
+    public bool Complete { get; init; }
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -275,6 +290,7 @@ public sealed record LevelActor
 
     /// <summary>The reflection cubemap selected by a placed probe.</summary>
     public AssetReference? Cubemap { get; init; }
+    public ProjectorActorData? Projector { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

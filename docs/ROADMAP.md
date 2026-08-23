@@ -959,7 +959,13 @@ material.
    It is now a typed resolved actor reference, reaches the manifest, and reports as
    `ReflectionProbePending` for UE5 reflection-capture placement. All 29 Medical references resolve;
    the earlier whole-game proof remains 281 of 281. `CubemapProbeActorTests`.
-   **Next:** the remaining 74 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   **Projectors/decals decoded, 23 Aug 2026.** The next 12 `GoreLight_Decal` actors share their UE2
+   projector schema with eight `Caustic_Projector` actors and one `Projector`, clearing 21 actors in
+   one byte-backed slice. Material, tile, trace distance, Z bias, scale timing and projection flags
+   reach the manifest. The caustics' 27-byte `ProjectorGradient` is an exact two-field tagged layout
+   (`FadeInEnd`, `FadeOutStart`), not a generic nested property stream; its decoder validates both
+   names, types, terminator and full byte consumption. All 21 report as `ProjectorPending`.
+   `ProjectorActorSchemaTests`. **Next:** the remaining 53 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
