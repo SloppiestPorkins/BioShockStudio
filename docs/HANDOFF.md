@@ -14,7 +14,7 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | Landed: test-run economy (docs), level-viewport transparency, Gate 1 item 3 (texture intent + cubemap decode), Gate 1 item 4's cubemap inputs. **Item 3's UE5-import half is blocked — no UE5 engine on this machine.** Next in order: Gate 1 item 4's panners/rotators | `src/BioShockStudio.Core/{Textures,Materials,Export,Rendering,Services,Packages}/`, `src/BioShockStudio.App/Views/LevelGlViewport.cs`, `tests/BioShockStudio.Tests/{Texture,Cubemap,Transparency}*Tests.cs` | 23 Aug 2026 |
+| Claude (this session) | **Gate 1 complete** bar item 3's UE5-import half (blocked — no UE5 engine on this machine). Landed: test-run economy, level-viewport transparency, texture intent + cubemaps, cubemap inputs, UV/colour animators, MaterialSwitch candidates, MaterialSequence wiring. Next in order: **Gate 2 item 1** (Havok compression edge cases) | `src/BioShockStudio.Core/{Textures,Materials,Export,Rendering,Services,Packages}/`, `src/BioShockStudio.App/Views/LevelGlViewport.cs`, `tests/BioShockStudio.Tests/{Texture,Cubemap,Material,Transparency,TexModifier}*Tests.cs` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
