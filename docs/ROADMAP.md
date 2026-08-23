@@ -582,6 +582,10 @@ material.
      shipped game never writes it. Both scalars are now decoded and exported. **Which cubemap a
      surface reflects is `UNKNOWN` and is not material data** — it must come from the level or a
      global, which makes it level work, not material work. `CubemapBindingTests`.
+     **Answered later the same day from the level side: `CubemapProbe` actors, 281 of them, every
+     one naming a real `Cubemap` and carrying a world position** — UE5's reflection-capture
+     model. See Gate 3 item 2. Still `UNKNOWN`: which probe covers which surface (the actor's
+     `Region` struct is undecoded).
    - **A decode correction found alongside it:** `MaterialReader` tested bool *presence*, and
      materials serialise false bools (`RealTimeReflection` 203 times, always false). It now reads
      `UnrealProperty.BoolValue`. Behaviour-preserving on the two flags it acts on — `Masked` and
@@ -847,8 +851,20 @@ material.
    `VisibilityBitMask` or an unused environment default — no per-zone variation exists to correlate
    it against, so this may stay `UNKNOWN`); the other 6% where node visibility isn't a subset of
    zone connectivity; and collision relationships.
-2. Placed-actor transforms, parent/base links, draw scale, tags, material overrides — for every
-   actor class, not just the geometry-bearing ones already placed.
+2. ~~Placed-actor transforms, parent/base links, draw scale, tags, material overrides — for every
+   actor class, not just the geometry-bearing ones already placed.~~ **Already done, verified
+   23 Aug 2026.** `LevelAnalyzer.BuildActor` applies no class filter, and the census bears that out:
+   **118,919 actors across 764 classes, of which 118,854 carry a non-identity transform spanning 762
+   of the 764 classes.** Tags on 118,245, draw scale on 31,672, base/owner links on 13,599 (33
+   classes), material overrides on 6,648 (69 classes). The item's qualifier — "not just the
+   geometry-bearing ones" — is satisfied. `ActorFieldCoverageTests` pins it so a future class filter
+   cannot quietly narrow the coverage.
+   - **A cross-gate find while censusing:** the class list turned up **`CubemapProbe`, 281 actors**,
+     and **every one names a real `Cubemap` export and carries a world position**. That closes Gate 1
+     item 4's cubemap question from the other end — the material says it wants a cubemap, the level
+     says which one and where. It is UE5's reflection-capture model, so it bridges directly.
+     `CubemapProbeActorTests`. Still `UNKNOWN`: which probe covers which surface — the probe's
+     `Region` struct is undecoded and is the obvious next place to look.
 3. Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
    ledger on `1-Medical`). `level-audit` still correctly reports 696 `LightPending` — that label is
    accurate, it means "not yet placed as a real UE5 actor," not "undecoded." **The data schema

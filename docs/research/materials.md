@@ -452,8 +452,14 @@ object reference to a cubemap.** All three are scalars:
 it**.
 
 So a material declares *that* it wants a specular cubemap and *how strongly*, and never *which*.
-**Which cubemap a surface reflects is `UNKNOWN` and is not on the material** — it has to come from
-the level or from a global, and finding it is level work rather than material work. Both scalars are
+~~**Which cubemap a surface reflects is `UNKNOWN` and is not on the material**~~ — **answered the
+same day, and it was level work as predicted.** The level places **`CubemapProbe` actors: 281 of
+them across the game, and every single one names a real `Cubemap` export and carries a world
+position** (`CubemapProbeActorTests`). That is UE5's reflection-capture model almost exactly, so it
+bridges directly rather than merely decoding. A surface declaring `UseSpecularCubemaps` takes its
+reflection from the probe covering it; **which probe covers which surface is still `UNKNOWN`** — the
+actor also carries a `Region` struct that has not been decoded, and that is the obvious next place
+to look. Both scalars are
 now decoded (`BioShockMaterial.UsesSpecularCubemap`, `SpecularCubemapBrightness`) and exported.
 
 The 287 cubemaps themselves decode completely (`docs/research/textures.md`), so what is missing is
