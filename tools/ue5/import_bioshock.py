@@ -215,7 +215,7 @@ def _restore_manifest_sockets(mesh, sockets):
                                    [item["bone"] for item in valid])
 
 
-def _import_textures(rig, export_directory, destination):
+def _import_textures(rig, export_directory, destination, report=None):
     """Create UE5 Texture2D assets from the manifest's texture entries.
 
     The manifest states each texture's engine-facing intent, which the PNG cannot: whether it is
@@ -252,6 +252,8 @@ def _import_textures(rig, export_directory, destination):
         key = (stem, srgb)
         if key in seen:
             continue
+
+        existed = _existed(f"{destination}/Textures/{stem}")
 
         options = unreal.AutomatedAssetImportData()
         task = unreal.AssetImportTask()
@@ -291,10 +293,23 @@ def _import_textures(rig, export_directory, destination):
 
         seen[key] = texture
         imported.append(texture)
+        if report is not None:
+            report["updated" if existed else "created"] += 1
         _log(f"  texture {stem}: usage={entry['usage']} sRGB={srgb} "
              f"address={entry.get('addressU')}/{entry.get('addressV')}")
 
+    _log(f"import report: {report['created']} created, {report['updated']} updated, "
+         f"{report['skipped']} skipped, {report['unsupported']} unsupported")
+    main.last_report = report
     return imported
+
+
+SUPPORTED_MANIFEST_VERSION = 1
+
+
+def _existed(path):
+    """Whether an asset is already present, for created-vs-updated reporting."""
+    return unreal.EditorAssetLibrary.does_asset_exist(path)
 
 
 def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None):
@@ -308,13 +323,32 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
 
-    _log(f"{manifest['sourceObject']} from {manifest['sourcePackage']}; "
-         f"{len(manifest['rigs'])} rig(s), units in {manifest['unit']}, {manifest['upAxis']} up")
+    # Gate 5 item 1. An unversioned manifest predates texture intent: importing it would silently
+    # produce rigs with no textures, which looks like a working import and is not one. Refuse it
+    # rather than half-importing.
+    version = manifest.get("version")
+    if version is None:
+        raise RuntimeError(
+            "this export has no manifest version, so it predates texture intent; re-export it "
+            "with a current build rather than importing a rig that will silently have no textures")
+    if version > SUPPORTED_MANIFEST_VERSION:
+        raise RuntimeError(
+            f"manifest version {version} is newer than this importer supports "
+            f"({SUPPORTED_MANIFEST_VERSION}); update tools/ue5/import_bioshock.py")
 
+    _log(f"{manifest['sourceObject']} from {manifest['sourcePackage']}; "
+         f"manifest v{version}, {len(manifest['rigs'])} rig(s), units in {manifest['unit']}, "
+         f"{manifest['upAxis']} up")
+
+    # Gate 5 item 1's other half: a second run must update rather than duplicate, and must say
+    # which it did. Counted per asset kind so a re-run reads as "updated", not "created".
+    report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0}
     imported = {}
     for rig in manifest["rigs"]:
         destination = f"{content_root}/{rig['name']}"
         _log(f"importing {rig['name']}: {rig['boneCount']} bones, {rig['vertexCount']} vertices")
+
+        mesh_existed = _existed(f"{destination}/{rig['name']}")
 
         mesh_file = os.path.join(export_directory, rig["mesh"])
         if normalize_fbx:
@@ -323,7 +357,10 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         mesh = next((a for a in assets if isinstance(a, unreal.SkeletalMesh)), None)
         if mesh is None:
             _log(f"FAILED to import {rig['mesh']}")
+            report["skipped"] += 1
             continue
+
+        report["updated" if mesh_existed else "created"] += 1
 
         skeleton = mesh.get_editor_property("skeleton")
         if skeleton is None:
@@ -344,7 +381,7 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             # Almost certainly the SOCKET_ nulls; see the note at the top of this file.
             _log(f"WARNING: skeleton has {bones} bones, the export declares {rig['boneCount']}")
 
-        textures = _import_textures(rig, export_directory, destination)
+        textures = _import_textures(rig, export_directory, destination, report)
         if textures:
             _log(f"  imported {len(textures)} texture(s) with declared intent")
 
@@ -386,4 +423,7 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         if rig["undecoded"]:
             _log(f"  {rig['undecoded']} animations did not decode and are not present")
 
+    _log(f"import report: {report['created']} created, {report['updated']} updated, "
+         f"{report['skipped']} skipped, {report['unsupported']} unsupported")
+    main.last_report = report
     return imported

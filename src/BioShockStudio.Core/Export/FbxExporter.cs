@@ -32,6 +32,16 @@ public static class FbxExporter
 
     public const string ManifestFileName = "ue5_manifest.json";
 
+    /// <summary>
+    /// Schema version of <see cref="ManifestFileName"/>. Bump only for incompatible changes.
+    /// </summary>
+    /// <remarks>
+    /// <b>1</b> is the first versioned schema, which is also the first to carry
+    /// <see cref="FbxRig.Textures"/>. An importer seeing no version at all is reading an export that
+    /// predates texture intent.
+    /// </remarks>
+    public const int ManifestVersion = 1;
+
     /// <param name="previewAnimation">
     /// When set, also writes one extra file per rig holding the mesh and that animation together.
     /// The split above is what an engine import wants and is awkward to simply look at, so this is
@@ -233,6 +243,18 @@ public static class FbxExporter
 /// <summary>Everything an engine import needs that the FBX files themselves cannot express.</summary>
 public sealed record FbxManifest
 {
+    /// <summary>
+    /// Schema version for the rig-to-UE5 handoff. Bump only for incompatible changes.
+    /// </summary>
+    /// <remarks>
+    /// <b>Added 23 Aug 2026, Gate 5 item 1.</b> The level manifest has carried a version since it
+    /// existed and `tools/ue5/validate_level_manifest.py` refuses an unsupported one; this document
+    /// had none at all, so an importer had no way to tell a manifest predating
+    /// <see cref="FbxRig.Textures"/> from one carrying it, and would silently import a rig with no
+    /// textures rather than reporting a stale export.
+    /// </remarks>
+    public int Version { get; init; } = FbxExporter.ManifestVersion;
+
     public required string SourcePackage { get; init; }
     public required string SourceObject { get; init; }
 

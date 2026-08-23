@@ -59,6 +59,11 @@ public sealed class ManifestTextureIntentTests(GameFixture game)
 
             var manifest = FbxExporter.Write(scene, directory);
 
+            // Gate 5 item 1: the manifest states its schema version, so an importer can refuse a
+            // stale export rather than silently producing rigs with no textures.
+            Assert.Equal(FbxExporter.ManifestVersion, manifest.Version);
+            Assert.True(manifest.Version > 0);
+
             var rig = manifest.Rigs[0];
             Assert.NotEmpty(rig.Textures);
 
@@ -87,6 +92,7 @@ public sealed class ManifestTextureIntentTests(GameFixture game)
             var textures = document.RootElement.GetProperty("rigs")[0].GetProperty("textures");
             Assert.True(textures.GetArrayLength() > 0);
             Assert.Contains("Linear", json, StringComparison.Ordinal);
+            Assert.Equal(FbxExporter.ManifestVersion, document.RootElement.GetProperty("version").GetInt32());
         }
         finally
         {
