@@ -21,7 +21,15 @@ Virtual fixups are the object table. See [havok.md](havok.md).
 `CONFIRMED_BYTES`. See [havok-compression.md](havok-compression.md). All 130 hands animations and
 all third-person character animations decode with zero failures.
 
-`UNKNOWN` remains: the exact 12-bit quantisation midpoint (error under 0.0005).
+`UNKNOWN` remains: the exact 12-bit quantisation midpoint (error under 0.0005). **This is a closed
+lead, not an untried one, as of 23 Aug 2026** — the unpack path reaches
+`hkaSignedQuaternion::unpackSignedQuaternion40`, whose body does not ship with the SDK (declared in
+the header, referenced from the `.inl`, no `.cpp` anywhere). Do not re-open it against the SDK.
+
+**The game uses exactly one quantisation combination**, so "compression edge cases" is answered:
+884,855 track masks across 15,998 spline animations all carry `QuantizationTypes` = `0x45`
+(`Bits16`/`ThreeComp40`/`Bits16`). Every other selector is unreachable by shipped data, and the
+decoder refuses them loudly rather than guessing. `QuantizationCensusTests`.
 
 **`m_blendHint` is settled** — `CONFIRMED_EXTERNAL`, `hkaAnimationBinding.h`:
 `enum BlendHint { NORMAL = 0, ADDITIVE = 1 }`. Every shipped animation is 0, by census, so additive

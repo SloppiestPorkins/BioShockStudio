@@ -225,3 +225,49 @@ When measuring this, restrict to bones the mesh is actually skinned to. `Ryan` h
 98 of them are skinned; `Dummy02`, `putterPLACEHOLDER` and `R_Grip` carry his golf club and move
 freely without ever being drawn. Measured over all bones they dominate every statistic and hide the
 real signal.
+
+## The game uses exactly one quantisation combination
+
+**Status: `CONFIRMED_BYTES` across all 33 packages, 23 Aug 2026.** Pinned by
+`QuantizationCensusTests`.
+
+Gate 2 item 1 listed "compression edge cases" as open. There was no known-broken case to chase —
+the decoder reports zero failures across every shipped animation — so the question worth asking was
+not *what is broken* but **what has never been exercised**.
+
+**Every track mask in the game is the same byte.** 884,855 masks across 15,998 spline-compressed
+animations in 20 packages, and `QuantizationTypes` is `0x45` on every single one. Per the SDK's own
+`unpackQuantizationTypes`, that decomposes to:
+
+| Channel | Selector |
+|---|---|
+| Translation | `Bits16` |
+| Rotation | `ThreeComp40` |
+| Scale | `Bits16` |
+
+So **there are no compression edge cases in the shipped corpus.** The other selectors — `Bits8`,
+`Bits32`, `Bits40`, `Polar32`, `ThreeComp48`, `ThreeComp24`, `Straight16`, `Uncompressed` — are
+unreachable by any shipped animation. The doc comment on `TransformMask` already recorded `0x45`
+for the first-person hands package; this generalises it from one package to the whole game.
+
+**The unused branches already fail loudly rather than guessing.** `SplineDecompressor.DecodeRotation`
+throws `NotSupportedException` for anything but `ThreeComp40`, and `Quantization.Dequantize` throws
+for `Bits40`. That is the correct behaviour and it is worth keeping: if a second format ever appears,
+it must surface as a refusal, never as a plausible wrong pose. `Quantization.ByteSize` does support
+`Bits40` while `Dequantize` refuses it — harmless, because the pairing can never be reached, but do
+not "tidy" that into a silent default.
+
+### What the SDK does and does not settle
+
+**`unpack16` is `CONFIRMED_EXTERNAL`.** `hkaSplineCompressedAnimation.inl` gives
+`( val / 65535.0f ) * ( max - min ) + min`, which is exactly what this project's `Dequantize` does
+for `Bits16` — the only scalar path the game uses.
+
+**The 12-bit midpoint cannot be settled from this SDK, and that is now a closed lead rather than an
+untried one.** The unpack path runs `unpackQuaternion` → `hkaSignedQuaternion::unpackSignedQuaternion40`,
+and **that function's body does not ship**: `hkaSignedQuaternion.h` declares it and the `.inl`
+references it, but there is no `.cpp` anywhere in the tree (grepped, not assumed). This is the same
+missing-source situation as `sampleTranslation` and `evaluateSimple1/2/3` — see `docs/HANDOFF.md`
+§6.0c. So 2047, 2048 and the symmetric 2047.5 remain indistinguishable, the symmetric midpoint stays
+in use, and the resulting error stays under 0.0005. **Do not re-open this against the SDK.**
+

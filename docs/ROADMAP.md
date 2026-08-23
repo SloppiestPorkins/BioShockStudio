@@ -615,10 +615,23 @@ material.
    swim/flight paths look most likely to differ) look the same shape. Wiring any of this into the
    exporter is separately out of scope, crossing into Gate 5's export-pipeline territory and needing
    the coordinate-basis policy applied first. See `docs/research/root-motion.md` for the full record.
-   **Compression edge cases: genuinely still open** — nothing this cycle touched the spline
-   decompression path itself (0 failures across all 16,031 already, per `open-questions.md` §3, so
-   there is no known-broken case to chase, only unvalidated edge behaviour that hasn't been forced by
-   a real shipped animation).
+   ~~**Compression edge cases: genuinely still open.**~~ **Answered, 23 Aug 2026: there are none.**
+   The right question was not "what is broken" — nothing is — but "what has never been exercised".
+   **Every track mask in the game is the same byte**: 884,855 masks across 15,998 spline animations
+   in 20 packages, `QuantizationTypes` = `0x45` on every one, decomposing (per the SDK's own
+   `unpackQuantizationTypes`) to `Bits16` translation, `ThreeComp40` rotation, `Bits16` scale. Every
+   other selector is unreachable by shipped data. `QuantizationCensusTests`;
+   `docs/research/havok-compression.md`.
+   - **The unused branches already refuse rather than guess** — `DecodeRotation` throws for anything
+     but `ThreeComp40`. Keep it that way: a second format must surface as a refusal, never as a
+     plausible wrong pose.
+   - **`unpack16` is now `CONFIRMED_EXTERNAL`** against the SDK's own
+     `( val / 65535 ) * ( max - min ) + min`.
+   - **The 12-bit midpoint is now a *closed* lead, not an untried one.** The unpack path reaches
+     `hkaSignedQuaternion::unpackSignedQuaternion40`, whose **body does not ship** — declared in the
+     header, referenced from the `.inl`, no `.cpp` anywhere (grepped). Same missing-source situation
+     as `sampleTranslation` and `evaluateSimple1/2/3`. Error stays under 0.0005. **Do not re-open
+     this against the SDK.**
 2. §6.0c — the 252 bone-rigidity collapses (27 folding ≥20 bones), including `AggressorBabyJane`'s
    fire clips — needs `sampleTranslation`, which the current SDK build doesn't expose. Genuinely
    blocked, not merely unstarted. **Re-checked, 22 Aug 2026**: the recorded next lead
