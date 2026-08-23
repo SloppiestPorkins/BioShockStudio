@@ -940,8 +940,14 @@ material.
    rather than `Unclassified`. Twenty-six carry at least one exact, readable `Schema1`/`Schema2`
    FName; ten omit both and therefore use only the class/common actor identity. This agrees with the
    retained whole-game sound-actor census instead of inventing a missing payload for the ten.
-   `SoundActorSchemaTests.MedicalSoundMarkersAreClassifiedByTheirDecodedSchemaNames`. **Next:** the
-   remaining 152 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   `SoundActorSchemaTests.MedicalSoundMarkersAreClassifiedByTheirDecodedSchemaNames`.
+
+   **Training scripts decoded, 23 Aug 2026.** All 26 Medical `TrainingScript` actors now export
+   their non-empty `Concepts` arrays and report as `ScriptPending`. The shipped encoding is an exact
+   compact-count sequence of compact name-table indices, without the numbered-name suffix used by
+   the other FName-array form; a separate exact decoder preserves that byte distinction. The script
+   total is now 325 and every decoded concept reaches the manifest. `TrainingScriptActorTests`.
+   **Next:** the remaining 126 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

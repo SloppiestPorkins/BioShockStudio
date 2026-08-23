@@ -43,7 +43,7 @@ public static class LevelAnalyzer
         "HighEnableDistanceFog", "HighDistanceFogColor", "HighDistanceFogStart", "HighDistanceFogEnd",
         "HighMaxFogContribution", "ReverbType", "MapUIRegion", "PressureRegion",
         "PressureEffectsDuration", "TimeLastPressureChange", "SpawnZones", "EffectsContexts",
-        "ManualExcludes",
+        "ManualExcludes", "Concepts",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -132,6 +132,7 @@ public static class LevelAnalyzer
             Tag = ReadName(package, payload, "Tag"),
             Region = ReadRegion(package, payload),
             RegionActor = RegionActor(package, source.ClassName, payload),
+            TrainingConcepts = NameArray(package, payload, "Concepts"),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -191,6 +192,10 @@ public static class LevelAnalyzer
 
     private static string? ReadName(BioShockPackage package, ActorPayload payload, string property) =>
         payload.Find(property) is { } found ? PropertyValues.AsName(found, package) : null;
+
+    private static IReadOnlyList<string> NameArray(BioShockPackage package, ActorPayload payload, string property) =>
+        payload.Find(property) is { Type: UnrealPropertyType.Array } found
+        && PropertyValues.TryAsNameIndexArrayExact(found, package, out var values) ? values : [];
 
     private static NavigationActorData? Navigation(BioShockPackage package, ActorPayload payload)
     {

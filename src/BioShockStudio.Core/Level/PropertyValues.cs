@@ -82,6 +82,34 @@ public static class PropertyValues
         }
     }
 
+    /// <summary>An exact compact array of name-table indices, without the numbered-name suffix.</summary>
+    public static bool TryAsNameIndexArrayExact(
+        UnrealProperty property, BioShockPackage package, out IReadOnlyList<string> values)
+    {
+        values = [];
+        int offset = 0;
+        try
+        {
+            int count = ReadCompactIndex(property.Value, ref offset);
+            if (count < 0 || count > property.Value.Length) return false;
+            var result = new List<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int nameIndex = ReadCompactIndex(property.Value, ref offset);
+                if (nameIndex < 0 || nameIndex >= package.Names.Count) return false;
+                result.Add(package.Names[nameIndex].Name);
+            }
+            if (offset != property.Value.Length) return false;
+            values = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                       or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>A twelve-byte <c>Vector</c> struct.</summary>
     public static Vector3? AsVector(UnrealProperty property)
     {

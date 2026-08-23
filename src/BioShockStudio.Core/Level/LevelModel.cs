@@ -252,6 +252,9 @@ public sealed record LevelActor
     /// <summary>Typed gameplay-volume fields; null for actors outside the region/trigger family.</summary>
     public RegionActorData? RegionActor { get; init; }
 
+    /// <summary>Exact training concept FNames declared by a <c>TrainingScript</c>.</summary>
+    public IReadOnlyList<string> TrainingConcepts { get; init; } = [];
+
     public required ActorTransform Transform { get; init; }
 
     /// <summary>The static mesh this actor draws, from its own properties or its class defaults.</summary>

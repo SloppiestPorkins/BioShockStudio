@@ -212,6 +212,7 @@ public static class LevelSceneExporter
                     Zone = ZoneDocument(actor.RegionActor.Zone),
                     Complete = actor.RegionActor.Complete,
                 },
+                TrainingConcepts = actor.TrainingConcepts.ToList(),
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -579,6 +580,7 @@ public sealed record LevelActorDocument
     public required float[] DrawScale3D { get; init; }
     public required float[] PrePivot { get; init; }
     public LevelRegionDocument? Region { get; init; }
+    public List<string> TrainingConcepts { get; init; } = [];
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
