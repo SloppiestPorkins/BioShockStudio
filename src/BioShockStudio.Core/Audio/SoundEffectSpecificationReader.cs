@@ -29,6 +29,22 @@ public sealed record SoundSpecEntry(
     byte? PerSoundVolumeMod);
 
 /// <summary>
+/// BioShock's own <c>Material.EMaterialVisualType</c> — the physical-surface class a
+/// <see cref="SoundSpecEntry.Flag"/> selects. Confirmed by decompiling
+/// <c>IGSoundEffectsSubsystem.U</c> (<c>SoundEffectSpecification.uc</c>) and cross-referenced against
+/// <c>Bioshock1REMSDK-WIP--main</c>'s independently authored materials documentation.
+/// </summary>
+public enum MaterialVisualType : byte
+{
+    MVT_Default = 0, MVT_Concrete = 1, MVT_Stone = 2, MVT_ThinGlass = 3, MVT_ThickGlass = 4,
+    MVT_ThinCloth = 5, MVT_ThickCloth = 6, MVT_ThinMetal = 7, MVT_ThickMetal = 8, MVT_Wood = 9,
+    MVT_Plastic = 10, MVT_Cardboard = 11, MVT_Plaster = 12, MVT_Water = 13, MVT_Flesh = 14,
+    MVT_Carpet = 15, MVT_Dirt = 16, MVT_WaterPipe = 17, MVT_Plant = 18, MVT_FleshAlternate = 19,
+    MVT_OpaqueGlass = 20, MVT_ElectricalGlass = 21, MVT_ElectricalMetal = 22, MVT_ExteriorGlass = 23,
+    MVT_Mud = 24, MVT_BreakableGlass = 25, MVT_Paper = 26, MVT_Trash = 27,
+}
+
+/// <summary>
 /// Everything a shipped <c>SoundEffectSpecification</c> object serializes. Null fields mean
 /// "inherit the script-class default", never zero.
 /// </summary>
@@ -249,4 +265,10 @@ public static class SoundEffectSpecificationReader
     /// <summary>A UE2 <c>Bool</c> carries its value in the tag, so presence is not the value.</summary>
     private static bool? Bool(UnrealProperty? property) => property is
         { Type: UnrealPropertyType.Bool } ? property.BoolValue : null;
+}
+
+internal static class SoundSpecEntryExtensions
+{
+    public static MaterialVisualType? MaterialVisualType(this SoundSpecEntry entry) =>
+        entry.Flag.HasValue ? (Audio.MaterialVisualType)entry.Flag.Value : null;
 }
