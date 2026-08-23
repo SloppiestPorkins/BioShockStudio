@@ -964,7 +964,7 @@ dotnet test                         # both — the number to report
 That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
 measured**. Reported as unrun, not as passing.
 
-**Measured on the current tree, 23 Aug 2026** (HEAD `7e8b5c8`):
+**Measured on the current tree, 23 Aug 2026** (HEAD `e7c4b1a`):
 
 | Run | Result |
 |---|---|
