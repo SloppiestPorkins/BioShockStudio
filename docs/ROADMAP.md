@@ -1127,17 +1127,47 @@ material.
      other reader in the project writes `nameN`) was silently costing 100 references and is fixed.
      `SoundActorSpecificationIndex`; `SoundActorSpecificationCoverageTests`,
      `SoundActorSpecificationTests`.
-   - **What is still open is narrower and concrete.** Of the 5,726 distinct sample names the
-     specifications reference, 2,080 are native `Sound` exports and 1,676 are in the FSB5 banks
-     (disjoint sets); **1,970 (34.4%) are in neither store**. That is the remaining part of
-     `docs/research/audio.md` §4 — now an exact list of names rather than "where does sound-effect
-     data ship". Chance/level-context selection (which alternative wins) is engine behaviour and
-     remains deliberately undecided.
+   - **Sample location closed, 23 Aug 2026 — 5,722 of 5,726 (99.93%).** An earlier reading of this
+     item reported "1,970 (34.4%) in neither store"; that was an **enumeration artefact**, not a
+     gap. It counted only the 21 non-localised map packages, and the game ships its voice-over in
+     the 140 **localised** ones. Full accounting: 2,080 in the core maps, **1,995 in the localised
+     maps**, 1,676 in the FSB5 banks, 10 in `FMODAudio.U`. **`BulkContent/` is ruled out** — 0 of
+     5,726, with controls in both directions, closing the leading candidate
+     `docs/research/audio.md` §4 had proposed and never tested. The remaining **4** names carry the
+     `99` level prefix or have no shipped variant at all, and read as references to cut content
+     (`LIKELY`). Chance/level-context selection — which alternative wins at runtime — is engine
+     behaviour and remains deliberately undecided.
+     **Consequence for item 2 below: audio export now has essentially total source coverage.**
    - **Note:** the earlier "those settings do not exist" reading was recorded by the Claude session
      while auditing the roadmap, and was correct about the actors and wrong about the game. The
      audio track was worked concurrently by another session until 23 Aug 2026, when this session
      took it over.
-2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.
+2. ~~Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.~~
+   **Manifest and payload export done, 23 Aug 2026 — not yet listened to in UE5.**
+   `Core/Export/AudioExporter.cs` writes a versioned `ue5_audio_manifest.json` plus the shipped
+   payloads byte-for-byte (no transcoding), and `export-audio <package> <out-dir> [--locate]` drives
+   it. On `0-Lighthouse`: **1,447 cues, 2,106 waves, 31 placed actors, 0 unresolved samples.**
+   `AudioExportTests` (6/6).
+   - **The mapping is near one-to-one because the game's structure already is one.** A
+     `SoundEffectSpecification` carries alternatives, attenuation radii, volume and pitch ranges and
+     looping state — which is what a `USoundCue` is made of. No graph is invented.
+   - **Inheritance is preserved, and that is the assertion that matters.** A property the object does
+     not serialize is *omitted* from the JSON, so the script-class default stands. Writing `0` for an
+     absent `OuterRadius` would silently un-attenuate the sound while the manifest looked complete.
+     Pinned twice — on the document and on the emitted JSON.
+   - **`AudioSampleLocator` (new) indexes all four stores.** Added because the first cut reported
+     **908 unresolved samples** for `0-Lighthouse`, every one of which ships perfectly well
+     elsewhere; a figure that reads as missing audio and is not is exactly the failure this project
+     exists to avoid. "Not in this package" and "in no shipped store" are now distinct, and the
+     CLI says which it means.
+   - **Surface classes are exported, not acted on.** Each alternative carries its `MVT_*` name
+     (3,245 of 3,245 on `0-Lighthouse`). That the runtime *dispatches* on it remains `LIKELY` —
+     `PickSoundToPlay` is native and unreadable.
+   - **Not done, deliberately:** streamed payloads are located (bank + subsound index) but not
+     decoded on export, because sweeping all 10,882 subsounds is the kind of large implicit job §60
+     forbids starting unasked. **And nobody has imported this into UE5 and listened to it** — a
+     manifest can be numerically perfect and play the wrong sample. That is the next step, and it is
+     the same "render it" rule that has caught real faults here before.
 3. Particle/emitter templates and material parameters — enough to build real UE5 Niagara
    placeholders, not a static mesh standing in for an effect.
 4. Interaction metadata (movers, doors, triggers, plasmid/weapon effects) once the source object
@@ -1226,55 +1256,66 @@ dotnet test                         # both — the number to report
 
 ### Verification stamp — read this before running anything
 
-**Last full-suite run: 546/550 — 4 FAILING — 23 Aug 2026, 41m47s, at commit `9b2036f`.**
-Measured during the multi-agent preparation pass. This supersedes the previous stamp (464/464 at
-`1c2e4b2`), which was 72 commits and 101 files stale.
+**Last full-suite run: 550/550 GREEN — 23 Aug 2026, 43m36s, at commit `9cb53b2`.**
+Supersedes the 546/550 red stamp taken earlier the same day at `9b2036f`, and the 464/464 at
+`1c2e4b2` before it.
 
-**The suite is red.** All four failures are Sweep-tier `1-Medical` actor-schema counts, and all four
-count *too high*:
+**The four failures that earlier stamp recorded are fixed and the fix is now confirmed at
+whole-suite level** (`43dcaaa`, `1782d3b`). What they were:
 
-| Test | Expected | Actual |
+| Test | Its own class's count | Bucket total it summed |
 |---|---|---|
-| `MarkerActorSchemaTests.EveryMedicalMarkerIsOnlyAPlacedCommonActorRecord` | 150 | 159 |
-| `PickupActorSchemaTests.EveryMedicalHypoPickupExportsItsResolvedLootSlot` | 11 | 16 |
-| `TrainingScriptActorTests.MedicalTrainingConceptArraysDecodeExactlyAndReachTheManifest` | 325 | 326 |
-| `VendingActorSchemaTests.EveryMedicalVendingStationExportsItsInteractionDeclaration` | 14 | 16 |
+| `MarkerActorSchemaTests.EveryMedicalMarkerIsOnlyAPlacedCommonActorRecord` | `Marker` 150 | `MarkerPending` 159 |
+| `PickupActorSchemaTests.EveryMedicalHypoPickupExportsItsResolvedLootSlot` | `MedHypoPickup` 11 | `InteractionPending` 16 |
+| `TrainingScriptActorTests.MedicalTrainingConceptArraysDecodeExactlyAndReachTheManifest` | `TrainingScript` 26 | `ScriptPending` 326 |
+| `VendingActorSchemaTests.EveryMedicalVendingStationExportsItsInteractionDeclaration` | `PlaceableVendingStation` 3 | `InteractionPending` 16 |
 
-They are deterministic and reproduce in isolation in 10s (so not test ordering), and they are **not**
-caused by the audio commits `55488e2`/`9b2036f`, which touch only `Core/Audio/`. The subject code
-was last touched by the Gate 3 actor-schema commits `d33cf17`, `8f48173`, `a8d22ef` — all landing
-after the four tests were written. **Classified only this far, deliberately: per §24 the direction
-of the change must be established before either the code or the figures move, and counts that rose
-may be a correct improvement or over-capture.** Tracked as `.agent/TASK_QUEUE.md` TASK-000.
+**The direction of the change turned out to be neither regression nor over-capture: nothing about
+these classes moved at all.** Each test summed a `LevelActorCoverage` status bucket across *every*
+class, as if the total uniquely identified its own, so each later commit that correctly routed one
+more class into a shared bucket broke every test carrying a stale total for it — while that test's
+own class stayed exactly where it was. No production decoder changed; the fix filters to the test's
+own `ClassName` before summing, the idiom `MapUiMarkerSchemaTests` and `CoverageBoundaryActorTests`
+already used.
 
-**This also puts Gate 3 item 3's "complete for its stated `1-Medical` ledger" claim in question**,
-since that claim rests on these categories partitioning correctly. It is not withdrawn here — it is
-flagged pending TASK-000.
+**The arithmetic, re-confirmed independently against the shipped bytes** (`level-audit 1-Medical`,
+23 Aug 2026 — the counts the four tests assert, read straight out of the game rather than out of the
+test): `MarkerPending` 159 = `Marker` 150 + `TrainingMarker` 6 + `MapUILayerScaleMarker` 3;
+`InteractionPending` 16 = `MedHypoPickup` 11 + `PlaceableVendingStation` 3 + `DoorKeypadControl` 1 +
+`dyn_toolbox_open` 1. Every per-class figure matches what its test asserts, which is the evidence
+that the buckets were the only thing that moved. (This arithmetic previously lived only in the
+retired `.agent/TASK_QUEUE.md`; it is recorded here because that file is gone.)
 
-**Measured on the current tree, 23 Aug 2026** (HEAD `deac064`):
+**Gate 3 item 3's "complete for its stated `1-Medical` ledger" claim is therefore no longer in
+question** — the categories do partition, and the per-class census above is what shows it.
+
+**The same landmine, swept.** `1782d3b` hardened `AntiPortalActorSchemaTests`,
+`CubemapProbeActorTests` and `SpawnerActorSchemaTests`, which were not failing yet.
+`InteractionActorSchemaTests` was the last one left and is fixed here — it summed
+`InteractionPending` across all classes (16) while testing two of them, and passed only by
+coincidence; it now asserts its own 2. **`SoundActorSchemaTests` is left deliberately unfixed**: its
+scope reads as genuinely ambiguous rather than accidental, so narrowing it would be a guess about
+intent, not a fix. That is the one remaining raw bucket sum in the suite.
+
+**Measured after the 550/550 stamp, by name** — the tree has moved on since, and
+`docs/ENGINEERING_RULES.md` §60 says run what the diff could have touched, not everything:
 
 | Run | Result |
 |---|---|
-| `--filter Tier=Fast` | **230/230** (47s) |
-| `~Material` + `~Export` + `~StructSize` + `~Fbx` | **92/92** (6m18s) |
-| `~Level` + `~Bsp` | **75/75** (7m38s) |
-| `~Texture`, `~Cubemap`, `~MaterialSwitch`, `~TexModifier`, `~Quantization`, `~RigidBodyMotion` | whole-game scans, all green |
-| `~Havok` + `~Physics` + `~Ragdoll` | **16/16** |
-| `~Bsp` + `~Level` + `~Portal` + `~Actor` | **87/87** (8m31s) |
-| `~Level` + `~Export` | **82/82** (3m28s) |
-| `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** (2m17s) |
+| `AudioExportTests` | **6/6** (2s) |
+| `SoundActorSpecificationCoverageTests` | **4/4** (4m06s) |
+| the seven bucket-fixed schema classes | **9/9** (1m03s) |
 
-**The full suite has still not been run since `1c2e4b2`** and its total remains unmeasured —
-reported as unrun, not as passing. The targeted runs above cover every area touched since
-(skeletal sections, the level viewport's transparency, textures, materials, export). The sweep
-classes outside those areas are unchanged.
+Those cover everything added since `9cb53b2`: the audio exporter (`Core/Export/AudioExporter.cs`),
+the sample locator (`Core/Audio/AudioSampleLocator.cs`), and the rewritten sample-location census.
+Nothing else was touched. **The whole suite has not been re-run since that commit** and is reported
+as such rather than as passing.
 
-The rest of the sweep tier is unchanged since the 464/464 run and was **deliberately not re-run** — see
-`docs/ENGINEERING_RULES.md` §60 "Test-run economy", which is a standing user instruction, not a
-shortcut. The recipe:
+The recipe, which is a standing user instruction rather than a shortcut — see
+`docs/ENGINEERING_RULES.md` §60 "Test-run economy":
 
 ```bash
-git diff --stat 1c2e4b2..HEAD                          # what could have moved since the stamp
+git diff --stat 9cb53b2..HEAD                          # what could have moved since the stamp
 dotnet test --filter "FullyQualifiedName~<Class>"      # run only what that covers
 ```
 

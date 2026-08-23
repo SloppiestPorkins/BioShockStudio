@@ -114,13 +114,20 @@ self-validating pattern as the `MaskMaterial` struct-size correction. Requiring 
 
 ## 4. Where the sound data is — partly located; the actor-resolution half is closed
 
-> **Updated 23 Aug 2026.** When this section was written, nothing connected a placed sound actor to
-> any shipped sound data, and that was the project's audio blocker. **The resolution half is now
-> closed** — see "Placed actor to specification" below: 3,068 of 3,247 sound actors reach a shipped
-> `SoundEffectSpecification`, which names its samples. What remains open is narrower and concrete:
-> **1,970 of the 5,726 named samples are in neither the native `Sound` exports nor the FSB5 banks.**
-> That is a list of exact names now, not an open question about where audio ships. The rest of this
-> section is the original investigation and is kept because its negative results still hold.
+> **Updated 23 Aug 2026, twice — this section is now essentially closed.** When it was written,
+> nothing connected a placed sound actor to any shipped sound data, and that was the project's audio
+> blocker. Both halves are now resolved:
+>
+> - **Resolution** — see "Placed actor to specification" below: 3,068 of 3,247 sound actors reach a
+>   shipped `SoundEffectSpecification`, which names its samples.
+> - **Location** — see "Where the named samples ship" below: **5,722 of 5,726 named samples (99.93%)
+>   are located** across four stores. `BulkContent/`, the leading candidate this section proposed,
+>   is **ruled out** with controls in both directions. The four stragglers read as references to cut
+>   content.
+>
+> The rest of this section is the original investigation. It is kept because its *negative* results
+> still hold — but note that its `BulkContent/` reasoning rested on a bad control, which the
+> "ruled out" subsection below documents.
 
 
 `ContentBaked/pc/Sounds_Windows/` holds **65 `.fsb` files, 2.1 GB**.
@@ -557,14 +564,106 @@ produced `ambience_common_bubbles_2`, which matches no export; the export is
 `ambience_common_bubbles2`. Nothing failed and nothing threw: the name simply resolved to nothing,
 on 100 references game-wide. Unifying the rendering left **3** unresolved.
 
-### Where the named samples ship
+### Where the named samples ship — `CONFIRMED_BYTES`, corrected 23 Aug 2026
 
-| Store | Distinct names |
+> **This supersedes an earlier version of this table that reported 3,756 located and "1,970 (34.4%)
+> in neither store".** That figure was real but it was an **enumeration artefact, not a gap**: it
+> searched only the 21 non-localised map packages, and BioShock ships its voice-over in the 140
+> *localised* ones — which is exactly where localised content belongs. The earlier reading is kept
+> here rather than deleted because the mistake is instructive: see the note at the end.
+
+| Store | Names found | Found **only** here |
+|---|---|---|
+| Native `Sound` exports, 21 core map packages | 2,080 | 2,080 |
+| Native `Sound` exports, 140 **localised** map packages | 1,995 | 1,956 |
+| Streamed FSB5 banks | 1,676 | 1,637 |
+| Script packages (`FMODAudio.U`) | 10 | 10 |
+| **Located (union)** | **5,722 of 5,726** | **99.93%** |
+| **Unlocated** | **4** | |
+
+The four that remain are `vo_PA_99_Fa_ResponsibilityPA`, `vo_PA_99_Fa_ResponsibilityPA4a`,
+`vo_S_99_Ad_SportsBoostAd` and `vo_waders_frozen_04`. **They are best read as dangling references to
+cut content, not as a missing store**: three carry the `99` level prefix, and `vo_waders_frozen`
+has **zero** shipped `Sound` exports of *any* variant — there is no `_01`–`_03` for `_04` to be the
+tail of. That is a specification referring to something that was never shipped, which is an ordinary
+state for a game's data and not a decode failure. `LIKELY`, not `CONFIRMED` — nothing proves intent.
+
+### `BulkContent/` is ruled out — `CONFIRMED_BYTES`
+
+Section 4 above listed the bulk store as the leading candidate for the missing samples and noted the
+test had never actually been run. It has been now, and the answer is **no**.
+
+`BulkTextureCatalog.Load()` indexes **5,777 entries, 5,622 distinct names, 195 groups**. Of the
+5,726 specification sample names, **0 appear in it.** Nor does the catalogue contain anything
+audio-shaped: zero names beginning `ambience_`, `weapons_`, `scripted_`, `vo_` or `footstep`. Its one
+suggestively-named group, `Gen_Ambience`, holds 83 entries and is entirely environment *art*
+(`walltech_02_normalmap`, `tv_wall_mounted_diffuse`) — "ambience" there means set dressing, not
+sound.
+
+**The lookup was controlled in both directions**, because a negative result from a broken query is
+worth nothing: a name taken from the catalogue itself resolves (`HarvestSlugFish_Diff` → found), and
+an invented name does not (`definitely_not_a_real_asset_xyz` → absent).
+
+> **Note on the earlier reasoning.** Section 4 justified not trusting a raw byte search by saying it
+> "also misses `Hand_DIFF`, a texture that is certainly in there". **`Hand_DIFF` is not in there** —
+> `docs/research/bulkcontent.md` records it as one of the textures that was *never stripped*, so it
+> has no bulk entry to find. The control was wrong, and it had been quietly propping up the
+> hypothesis for some time. This is the second time in one day that a name-keyed lookup returning
+> nothing was mistaken for absent data (see the FName rendering landmine, `docs/HANDOFF.md` §4):
+> **when a lookup misses here, check the lookup before concluding the target is gone.**
+
+## UE5 export shape — `CONFIRMED_BYTES` for what it carries
+
+**Status: implemented 23 Aug 2026, ROADMAP Gate 4 item 2.**
+`src/BioShockStudio.Core/Export/AudioExporter.cs`, `AudioExportTests`.
+**Not yet listened to inside UE5** — see the caveat at the end.
+
+`ue5_audio_manifest.json` (version 1) carries four lists:
+
+| List | What |
 |---|---|
-| Native `Sound` exports in the map packages | **2,080** |
-| Streamed FSB5 banks | **1,676** |
-| **Located** | **3,756** of 5,726 |
-| **In neither** | **1,970** (34.4%) |
+| `cues` | one per `SoundEffectSpecification` — the `USoundCue` shape |
+| `waves` | one per referenced sample, with where it ships |
+| `actors` | resolved placed sound actors, so a level import can position audio |
+| `unresolvedSamples` | referenced names no shipped store holds |
 
-The two stores do not overlap on a single name. The 1,970 remainder is the honest state of
-section 4: still open, but now an exact list rather than an open question.
+A cue is close to a direct translation, because the game's own object already has the shape:
+
+| BioShock | UE5 |
+|---|---|
+| `SoundSpecs[]` | Random node inputs |
+| `PitchRange`, `VolumeRange` | Modulator |
+| `InnerRadius`, `OuterRadius` | Attenuation |
+| `Monoloop`, `Polyloop`, `LoopSoundLimit` | looping and concurrency |
+| `Flag` → `MVT_*` | surface class, exported only |
+
+### What is deliberately not in it
+
+- **Selection weight.** `Chance` belongs to an `EventResponse_SoundEffectsSubsystem` and is parallel
+  to that response's list of *specifications* — it chooses which cue fires, not which sample inside
+  one. Putting it on the cue would move it down a level and misstate what the game declares. How a
+  cue picks among its own alternatives is not decoded.
+- **Surface dispatch.** The `MVT_*` name is exported; nothing selects by it.
+- **Streamed payloads.** Located by bank and subsound index, not decoded on export.
+
+### Inheritance is preserved, and this is the load-bearing part
+
+A property the object does not serialize is **omitted from the JSON entirely**, so the script-class
+default stands (`OuterRadius=3000`, `Volume=100`, `Pitch=1`). Writing `0` instead would leave a
+sound un-attenuated and silent-pitched while the manifest looked complete — an importer cannot tell
+a written zero from an inherited default afterwards. `weapons_pistol_reload_one` is the pinned case:
+`innerRadius` 1000, `volume` 80, `volumeCategory` 3 present; `outerRadius` and `pitch` absent.
+
+### "Unresolved" has two meanings and they are kept apart
+
+Without an `AudioSampleLocator`, `unresolvedSamples` means only "not in this package" — 908 names
+for `0-Lighthouse`, every one of which ships fine in another store. With a full locator it means "in
+no shipped store", and for `0-Lighthouse` it is **0**. The first cut of this exporter conflated the
+two and produced a confident 908-sample hole that did not exist; the CLI now states which sense it
+is reporting.
+
+### The remaining check is to listen
+
+Numeric validation has passed on visibly wrong output in this project more than once, and the audio
+equivalent is a manifest that is perfectly well-formed and plays the wrong sample. Nothing here is
+claimed as verified in UE5 until it has been imported and heard.

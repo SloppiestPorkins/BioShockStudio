@@ -51,6 +51,7 @@ try
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
+        "export-audio" => ExportAudio(root, args),
         "audit-audio" => AuditAudio(root),
         "decode-stream" => DecodeStream(root, args),
         "export-textures" => ExportTextures(root, args),
@@ -93,6 +94,10 @@ static int Usage()
           sounds <package> [pattern]    List native Sound exports and identified payload formats.
           export-sounds <package> <out-dir> [pattern]
                                         Write native Sound payloads as MP3 where proven, else .bin.
+          export-audio <package> <out-dir> [--locate] [--no-payloads]
+                                Write a UE5 SoundWave/SoundCue manifest for a package.
+                                --locate indexes every shipped store so a sample in another
+                                package or an FSB bank is located rather than reported missing.
           audit-audio                   Census native Sound exports and their identified payloads.
           decode-stream <bank.fsb> <out.wav> <subsound-index> [--helper path]
                                         Decode one streamed FSB5 item through the game's x86 FMOD.
@@ -878,6 +883,65 @@ static int ExportSounds(string root, string[] args)
         Console.WriteLine($"  {SoundExporter.Write(sound, directory)}");
 
     Console.WriteLine($"\n{sounds.Count} native Sound exports written.");
+    return 0;
+}
+
+/// <summary>
+/// Gate 4 item 2 - the audio half of a package's UE5 import set.
+/// </summary>
+/// <remarks>
+/// <c>--locate</c> is off by default because building the whole-game index reads every shipped
+/// package, and adding the streamed banks needs the game's x86 FMOD bridge. Without it, a sample
+/// this package does not itself hold is listed as unresolved, which means "not here", not "missing".
+/// </remarks>
+static int ExportAudio(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-audio <package> <out-dir> [--locate] [--no-payloads]");
+        return 1;
+    }
+
+    bool locate = args.Contains("--locate", StringComparer.OrdinalIgnoreCase);
+    bool payloads = !args.Contains("--no-payloads", StringComparer.OrdinalIgnoreCase);
+
+    string file = ResolvePackage(root, args[1]);
+    string name = Path.GetFileNameWithoutExtension(file);
+    using var package = BioShockPackage.Open(file);
+
+    AudioSampleLocator? locator = null;
+    if (locate)
+    {
+        Console.WriteLine("indexing every shipped sample store (this reads the whole game)...");
+        try
+        {
+            locator = AudioSampleLocator.BuildAsync(root).GetAwaiter().GetResult();
+            Console.WriteLine($"  {locator.Count} distinct sample names indexed.");
+        }
+        catch (FileNotFoundException ex)
+        {
+            // The FMOD bridge is optional tooling; the package-backed stores still index.
+            Console.Error.WriteLine($"  streamed banks unavailable ({ex.Message}); indexing packages only.");
+            locator = AudioSampleLocator.BuildNative(root);
+            Console.WriteLine($"  {locator.Count} distinct sample names indexed.");
+        }
+    }
+
+    if (payloads)
+        Console.WriteLine($"manifest: {AudioExporter.Write(package, name, args[2], locator)}");
+
+    var manifest = AudioExporter.Build(package, name, locator);
+    Console.WriteLine();
+    Console.WriteLine($"{name}: {manifest.Cues.Count} cues, {manifest.Waves.Count} waves, {manifest.Actors.Count} placed actors.");
+    foreach (var group in manifest.Waves.GroupBy(wave => wave.Source).OrderByDescending(group => group.Count()))
+        Console.WriteLine($"  {group.Key,-16} {group.Count()}");
+
+    if (manifest.UnresolvedSamples.Count > 0)
+    {
+        Console.WriteLine($"  {manifest.UnresolvedSamples.Count} sample name(s) not found"
+            + (locate ? " in any shipped store." : " in this package (pass --locate to search the rest)."));
+        foreach (string missing in manifest.UnresolvedSamples.Take(10)) Console.WriteLine($"      {missing}");
+    }
     return 0;
 }
 

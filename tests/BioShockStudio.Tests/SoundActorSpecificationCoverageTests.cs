@@ -2,6 +2,7 @@ using BioShockStudio.Core.Audio;
 using BioShockStudio.Core.Game;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -117,28 +118,40 @@ public sealed class SoundActorSpecificationCoverageTests(GameFixture game)
     }
 
     /// <summary>
-    /// Where the samples the specifications name actually ship.
+    /// Where the samples the specifications name actually ship - all four stores.
     /// </summary>
     /// <remarks>
     /// <para>
     /// A resolved name is not a located sample, and this project has a rule against calling the
-    /// first one the second. Of the 5,726 distinct names the specifications reference, 2,080 are
-    /// native <c>Sound</c> exports inside the map packages and 1,676 are in the streamed FSB5
-    /// banks - two stores that do not overlap on a single name.
+    /// first one the second. Of the 5,726 distinct names the specifications reference,
+    /// <b>5,722 (99.93%) are located</b>.
     /// </para>
     /// <para>
-    /// <b>The remaining 1,970 are in neither, and that is reported rather than explained away.</b>
-    /// It is still a real gap; what changed is that it is now a list of 1,970 exact names instead
-    /// of the open question "where does sound-effect data ship".
+    /// <b>An earlier version of this test asserted 3,756 located and 1,970 "in neither store".</b>
+    /// Those numbers were real but they counted only the 21 non-localised map packages, and the
+    /// game ships its voice-over in the 140 <i>localised</i> ones - which is exactly where localised
+    /// content belongs. That is why this test now enumerates every store the game actually has, and
+    /// why it asserts the per-store split rather than only a total: a total alone would have looked
+    /// equally plausible while missing 1,995 samples.
+    /// </para>
+    /// <para>
+    /// The four that remain unlocated are named below. Three carry the <c>99</c> level prefix and
+    /// <c>vo_waders_frozen</c> has no shipped variant at all, so they read as references to cut
+    /// content - <c>LIKELY</c>, and asserted here as an exact set so that a fifth would fail rather
+    /// than pass unnoticed.
     /// </para>
     /// </remarks>
     [RequiresGameFact]
     public async Task EverySpecificationSampleNameIsLocatedInAShippedStore()
     {
+        string root = game.RequireRoot;
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var nativeSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var coreSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var localisedSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var scriptSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (string file in GameLocator.EnumeratePackages(game.RequireRoot))
+        var core = GameLocator.EnumeratePackages(root).ToList();
+        foreach (string file in core)
         {
             using var package = BioShockPackage.Open(file);
             foreach (var metadata in SoundEffectSpecificationReader.Read(package))
@@ -146,26 +159,87 @@ public sealed class SoundActorSpecificationCoverageTests(GameFixture game)
                     if (!string.IsNullOrEmpty(entry.SoundName)) names.Add(entry.SoundName!);
 
             foreach (var export in package.Exports)
-                if (package.GetClassName(export) == "Sound") nativeSounds.Add(export.ObjectName);
+                if (package.GetClassName(export) == "Sound") coreSounds.Add(export.ObjectName);
         }
 
-        var catalog = await StreamSampleCatalog.BuildAsync(game.RequireRoot);
+        // The localised duplicates are where the voice-over ships. Skipping them is what made an
+        // earlier reading of this figure report a 34% gap that was not there.
+        var coreSet = new HashSet<string>(core, StringComparer.OrdinalIgnoreCase);
+        foreach (string file in Directory.GetFiles(GameLocator.MapsDirectory(root), "*.bsm")
+                     .Where(file => !coreSet.Contains(file)))
+        {
+            using var package = BioShockPackage.Open(file);
+            foreach (var export in package.Exports)
+                if (package.GetClassName(export) == "Sound") localisedSounds.Add(export.ObjectName);
+        }
 
-        int native = names.Count(nativeSounds.Contains);
-        int streamed = names.Count(name => catalog.Find(name).Count > 0);
-        int located = names.Count(name => nativeSounds.Contains(name) || catalog.Find(name).Count > 0);
+        // The shell/menu sounds live in a script package, not a map.
+        foreach (string file in GameLocator.EnumerateScriptPackages(root))
+        {
+            using var package = BioShockPackage.Open(file);
+            foreach (var export in package.Exports)
+                if (package.GetClassName(export) == "Sound") scriptSounds.Add(export.ObjectName);
+        }
+
+        var catalog = await StreamSampleCatalog.BuildAsync(root);
+        bool Streamed(string name) => catalog.Find(name).Count > 0;
+        bool Located(string name) => coreSounds.Contains(name) || localisedSounds.Contains(name)
+                                     || scriptSounds.Contains(name) || Streamed(name);
 
         Assert.Equal(5_726, names.Count);
-        Assert.Equal(2_080, native);
-        Assert.Equal(1_676, streamed);
+        Assert.Equal(2_080, names.Count(coreSounds.Contains));
+        Assert.Equal(1_995, names.Count(localisedSounds.Contains));
+        Assert.Equal(1_676, names.Count(Streamed));
+        Assert.Equal(10, names.Count(scriptSounds.Contains));
 
-        // The two stores do not overlap on a single name.
-        Assert.Equal(native + streamed, located);
-        Assert.Equal(3_756, located);
+        Assert.Equal(5_722, names.Count(Located));
 
-        // 1,970 named samples - 34.4% - are in neither store. Recorded, not explained away: this is
-        // the part of section 4 that remains open, and it is now a list of 1,970 exact names rather
-        // than "where does sound-effect data ship".
-        Assert.Equal(1_970, names.Count - located);
+        Assert.Equal(
+            ["vo_PA_99_Fa_ResponsibilityPA", "vo_PA_99_Fa_ResponsibilityPA4a",
+             "vo_S_99_Ad_SportsBoostAd", "vo_waders_frozen_04"],
+            names.Where(name => !Located(name)).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>
+    /// <c>BulkContent/</c> holds no audio at all - the candidate <c>audio.md</c> §4 proposed.
+    /// </summary>
+    /// <remarks>
+    /// Controlled in both directions, because a negative result from a broken query is worth
+    /// nothing: a name taken from the catalogue itself must resolve, and an invented one must not.
+    /// The earlier reasoning that kept this candidate alive used <c>Hand_DIFF</c> as its control,
+    /// which <c>docs/research/bulkcontent.md</c> records as a texture that was never stripped - so
+    /// it has no bulk entry to find and proved nothing.
+    /// </remarks>
+    [RequiresGameFact]
+    public void TheBulkContentStoreHoldsNoSoundSamples()
+    {
+        string root = game.RequireRoot;
+        var catalog = BulkTextureCatalog.Load(root);
+        Assert.NotNull(catalog);
+
+        Assert.NotNull(catalog!.Find(catalog.Entries[0].Texture));            // positive control
+        Assert.Null(catalog.Find("definitely_not_a_real_asset_xyz"));         // negative control
+
+        var bulk = new HashSet<string>(catalog.Entries.Select(entry => entry.Texture),
+            StringComparer.OrdinalIgnoreCase);
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string file in GameLocator.EnumeratePackages(root))
+        {
+            using var package = BioShockPackage.Open(file);
+            foreach (var metadata in SoundEffectSpecificationReader.Read(package))
+                foreach (var entry in metadata.SoundSpecs)
+                    if (!string.IsNullOrEmpty(entry.SoundName)) names.Add(entry.SoundName!);
+        }
+
+        Assert.Equal(5_726, names.Count);
+        Assert.Empty(names.Where(bulk.Contains));
+
+        // Nor anything audio-shaped under any name: "Gen_Ambience" is environment art.
+        Assert.Empty(bulk.Where(name =>
+            name.StartsWith("ambience_", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("weapons_", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("scripted_", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("vo_", StringComparison.OrdinalIgnoreCase)));
     }
 }

@@ -267,8 +267,20 @@ public static class SoundEffectSpecificationReader
         { Type: UnrealPropertyType.Bool } ? property.BoolValue : null;
 }
 
-internal static class SoundSpecEntryExtensions
+/// <summary>Named access to the surface class a <see cref="SoundSpecEntry.Flag"/> carries.</summary>
+public static class SoundSpecEntryExtensions
 {
+    /// <summary>
+    /// The entry's <see cref="Audio.MaterialVisualType"/>, or null when the byte is absent or is a
+    /// value the shipped enum does not declare.
+    /// </summary>
+    /// <remarks>
+    /// The raw <see cref="SoundSpecEntry.Flag"/> stays the source of truth and is never replaced by
+    /// this. An undeclared value returns null rather than an invented enum member, so a byte outside
+    /// 0-27 cannot be laundered into a surface name that the game never had.
+    /// </remarks>
     public static MaterialVisualType? MaterialVisualType(this SoundSpecEntry entry) =>
-        entry.Flag.HasValue ? (Audio.MaterialVisualType)entry.Flag.Value : null;
+        entry.Flag is { } flag && Enum.IsDefined((Audio.MaterialVisualType)flag)
+            ? (Audio.MaterialVisualType)flag
+            : null;
 }
