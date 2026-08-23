@@ -294,10 +294,49 @@ too (a flower vase weighs 0.2 kg). It then counted the 40 infinite-mass bodies a
 times the test was wrong and the decode was right.** A test that encodes a guess about the data is
 not a check on the decode.
 
+### The rest of the motion block, derived rather than searched
+
+**Status: `CONFIRMED_BYTES`, same session.** Once `+240` and `+416` were confirmed, the header
+accounts for every byte between them and the remaining fields follow exactly:
+
+| Offset | Field | Value in the game |
+|---|---|---|
+| `+400` | `m_objectRadius` | tracks the owning capsule's extent |
+| `+404` | `m_linearDamping` (`hkHalf`) | 0 everywhere |
+| `+406` | `m_angularDamping` (`hkHalf`) | 0.0498 (x1,398) and 0.0500 (x28) |
+| `+408` | `m_timeFactor` (`hkHalf`) | **exactly 1.0 on 1,426 of 1,426** |
+| `+432` | `m_linearVelocity` | zero except one rig |
+| `+448` | `m_angularVelocity` | zero except one rig |
+| `+140` | `hkpMaterial::m_friction` | 0.3 (x858), 0.5 (x528), 0.2 (x40) |
+| `+144` | `hkpMaterial::m_restitution` | 0.8, 0.1, 0.3, 0.4, 0.5, 1.0 |
+
+**The derivation is self-checking.** `hkMotionState` is `hkTransform` (64) + `hkSweptTransform`
+(5 x `hkVector4` = 80) + `m_deltaAngle` (16) + `m_objectRadius` (4) + three `hkHalf` (6) + trailing
+bytes, padding to 176 - and `240 + 176 = 416`, exactly where `m_inertiaAndMassInv` was
+independently found by search. The two anchors bracket the block and the header fills it.
+
+**`m_timeFactor` is the load-bearing confirmation.** 1.0 is Havok's default, and reading exactly 1.0
+out of a 16-bit half on every body in the game is not what a wrong offset does. It also settles the
+encoding: **`hkHalf` stores the high 16 bits of a float**, not an IEEE half - read the other way the
+value is nonsense. `m_angularDamping` corroborates: 0.0498 is the nearest representable value to an
+authored 0.05.
+
+**Friction and restitution are authored constants, not a continuum** - three distinct friction
+values and six restitution values across 1,426 bodies. A misaligned read gives hundreds of distinct
+reals.
+
+### One rig ships with a live velocity state
+
+**104 bodies have non-zero velocity, and every one of them belongs to `NewProtectorBouncer`** (the
+Big Daddy Bouncer) - up to 2.4 m/s linear and 2.4 rad/s angular. Everything else about that rig
+reads consistently (unit time factor, authored friction, round masses, proper rotations), so this
+looks like an asset saved while its simulation was running rather than a misread. **`PLAUSIBLE`, not
+confirmed** - what is `CONFIRMED_BYTES` is that the exceptions are confined to exactly one rig,
+which a wrong offset would not manage: it would scatter non-zero values across unrelated assets.
+
 ### Still open
 
-`hkpRigidBody`'s velocities, damping, friction and restitution are untouched - a real header exists
-for them, so they are unattempted rather than blocked, the same status this section's subject had
-before today. `hkpRagdollConstraintData::Atoms` (the joint limits) remains **declined on licence
+`hkpRigidBody`'s remaining unexamined fields, and the deactivation/swept-transform block, are
+untouched. `hkpRagdollConstraintData::Atoms` (the joint limits) remains **declined on licence
 grounds** - see the entry above; do not re-open it.
 

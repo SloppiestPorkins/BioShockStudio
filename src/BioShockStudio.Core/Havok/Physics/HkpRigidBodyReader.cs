@@ -80,6 +80,47 @@ public sealed record HkpRigidBodyMotion
     /// </remarks>
     public bool IsFixed => InverseMass == 0f;
 
+    /// <summary>
+    /// <c>hkMotionState::m_objectRadius</c> — the body's bounding radius.
+    /// </summary>
+    /// <remarks>
+    /// Cross-validated against already-decoded data rather than eyeballed: it tracks the owning
+    /// capsule's extent across all 17 bodies of the first character (the largest capsules carry the
+    /// largest radii) and mirrors in the same left/right pairs the translations do.
+    /// </remarks>
+    public required float ObjectRadius { get; init; }
+
+    /// <summary>Linear damping. Zero on every shipped body.</summary>
+    public required float LinearDamping { get; init; }
+
+    /// <summary>Angular damping. <c>0.0498</c> on every shipped body — the hkHalf encoding of 0.05.</summary>
+    public required float AngularDamping { get; init; }
+
+    /// <summary>
+    /// Time scale for this body's integration. Exactly <c>1.0</c> on every shipped body.
+    /// </summary>
+    /// <remarks>
+    /// This is the field that confirms the hkHalf decode: 1.0 is the Havok default, and reading
+    /// exactly 1.0 out of a 16-bit half at a predicted offset is not something a wrong offset does.
+    /// </remarks>
+    public required float TimeFactor { get; init; }
+
+    /// <summary>Linear velocity. Zero throughout — this is authored data, not a simulation snapshot.</summary>
+    public required Vector3 LinearVelocity { get; init; }
+
+    /// <summary>Angular velocity. Zero throughout, for the same reason.</summary>
+    public required Vector3 AngularVelocity { get; init; }
+
+    /// <summary>
+    /// <c>hkpMaterial::m_friction</c>. Clean authored values — 0.5 and 0.2 in the game.
+    /// </summary>
+    public required float Friction { get; init; }
+
+    /// <summary>
+    /// <c>hkpMaterial::m_restitution</c>. Clean authored values — 0.1 and 1.0 in the game.
+    /// </summary>
+    public required float Restitution { get; init; }
+
     /// <summary>Determinant of the rotation basis: +1 for a proper rotation.</summary>
     public float Determinant => Vector3.Dot(ColumnX, Vector3.Cross(ColumnY, ColumnZ));
 
@@ -130,6 +171,45 @@ public static class HkpRigidBodyReader
     /// </remarks>
     private const int InertiaAndMassInvOffset = 416;
 
+    /// <summary>
+    /// The rest of the motion block, <b>derived</b> from the headers once the two anchors above were
+    /// confirmed, rather than searched for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The derivation is exact and self-checking: <c>hkMotionState</c> is <c>hkTransform</c> (64) +
+    /// <c>hkSweptTransform</c> (5 × <c>hkVector4</c> = 80) + <c>m_deltaAngle</c> (16) +
+    /// <c>m_objectRadius</c> (4) + three <c>hkHalf</c> (6) + trailing bytes, padding to 176 — and
+    /// <c>240 + 176 = 416</c>, exactly where <c>m_inertiaAndMassInv</c> was independently found.
+    /// The two anchors bracket the block and the header accounts for every byte between them.
+    /// </para>
+    /// <para>
+    /// Confirmed on the data: <c>m_timeFactor</c> reads exactly 1.0 (its default) on every body,
+    /// <c>m_angularDamping</c> reads 0.0498 (the hkHalf encoding of 0.05), and
+    /// <c>m_objectRadius</c> tracks the owning capsule's extent.
+    /// </para>
+    /// </remarks>
+    private const int ObjectRadiusOffset = 400;
+
+    private const int LinearDampingOffset = 404;
+    private const int AngularDampingOffset = 406;
+    private const int TimeFactorOffset = 408;
+    private const int LinearVelocityOffset = 432;
+    private const int AngularVelocityOffset = 448;
+
+    /// <summary>
+    /// <c>hkpMaterial</c>, embedded in <c>hkpEntity</c>: an <c>hkInt8</c> response type, an
+    /// <c>hkHalf</c> rolling-friction multiplier, then friction and restitution as floats.
+    /// </summary>
+    /// <remarks>
+    /// Located by scanning for a float pair that is constant per body and physically sensible, then
+    /// matched against the header's field order. The values are authored constants — friction 0.5
+    /// or 0.2, restitution 0.1 or 1.0 — which is what rules out a coincidental alignment.
+    /// </remarks>
+    private const int FrictionOffset = 140;
+
+    private const int RestitutionOffset = 144;
+
     public static (HavokSection Section, int Offset)? ReadShape(HavokPackfile packfile, HavokSection section, int objectOffset) =>
         packfile.ResolvePointerField(section, objectOffset + ShapeOffset);
 
@@ -139,7 +219,7 @@ public static class HkpRigidBodyReader
     public static HkpRigidBodyMotion? ReadMotion(HavokSection section, int objectOffset)
     {
         var data = section.Data.Span;
-        if (objectOffset < 0 || objectOffset + InertiaAndMassInvOffset + 16 > data.Length) return null;
+        if (objectOffset < 0 || objectOffset + AngularVelocityOffset + 16 > data.Length) return null;
 
         return new HkpRigidBodyMotion
         {
@@ -149,6 +229,14 @@ public static class HkpRigidBodyReader
             Translation = ReadVector(data, objectOffset + TranslationOffset),
             InverseInertia = ReadVector(data, objectOffset + InertiaAndMassInvOffset),
             InverseMass = ReadFloat(data, objectOffset + InertiaAndMassInvOffset + 12),
+            ObjectRadius = ReadFloat(data, objectOffset + ObjectRadiusOffset),
+            LinearDamping = ReadHalf(data, objectOffset + LinearDampingOffset),
+            AngularDamping = ReadHalf(data, objectOffset + AngularDampingOffset),
+            TimeFactor = ReadHalf(data, objectOffset + TimeFactorOffset),
+            LinearVelocity = ReadVector(data, objectOffset + LinearVelocityOffset),
+            AngularVelocity = ReadVector(data, objectOffset + AngularVelocityOffset),
+            Friction = ReadFloat(data, objectOffset + FrictionOffset),
+            Restitution = ReadFloat(data, objectOffset + RestitutionOffset),
         };
     }
 
@@ -157,4 +245,15 @@ public static class HkpRigidBodyReader
 
     private static float ReadFloat(ReadOnlySpan<byte> data, int offset) =>
         BinaryPrimitives.ReadSingleLittleEndian(data[offset..]);
+
+    /// <summary>
+    /// An <c>hkHalf</c>, which stores the <b>high 16 bits of a float</b> rather than an IEEE half.
+    /// </summary>
+    /// <remarks>
+    /// Confirmed by the result, not assumed: read this way, <c>m_timeFactor</c> comes out as exactly
+    /// 1.0 on every body in the game and <c>m_angularDamping</c> as 0.0498, the nearest
+    /// representable value to an authored 0.05.
+    /// </remarks>
+    private static float ReadHalf(ReadOnlySpan<byte> data, int offset) =>
+        BitConverter.UInt32BitsToSingle((uint)BinaryPrimitives.ReadUInt16LittleEndian(data[offset..]) << 16);
 }

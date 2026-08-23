@@ -721,8 +721,19 @@ material.
    - **A disproved assumption, recorded:** "a character has an `hkaRagdollInstance`, a prop does
      not" is **false** - props carry them too. So there is no structural prop/character
      discriminator here, and the categorisation above is by name, logged rather than asserted.
-   - **Still open, unattempted rather than blocked:** velocities, damping, friction, restitution.
-     The joint-limit `Atoms` stay **declined on licence grounds** - do not re-open.
+   - ~~**Still open, unattempted rather than blocked:** velocities, damping, friction,
+     restitution.~~ **Done, same session — and these were *derived*, not searched.** Once `+240`
+     and `+416` were confirmed the header accounts for every byte between them: `m_objectRadius`
+     `+400`, damping `+404`/`+406`, `m_timeFactor` `+408`, velocities `+432`/`+448`, and
+     `hkpMaterial`'s friction/restitution at `+140`/`+144`. **`m_timeFactor` reads exactly 1.0 on
+     1,426 of 1,426 bodies**, which confirms both the offset and the encoding (`hkHalf` stores a
+     float's high 16 bits, not an IEEE half). Friction takes three distinct values game-wide and
+     restitution six — authored constants, not a continuum.
+   - **One rig ships with a live velocity state:** 104 bodies have non-zero velocity and **every one
+     belongs to `NewProtectorBouncer`**. `PLAUSIBLE` that it was saved mid-simulation; what is
+     confirmed is that the exceptions are confined to a single rig, which a wrong offset would not
+     manage.
+   - The joint-limit `Atoms` stay **declined on licence grounds** - do not re-open.
 4. Validate every skeleton family in UE5 beyond the pistol/TommyGun pair already proven.
    **Splicer done, 19 Aug 2026**: `AggressorBabyJane` (73 bones, 6,176 vertices, 17 sockets — a
    structurally different, larger rig than any weapon viewmodel) imports cleanly
