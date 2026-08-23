@@ -49,7 +49,7 @@ public static class LevelAnalyzer
         "OverriddenAIArchetypeNames", "Cubemap", "Material", "Tile", "MaxTraceDistance",
         "ZBiasOverride", "ScaleInTime", "AngleGradient", "bProjectOnBackfaces",
         "bProjectStaticMesh", "bProjectSkeletalMesh", "bShouldBeAttached",
-        "ForceType", "ForceShape", "ForceFilter",
+        "ForceType", "ForceShape", "ForceFilter", "LootSlot",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -143,6 +143,7 @@ public static class LevelAnalyzer
             Cubemap = Reference(package, defaults, payload, "Cubemap", "Cubemap"),
             Projector = Projector(package, defaults, source.ClassName, payload),
             HavokForce = HavokForce(package, defaults, source.ClassName, payload),
+            LootSlot = Reference(package, defaults, payload, "LootSlot", null),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")

@@ -249,6 +249,7 @@ public static class LevelSceneExporter
                     ForceFilter = Describe(actor.HavokForce.ForceFilter),
                     Complete = actor.HavokForce.Complete,
                 },
+                LootSlot = Describe(actor.LootSlot),
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -621,6 +622,7 @@ public sealed record LevelActorDocument
     public LevelReferenceDocument? Cubemap { get; init; }
     public LevelProjectorActorDocument? Projector { get; init; }
     public LevelHavokForceActorDocument? HavokForce { get; init; }
+    public LevelReferenceDocument? LootSlot { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }

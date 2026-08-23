@@ -303,6 +303,9 @@ public sealed record LevelActor
     public ProjectorActorData? Projector { get; init; }
     public HavokForceActorData? HavokForce { get; init; }
 
+    /// <summary>The inventory/loot declaration selected by a placed pickup.</summary>
+    public AssetReference? LootSlot { get; init; }
+
     public required ActorTransform Transform { get; init; }
 
     /// <summary>The static mesh this actor draws, from its own properties or its class defaults.</summary>

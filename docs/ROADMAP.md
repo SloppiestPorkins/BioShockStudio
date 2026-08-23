@@ -972,7 +972,13 @@ material.
    omit it. No target has failed resolution, and all declarations reach the manifest as
    `PhysicsForcePending`. This records the shipped composition graph without guessing how UE5's
    physics fields should reproduce it. `HavokForceActorSchemaTests`. **Next:** the remaining 41
-   genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   genuinely unclassified actors.
+
+   **Medical hypo pickups decoded, 23 Aug 2026.** Each of the 11 `MedHypoPickup` actors carries one
+   class-specific gameplay field: a `LootSlot` object reference. All 11 references resolve to
+   shipped exports and now reach the manifest as `InteractionPending`; the rest of each record is
+   already-covered transform, region, ownership and engine bookkeeping. `PickupActorSchemaTests`.
+   **Next:** the remaining 30 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
