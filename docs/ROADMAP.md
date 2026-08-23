@@ -865,16 +865,22 @@ dotnet test                         # both — the number to report
 That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
 measured**. Reported as unrun, not as passing.
 
-**Measured on the current tree, 23 Aug 2026:**
+**Measured on the current tree, 23 Aug 2026** (HEAD `e40f193`):
 
-| Run | Result | Cost |
-|---|---|---|
-| `--filter Tier=Fast` | **204/204** | 41s |
-| `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** | 2m17s |
+| Run | Result |
+|---|---|
+| `--filter Tier=Fast` | **217/217** (41–44s) |
+| `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** (2m17s) |
+| `~Level` + `~Bsp` | **75/75** (7m38s) |
+| `~Material` + `~Fbx` + `~Export` + `~Texture` | **115/115** (7m43s) |
+| `TextureIntentCensusTests`, `CubemapTests`, `CubemapBindingTests` | **7/7** (whole-game scans) |
 
-Those two classes are the entire surface `1c2e4b2` could have moved (it touched
-`Core/Mesh/SkeletalMeshSections.cs` and those two test files). The rest of the sweep tier is
-unchanged since the 464/464 run and was **deliberately not re-run** — see
+**The full suite has still not been run since `1c2e4b2`** and its total remains unmeasured —
+reported as unrun, not as passing. The targeted runs above cover every area touched since
+(skeletal sections, the level viewport's transparency, textures, materials, export). The sweep
+classes outside those areas are unchanged.
+
+The rest of the sweep tier is unchanged since the 464/464 run and was **deliberately not re-run** — see
 `docs/ENGINEERING_RULES.md` §60 "Test-run economy", which is a standing user instruction, not a
 shortcut. The recipe:
 
