@@ -54,7 +54,7 @@ public static class LevelAnalyzer
         "hkLimitedHingeFrictionValue", "hkLimitedHingeTauFactor",
         "AntiPortal", "LayerName", "RegionNames", "ScaleMarkerName", "VendingTableName",
         "VendingTable", "HackInfoName", "StaticMeshInstance", "SendDestructionNotification",
-        "bCanBeHacked",
+        "bCanBeHacked", "DoorLabel", "bHackable", "bShowHudElements",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -153,6 +153,7 @@ public static class LevelAnalyzer
             AntiPortal = Reference(package, defaults, payload, "AntiPortal", null),
             MapUiMarker = MapUiMarker(package, source.ClassName, payload),
             Vending = Vending(package, defaults, source.ClassName, payload),
+            Interaction = Interaction(package, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -368,6 +369,21 @@ public static class LevelAnalyzer
             StaticMeshInstance = meshInstance,
             DestructionNotification = notification,
             CanBeHacked = canBeHacked,
+        };
+    }
+
+    private static InteractionActorData? Interaction(
+        BioShockPackage package, string className, ActorPayload payload)
+    {
+        if (className is not ("DoorKeypadControl" or "dyn_toolbox_open")) return null;
+        bool? Bool(string name) => payload.Find(name) is { Type: UnrealPropertyType.Bool } value
+            ? value.BoolValue : null;
+        return new InteractionActorData
+        {
+            DoorLabel = ReadName(package, payload, "DoorLabel"),
+            HackInfoName = ReadName(package, payload, "HackInfoName"),
+            Hackable = Bool("bHackable"),
+            ShowHudElements = Bool("bShowHudElements"),
         };
     }
 

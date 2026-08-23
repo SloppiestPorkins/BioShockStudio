@@ -1012,7 +1012,13 @@ material.
    actor of each class unclassified. Exact class identity now keeps all 495 Medical path nodes in
    `NavigationPending` and all 300 scripts in `ScriptPending`, without fabricating empty payload
    entries. `CoverageBoundaryActorTests`. **Next:** the remaining four genuinely unclassified
-   actors. The now 345 Medical audio actors' declaration was
+   actors.
+
+   **Keypad/toolbox interactions decoded, 23 Aug 2026.** The singleton `DoorKeypadControl` exports
+   its door label, hack-info name and nullable hackable flag; `dyn_toolbox_open` exports its nullable
+   HUD-elements flag. Both now report as `InteractionPending`, with absence kept distinct from false.
+   `InteractionActorSchemaTests`. **Next:** only `LevelInfo` and `ShockAIScout` remain unclassified.
+   The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

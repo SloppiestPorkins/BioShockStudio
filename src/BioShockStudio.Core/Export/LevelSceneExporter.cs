@@ -278,6 +278,13 @@ public static class LevelSceneExporter
                     CanBeHacked = actor.Vending.CanBeHacked,
                     Complete = actor.Vending.Complete,
                 },
+                Interaction = actor.Interaction is null ? null : new LevelInteractionActorDocument
+                {
+                    DoorLabel = actor.Interaction.DoorLabel,
+                    HackInfoName = actor.Interaction.HackInfoName,
+                    Hackable = actor.Interaction.Hackable,
+                    ShowHudElements = actor.Interaction.ShowHudElements,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -655,6 +662,7 @@ public sealed record LevelActorDocument
     public LevelReferenceDocument? AntiPortal { get; init; }
     public LevelMapUiMarkerDocument? MapUiMarker { get; init; }
     public LevelVendingActorDocument? Vending { get; init; }
+    public LevelInteractionActorDocument? Interaction { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -740,6 +748,14 @@ public sealed record LevelVendingActorDocument
     public int? DestructionNotification { get; init; }
     public bool? CanBeHacked { get; init; }
     public required bool Complete { get; init; }
+}
+
+public sealed record LevelInteractionActorDocument
+{
+    public string? DoorLabel { get; init; }
+    public string? HackInfoName { get; init; }
+    public bool? Hackable { get; init; }
+    public bool? ShowHudElements { get; init; }
 }
 
 public sealed record LevelRegionDocument

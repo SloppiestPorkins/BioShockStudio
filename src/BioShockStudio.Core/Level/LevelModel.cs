@@ -300,6 +300,14 @@ public sealed record VendingActorData
                             && StaticMeshInstance.Status != ResolutionStatus.Failed;
 }
 
+public sealed record InteractionActorData
+{
+    public string? DoorLabel { get; init; }
+    public string? HackInfoName { get; init; }
+    public bool? Hackable { get; init; }
+    public bool? ShowHudElements { get; init; }
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -343,6 +351,7 @@ public sealed record LevelActor
     public AssetReference? AntiPortal { get; init; }
     public MapUiMarkerData? MapUiMarker { get; init; }
     public VendingActorData? Vending { get; init; }
+    public InteractionActorData? Interaction { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

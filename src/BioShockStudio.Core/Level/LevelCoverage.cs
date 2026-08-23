@@ -175,6 +175,7 @@ public sealed record LevelCoverageReport
         if (actor.AntiPortal is not null) return LevelActorCoverage.VisibilityPending;
         if (actor.MapUiMarker is not null) return LevelActorCoverage.MapMarkerPending;
         if (actor.Vending is not null) return LevelActorCoverage.InteractionPending;
+        if (actor.Interaction is not null) return LevelActorCoverage.InteractionPending;
 
         return LevelActorCoverage.Unclassified;
     }
