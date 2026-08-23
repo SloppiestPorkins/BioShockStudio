@@ -20,8 +20,8 @@ public sealed class AntiPortalActorSchemaTests(GameFixture game)
         Assert.Equal(3, actors.Count);
         Assert.All(actors, actor => Assert.Equal(ResolutionStatus.Resolved, actor.AntiPortal?.Status));
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(3, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.VisibilityPending)));
+        Assert.Equal(3, coverage.Classes.Sum(row => row.ClassName == "AntiPortalActor"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.VisibilityPending) : 0));
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.ClassName == "AntiPortalActor").ToList();
         Assert.Equal(actors.Count, exported.Count);

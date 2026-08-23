@@ -36,8 +36,8 @@ public sealed class CubemapProbeActorTests(GameFixture game)
         Assert.Equal(29, probes.Count);
         Assert.All(probes, probe => Assert.Equal(ResolutionStatus.Resolved, probe.Cubemap?.Status));
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(29, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ReflectionProbePending)));
+        Assert.Equal(29, coverage.Classes.Sum(row => row.ClassName == "CubemapProbe"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ReflectionProbePending) : 0));
 
         var document = BioShockStudio.Core.Export.LevelSceneExporter.ToDocument(
             LevelSceneBuilder.Build(package, context), includeGeometry: false);

@@ -237,3 +237,32 @@ state. Listed so an agent does not treat "Unknown" as a defect to be fixed.
 **Best next investigation.** None scheduled. **Unknown is a valid answer.**
 
 **Agent.** —
+
+---
+
+## Q11 — Why do 8 actors with decoded `Emitters` not land in `EffectPending`?
+
+**Question.** `EffectActorSchemaTests` finds 142 actors with `actor.Emitters is not null` (fully
+decoded) but the `EffectPending` coverage bucket sums to only 134 — an 8-actor gap, in a currently
+*passing* test, so both numbers are the real, current, correct output.
+
+**Why it matters.** Low urgency (nothing is failing), but worth naming precisely rather than leaving
+implicit. `LevelCoverage.Classify()`'s `if`-chain checks `LightPending` (class ends `"Light"` or has a
+light property) and `RegionPending` (class ends `"Volume"`/contains `"Trigger"`/`"Zone"`) *before* it
+checks `EffectPending`. The likely explanation: 8 of the 142 `Emitters`-bearing actors also match one
+of those earlier gates and get classified there instead — a light or volume actor that also happens to
+carry a particle effect. Found during TASK-009's shared-bucket audit; not the same bug (this isn't a
+test summing a bucket it shouldn't — the assertion is honest about being class-agnostic), just an
+unstated precedence interaction worth having a name.
+
+**Evidence already gathered.** `EffectActorSchemaTests.cs` (142 vs 134); `LevelCoverage.Classify()`
+gate order in `src/BioShockStudio.Core/Level/LevelCoverage.cs`.
+
+**Relevant files.** `src/BioShockStudio.Core/Level/LevelCoverage.cs` (`Classify()`),
+`tests/BioShockStudio.Tests/EffectActorSchemaTests.cs`.
+
+**Best next investigation.** Diff `effects` (the 142) against the `EffectPending`-bucket actor set
+directly, name the 8 by object name and class, and confirm they land in `LightPending`/`RegionPending`
+as predicted.
+
+**Agent.** Research, low priority.

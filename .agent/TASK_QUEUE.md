@@ -400,7 +400,45 @@ class count with no other gate reaching it).
 
 **Risk:** LOW — test-only, same low-risk shape as TASK-000.
 
-**Status:** READY
+**Status:** **DONE, 23 Aug 2026**, for the buckets the Lead was able to fully resolve; one left
+explicitly open below rather than guessed at.
+
+**Full audit table.** Every `coverage.Classes.Sum(row => row.StatusCounts.GetValueOrDefault(<X>))`
+assertion in the suite, traced against its `Classify()` gate and the `LevelAnalyzer.cs` function that
+populates the field the gate tests:
+
+| Test | Bucket | Gate | Verdict |
+|---|---|---|---|
+| `MarkerActorSchemaTests` etc. (4 tests) | `MarkerPending`/`InteractionPending`/`ScriptPending` | multi-class | **FIXED — TASK-000** |
+| `InteractionActorSchemaTests` | `InteractionPending` | `LootSlot`/`Vending`/`Interaction`, 4 classes | multi-class, **not yet failing by coincidence** — deliberately left open, see below |
+| `AntiPortalActorSchemaTests` | `VisibilityPending` | `AntiPortal = Reference(...)`, **no `ClassName` gate at all** | multi-class exposure — **FIXED** |
+| `CubemapProbeActorTests` | `ReflectionProbePending` | `Cubemap = Reference(...)`, **no `ClassName` gate at all** | multi-class exposure — **FIXED** |
+| `SpawnerActorSchemaTests` | `SpawnerPending` | `className.EndsWith("Spawner")` — already 2 classes (`AggressorSpawner`+`ProtectorSpawner`), documented in the file's own pre-existing comment | multi-class, currently coincidentally correct — **FIXED** |
+| `ProjectorActorSchemaTests` | `ProjectorPending` | `ClassName is "GoreLight_Decal" or "Caustic_Projector" or "Projector"` (3 classes) | **SAFE, no change** — the test's own `actors.Count` filters on `actor.Projector is not null`, the *same* predicate the bucket gate uses, so the bucket sum is definitionally equal to it. Deliberately a multi-class group test, not a single-class test mistaking a shared total. |
+| `HavokConstraintActorSchemaTests` | `PhysicsConstraintPending` | `ClassName is "HavokHingeConstraint" or "HavokBSConstraint"` (2 classes) | **SAFE, no change** — same self-consistency: filters on `actor.HavokConstraint is not null`, identical to the gate. |
+| `EffectActorSchemaTests` | `EffectPending` | `HasAny(actor, "Emitters")`, no class restriction | **SAFE, no change** — same self-consistency (`actor.Emitters is not null`). Separately: `effects.Count` (142, decoded) doesn't equal the bucket sum (134) — 8 actors have decoded `Emitters` but classify into an earlier-matching bucket (`Classify()` checks `Light`/`Region` name patterns before `EffectPending`). Not a bug, not touched — recorded as a new minor open question below, not urgent. |
+| `SoundActorSchemaTests.MedicalSoundMarkersAreClassifiedByTheirDecodedSchemaNames` | `AudioPending` | `ClassName is "AmbientSound" or "SoundMarker"` OR a 4-property `HasAny` fallback | **left OPEN, not fixed** — ambiguous intent. The test filters its own `actors`/`withSchema` variables to `SoundMarker` only, but the bucket-sum assertion (345) is the *whole 1-Medical `AudioPending` total* including `AmbientSound` (2,893 game-wide) and possibly `MusicBox`, not `SoundMarker`'s own count (36). The file's own extensive docstring suggests this may be a deliberate "is the whole audio bucket accounted for" check rather than a mistaken single-class stand-in — the author was clearly careful here (see the docstring's own correction of a wrong roadmap assumption). Changing it without confirming intent risks silently narrowing a check that was meant to be broad. **Needs Research, not a blind mechanical fix — left for a future task rather than guessed at.** |
+| `LevelInfoActorSchemaTests`, `ShockAiScoutActorSchemaTests`, `MapUiMarkerSchemaTests` (`MapMarkerPending` row only) | `WorldSettingsPending`/`RuntimeStatePending`/`MapMarkerPending` | each gated by exactly one `ClassName` (`"LevelInfo"`, `"ShockAIScout"`, `"MapUILayerMarker"`) | **SAFE, confirmed single-class, no change.** |
+
+**Fix applied** (3 files, mirrors TASK-000's idiom): `AntiPortalActorSchemaTests.cs`,
+`CubemapProbeActorTests.cs` filter to their one class; `SpawnerActorSchemaTests.cs` filters to the two
+classes its own comment already documents. **No expected numeric value changed** — this is a
+robustness fix against a *future* class joining an already-shared or fully-unguarded bucket, not a
+correctness fix for a value that's wrong today.
+
+**Evidence chain:** gate tracing done directly by the Lead (read of every `LevelAnalyzer.cs` populator
+function for the 9 candidate buckets); fix implemented cleanly by the local coder agent on the first
+attempt (no errors this time — the earlier lesson about giving exact literal before/after text and
+exact evidence paid off); independently verified by the local tester agent (patch-applied, real build
++ test: 4/4 passed) and again directly in the main worktree (4/4 passed). Reviewed by the local
+reviewer agent: **APPROVE**.
+
+**Follow-up recorded, not actioned:** (1) `InteractionActorSchemaTests`'s shared-bucket risk is now
+explicitly logged rather than silently present — a future class joining `InteractionPending` will
+still break it, and that's an accepted, understood risk rather than an unknown one. (2)
+`SoundActorSchemaTests`'s ambiguous 345-vs-36 scope needs a Research pass on author intent before
+anyone touches it. (3) `EffectActorSchemaTests`'s 142-vs-134 classification-precedence gap is noted in
+`OPEN_QUESTIONS.md`.
 
 ---
 

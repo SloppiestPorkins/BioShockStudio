@@ -29,8 +29,8 @@ public sealed class SpawnerActorSchemaTests(GameFixture game)
 
         var coverage = LevelCoverageReport.Build(context);
         // Four ProtectorSpawner actors share the same byte-backed population schema.
-        Assert.Equal(23, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.SpawnerPending)));
+        Assert.Equal(23, coverage.Classes.Sum(row => row.ClassName is "AggressorSpawner" or "ProtectorSpawner"
+            ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.SpawnerPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         var exported = document.Actors.Where(actor => actor.ClassName == "AggressorSpawner").ToList();
