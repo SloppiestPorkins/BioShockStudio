@@ -4,12 +4,37 @@ using System.Linq;
 using UELib;
 using UELib.Core;
 
-// Usage: dotnet run --project tools/uelib-bridge -- <out-dir> <package-name.U> [scripts-dir]
-// scripts-dir defaults to auto-detecting a BioShock Remastered install's BakedScripts folder.
+// Usage:
+//   dotnet run --project tools/uelib-bridge -- <out-dir> <package-name.U> [scripts-dir]
+//   dotnet run --project tools/uelib-bridge -- --schema <out-file.json> <package-name.U> [scripts-dir]
+//
+// The default mode decompiles to one .uc per class, for reading. --schema emits the class
+// hierarchy, variable declarations and defaultproperties as JSON, for the UE5 port's data layer --
+// see docs/UE5_FULL_PORT_PLAN.md for why those two halves are treated differently.
 if (args.Length < 2)
 {
     Console.Error.WriteLine("usage: <out-dir> <package-name.U> [scripts-dir]");
+    Console.Error.WriteLine("       --schema <out-file.json> <package-name.U> [scripts-dir]");
     return 1;
+}
+
+bool schemaMode = args[0] == "--schema";
+if (schemaMode)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: --schema <out-file.json> <package-name.U> [scripts-dir]");
+        return 1;
+    }
+
+    string schemaScripts = args.Length > 3 ? args[3] : FindScriptsDirectory();
+    if (schemaScripts is null)
+    {
+        Console.Error.WriteLine("Could not auto-detect a BioShock Remastered install. Pass scripts-dir explicitly.");
+        return 1;
+    }
+
+    return BioShockStudio.UELibBridge.SchemaExport.Run(args[1], args[2], schemaScripts);
 }
 
 string outDir = args[0];

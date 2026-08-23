@@ -196,3 +196,67 @@ In order, smallest first:
 
 Items 1 and 2 are the ones to start with: small, pure data, and they convert the open-ended part of
 this project into something countable.
+
+---
+
+## 9. Decisions and measurements taken since this plan was written
+
+### The goal is FAITHFUL — user decision, 23 Aug 2026
+
+Confirmed directly when asked. It also matches the standing instruction already recorded in
+`docs/HANDOFF_UE5_IMPORT.md` section 1: port everything over faithfully first, modify or improve
+only after the port is in place.
+
+**What "faithful" means here, precisely, because one reading of it is not achievable:**
+
+- **Faithful to the source, not to observed behaviour.** Verifying behavioural fidelity would need
+  an oracle — a way to observe the running game's AI decisions and compare. No such instrumentation
+  exists, so "faithful behaviour" is not a claim this project can verify, and it does not make
+  unverifiable claims. What is achievable is implementing each action and state exactly as the
+  decompiled UnrealScript reads.
+- **Where the decompilation is degraded** — control-flow artifacts, `__NFUN_<id>__` placeholders —
+  the implementer makes a judgement call and **records it**, the same way research notes record an
+  `UNKNOWN`. Divergences then exist on the record rather than by accident.
+- **Faithful semantics, native mechanism.** Use StateTree rather than reimplementing UE2's VM state
+  system; use Chaos rather than emulating Havok. Preserve *which* state, *which* transition and
+  *what* parameters. Porting the 2007 implementation strategy as well as its meaning is how these
+  projects die.
+
+### Phase 2.1 done — the class-schema exporter
+
+`tools/uelib-bridge --schema <out.json> <package.U>` emits every class's hierarchy, variable
+declarations and `defaultproperties` as JSON. Measured across the six real script packages:
+
+**1,410 classes, 5,233 variables, 5,870 defaults, 0 unreadable.**
+
+It deliberately does **not** emit function bodies — those are documentation for a human, not machine
+input, and emitting them would invite exactly the transpiler approach section 1 argues against.
+
+### Phase 2.2 done — the action-usage census, and the number that sizes the port
+
+`ActionUsageCensusTests`, over all 21 maps: **3,932 `Script` actors, 21,752 action references, 186
+distinct action classes, 0 unresolved class names.**
+
+The distribution is a steep power law, and this is the single most useful planning number in this
+document:
+
+| Implement | Covers |
+|---|---|
+| top 5 actions | 41% of all scripted behaviour |
+| top 10 | 57% |
+| **top 20** | **73%** |
+| top 30 | 81% |
+| **top 50** | **90%** |
+| top 75 | 96% |
+| all 186 | 100% |
+
+53 actions are used five times or fewer; 16 are used exactly once.
+
+The head of the list is mostly control flow and scene plumbing rather than AI combat logic —
+`ActionWait` (2,209), `ActionSetProperty` (1,902), `ActionIf` (1,891), `ActionPlayEffect` (1,806),
+`ActionNonBlockingExecuteScript` (1,106) — which is good news: those are the cheapest to implement
+and they unlock the most.
+
+**So Phase 4 is not "implement 186 actions".** It is roughly: ~20 for a working vertical slice,
+~50 for most of the game, ~75 for near-complete coverage, and a long tail that can be implemented
+on demand as specific levels need it.
