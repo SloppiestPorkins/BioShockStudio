@@ -35,12 +35,6 @@ __pycache__/
 *.userprefs
 *.DotSettings.user
 
-# Agent scratch. The .agent/ documents and .agent/reports/ ARE tracked - they are the coordination
-# layer. Only genuinely transient per-run output is ignored here.
-/.agent/scratch/
-/.agent/tmp/
-*.agent.log
-
 # Test and tooling run output. Never the tests themselves, and never research evidence.
 TestResults/
 *.trx
@@ -55,3 +49,6 @@ coverage*.xml
 /.agent-control/results/
 /.agent-control/logs/
 /.agent-control/.gpu.lock
+
+# Aider local session state, if the tool is used against this repo.
+.aider*

@@ -3,32 +3,6 @@
 **Read `docs/ENGINEERING_RULES.md` in full before changing anything.** It is the canonical ruleset;
 this file is the entry point, and it is deliberately short so the two cannot drift apart.
 
-## Working as part of the agent team? Start in `.agent/`
-
-Added 23 Aug 2026. `.agent/` is the coordination layer for the research / coding / testing / review
-agent team, and it exists so that `docs/` (~11,900 lines) does not have to be read in full per agent
-per task. It does not replace the rules below — `docs/ENGINEERING_RULES.md` still wins on any
-conflict — it summarises the *state*.
-
-0. **`.agent/README.md` first** — it routes you by role and gives a reading budget. The whole
-   `.agent/` set is ~22k tokens; a 32k-context local worker must not read all of it.
-1. `.agent/PROJECT_STATE.md` — what works, what is broken, the measured build/test baseline.
-2. `.agent/KNOWN_ASSUMPTIONS.md` — **the guardrail file.** Read the entry for whatever you are about
-   to touch, before you touch it.
-3. `.agent/AGENT_PROTOCOL.md` — role boundaries, evidence rules, reporting format, lead workflow.
-4. `.agent/TASK_QUEUE.md` — take a task from here; do not invent one.
-5. `.agent/ARCHITECTURE.md` and `.agent/OPEN_QUESTIONS.md` as the task needs them.
-
-Then read, in this order:
-
-1. `docs/HANDOFF.md` — the project's institutional memory. Authoritative and current. §4 is the list
-   of landmines that have already cost real time; §7 is the project's own working rules.
-2. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy. Every transform depends on it.
-3. `docs/research/README.md`, then the research note for whatever you are touching.
-4. `docs/UE5_FULL_PORT_PLAN.md` if the work is UE5-facing — the strategy for porting the whole
-   game, and why the game logic is deliberately not auto-transpiled.
-5. `docs/research/reference-comparison.md` — what each reference project says about the structures we
-   read, and where they disagree. **Read the reference projects before deriving from bytes.**
 
 ## The rules that get broken most often
 

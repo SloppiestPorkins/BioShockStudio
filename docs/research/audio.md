@@ -470,12 +470,41 @@ PerSoundVolumeMod          Byte     0 on every shipped entry
 is the only link to the sample, so an implementation that followed the object reference would
 resolve nothing at all.
 
-**`Flag` groups the alternatives — `PLAUSIBLE`, from the names alone.** On `bullet_hit`, the 78
-entries carrying flags 0 and 1 are all `bullet_hit_default_*`, 7 and 8 are `bullet_hit_metalThin_*`
-and `bullet_hit_metalThick_*`, and 11 is `bullet_hit_cardboard_*`. Sixteen samples appear twice
-under two different flags, which is why the array is a list and not a set of names. Impact surface
-is the obvious reading and is **not** promoted to a fact: the correspondence has nothing outside the
-sample names supporting it yet.
+**`Flag` is `Material.EMaterialVisualType` — `CONFIRMED_EXTERNAL`, promoted 23 Aug 2026.**
+
+The original reading here was `PLAUSIBLE` from sample names alone: on `bullet_hit`, the 78 entries
+carrying flags 0 and 1 are all `bullet_hit_default_*`, 7 and 8 are `bullet_hit_metalThin_*` and
+`bullet_hit_metalThick_*`, and 11 is `bullet_hit_cardboard_*`. Sixteen samples appear twice under two
+different flags, which is why the array is a list and not a set of names.
+
+**The game's own declaration confirms it exactly.** Decompiling `IGSoundEffectsSubsystem.U` shows
+`SoundEffectSpecification.uc` declaring `var config Material.EMaterialVisualType Flag;`, and the same
+type is the parameter of the native
+`PickSoundToPlay(Material.EMaterialVisualType inTextureFlags, ...)`. Two independent sources agree:
+that decompiled declaration, and Nyko's independently-authored SDK documentation
+(`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md:68`), which
+describes the field as "physical-surface class (Stone, Glass, Flesh, Water, …) — drives
+footstep/impact/decal selection, **not** rendering." The full 28-value enum (0–27, matching the
+observed range exactly) is in `Bioshock1REMSDK-WIP--main/tools/property_db.json`:
+
+```
+0 MVT_Default        7  MVT_ThinMetal     14 MVT_Flesh          21 MVT_ElectricalGlass
+1 MVT_Concrete       8  MVT_ThickMetal    15 MVT_Carpet         22 MVT_ElectricalMetal
+2 MVT_Stone          9  MVT_Wood          16 MVT_Dirt           23 MVT_ExteriorGlass
+3 MVT_ThinGlass      10 MVT_Plastic       17 MVT_WaterPipe      24 MVT_Mud
+4 MVT_ThickGlass     11 MVT_Cardboard     18 MVT_Plant          25 MVT_BreakableGlass
+5 MVT_ThinCloth      12 MVT_Plaster       19 MVT_FleshAlternate 26 MVT_Paper
+6 MVT_ThickCloth     13 MVT_Water         20 MVT_OpaqueGlass    27 MVT_Trash
+```
+
+`MVT_ThinMetal`(7)/`MVT_ThickMetal`(8) and `MVT_Cardboard`(11) match the sample-name grouping
+precisely — three independent hits, which is what turns the guess into a decode. The enum is exposed
+as `MaterialVisualType` in `SoundEffectSpecificationReader.cs`.
+
+**What is still not claimed.** That the runtime actually *dispatches* on the caller's surface type.
+`PickSoundToPlay` is native and appears `__NFUN_`-only in the decompiled output, so its body cannot
+be read. Its signature and the SDK's description both say so; that is a strong `LIKELY`, not a
+`CONFIRMED_BYTES`. Nothing in this project selects a sample by surface yet.
 
 
 ## Placed actor to specification — `CONFIRMED_BYTES`
