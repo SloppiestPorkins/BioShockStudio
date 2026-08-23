@@ -883,6 +883,16 @@ material.
    translating identified references into UE5 behaviour (Blueprint/Kismet-equivalent), not
    identifying them.
 
+   **`Actor.Region` decoded, 23 Aug 2026 — every actor now knows its zone.** Censusing this item's
+   open categories turned up `Region` as **the single most common uninterpreted property in the
+   game**, on every actor of every class. It is UE2's `FPointRegion` (`Zone`, `iLeaf`,
+   `ZoneNumber`) as a nested tagged list, and it **cross-checks itself**: `ZoneNumber` and
+   `Leaves[iLeaf].Zone` are the same fact from different bytes and agree on **96,136 of 96,376
+   (99.75%)**. `iLeaf == 0` is a "no leaf" sentinel (20,159 actors); 240 (0.25%) genuinely
+   disagree, disproportionately brushes — `PLAUSIBLE` that a brush indexes its own model's
+   leaves. `ActorRegionTests`; `docs/research/bsp.md`. **This also completed the cubemap chain**:
+   surface — zone (BSP node) — `CubemapProbe` (this `Region`) — `Cubemap`.
+
    **Next in line, still genuinely open**: 309 audio actors, 253
    region/volume actors, 134 effect actors, then 338 genuinely unclassified actors. Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
@@ -964,7 +974,7 @@ dotnet test                         # both — the number to report
 That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
 measured**. Reported as unrun, not as passing.
 
-**Measured on the current tree, 23 Aug 2026** (HEAD `e7c4b1a`):
+**Measured on the current tree, 23 Aug 2026** (HEAD `33ebfeb`):
 
 | Run | Result |
 |---|---|
@@ -973,7 +983,7 @@ measured**. Reported as unrun, not as passing.
 | `~Level` + `~Bsp` | **75/75** (7m38s) |
 | `~Texture`, `~Cubemap`, `~MaterialSwitch`, `~TexModifier`, `~Quantization`, `~RigidBodyMotion` | whole-game scans, all green |
 | `~Havok` + `~Physics` + `~Ragdoll` | **16/16** |
-| `~Bsp` + `~Level` + `~Portal` | **76/76** (7m34s) |
+| `~Bsp` + `~Level` + `~Portal` + `~Actor` | **87/87** (8m31s) |
 | `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** (2m17s) |
 
 **The full suite has still not been run since `1c2e4b2`** and its total remains unmeasured —
