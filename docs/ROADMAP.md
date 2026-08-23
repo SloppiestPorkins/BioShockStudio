@@ -1098,6 +1098,10 @@ material.
      Every entry's `SpecificationClass` resolves exactly to `SoundEffectSpecification`. Its shipped
      script-class defaults establish `OuterRadius=3000`, `Volume=100` and `Pitch=1`; these are class
      defaults, not evidence that every sound lacks an override.
+   - **Concrete metadata path proven, 23 Aug 2026.** Map packages pair native `Sound` exports with
+     same-name `SoundEffectSpecification` exports. The pistol reload explicitly overrides
+     `InnerRadius=1000`, `Volume=80` and `VolumeCategory=3`, while absent `OuterRadius`/`Pitch`
+     inherit the script-class defaults. `SoundEffectSpecificationReader` preserves that distinction.
    - **Note:** recorded by the Claude session while auditing the roadmap. The audio track is worked
      concurrently by another session, so this stops at what the level actors declare.
 2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.

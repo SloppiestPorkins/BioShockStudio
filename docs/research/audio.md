@@ -380,7 +380,14 @@ engine-behaviour work. `SoundEventCoverageTests` pins every count and full-array
 Every one of the 110,120 `SpecificationClass` object references resolves to the shipped
 `SoundEffectSpecification` class. The class defaults in `IGSoundEffectsSubsystem.U` decode as
 `OuterRadius=3000`, `Volume=100` and `Pitch=1` (along with range and dynamic-modulation fields).
-Those values are `CONFIRMED_BYTES` as class defaults. They are not promoted to per-sound values:
-the concrete override source has not yet been located, and absence of a standalone specification
-export does not prove that overrides do not exist elsewhere.
+Those values are `CONFIRMED_BYTES` as class defaults. They are not promoted to per-sound values;
+concrete map-package overrides are read separately below.
+
+That concrete source is now proven for native sounds: map packages carry a same-name
+`SoundEffectSpecification` export immediately alongside the `Sound` export. For
+`weapons_pistol_reload_one`, shipped properties explicitly give `InnerRadius=1000`, `Volume=80`
+and `VolumeCategory=3`; `OuterRadius` and `Pitch` are absent, so the class defaults remain in force.
+`SoundEffectSpecificationReader` exposes only serialized overrides as nullable values, keeping
+inheritance distinct from an explicit zero or a guessed default. A whole-game metadata census is
+still required before this sub-part is closed.
 
