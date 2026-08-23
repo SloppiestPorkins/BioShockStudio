@@ -903,8 +903,23 @@ material.
    region/volume actors, 134 effect actors, then 338 genuinely unclassified actors. Navigation has a
    graph handoff (953 actors, 4,838 references) with UE5 movement semantics intentionally
    undecoded.
-4. A deterministic level importer: create/update actor instances from the manifest, attach assets,
-   apply transforms/overrides, and report created/updated/skipped/unsupported in one pass.
+4. ~~A deterministic level importer: create/update actor instances from the manifest, attach assets,
+   apply transforms/overrides, and report created/updated/skipped/unsupported in one pass.~~
+   **Done, 23 Aug 2026 — `tools/ue5/import_level.py`, verified in UE5.7 on `0-Lighthouse`.**
+   First run 1,877 created; second run **0 created / 1,877 updated**, actor count unchanged.
+   - **Idempotent by construction**, not by convention: each actor carries a
+     `BioShockKey=<manifest key>` tag and a re-run finds actors by that tag rather than by label,
+     which is neither unique nor stable under a rename.
+   - **Running it twice found two bugs a single run cannot expose.** The pre-run snapshot was taken
+     once, so lights created during the same run were invisible to the actor loop and every light
+     got a duplicate placeholder — 2,342 actors where the manifest declares 1,877, exactly 465
+     duplicates. On the re-run the key then resolved to the placeholder and the light path crashed
+     setting `light_component` on a `TargetPoint`. Both fixed.
+   - **Lights become real `PointLight` actors** with the manifest's colour and brightness
+     (brightness carried proportionally, not converted — no photometric mapping is established,
+     so `UNKNOWN` rather than guessed). Everything else is a positioned `TargetPoint` counted as
+     **`unsupported`**, because the geometry it references is exported as OBJ and not yet imported
+     as UE5 meshes. That count stays visible rather than folded into "created".
 
 ### Gate 4 — audio, effects, interactions
 
@@ -932,8 +947,15 @@ material.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 
-1. Version every exported manifest; make imports idempotent (a second run updates existing UE5
-   assets rather than duplicating them).
+1. ~~Version every exported manifest; make imports idempotent (a second run updates existing UE5
+   assets rather than duplicating them).~~ **Done, 23 Aug 2026, both halves verified in UE5.7.**
+   - **Versioned:** `ue5_manifest.json` now carries `version` (`FbxExporter.ManifestVersion`); the
+     level manifest already had `formatVersion`. `import_bioshock.py` **refuses** an unversioned
+     manifest outright, because one predating texture intent would otherwise import rigs with no
+     textures — which looks like a working import and is not one.
+   - **Idempotent:** rig import measured first run 8 created / 0 updated, second run **0 created /
+     8 updated**, asset count unchanged at 22. Level import 1,877 created then **0 created / 1,877
+     updated**. Both report created/updated/skipped/unsupported per run.
 2. Keep source exports immutable — Blender-normalized and UE5-generated files already live under
    `_ue5_normalized/`, separate from the source export, which is the right shape to keep.
 3. Build one UE5 validation map containing an instance of every supported asset class, then a
