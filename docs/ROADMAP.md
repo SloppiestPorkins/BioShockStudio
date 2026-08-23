@@ -920,8 +920,14 @@ material.
    regions and typed name/reference arrays. **Region actors completed in the final slice:** all 174
    brush-backed actors export exact nested main/post scale structs; cascading-water mesh/axis,
    fluid penalty/enabled state and default-volume priority/lifetime flags are typed too. No
-   class-specific gameplay field in the retained 253-actor census remains only as hex. **Next:**
-   134 effect actors, then 338 genuinely
+   class-specific gameplay field in the retained 253-actor census remains only as hex.
+
+   **Effect schema completed, 23 Aug 2026.** Medical contains **142 emitter-bearing actors**, and
+   every one reaches the level manifest with a non-empty, complete typed template graph. The
+   coverage ledger reports 134 `EffectPending` because eight emitter-bearing actors are classified
+   earlier by geometry/light translation precedence; that difference is not missing emitter data.
+   `EffectActorSchemaTests` pins both counts and the end-to-end export. What remains is selecting a
+   Niagara representation, not decoding the shipped declaration. **Next:** 338 genuinely
    unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a
