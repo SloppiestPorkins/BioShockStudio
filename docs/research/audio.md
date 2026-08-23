@@ -307,3 +307,35 @@ dotnet run --project src/BioShockStudio.Cli -- decode-stream streams_0_audio.fsb
 
 It finds `artifacts/app/tools/FmodFsbDecoder.exe` when run from the packaged application, or accepts
 `--helper <path>` / `BIOSHOCK_FMOD_HELPER` for a development build.
+
+## Sound actors carry no sound settings — the link is by name
+
+**Status: `CONFIRMED_BYTES` across all 21 maps, 23 Aug 2026.** Pinned by `SoundActorSchemaTests`.
+**Recorded by the Claude session while auditing the roadmap; the audio track itself is worked
+concurrently by another session, and this deliberately stops at what the level actors declare.**
+
+Gate 4 item 1 asks for "chance/variation, attenuation, pitch/volume" on sound actors. **None of
+those exist.** 3,247 sound-bearing actors (`AmbientSound` 2,893, `SoundMarker` 352, `MusicBox` 2)
+and **not one carries `SoundVolume`, `SoundPitch`, `SoundRadius` or an `AmbientSound` object
+property**. They carry position, `Tag`, `Label`, `Region` and very little else.
+
+So the item's premise is wrong for this game: those settings are not on the placed actor, and no
+amount of actor decoding will produce them.
+
+### What the actors do carry: names
+
+| Class | Names its audio through | Examples |
+|---|---|---|
+| `AmbientSound` | `Tag` / `Label` | `2_sixtywattlight`, `1_water_lapping`, `sparksloop`, `LightNeon` |
+| `SoundMarker` | `Schema1` / `Schema2` | `ambience_5_oneOff_machine`, `ambience_9_mainroom`, `ambience_4_beckoning` |
+
+**`Schema1`/`Schema2` is a newly surfaced vocabulary** and is the more promising lead of the two:
+the values are structured (`ambience_<n>_<name>`), 317 and 131 actors carry them, and they look like
+direct keys into an ambience system rather than free-text labels.
+
+**Only 7 of 3,247 tags name a `Sound` object present in the same package**, so resolution goes
+through the sound-event system rather than the level package — which is exactly the blocker SS4
+already records. This finding does not move that blocker; it shows what is waiting on the other side
+of it, and gives the ambience-schema names as a concrete thing to resolve against once the sound
+data is located.
+

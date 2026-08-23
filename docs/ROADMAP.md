@@ -904,6 +904,20 @@ material.
 
 1. Cue/ambient/actor sound relationships beyond the notify chain already proven: chance/variation,
    attenuation, pitch/volume, language routing.
+   **Premise corrected, 23 Aug 2026: those settings are not on the placed actors.** Across all 21
+   maps, 3,247 sound-bearing actors (`AmbientSound` 2,893, `SoundMarker` 352, `MusicBox` 2) and
+   **not one carries `SoundVolume`, `SoundPitch`, `SoundRadius` or an `AmbientSound` object
+   property**. No amount of actor decoding will produce them.
+   - **The link is by name.** `AmbientSound` names its sound through `Tag`/`Label`
+     (`2_sixtywattlight`, `1_water_lapping`, `sparksloop`); `SoundMarker` carries
+     `Schema1`/`Schema2` naming ambience schemas (`ambience_5_oneOff_machine`,
+     `ambience_9_mainroom`). **Only 7 of 3,247 tags resolve to a `Sound` object in the same
+     package**, so resolution goes through the sound-event system — the blocker
+     `docs/research/audio.md` SS4 already records.
+   - **`Schema1`/`Schema2` is the concrete new lead**: structured values, 317 and 131 actors, and
+     they look like direct keys into an ambience system. `SoundActorSchemaTests`.
+   - **Note:** recorded by the Claude session while auditing the roadmap. The audio track is worked
+     concurrently by another session, so this stops at what the level actors declare.
 2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.
 3. Particle/emitter templates and material parameters — enough to build real UE5 Niagara
    placeholders, not a static mesh standing in for an effect.
