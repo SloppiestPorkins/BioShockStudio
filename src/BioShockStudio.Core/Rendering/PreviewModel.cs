@@ -78,6 +78,15 @@ public sealed record PreviewSurface(
     public bool AlphaIsOpacity { get; init; } = true;
 }
 
+public sealed record PreviewBakedLight(Vector3 Position, Vector3 Colour);
+
+public sealed record PreviewBakedLightLayer(
+    PreviewImage Texture,
+    Vector2 UvOffset,
+    IReadOnlyList<PreviewBakedLight?> Lights);
+
+public sealed record PreviewBakedLighting(IReadOnlyList<PreviewBakedLightLayer> Layers);
+
 /// <summary>
 /// Everything needed to draw one asset: geometry, its skeleton, and optionally a base colour map.
 /// </summary>
@@ -103,6 +112,9 @@ public sealed class PreviewModel
     /// <c>-1</c> where no surface covers it, which draws untextured.
     /// </summary>
     public IReadOnlyList<int> TriangleSurface { get; init; } = [];
+
+    /// <summary>The game's luminance layers and referenced lights, indexed by triangle.</summary>
+    public IReadOnlyList<PreviewBakedLighting?> TriangleBakedLighting { get; init; } = [];
 
     /// <summary>Base colour map of the first surface that binds one. Null means nothing is textured.</summary>
     /// <remarks>
@@ -199,7 +211,8 @@ public sealed class PreviewModel
         MeshGeometry? geometry,
         BioShockSkeleton? skeleton,
         IReadOnlyList<MeshSocket>? sockets,
-        IReadOnlyList<PreviewSurface> surfaces)
+        IReadOnlyList<PreviewSurface> surfaces,
+        IReadOnlyList<PreviewBakedLighting?>? triangleBakedLighting = null)
     {
         var bones = new List<PreviewBone>();
 
@@ -237,6 +250,7 @@ public sealed class PreviewModel
             Sockets = socketList,
             Surfaces = surfaces,
             TriangleSurface = MapTrianglesToSurfaces(indices.Count, surfaces),
+            TriangleBakedLighting = triangleBakedLighting ?? [],
             Centre = centre,
             Radius = radius,
         };

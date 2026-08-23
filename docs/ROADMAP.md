@@ -413,9 +413,14 @@ material.
    single-actor layers carry a directly serialised non-zero colour. Across all four atlas axis
    orientations and all six RGB
    permutations, matched tile/actor cosine improves by at most +0.009 over shuffled actor pairing.
-   The simple "tile RGB is this light's radiance" reading is therefore refuted, while the actual
-   channel semantics remain `UNKNOWN`. Default-on stays blocked; the per-vertex GPU path has the
-   same defect and merely blurs it.
+   The simple "tile RGB is this light's radiance" reading is therefore refuted. **Done — resolved
+   and default-on, 23 Aug:** the recovered shipped `LayerLighting.hlsl` unswizzles each sample with
+   `.yzx`, treats the result as three scalar luminances paired with the layer's three actor slots,
+   multiplies each by that light's colour and diffuse-facing term, and adds the passes. The raw-green
+   slot-0 bias is independent byte corroboration. The shared renderer now carries every layer and
+   actor pairing, the software path composes it per fragment, and the GPU path composes the same
+   rule at vertices. The Medical comparison is no longer saturated primaries: mean luminance 19.6,
+   deviation 16.6, with coherent local green/warm pools visible in the retained render.
 4. ~~**Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently

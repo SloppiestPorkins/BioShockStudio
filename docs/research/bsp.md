@@ -600,14 +600,13 @@ layer into the tile the UVs already address changed the render barely at all (me
 descriptors — so a rule about combining layers cannot explain a fault that a single-layer surface
 shows just as strongly. The red wall's one layer is genuinely a red tile.
 
-**What a tile's RGB means is therefore `UNKNOWN`, and these are the constraints on any future
-answer:**
+**What a tile's RGB means was `UNKNOWN` at this point; these measurements constrained the answer:**
 
 - **A layer carries exactly three light-actor slots.** Every one of `1-Medical`'s 4,353 layers has
   three; 10,018 of the 13,059 slots are occupied, 3,041 null.
-- **Slot position does not select a colour channel.** The obvious reading — slot 0 to R, 1 to G, 2 to
-  B — is **refuted**: of the layers with only slot 0 occupied, the tiles are as often pure green or
-  pure blue, and the contingency table is R 40 / G 326 / B 76, a green bias rather than a mapping.
+- **Raw slot position does not select the same-named texture channel.** With only slot 0 occupied,
+  the dominant raw channel census is R 40 / G 326 / B 76. The green bias became the key clue once
+  the shipped shader below established its `.yzx` unswizzle: raw G is luminance slot 0.
 - **Only slot 0 is ever the singly-occupied one** (1,039 layers in the retained full census). Slots 1
   and 2 are never occupied alone, so the three are filled in order rather than independently.
 - The earlier 753-layer ad-hoc figure is not reproducible by the retained probe and is superseded by
@@ -636,7 +635,31 @@ light's shipped RGB does not explain the tile RGB under any axis flip or fixed c
 
 This also corrects the earlier claim that almost every colour required imported class defaults:
 868 referenced actors carry `LightColor` directly in their placed-actor payload. That earlier probe
-was wrong. What the three DXT1 channels encode remains `UNKNOWN`; default-on stays blocked.
+was wrong.
+
+**The shipped shader source settles the encoding, 23 Aug 2026 — `CONFIRMED_EXTERNAL`, corroborated
+by the shipped atlas bytes.** The recovered `LayerLighting.hlsl` does exactly this:
+
+```hlsl
+half3 luminance1 = tex2D(s_luminanceMap1, uv).yzx;
+half3 color = saturate(luminance[i] * (1-shadow)) * data.lightColors[i].rgb;
+diffuseTotalColor += lightDiffuse(lightDir, normal) * color;
+```
+
+The three DXT1 channels are **three scalar light luminances**, swizzled for DXT compression. After
+`.yzx`, scalar 0/1/2 pairs with actor slot 0/1/2. A descriptor layer is therefore one atlas tile for
+up to three physical lights, not a colour image and not one light's RGB. Additional layers are
+additive light passes; the same shader exposes a second luminance sampler for composite layers.
+This explains every earlier symptom at once: a sole slot-0 tile is mostly raw green, comparing the
+tile vector to actor RGB is meaningless, and applying raw atlas RGB directly produces saturated
+primaries.
+
+The shared render path now samples every descriptor layer, unswizzles `.yzx`, pairs each scalar with
+its actor colour, applies the surface/light diffuse-facing term, and sums the result. The headless
+Medical render changes from a flat-primary fault to coherent dark architecture with local pools of
+green and warm light (mean luminance 19.6, deviation 16.6; 495,324 pixels differ from the unlit
+comparison). The GPU path receives the same composition sampled at vertices; the software test
+keeps the per-fragment version for visual verification.
 
 Note that the per-vertex GPU path has the same defect and merely hides it: averaging over three
 corners produces a dull tint rather than an obvious flat primary.

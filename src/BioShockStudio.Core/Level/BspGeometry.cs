@@ -11,14 +11,22 @@ namespace BioShockStudio.Core.Level;
 public static class BspGeometry
 {
     /// <summary>
-    /// One compiled-world draw batch that can bind a base material and one proven baked-light atlas.
+    /// One compiled-world draw batch with per-triangle luminance layers and their light actors.
     /// </summary>
     /// <remarks>
-    /// A descriptor can name several lights. The first is the composite layer shipped for the
-    /// surface on the maps whose <c>LightMaps_BSP</c> pool is decoded; the remaining layers are
-    /// deliberately retained in <see cref="BspWorld.LightMaps"/> until their blend rule is proven.
+    /// Each atlas channel becomes one scalar luminance after the shipped shader's <c>.yzx</c>
+    /// unswizzle and is paired with the corresponding actor slot. Layers are additive passes.
     /// </remarks>
-    public sealed record LightMapBatch(PackageIndex Material, PackageIndex Atlas, MeshGeometry Geometry);
+    public sealed record LightMapLayer(
+        PackageIndex Atlas,
+        Vector2 UvOffset,
+        IReadOnlyList<PackageIndex> LightActors);
+
+    public sealed record LightMapBatch(
+        PackageIndex Material,
+        PackageIndex Atlas,
+        MeshGeometry Geometry,
+        IReadOnlyList<IReadOnlyList<LightMapLayer>> TriangleLightLayers);
 
     /// <summary>
     /// Triangulates polygons into one geometry, one <see cref="MeshSection"/> per distinct material.
@@ -202,8 +210,8 @@ public static class BspGeometry
     /// their atlas UV in <see cref="MeshVertex.LightMapUv"/>.
     /// </summary>
     /// <remarks>
-    /// Only the descriptor's first layer is emitted for now. It is a usable, byte-faithful base
-    /// lightmap; rendering all layers requires the game's still-unproven modulation blend rule.
+    /// The first layer supplies the geometry's primary UV; every layer retains its atlas, UV offset,
+    /// and three actor slots so the renderer can reproduce the shipped shader's additive lighting.
     /// </remarks>
     /// <summary>
     /// Whether a node's first baked-light layer names an atlas this world actually carries — the
@@ -246,9 +254,10 @@ public static class BspGeometry
         {
             var vertices = new List<MeshVertex>();
             var indices = new List<int>();
+            var triangleLightLayers = new List<IReadOnlyList<LightMapLayer>>();
             int triangles = 0;
 
-            foreach (var (node, _, layer) in group)
+            foreach (var (node, descriptor, layer) in group)
             {
                 var polygon = world.PolygonOf(node);
                 if (polygon.Count < 3) continue;
@@ -272,6 +281,13 @@ public static class BspGeometry
                     indices.Add(start);
                     indices.Add(start + i);
                     indices.Add(start + i - 1);
+                    triangleLightLayers.Add(descriptor.Lights
+                        .Where(candidate => candidate.Atlas >= 0 && candidate.Atlas < world.LightMapTextures.Count)
+                        .Select(candidate => new LightMapLayer(
+                            world.LightMapTextures[candidate.Atlas].Texture,
+                            new Vector2(candidate.TileX - layer.TileX, candidate.TileY - layer.TileY) / 1024f,
+                            candidate.LightActors))
+                        .ToList());
                     triangles++;
                 }
             }
@@ -285,7 +301,7 @@ public static class BspGeometry
                 SkinnedVertexCount = 0,
                 RigidVertexCount = vertices.Count,
                 Sections = [new MeshSection(0, 0, vertices.Count - 1, triangles)],
-            }));
+            }, triangleLightLayers));
         }
 
         return batches;

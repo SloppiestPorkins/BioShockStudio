@@ -100,7 +100,7 @@ public partial class MainViewModel
     [ObservableProperty] private bool _useLevelLights;
 
     /// <summary>Apply the compiled world's verified baked-light atlas samples in the GPU viewport.</summary>
-    [ObservableProperty] private bool _showBakedLightmaps;
+    [ObservableProperty] private bool _showBakedLightmaps = true;
 
     /// <summary>Draw light shafts and glow cards. Off by default — they have no base colour.</summary>
     [ObservableProperty] private bool _showLevelUnpainted;

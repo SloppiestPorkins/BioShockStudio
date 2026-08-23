@@ -191,7 +191,7 @@
                                 <CheckBox Content="Level lights" IsChecked="{Binding UseLevelLights}"
                                           Margin="0,0,14,6"
                                           ToolTip.Tip="Apply decoded light actors as a simple point-light approximation. This is separate from the baked-lightmap control." />
-                                <CheckBox Content="Baked lightmaps (experimental)" IsChecked="{Binding ShowBakedLightmaps}"
+                                <CheckBox Content="Baked lightmaps" IsChecked="{Binding ShowBakedLightmaps}"
                                           Margin="0,0,14,6"
                                           ToolTip.Tip="Verified atlas bytes, but only the first layer can currently be vertex-sampled. Off by default because it is not colour-faithful yet." />
                                 <CheckBox Content="Zones &amp; triggers" IsChecked="{Binding ShowLevelVolumes}"

@@ -110,7 +110,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
                 // through the old material-only model would bind the wrong atlas for most surfaces.
                 if (instance.Kind == LevelGeometryKind.BuiltWorld && instance.LightMapBatches.Count > 0)
                 {
-                    var lightmapped = LightMappedWorld(package, instance, textures, borrowed);
+                    var lightmapped = LightMappedWorld(package, instance, scene.Lights, textures, borrowed);
                     if (lightmapped.Count > 0)
                     {
                         foreach (var lightmappedModel in lightmapped)
@@ -180,11 +180,12 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
     /// atlas that fails to decode simply leaves the old material-only world as the fallback.
     /// </summary>
     private IReadOnlyList<PreviewModel> LightMappedWorld(
-        BioShockPackage package, LevelInstance world,
+        BioShockPackage package, LevelInstance world, IReadOnlyList<LevelLight> levelLights,
         Dictionary<string, PreviewImage?> textures,
         Dictionary<string, BioShockPackage> borrowed)
     {
         var result = new List<PreviewModel>(world.LightMapBatches.Count);
+        var lightsByExport = levelLights.ToDictionary(light => light.Source.ExportIndex);
 
         foreach (var batch in world.LightMapBatches)
         {
@@ -192,13 +193,43 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             var atlas = LightMapImage(package, batch.Atlas, textures);
             if (atlas is null) continue;
 
-            var litGeometry = batch.Geometry with
+            var triangleLighting = batch.TriangleLightLayers.Select(layers =>
             {
-                Vertices = [.. batch.Geometry.Vertices.Select(vertex => vertex with
+                var resolved = layers.Select(layer =>
                 {
-                    BakedLight = SampleLightMap(atlas, vertex.LightMapUv),
-                })],
-            };
+                    var texture = LightMapImage(package, layer.Atlas, textures);
+                    if (texture is null) return null;
+                    var lights = layer.LightActors.Select(reference =>
+                    {
+                        if (!reference.IsExport
+                            || !lightsByExport.TryGetValue(reference.ExportIndex, out var light)) return null;
+                        var colour = (light.Color?.ToVector() ?? Vector3.One) * (light.Brightness ?? 1f);
+                        return new PreviewBakedLight(light.Location, colour);
+                    }).ToList();
+                    return new PreviewBakedLightLayer(texture, layer.UvOffset, lights);
+                }).Where(layer => layer is not null).Cast<PreviewBakedLightLayer>().ToList();
+                return (PreviewBakedLighting?)new PreviewBakedLighting(resolved);
+            }).ToList();
+
+            var litVertices = batch.Geometry.Vertices.ToArray();
+            var lit = new bool[litVertices.Length];
+            for (int triangle = 0; triangle < batch.Geometry.Indices.Count / 3; triangle++)
+            {
+                if (triangle >= triangleLighting.Count || triangleLighting[triangle] is not { } lighting) continue;
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    int vertexIndex = batch.Geometry.Indices[triangle * 3 + corner];
+                    if (lit[vertexIndex]) continue;
+                    var vertex = litVertices[vertexIndex];
+                    litVertices[vertexIndex] = vertex with
+                    {
+                        BakedLight = ComposeBakedLight(lighting, vertex.LightMapUv,
+                            vertex.Position, Vector3.Normalize(vertex.Normal)),
+                    };
+                    lit[vertexIndex] = true;
+                }
+            }
+            var litGeometry = batch.Geometry with { Vertices = litVertices };
             var batchInstance = world with
             {
                 Geometry = litGeometry,
@@ -215,7 +246,7 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
             // path as the non-lightmapped world.
             var texturedGeometry = BspGeometry.NormaliseUvs(litGeometry, sizes);
             result.Add(PreviewModel.Build(texturedGeometry, null, null,
-                [surfaces[0] with { LightMapTexture = atlas }]));
+                [surfaces[0] with { LightMapTexture = atlas }], triangleLighting));
         }
 
         // The drawn surfaces no batch covers, unlit. Without this they are drawn by nothing at all:
@@ -281,6 +312,27 @@ public sealed class LevelViewportService(AssetCatalogService catalog)
 
         return Vector3.Lerp(Vector3.Lerp(Pixel(x0, y0), Pixel(x1, y0), tx),
             Vector3.Lerp(Pixel(x0, y1), Pixel(x1, y1), tx), ty);
+    }
+
+    private static Vector3 ComposeBakedLight(
+        PreviewBakedLighting lighting, Vector2 primaryUv, Vector3 point, Vector3 normal)
+    {
+        var total = Vector3.Zero;
+        foreach (var layer in lighting.Layers)
+        {
+            var raw = SampleLightMap(layer.Texture, primaryUv + layer.UvOffset);
+            float[] luminance = [raw.Y, raw.Z, raw.X];
+            for (int slot = 0; slot < Math.Min(3, layer.Lights.Count); slot++)
+            {
+                if (layer.Lights[slot] is not { } light) continue;
+                var toLight = light.Position - point;
+                float distance = toLight.Length();
+                if (distance < 1e-3f) continue;
+                float facing = MathF.Max(0f, Vector3.Dot(normal, toLight / distance));
+                total += light.Colour * (luminance[slot] * facing);
+            }
+        }
+        return total;
     }
 
     /// <summary>

@@ -220,14 +220,10 @@ public sealed record RenderOptions
     /// becomes a default.
     /// </para>
     /// <para>
-    /// <b>Off by default, and the comparison says the result is NOT yet right.</b> Sampling per
-    /// pixel is what made the underlying fault visible: every surface draws a flat saturated
-    /// primary, because the atlas is a pack of <i>per-light</i> contributions in each light's own
-    /// colour and this project applies only <c>descriptor.Lights[0]</c>. A surface commonly has
-    /// several — 1,122 of <c>1-Medical</c>'s descriptors carry 2 to 10 layers — so a wall lit by a
-    /// red lamp and a white one renders pure red. The layers are not channel-packed into one tile
-    /// (0 of 1,122 share one), so each must be sampled at its own footprint and the results
-    /// combined; the combination rule is <c>UNKNOWN</c>. <c>docs/research/bsp.md</c> §5.5e.
+    /// The shipped <c>LayerLighting.hlsl</c> settles the combination: sample every layer, unswizzle
+    /// <c>.yzx</c> into three scalar luminances, multiply each by the matching light actor's colour
+    /// and diffuse-facing term, then add the results. The per-triangle metadata preserves that
+    /// actor/atlas pairing while this path samples it per fragment.
     /// </para>
     /// <para>
     /// Kept, off, because it is the plumbing the real implementation needs and because it is the
@@ -468,6 +464,9 @@ public static class SoftwareRenderer
                 var normalMap = surface >= 0 ? normalMaps[surface] : null;
                 var specularMap = surface >= 0 ? specularMaps[surface] : null;
                 var lightMap = surface >= 0 ? lightMaps[surface] : null;
+                var bakedLighting = options.BakedLightmaps && index < model.TriangleBakedLighting.Count
+                    ? model.TriangleBakedLighting[index]
+                    : null;
 
                 // A run whose slot named nothing, or that no section covers at all. Both draw grey
                 // and neither is distinguishable from grey paint without saying so.
@@ -534,7 +533,33 @@ public static class SoftwareRenderer
                     // a surface that carries the game's own baked light does not need it — keeping
                     // both washes the bake out to the point where lit and unlit look alike, which
                     // would defeat the comparison this exists to make possible.
-                    if (lightMap is not null)
+                    if (bakedLighting is { Layers.Count: > 0 })
+                    {
+                        var primaryUv = model.Vertices[a].LightMapUv * bary.X
+                                        + model.Vertices[b].LightMapUv * bary.Y
+                                        + model.Vertices[c].LightMapUv * bary.Z;
+                        var total = Vector3.Zero;
+
+                        foreach (var layer in bakedLighting.Layers)
+                        {
+                            var (rawR, rawG, rawB, _) = SampleRgba(layer.Texture, primaryUv + layer.UvOffset);
+                            float[] luminance = [rawG / 255f, rawB / 255f, rawR / 255f];
+                            for (int slot = 0; slot < Math.Min(3, layer.Lights.Count); slot++)
+                            {
+                                if (layer.Lights[slot] is not { } light) continue;
+                                var toLight = light.Position - point;
+                                float distance = toLight.Length();
+                                if (distance < 1e-3f) continue;
+                                float facing = MathF.Max(0f, Vector3.Dot(normal, toLight / distance));
+                                total += light.Colour * (luminance[slot] * facing);
+                            }
+                        }
+
+                        red = r * total.X;
+                        green = g * total.Y;
+                        blue = bl * total.Z;
+                    }
+                    else if (lightMap is not null)
                     {
                         var lightUv = model.Vertices[a].LightMapUv * bary.X
                                       + model.Vertices[b].LightMapUv * bary.Y
