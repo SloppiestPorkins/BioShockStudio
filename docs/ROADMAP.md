@@ -440,7 +440,7 @@ material.
 
 ### Gate 1 — complete asset containers
 
-1. **Static meshes** — collision/kDOP tail, LODs and socket metadata; only decode the currently
+1. ~~**Static meshes**~~ — collision/kDOP tail, LODs and socket metadata; only decode the currently
    opaque collision blocks once a concrete UE5 target (collision/navigation/ray query) is known.
    - ~~**LODs**~~ **answered, 22 Aug 2026: there are none.** 8,668 shipped static meshes yield
      **8,668 geometry chains — exactly one each**. `StaticMeshReader.LevelsOfDetail` exposes them and
@@ -501,7 +501,7 @@ material.
      more than the doors ever were.
 
    **So Gate 1 item 2 is complete.**
-3. **Textures** — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
+3. ~~**Textures**~~ — export colour-space/normal/mask/cubemap intent as UE5-facing metadata, not just
    pixels; validate representative imports.
    - **Started 23 Aug 2026, from the transparency side, driven by a user bug report** rather than by
      working the item top-down: parts of solid props were drawing invisible in the level viewport.
