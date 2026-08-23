@@ -380,6 +380,15 @@ public sealed record SceneMaterial
     public bool Masked { get; init; }
 
     /// <summary>
+    /// The material asks for a specular cubemap. <b>Which</b> one is not recoverable: no material in
+    /// the game binds a <c>Cubemap</c> object — see <c>docs/research/materials.md</c>.
+    /// </summary>
+    public bool UsesSpecularCubemap { get; init; }
+
+    /// <summary>Cubemap contribution strength, carried rather than interpreted.</summary>
+    public float? SpecularCubemapBrightness { get; init; }
+
+    /// <summary>
     /// Original <c>OutputBlending</c> byte when the material serialises one.
     /// </summary>
     /// <remarks>

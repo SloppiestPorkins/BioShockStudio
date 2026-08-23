@@ -522,9 +522,13 @@ material.
      in the game resolve all six faces** (`CubemapReader`, `CubemapTests`, plus the whole-game
      check in `TextureIntentCensusTests`). Face *ordering* stays `UNKNOWN` — the game names them
      only `_Face_0..5` — so declaration order is preserved rather than a convention guessed at.
-   - **Still open in this item: no representative UE5 import has been validated.** That is the
-     item's remaining half and it needs UE5 itself rather than more decoding — everything the
-     importer would consume is now exported and unit-tested.
+   - **Item 3's remaining half is BLOCKED, not unstarted: no representative UE5 import has been
+     validated, and there is no UE5 engine on this machine to validate against** (checked 23 Aug
+     2026 — `C:\Program Files\Epic Games` holds the Launcher and DirectX redistributable, no
+     `UE_5.x` engine directory, no `UnrealEditor` on PATH). Everything an importer would consume is
+     exported and unit-tested; what is missing is the engine, so this cannot be closed by more
+     decoding. **Unblock by installing UE5**, then import a representative asset and look at it —
+     per the project's own "render it" rule, a numeric round-trip would not settle it.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.
@@ -532,10 +536,29 @@ material.
    open item.** `docs/research/open-questions.md` §11: `OutputBlending`'s declared values do not
    correlate with the alpha actually present in that material's own diffuse texture, so it is not
    Unreal's `EBlendMode` or any other rendering blend-mode selector — the renderer is already
-   correct to ignore it and drive transparency from the texture's observed alpha instead. What's
-   still genuinely open: panners/rotators, environment/cubemap inputs; `MaterialSwitch`'s
+   correct to ignore it. **Amended 23 Aug 2026:** the second half of that sentence used to read
+   "and drive transparency from the texture's observed alpha instead", which is no longer what the
+   renderer does and was not safe advice — observed alpha alone made solid props invisible in the
+   level viewport, because a diffuse's alpha here is frequently a gloss mask. Transparency now
+   takes the material's declaration or measured cutout holes; see
+   `docs/research/materials.md`.
+
+   What's still genuinely open: panners/rotators; `MaterialSwitch`'s
    static-default branch is decoded (19 Aug 2026 — see "What's done" above), its dynamic candidate
    selection and `MaterialSequence` are not.
+   - ~~**environment/cubemap inputs**~~ **answered, 23 Aug 2026: a material never says which
+     cubemap.** Across all 33 packages, 6,179 cubemap-named properties on 5,726 materials, and
+     **not one is an object reference to a cubemap** — they are two bools
+     (`UseSpecularCubemaps` 542, `UseSpecularCubeMap` 156) and a float
+     (`SpecularCubeMapBrightness` 5,481). `ReflectionCubemap` is in the SDK's name list and the
+     shipped game never writes it. Both scalars are now decoded and exported. **Which cubemap a
+     surface reflects is `UNKNOWN` and is not material data** — it must come from the level or a
+     global, which makes it level work, not material work. `CubemapBindingTests`.
+   - **A decode correction found alongside it:** `MaterialReader` tested bool *presence*, and
+     materials serialise false bools (`RealTimeReflection` 203 times, always false). It now reads
+     `UnrealProperty.BoolValue`. Behaviour-preserving on the two flags it acts on — `Masked` and
+     `TwoSided` have no false occurrence anywhere in the game, which is asserted rather than
+     assumed.
 
 ### Gate 2 — animation, rigs and physics
 

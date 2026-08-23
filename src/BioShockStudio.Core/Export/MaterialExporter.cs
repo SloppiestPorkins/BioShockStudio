@@ -173,6 +173,8 @@ public static class MaterialExporter
             EmissiveColor = ToFloats(material.EmissiveColor),
             TwoSided = material.TwoSided,
             Masked = material.Masked,
+            UsesSpecularCubemap = material.UsesSpecularCubemap,
+            SpecularCubemapBrightness = material.SpecularCubemapBrightness,
             OutputBlending = material.OutputBlending,
             Partial = material.Truncated,
             Uninterpreted = material.UnhandledProperties.Distinct(StringComparer.Ordinal).ToList(),

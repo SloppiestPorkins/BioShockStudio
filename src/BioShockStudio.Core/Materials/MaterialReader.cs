@@ -45,6 +45,23 @@ public sealed record BioShockMaterial
     public bool TwoSided { get; init; }
     public bool Masked { get; init; }
 
+    /// <summary>
+    /// The material asks for a specular cubemap — but never says which one.
+    /// </summary>
+    /// <remarks>
+    /// <c>CONFIRMED_BYTES</c>, censused across all 33 packages: <c>UseSpecularCubemaps</c> (542
+    /// materials) and <c>UseSpecularCubeMap</c> (156, the other spelling) are the only cubemap
+    /// switches, and <b>no material in the game binds a <c>Cubemap</c> object at all</b> — 0 of
+    /// 6,179 cubemap-named properties resolve to one. The SDK's property-name list mentions
+    /// <c>ReflectionCubemap</c>; the shipped game never writes it. So which cubemap a surface
+    /// reflects is <c>UNKNOWN</c> and is not on the material: it must come from the level or a
+    /// global. The 287 cubemaps themselves decode fine (<c>CubemapReader</c>).
+    /// </remarks>
+    public bool UsesSpecularCubemap { get; init; }
+
+    /// <summary>How strongly the specular cubemap contributes. Carried, not interpreted.</summary>
+    public float? SpecularCubemapBrightness { get; init; }
+
     /// <summary>Blend mode. UNKNOWN: what its values mean; carried through rather than interpreted.</summary>
     public byte? OutputBlending { get; init; }
 
@@ -581,7 +598,8 @@ public static class MaterialReader
 
         float? glossiness = null, specularBrightness = null, emissiveBrightness = null;
         MaterialColor? diffuseColor = null, specularColor = null, emissiveColor = null;
-        bool twoSided = false, masked = false;
+        bool twoSided = false, masked = false, usesSpecularCubemap = false;
+        float? specularCubemapBrightness = null;
         byte? outputBlending = null;
 
         foreach (var property in properties)
@@ -596,8 +614,20 @@ public static class MaterialReader
                 case "DiffuseColor": diffuseColor = ReadColor(property); continue;
                 case "SpecularColor": specularColor = ReadColor(property); continue;
                 case "EmissiveColor" or "EdgeEmissiveColor": emissiveColor = ReadColor(property); continue;
-                case "TwoSided": twoSided = true; continue;
-                case "Masked": masked = true; continue;
+                // BoolValue, not presence: this game serialises false bools, in materials as well as
+                // in textures (RealTimeReflection is written 203 times and is false on every one).
+                // Masked and TwoSided are true wherever they appear, censused across all 33
+                // packages, so this is behaviour-preserving today and correct in general.
+                case "TwoSided": twoSided = property.BoolValue; continue;
+                case "Masked": masked = property.BoolValue; continue;
+
+                // Cubemap inputs. The material says *that* it uses a specular cubemap and how
+                // bright, but never *which* — no material in the game binds a Cubemap object. See
+                // docs/research/materials.md.
+                case "UseSpecularCubemaps" or "UseSpecularCubeMap":
+                    usesSpecularCubemap = property.BoolValue; continue;
+                case "SpecularCubeMapBrightness":
+                    specularCubemapBrightness = property.AsFloat(); continue;
                 case "OutputBlending": outputBlending = property.AsByte(); continue;
 
                 // Every export carries this tag; it is not part of the material.
@@ -636,6 +666,8 @@ public static class MaterialReader
             EmissiveColor = emissiveColor,
             TwoSided = twoSided,
             Masked = masked,
+            UsesSpecularCubemap = usesSpecularCubemap,
+            SpecularCubemapBrightness = specularCubemapBrightness,
             OutputBlending = outputBlending,
             UnhandledProperties = unhandled,
             Truncated = truncated,

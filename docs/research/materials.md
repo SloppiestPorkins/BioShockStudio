@@ -430,3 +430,42 @@ never interpreted.
 Pinned by `TransparencyIntentTests`, which asserts both directions — the mask cases and the
 undeclared-cutout cases — because the dangerous direction is forcing surfaces opaque.
 
+## Materials never say which cubemap
+
+**Status: `CONFIRMED_BYTES` across all 33 packages, 23 Aug 2026.** Pinned by `CubemapBindingTests`.
+
+Gate 1 item 4 lists "environment/cubemap inputs" as open. The expectation going in was that a
+material binds a cubemap like any other texture, and that the binding was being silently dropped —
+because a texture binding here is "an `Object` property resolving to class `Texture`", and a
+`Cubemap` is not a `Texture`. **That was wrong, and worth recording as wrong.**
+
+Across the whole game, **6,179 cubemap-named properties on 5,726 materials, and not one is an
+object reference to a cubemap.** All three are scalars:
+
+| Property | Count | Type |
+|---|---|---|
+| `SpecularCubeMapBrightness` | 5,481 | float |
+| `UseSpecularCubemaps` | 542 | bool |
+| `UseSpecularCubeMap` | 156 | bool, the other spelling |
+
+`ReflectionCubemap` appears in Nyko's SDK property-name list and **the shipped game never writes
+it**.
+
+So a material declares *that* it wants a specular cubemap and *how strongly*, and never *which*.
+**Which cubemap a surface reflects is `UNKNOWN` and is not on the material** — it has to come from
+the level or from a global, and finding it is level work rather than material work. Both scalars are
+now decoded (`BioShockMaterial.UsesSpecularCubemap`, `SpecularCubemapBrightness`) and exported.
+
+The 287 cubemaps themselves decode completely (`docs/research/textures.md`), so what is missing is
+the wiring, not the format.
+
+### A material's bool presence is not its value, either
+
+Same trap as the texture side. Censused over all material exports: `RealTimeReflection` is written
+**203** times and is **false** every time, `AcceptProjectors` **166** times and always false. So
+`MaterialReader` now reads `UnrealProperty.BoolValue` rather than testing presence.
+
+That change was behaviour-preserving on the two flags it acts on — `Masked` (1,411) and `TwoSided`
+(1,621) are true wherever they appear, with no false occurrences anywhere in the game — which is
+asserted, so a future false one cannot slip through unnoticed.
+
