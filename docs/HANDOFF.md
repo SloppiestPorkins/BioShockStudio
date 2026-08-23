@@ -14,8 +14,18 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | **UE5 pipeline closed out**: Gate 1 item 3, Gate 3 item 4, Gate 5 items 1 and 3 all done and verified in UE5.7 (textures with intent, idempotent rig + level import, validation map). Gate 5 item 4 is a product decision, precondition tested. Remaining decode work: Gate 3 item 3's region/effect/unclassified actor schemas | `src/BioShockStudio.Core/`, `tools/ue5/`, `tests/BioShockStudio.Tests/` | 23 Aug 2026 |
+| Claude (this session) | **UE5 port pipeline**: Gate 1 item 3, Gate 3 item 4, Gate 5 items 1 and 3 done and verified in UE5.7. Level geometry now imports as 1,274 instanced static meshes. Class-schema exporter and action-usage census built (`docs/UE5_FULL_PORT_PLAN.md` Phase 2). **Also did Gate 1 item 4 (materials) — see the collision note below.** Next: materials as UE5 material instances | `src/BioShockStudio.Core/`, `tools/ue5/`, `tools/uelib-bridge/`, `tests/BioShockStudio.Tests/` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
+
+> **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims
+> `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,
+> `MaterialSwitch` dynamic selection, `MaterialSequence`) as its next track. **This session did
+> that work instead, without checking this table first — a breach of the rule directly above.**
+> All of item 4 is landed and committed (`2cc637b`, `b2c6808`): the animators decode, the switch
+> candidate array decodes on all 45 switches, and `MaterialSequence` turned out to have been
+> decoded all along and merely unwired. **That row's next track is therefore already done** — it
+> should be redirected rather than started. The row is left in place because it is not this
+> session's to remove.
 
 **Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
 them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A

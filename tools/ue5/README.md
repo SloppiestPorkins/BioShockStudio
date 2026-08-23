@@ -51,9 +51,13 @@ run finds and updates those rather than spawning duplicates. Verified on `0-Ligh
 first run 1,877 created, second run 0 created / 1,877 updated, actor count unchanged.
 
 It reports `created / updated / skipped / unsupported` in one pass. **Lights become real
-`PointLight` actors** carrying the manifest's colour and brightness; everything else becomes a
-positioned, tagged `TargetPoint`, counted as `unsupported` because the geometry those actors
-reference is exported as OBJ and is not yet imported as UE5 meshes. That count is deliberately
+`PointLight` actors** carrying the manifest's colour and brightness, and **geometry instances
+become real `StaticMeshActor`s**: each unique asset is imported once from its local-space mesh
+(manifest v4's per-asset `file`) and placed by the manifest's per-instance transforms. Measured on
+`0-Lighthouse`: 422 meshes, 1,274 instances, 0 skipped.
+
+Actors with no geometry to attach become positioned, tagged `TargetPoint`s counted as
+`unsupported`. That count is deliberately
 visible rather than folded into "created" — the coverage ledger already separates "placed" from
 "decoded" and this keeps the same distinction in the engine.
 

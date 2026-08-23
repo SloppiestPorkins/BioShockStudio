@@ -1032,16 +1032,17 @@ dotnet test                         # both — the number to report
 That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
 measured**. Reported as unrun, not as passing.
 
-**Measured on the current tree, 23 Aug 2026** (HEAD `33ebfeb`):
+**Measured on the current tree, 23 Aug 2026** (HEAD `deac064`):
 
 | Run | Result |
 |---|---|
-| `--filter Tier=Fast` | **229/229** (44s) |
+| `--filter Tier=Fast` | **230/230** (47s) |
 | `~Material` + `~Export` + `~StructSize` + `~Fbx` | **92/92** (6m18s) |
 | `~Level` + `~Bsp` | **75/75** (7m38s) |
 | `~Texture`, `~Cubemap`, `~MaterialSwitch`, `~TexModifier`, `~Quantization`, `~RigidBodyMotion` | whole-game scans, all green |
 | `~Havok` + `~Physics` + `~Ragdoll` | **16/16** |
 | `~Bsp` + `~Level` + `~Portal` + `~Actor` | **87/87** (8m31s) |
+| `~Level` + `~Export` | **82/82** (3m28s) |
 | `SkeletalMeshSectionCoverageTests` + `DocumentedFiguresTests` | **5/5** (2m17s) |
 
 **The full suite has still not been run since `1c2e4b2`** and its total remains unmeasured —

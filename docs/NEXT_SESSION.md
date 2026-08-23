@@ -15,13 +15,17 @@ repository; this file only tells it where to look and what not to re-derive.
    this file for anything about priorities: what's done (Part 1), what's left in gate order
    (Part 2), and a Part 0 on process (commit hygiene, the cross-agent claim table, why WIP stays
    narrow). If this file and `ROADMAP.md` disagree, trust `ROADMAP.md` and fix this file.
-3. `docs/HANDOFF.md` — institutional memory: the **Active work claim table at the very top** (add a
+3. **`docs/UE5_FULL_PORT_PLAN.md`** if the work is UE5-facing — the strategy for porting the whole
+   game, including why the game logic is deliberately *not* auto-transpiled, and the measured
+   action-usage curve that orders the AI work (top 20 actions cover 73% of all scripted
+   behaviour).
+4. `docs/HANDOFF.md` — institutional memory: the **Active work claim table at the very top** (add a
    row before touching a file, check before touching one someone else claims), architecture (§3), and
    §4's landmines list (things that cost real time to find — read before touching coordinate systems,
    Havok decoding, BSP zones, or the material walk).
-4. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy, required before touching any
+5. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy, required before touching any
    transform. `C = diag(1,-1,1)`, applied at five decode boundaries and nowhere else.
-5. `docs/research/reference-comparison.md` and the individual `docs/research/*.md` files for
+6. `docs/research/reference-comparison.md` and the individual `docs/research/*.md` files for
    whatever area you're touching — **read the reference projects before deriving from bytes.** That
    policy has paid off repeatedly, most recently handing over a working, BioShock-aware
    UnrealScript decompiler almost for free (`docs/research/bytecode.md`) and a per-node BSP

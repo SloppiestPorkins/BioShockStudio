@@ -9,7 +9,9 @@ Then read, in this order:
    of landmines that have already cost real time; §7 is the project's own working rules.
 2. `docs/research/ANIMATION_COORDINATE_SYSTEM.md` — the basis policy. Every transform depends on it.
 3. `docs/research/README.md`, then the research note for whatever you are touching.
-4. `docs/research/reference-comparison.md` — what each reference project says about the structures we
+4. `docs/UE5_FULL_PORT_PLAN.md` if the work is UE5-facing — the strategy for porting the whole
+   game, and why the game logic is deliberately not auto-transpiled.
+5. `docs/research/reference-comparison.md` — what each reference project says about the structures we
    read, and where they disagree. **Read the reference projects before deriving from bytes.**
 
 ## The rules that get broken most often

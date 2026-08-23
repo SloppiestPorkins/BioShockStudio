@@ -74,10 +74,16 @@ conversation ("do both"). That track has not been started yet (see §7).
   Note: `print()` inside the script does **not** reliably show up in this log capture mode — use
   `unreal.log(...)` instead.
 
-## 3. Current blocker
+## 3. ~~Current blocker~~ — RESOLVED, see section 5
 
-Every FBX file this project's exporter produces fails to import into UE5.7, even with Interchange
-disabled:
+**This section is kept for the diagnosis, not as a live problem.** The workaround in section 5
+(normalise through Blender before import) is wired into `tools/ue5/import_bioshock.py` and
+imports have worked since. As of 23 Aug 2026 the pipeline imports meshes, skeletons,
+animations, textures and level geometry into UE5.7 successfully — do not read what follows as
+a reason not to try.
+
+The original diagnosis: every FBX file this project's exporter produces fails to import into
+UE5.7, even with Interchange disabled:
 
 ```
 FBXImport: Warning: FBX Scene Loading Failed : 'File is corrupted <name>.fbx'
