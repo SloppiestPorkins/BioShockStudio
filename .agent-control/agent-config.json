@@ -1,0 +1,60 @@
+{
+  "repoRoot": "C:\\Users\\Jack\\Documents\\BioshockHavok",
+  "ollama": {
+    "baseUrl": "http://127.0.0.1:11434",
+    "numCtx": 32768,
+    "temperature": 0.2
+  },
+  "maxConcurrentInference": 1,
+  "contextCharBudget": 60000,
+  "defaultTestFilter": "Tier=Fast",
+  "buildTimeoutSeconds": 300,
+  "testTimeoutSeconds": 600,
+  "roles": {
+    "research": {
+      "worktree": "C:\\Users\\Jack\\Documents\\BioshockHavok-agents\\research",
+      "branch": "agent/research",
+      "model": "qwen3-coder:30b",
+      "timeoutMinutes": 20,
+      "allowWrite": false,
+      "roleFile": ".agent\\AGENT_ROLE.md"
+    },
+    "coder": {
+      "worktree": "C:\\Users\\Jack\\Documents\\BioshockHavok-agents\\coder",
+      "branch": "agent/coder",
+      "model": "qwen3-coder:30b",
+      "timeoutMinutes": 30,
+      "allowWrite": true,
+      "roleFile": ".agent\\AGENT_ROLE.md"
+    },
+    "tester": {
+      "worktree": "C:\\Users\\Jack\\Documents\\BioshockHavok-agents\\tester",
+      "branch": "agent/tests",
+      "model": "qwen3-coder:30b",
+      "timeoutMinutes": 20,
+      "allowWrite": false,
+      "roleFile": ".agent\\AGENT_ROLE.md"
+    },
+    "reviewer": {
+      "worktree": "C:\\Users\\Jack\\Documents\\BioshockHavok-agents\\reviewer",
+      "branch": "agent/review",
+      "model": "qwen3-coder:30b",
+      "timeoutMinutes": 15,
+      "allowWrite": false,
+      "roleFile": ".agent\\AGENT_ROLE.md"
+    }
+  },
+  "_note_on_blockedCommandSubstrings": "The controller never executes a shell command that came from model output — it only runs a fixed, hardcoded set of git/dotnet commands with controller-supplied arguments. This list is kept as a documented, defense-in-depth guard for anyone extending the controller later; it is not consulted by the current code paths.",
+  "blockedCommandSubstrings": [
+    "git reset --hard",
+    "git push --force",
+    "git push -f",
+    "git clean -f",
+    "rm -rf",
+    "Remove-Item -Recurse -Force",
+    "git checkout --force",
+    "git branch -D",
+    "shutdown",
+    "format "
+  ]
+}
