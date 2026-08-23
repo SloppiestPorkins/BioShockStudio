@@ -36,6 +36,12 @@ public sealed record BioShockMaterial
 
     public required IReadOnlyList<MaterialTexture> Textures { get; init; }
 
+    /// <summary>
+    /// UV and colour animators bound to this material's slots — panners, rotators, scalars,
+    /// colour cycles. Empty for a material that animates nothing.
+    /// </summary>
+    public IReadOnlyList<MaterialAnimator> Animators { get; init; } = [];
+
     public float? Glossiness { get; init; }
     public float? SpecularBrightness { get; init; }
     public float? EmissiveBrightness { get; init; }
@@ -598,6 +604,7 @@ public static class MaterialReader
 
         float? glossiness = null, specularBrightness = null, emissiveBrightness = null;
         MaterialColor? diffuseColor = null, specularColor = null, emissiveColor = null;
+        var animators = new List<MaterialAnimator>();
         bool twoSided = false, masked = false, usesSpecularCubemap = false;
         float? specularCubemapBrightness = null;
         byte? outputBlending = null;
@@ -648,6 +655,13 @@ public static class MaterialReader
             {
                 var texture = ReadTexture(package, property);
                 if (texture is not null) { textures.Add(texture); continue; }
+
+                // ...and a UV or colour animator is the other thing that legitimately sits in an
+                // object property. Decoded rather than dropped: these were the largest group of
+                // bindings landing in `unhandled`, and nothing said what a scrolling or rotating
+                // surface was meant to do. See MaterialAnimator.
+                var animator = MaterialAnimatorReader.Read(package, property.Name, property);
+                if (animator is not null) { animators.Add(animator); continue; }
             }
 
             unhandled.Add(property.Name);
@@ -658,6 +672,7 @@ public static class MaterialReader
             Name = export.ObjectName,
             ClassName = className,
             Textures = textures,
+            Animators = animators,
             Glossiness = glossiness,
             SpecularBrightness = specularBrightness,
             EmissiveBrightness = emissiveBrightness,

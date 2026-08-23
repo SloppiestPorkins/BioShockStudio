@@ -543,9 +543,23 @@ material.
    takes the material's declaration or measured cutout holes; see
    `docs/research/materials.md`.
 
-   What's still genuinely open: panners/rotators; `MaterialSwitch`'s
+   What's still genuinely open: `MaterialSwitch`'s
    static-default branch is decoded (19 Aug 2026 — see "What's done" above), its dynamic candidate
    selection and `MaterialSequence` are not.
+   - ~~**panners/rotators**~~ **decoded, 23 Aug 2026 — and the reference projects were no help,
+     which is the finding.** UModel documents UE2's `TexPanner`/`TexRotator`; **this game ships
+     neither name nor either layout.** It ships `TexturePanner` (2,823 — `UPan`/`VPan`/`PanTime`),
+     `TextureScalar` (691), `ColorCycle` (630) and `TextureRotator` (418 — `Rotation`/`Duration`/
+     `UCenter`/`VCenter`), found by censusing what materials actually point at rather than by
+     searching for the reference's names. Decoding by the reference layout would have produced
+     confident nonsense.
+     - These were the **largest group of bindings falling into `UnhandledProperties`** — the
+       texture-binding rule requires an `Object` property to resolve to class `Texture`, which is
+       correct (an animator is not a texture) but left 4,562 animator bindings looking like
+       unknown properties. Now `BioShockMaterial.Animators`, and exported.
+     - **Carried, not interpreted.** `UNKNOWN`: the units of `PanTime`/`Duration`, whether those
+       are the same quantity, and the `Waveform` byte. `Rotation`'s three `int32` are raw — Unreal
+       rotator units is `PLAUSIBLE` only, so no degree conversion is applied.
    - ~~**environment/cubemap inputs**~~ **answered, 23 Aug 2026: a material never says which
      cubemap.** Across all 33 packages, 6,179 cubemap-named properties on 5,726 materials, and
      **not one is an object reference to a cubemap** — they are two bools

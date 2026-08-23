@@ -410,6 +410,16 @@ public sealed record SceneMaterial
     public IReadOnlyDictionary<string, TextureIntent> TextureIntents { get; init; }
         = new Dictionary<string, TextureIntent>();
 
+    /// <summary>
+    /// UV and colour animators this material binds — panners, rotators, scalars, colour cycles.
+    /// </summary>
+    /// <remarks>
+    /// Carried, not interpreted: the units of the timing fields and the meaning of the waveform
+    /// byte are <c>UNKNOWN</c>. Exported so an importer can reconstruct a scrolling or rotating
+    /// material rather than receiving a still one with no indication that it moved.
+    /// </remarks>
+    public IReadOnlyList<Materials.MaterialAnimator> Animators { get; init; } = [];
+
     /// <summary>True when the shader's property list could not be walked to its end.</summary>
     public required bool Partial { get; init; }
 

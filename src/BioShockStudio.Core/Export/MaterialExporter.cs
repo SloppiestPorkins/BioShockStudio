@@ -161,6 +161,7 @@ public static class MaterialExporter
             ClassName = material.ClassName,
             Textures = files,
             TextureIntents = intents,
+            Animators = material.Animators,
             Diffuse = Lookup(files, material.DiffuseTexture, material, "Diffuse", "FacingDiffuse", "EdgeDiffuse"),
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,

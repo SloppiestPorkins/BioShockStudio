@@ -469,3 +469,40 @@ That change was behaviour-preserving on the two flags it acts on — `Masked` (1
 (1,621) are true wherever they appear, with no false occurrences anywhere in the game — which is
 asserted, so a future false one cannot slip through unnoticed.
 
+## UV and colour animators — the game's own classes, not UE2's
+
+**Status: `CONFIRMED_BYTES` across all 33 packages, 23 Aug 2026.** Gate 1 item 4's
+"panners/rotators". Pinned by `MaterialAnimatorTests` and `TexModifierCensusTests`.
+
+**The reference projects do not describe these.** UModel documents UE2's `TexPanner`
+(`PanDirection`, `PanRate`) and `TexRotator` (`TexRotationType`, `UOffset`/`VOffset`, an
+oscillation triple). **This game ships neither name nor either layout.** Decoding by the reference
+would have produced confident nonsense — which is the case for the project's rule being *read the
+references, then check them against the bytes*, not *trust the references*.
+
+Censused by following what materials actually point at, rather than by looking for names:
+
+| Class | Count | Its own properties |
+|---|---|---|
+| `TexturePanner` | 2,823 | `UPan`, `VPan`, `PanTime`, `Waveform` |
+| `TextureScalar` | 691 | `ScaleU`/`ScaleV`, `WaveformU`/`WaveformV`, `CenterU`/`CenterV`, `DurationU`/`DurationV` |
+| `ColorCycle` | 630 | `ColorItems` (array), `Duration`, `Waveform` |
+| `TextureRotator` | 418 | `Rotation` (struct), `Duration`, `UCenter`, `VCenter`, `Waveform` |
+
+They hang off slots named `<role>TextureAnimator` — `DiffuseTextureAnimator`,
+`NormalTextureAnimator1`, `CoverageMaskAnimator`, `OpacityTextureAnimator`, and so on — so the slot
+says *what* is being animated and the object says *how*.
+
+**Why they were invisible before.** A texture binding here is "an `Object` property resolving to
+class `Texture`", which is correct and deliberately strict — an animator is not a texture. But it
+meant every animator binding fell through into `UnhandledProperties`, where it was
+indistinguishable from a property the reader does not understand. `MaterialReader` now decodes them
+into `BioShockMaterial.Animators`, and they are exported.
+
+**Everything here is carried, not interpreted.** `UNKNOWN`: the units of `PanTime` and `Duration`,
+whether those two are even the same quantity (so the source property name is kept alongside rather
+than the two being silently merged), and the meaning of the `Waveform` byte. `Rotation`'s three
+`int32` are carried raw — that they are Unreal rotator units is `PLAUSIBLE` from the struct's shape
+and confirmed against nothing, so no conversion to degrees is applied. A wrong conversion would be
+invisible in the data and obvious only on screen.
+
