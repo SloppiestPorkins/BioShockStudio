@@ -1,3 +1,4 @@
+using System.Numerics;
 using BioShockStudio.Core.Packages;
 
 namespace BioShockStudio.Core.Level;
@@ -170,7 +171,47 @@ public sealed record RegionActorData
     public IReadOnlyList<string> TriggerOnlyByLabels { get; init; } = [];
     public IReadOnlyList<string> TriggeredByFilter { get; init; } = [];
     public IReadOnlyList<AssetReference> TriggerOnlyByClasses { get; init; } = [];
+    public ZoneActorData? Zone { get; init; }
     public bool Complete { get; init; }
+}
+
+public sealed record ZoneAmbientData
+{
+    public Vector3? VectorHigh { get; init; }
+    public LightColor? ColorHigh { get; init; }
+    public float? ColorHighMultiplier { get; init; }
+    public float? ColorLowMultiplier { get; init; }
+    public float? ContrastPower { get; init; }
+    public float? XGroundRatio { get; init; }
+}
+
+public sealed record ZoneFogData
+{
+    public bool? Enabled { get; init; }
+    public bool? Clip { get; init; }
+    public LightColor? Color { get; init; }
+    public float? Start { get; init; }
+    public float? End { get; init; }
+    public float? MaxContribution { get; init; }
+}
+
+public sealed record ZoneActorData
+{
+    public ZoneAmbientData? CurrentAmbient { get; init; }
+    public ZoneAmbientData? NormalPressureAmbient { get; init; }
+    public ZoneAmbientData? HighPressureAmbient { get; init; }
+    public ZoneAmbientData? LowPressureAmbient { get; init; }
+    public ZoneFogData? CurrentFog { get; init; }
+    public ZoneFogData? NormalFog { get; init; }
+    public ZoneFogData? HighFog { get; init; }
+    public byte? ReverbType { get; init; }
+    public string? MapUiRegion { get; init; }
+    public string? PressureRegion { get; init; }
+    public float? PressureEffectsDuration { get; init; }
+    public float? TimeLastPressureChange { get; init; }
+    public IReadOnlyList<string> SpawnZones { get; init; } = [];
+    public IReadOnlyList<string> EffectsContexts { get; init; } = [];
+    public IReadOnlyList<AssetReference> ManualExcludes { get; init; } = [];
 }
 
 public sealed record LevelActor

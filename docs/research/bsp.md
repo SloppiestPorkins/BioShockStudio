@@ -908,5 +908,13 @@ The Medical evidence is exact: 86 `TriggerVolume`, 59 `ZoneInfo`, 56 `BlockingVo
 2 `PathBlockingVolume`, and one each `DefaultPhysicsVolume`/`SkyZoneInfo`. All 253 typed records are
 complete. Of the trigger volumes, 76 carry label filters, 63 serialise `TriggerOnlyOnce`, 26
 serialise `Disabled`, 8 carry class filters, and one carries a `TriggeredBy` string. The next schema
-slice is `ZoneInfo`'s ambient/fog/reverb fields; they remain raw and are not claimed decoded here.
+slice was `ZoneInfo`'s ambient/fog/reverb fields.
+
+**`ZoneInfo` complete, same session.** All 59 Medical zones now carry structured current,
+normal-pressure, high-pressure and low-pressure ambient states; current/normal/high fog variants;
+reverb type; map UI and pressure-region names; spawn zones; pressure effect contexts; and manual
+exclusions. The arrays retain their actual element types: `SpawnZones`/`EffectsContexts` are FName
+arrays, while all four `ManualExcludes` occurrences are object-reference arrays. Exact consumption
+rejects a plausible prefix of the wrong element type. Counts pinned by the same test: 56 zones carry
+reverb and spawn-zone data, 55 a map UI region, and 13 current/normal fog data.
 

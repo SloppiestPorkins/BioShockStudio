@@ -915,8 +915,11 @@ material.
    The retained census covers 86 `TriggerVolume`, 59 `ZoneInfo`, 56 `BlockingVolume` and the seven
    smaller classes; all records are complete. Trigger label/class filters, one-shot/disabled/enabled
    state, radius/height/distance and collision flags are decoded with absent-vs-false preserved.
-   `RegionActorSchemaTests`; `docs/research/bsp.md`. **Next within this category:** `ZoneInfo`'s
-   ambient/fog/reverb fields, still raw. After region actors: 134 effect actors, then 338 genuinely
+   `RegionActorSchemaTests`; `docs/research/bsp.md`. **`ZoneInfo` completed in the next slice:** all
+   59 Medical zones now export their ambient-pressure states, fog variants, reverb, map/pressure
+   regions and typed name/reference arrays. **Next within this category:** the smaller specialised
+   volume fields (`CascadingWaterVolume`, `FluidVolume`, `DefaultPhysicsVolume`). After region
+   actors: 134 effect actors, then 338 genuinely
    unclassified actors. The 309 audio actors' declaration was settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

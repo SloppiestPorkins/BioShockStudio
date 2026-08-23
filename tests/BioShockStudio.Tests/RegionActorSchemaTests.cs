@@ -46,6 +46,17 @@ public sealed class RegionActorSchemaTests(GameFixture game)
         Assert.Equal(13, blocking.Count(actor => actor.RegionActor!.BlockHavok is not null));
         Assert.Equal(11, blocking.Count(actor => actor.RegionActor!.BlockPlayers is not null));
 
+        var zones = actors.Where(actor => actor.Source.ClassName == "ZoneInfo").ToList();
+        Assert.Equal(59, zones.Count);
+        Assert.All(zones, actor => Assert.NotNull(actor.RegionActor!.Zone?.CurrentAmbient));
+        Assert.Equal(56, zones.Count(actor => actor.RegionActor!.Zone!.ReverbType is not null));
+        Assert.Equal(56, zones.Count(actor => actor.RegionActor!.Zone!.SpawnZones.Count > 0));
+        Assert.Equal(55, zones.Count(actor => actor.RegionActor!.Zone!.MapUiRegion is not null));
+        Assert.Equal(13, zones.Count(actor => actor.RegionActor!.Zone!.CurrentFog is not null));
+        Assert.Equal(13, zones.Count(actor => actor.RegionActor!.Zone!.NormalFog is not null));
+        Assert.Single(zones.Where(actor => actor.RegionActor!.Zone!.HighFog is not null));
+        Assert.Equal(4, zones.Count(actor => actor.RegionActor!.Zone!.ManualExcludes.Count > 0));
+
         // The manifest is the UE5 handoff. A field decoded only in LevelActor is not done.
         using (var package = BioShockPackage.Open(game.MedicalPackage))
         {
@@ -58,6 +69,10 @@ public sealed class RegionActorSchemaTests(GameFixture game)
                 .Where(actor => actor.ClassName == "TriggerVolume").ToList();
             Assert.Equal(76, triggerDocuments.Count(actor => actor.RegionActor!.TriggerOnlyByLabels.Count > 0));
             Assert.All(triggerDocuments, actor => Assert.True(actor.RegionActor!.Complete));
+            var zoneDocuments = document.Actors.Where(actor => actor.ClassName == "ZoneInfo").ToList();
+            Assert.Equal(59, zoneDocuments.Count);
+            Assert.All(zoneDocuments, actor => Assert.NotNull(actor.RegionActor!.Zone!.CurrentAmbient));
+            Assert.Equal(13, zoneDocuments.Count(actor => actor.RegionActor!.Zone!.CurrentFog is not null));
         }
 
         foreach (var group in actors.GroupBy(actor => actor.Source.ClassName).OrderByDescending(group => group.Count()))

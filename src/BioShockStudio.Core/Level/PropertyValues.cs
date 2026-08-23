@@ -92,6 +92,11 @@ public static class PropertyValues
             BinaryPrimitives.ReadSingleLittleEndian(property.Value.AsSpan(8)));
     }
 
+    /// <summary>A four-byte Unreal <c>Color</c> struct, stored BGRA.</summary>
+    public static LightColor? AsColor(UnrealProperty property) => property.Value.Length >= 4
+        ? new LightColor(property.Value[2], property.Value[1], property.Value[0], property.Value[3])
+        : null;
+
     /// <summary>A twelve-byte <c>Rotator</c> struct: three int32 angles in Unreal's 65,536-per-turn units.</summary>
     public static UnrealRotator? AsRotator(UnrealProperty property)
     {

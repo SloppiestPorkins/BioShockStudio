@@ -202,6 +202,7 @@ public static class LevelSceneExporter
                     TriggerOnlyByLabels = actor.RegionActor.TriggerOnlyByLabels.ToList(),
                     TriggeredByFilter = actor.RegionActor.TriggeredByFilter.ToList(),
                     TriggerOnlyByClasses = actor.RegionActor.TriggerOnlyByClasses.Select(Describe).ToList(),
+                    Zone = ZoneDocument(actor.RegionActor.Zone),
                     Complete = actor.RegionActor.Complete,
                 },
                 StaticMesh = actor.StaticMesh?.ObjectName,
@@ -279,6 +280,45 @@ public static class LevelSceneExporter
             })
             .ToList() ?? [],
         Skipped = scene.Skipped.Select(s => $"{s.Actor}: {s.Reason}").ToList(),
+    };
+
+    private static LevelZoneActorDocument? ZoneDocument(ZoneActorData? zone) => zone is null ? null : new()
+    {
+        CurrentAmbient = AmbientDocument(zone.CurrentAmbient),
+        NormalPressureAmbient = AmbientDocument(zone.NormalPressureAmbient),
+        HighPressureAmbient = AmbientDocument(zone.HighPressureAmbient),
+        LowPressureAmbient = AmbientDocument(zone.LowPressureAmbient),
+        CurrentFog = FogDocument(zone.CurrentFog),
+        NormalFog = FogDocument(zone.NormalFog),
+        HighFog = FogDocument(zone.HighFog),
+        ReverbType = zone.ReverbType,
+        MapUiRegion = zone.MapUiRegion,
+        PressureRegion = zone.PressureRegion,
+        PressureEffectsDuration = zone.PressureEffectsDuration,
+        TimeLastPressureChange = zone.TimeLastPressureChange,
+        SpawnZones = zone.SpawnZones.ToList(),
+        EffectsContexts = zone.EffectsContexts.ToList(),
+        ManualExcludes = zone.ManualExcludes.Select(Describe).ToList(),
+    };
+
+    private static LevelZoneAmbientDocument? AmbientDocument(ZoneAmbientData? ambient) => ambient is null ? null : new()
+    {
+        VectorHigh = ambient.VectorHigh is { } vector ? ToArray(vector) : null,
+        ColorHigh = ambient.ColorHigh is { } color ? [color.R, color.G, color.B, color.A] : null,
+        ColorHighMultiplier = ambient.ColorHighMultiplier,
+        ColorLowMultiplier = ambient.ColorLowMultiplier,
+        ContrastPower = ambient.ContrastPower,
+        XGroundRatio = ambient.XGroundRatio,
+    };
+
+    private static LevelZoneFogDocument? FogDocument(ZoneFogData? fog) => fog is null ? null : new()
+    {
+        Enabled = fog.Enabled,
+        Clip = fog.Clip,
+        Color = fog.Color is { } color ? [color.R, color.G, color.B, color.A] : null,
+        Start = fog.Start,
+        End = fog.End,
+        MaxContribution = fog.MaxContribution,
     };
 
     /// <summary>
@@ -570,7 +610,47 @@ public sealed record LevelRegionActorDocument
     public required List<string> TriggerOnlyByLabels { get; init; }
     public required List<string> TriggeredByFilter { get; init; }
     public required List<LevelReferenceDocument?> TriggerOnlyByClasses { get; init; }
+    public LevelZoneActorDocument? Zone { get; init; }
     public required bool Complete { get; init; }
+}
+
+public sealed record LevelZoneAmbientDocument
+{
+    public float[]? VectorHigh { get; init; }
+    public int[]? ColorHigh { get; init; }
+    public float? ColorHighMultiplier { get; init; }
+    public float? ColorLowMultiplier { get; init; }
+    public float? ContrastPower { get; init; }
+    public float? XGroundRatio { get; init; }
+}
+
+public sealed record LevelZoneFogDocument
+{
+    public bool? Enabled { get; init; }
+    public bool? Clip { get; init; }
+    public int[]? Color { get; init; }
+    public float? Start { get; init; }
+    public float? End { get; init; }
+    public float? MaxContribution { get; init; }
+}
+
+public sealed record LevelZoneActorDocument
+{
+    public LevelZoneAmbientDocument? CurrentAmbient { get; init; }
+    public LevelZoneAmbientDocument? NormalPressureAmbient { get; init; }
+    public LevelZoneAmbientDocument? HighPressureAmbient { get; init; }
+    public LevelZoneAmbientDocument? LowPressureAmbient { get; init; }
+    public LevelZoneFogDocument? CurrentFog { get; init; }
+    public LevelZoneFogDocument? NormalFog { get; init; }
+    public LevelZoneFogDocument? HighFog { get; init; }
+    public byte? ReverbType { get; init; }
+    public string? MapUiRegion { get; init; }
+    public string? PressureRegion { get; init; }
+    public float? PressureEffectsDuration { get; init; }
+    public float? TimeLastPressureChange { get; init; }
+    public required List<string> SpawnZones { get; init; }
+    public required List<string> EffectsContexts { get; init; }
+    public required List<LevelReferenceDocument?> ManualExcludes { get; init; }
 }
 
 /// <summary>One actor property reference exactly as its package table identifies it.</summary>

@@ -27,6 +27,21 @@ public static class LevelAnalyzer
         "TriggerOnlyOnce", "TriggerWhenNotSeen", "CollisionRadius", "CollisionHeight",
         "MinimumDistance", "TriggeredBy", "TriggerOnlyByLabel", "triggeredByFilter",
         "TriggerOnlyByClass",
+        "CurrentAmbientVectorHigh", "CurrentAmbientColorHigh", "CurrentAmbientColorHighMultiplier",
+        "CurrentAmbientColorLowMultiplier", "CurrentAmbientContrastPower", "CurrentAmbientXGroundRatio",
+        "NormalPressureAmbientVectorHigh", "NormalPressureAmbientColorHigh",
+        "NormalPressureAmbientColorHighMultiplier", "NormalPressureAmbientContrastPower",
+        "HighPressureAmbientVectorHigh", "HighPressureAmbientColorHigh",
+        "HighPressureAmbientColorHighMultiplier", "HighPressureAmbientContrastPower",
+        "LowPressureAmbientVectorHigh", "LowPressureAmbientColorHigh",
+        "LowPressureAmbientColorHighMultiplier", "LowPressureAmbientContrastPower",
+        "bDistanceFog", "bDistanceFogClip", "DistanceFogColor", "DistanceFogStart", "DistanceFogEnd",
+        "MaxFogContribution", "NormalEnableDistanceFog", "NormalDistanceFogColor",
+        "NormalDistanceFogStart", "NormalDistanceFogEnd", "NormalMaxFogContribution",
+        "HighEnableDistanceFog", "HighDistanceFogColor", "HighDistanceFogStart", "HighDistanceFogEnd",
+        "HighMaxFogContribution", "ReverbType", "MapUIRegion", "PressureRegion",
+        "PressureEffectsDuration", "TimeLastPressureChange", "SpawnZones", "EffectsContexts",
+        "ManualExcludes",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -210,6 +225,15 @@ public static class LevelAnalyzer
         float? Float(string name) => payload.Find(name) is { Type: UnrealPropertyType.Float, Value.Length: >= 4 } value
             ? value.AsFloat()
             : null;
+        Vector3? Vector(string name) => payload.Find(name) is { Type: UnrealPropertyType.Struct, StructName: "Vector" } value
+            ? PropertyValues.AsVector(value)
+            : null;
+        LightColor? Color(string name) => payload.Find(name) is { Type: UnrealPropertyType.Struct, StructName: "Color" } value
+            ? PropertyValues.AsColor(value)
+            : null;
+        string? Name(string name) => payload.Find(name) is { Type: UnrealPropertyType.Name } value
+            ? PropertyValues.AsName(value, package)
+            : null;
 
         bool complete = true;
         IReadOnlyList<string> Names(string name)
@@ -218,6 +242,27 @@ public static class LevelAnalyzer
             if (PropertyValues.TryAsNameArrayExact(property, package, out var names)) return names;
             complete = false;
             return [];
+        }
+
+        IReadOnlyList<AssetReference> References(string name)
+        {
+            if (payload.Find(name) is not { Type: UnrealPropertyType.Array } property) return [];
+            if (!PropertyValues.TryAsReferenceArrayExact(property, out var indices))
+            {
+                complete = false;
+                return [];
+            }
+            var result = new List<AssetReference>(indices.Count);
+            foreach (var index in indices)
+            {
+                if (index.IsNull || Describe(package, index, "actor", null) is not { } reference)
+                {
+                    complete = false;
+                    continue;
+                }
+                result.Add(reference);
+            }
+            return result;
         }
 
         var classReferences = new List<AssetReference>();
@@ -243,6 +288,62 @@ public static class LevelAnalyzer
             : null;
         if (payload.Find("TriggeredBy") is not null && triggeredBy is null) complete = false;
 
+        ZoneAmbientData? Ambient(string prefix)
+        {
+            var result = new ZoneAmbientData
+            {
+                VectorHigh = Vector(prefix + "AmbientVectorHigh"),
+                ColorHigh = Color(prefix + "AmbientColorHigh"),
+                ColorHighMultiplier = Float(prefix + "AmbientColorHighMultiplier"),
+                ColorLowMultiplier = Float(prefix + "AmbientColorLowMultiplier"),
+                ContrastPower = Float(prefix + "AmbientContrastPower"),
+                XGroundRatio = Float(prefix + "AmbientXGroundRatio"),
+            };
+            return result.VectorHigh is null && result.ColorHigh is null
+                   && result.ColorHighMultiplier is null && result.ColorLowMultiplier is null
+                   && result.ContrastPower is null && result.XGroundRatio is null ? null : result;
+        }
+
+        ZoneFogData? Fog(string enabledName, string clipName, string prefix)
+        {
+            var result = new ZoneFogData
+            {
+                Enabled = Bool(enabledName),
+                Clip = Bool(clipName),
+                Color = Color(prefix + "DistanceFogColor"),
+                Start = Float(prefix + "DistanceFogStart"),
+                End = Float(prefix + "DistanceFogEnd"),
+                MaxContribution = Float(prefix + "MaxFogContribution"),
+            };
+            return result.Enabled is null && result.Clip is null && result.Color is null
+                   && result.Start is null && result.End is null && result.MaxContribution is null ? null : result;
+        }
+
+        ZoneActorData? zone = null;
+        if (className.Contains("Zone", StringComparison.Ordinal))
+        {
+            zone = new ZoneActorData
+            {
+                CurrentAmbient = Ambient("Current"),
+                NormalPressureAmbient = Ambient("NormalPressure"),
+                HighPressureAmbient = Ambient("HighPressure"),
+                LowPressureAmbient = Ambient("LowPressure"),
+                CurrentFog = Fog("bDistanceFog", "bDistanceFogClip", string.Empty),
+                NormalFog = Fog("NormalEnableDistanceFog", string.Empty, "Normal"),
+                HighFog = Fog("HighEnableDistanceFog", string.Empty, "High"),
+                ReverbType = payload.Find("ReverbType") is { Type: UnrealPropertyType.Byte } reverb
+                    ? reverb.AsByte()
+                    : null,
+                MapUiRegion = Name("MapUIRegion"),
+                PressureRegion = Name("PressureRegion"),
+                PressureEffectsDuration = Float("PressureEffectsDuration"),
+                TimeLastPressureChange = Float("TimeLastPressureChange"),
+                SpawnZones = Names("SpawnZones"),
+                EffectsContexts = Names("EffectsContexts"),
+                ManualExcludes = References("ManualExcludes"),
+            };
+        }
+
         return new RegionActorData
         {
             BlockActors = Bool("bBlockActors"),
@@ -262,6 +363,7 @@ public static class LevelAnalyzer
             TriggerOnlyByLabels = Names("TriggerOnlyByLabel"),
             TriggeredByFilter = Names("triggeredByFilter"),
             TriggerOnlyByClasses = classReferences,
+            Zone = zone,
             Complete = complete,
         };
     }
