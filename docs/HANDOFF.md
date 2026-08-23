@@ -12,10 +12,15 @@ first** — they're the one relaying between both sessions and can say whether i
 live. Remove your row when the track lands (committed) or you stop working on it. An empty table
 means no row is currently claimed, not that no one is working — always check the date.
 
+> **23 Aug 2026 — a four-agent team (research / coding / testing / review) is being set up, with
+> this session as lead engineer.** The coordination layer is `.agent/`; `.agent/AGENT_PROTOCOL.md`
+> §6 governs concurrency and points back at this table. **This table remains the claim mechanism** —
+> every agent adds a row here before touching a file.
+
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 | Codex | **Gate 4 item 1**: exact actor/schema-name resolution against shipped FSB sample names, then sound-event response routing | `src/BioShockStudio.Core/Audio/`, `src/BioShockStudio.Core/Level/`, `tests/BioShockStudio.Tests/*Audio*Tests.cs`, `docs/ROADMAP.md`, `docs/research/audio.md` | 23 Aug 2026 |
-| Claude (this session) | **Gate 4 item 1** — taken over from Codex, which is out of usage for the week (user instruction, 23 Aug 2026). Full `SoundEffectSpecification` schema + whole-game metadata census, then the `AmbientSoundSpawned_<Tag>` resolution chain | `src/BioShockStudio.Core/Audio/`, `tests/BioShockStudio.Tests/Sound*Tests.cs`, `docs/research/audio.md`, `docs/ROADMAP.md` | 23 Aug 2026 |
+| Claude (lead) | **Gate 4 item 1 — LANDED, row retained for the record.** Taken over from Codex, which ran out of usage for the week (user instruction, 23 Aug 2026). Full `SoundEffectSpecification` schema + whole-game census (`55488e2`), then the `AmbientSoundSpawned_<Tag>` resolution chain (`9b2036f`). **`src/BioShockStudio.Core/Audio/` is released — no longer claimed.** Now on repository preparation for the agent team (`.agent/`), not feature work | `src/BioShockStudio.Core/Audio/`, `tests/BioShockStudio.Tests/Sound*Tests.cs`, `docs/research/audio.md`, `docs/ROADMAP.md` → now `.agent/`, `CLAUDE.md`, `.gitignore` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 > **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims

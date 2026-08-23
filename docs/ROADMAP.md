@@ -1226,9 +1226,30 @@ dotnet test                         # both — the number to report
 
 ### Verification stamp — read this before running anything
 
-**Last full-suite run: 464/464, 22 Aug 2026, 29m02s — measured *before* commit `1c2e4b2`.**
-That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
-measured**. Reported as unrun, not as passing.
+**Last full-suite run: 546/550 — 4 FAILING — 23 Aug 2026, 41m47s, at commit `9b2036f`.**
+Measured during the multi-agent preparation pass. This supersedes the previous stamp (464/464 at
+`1c2e4b2`), which was 72 commits and 101 files stale.
+
+**The suite is red.** All four failures are Sweep-tier `1-Medical` actor-schema counts, and all four
+count *too high*:
+
+| Test | Expected | Actual |
+|---|---|---|
+| `MarkerActorSchemaTests.EveryMedicalMarkerIsOnlyAPlacedCommonActorRecord` | 150 | 159 |
+| `PickupActorSchemaTests.EveryMedicalHypoPickupExportsItsResolvedLootSlot` | 11 | 16 |
+| `TrainingScriptActorTests.MedicalTrainingConceptArraysDecodeExactlyAndReachTheManifest` | 325 | 326 |
+| `VendingActorSchemaTests.EveryMedicalVendingStationExportsItsInteractionDeclaration` | 14 | 16 |
+
+They are deterministic and reproduce in isolation in 10s (so not test ordering), and they are **not**
+caused by the audio commits `55488e2`/`9b2036f`, which touch only `Core/Audio/`. The subject code
+was last touched by the Gate 3 actor-schema commits `d33cf17`, `8f48173`, `a8d22ef` — all landing
+after the four tests were written. **Classified only this far, deliberately: per §24 the direction
+of the change must be established before either the code or the figures move, and counts that rose
+may be a correct improvement or over-capture.** Tracked as `.agent/TASK_QUEUE.md` TASK-000.
+
+**This also puts Gate 3 item 3's "complete for its stated `1-Medical` ledger" claim in question**,
+since that claim rests on these categories partitioning correctly. It is not withdrawn here — it is
+flagged pending TASK-000.
 
 **Measured on the current tree, 23 Aug 2026** (HEAD `deac064`):
 

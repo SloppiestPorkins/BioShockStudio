@@ -26,3 +26,32 @@ obj/
 # Interpreter caches are local build by-products.
 __pycache__/
 *.py[cod]
+
+# IDE / editor local state. Project settings that are worth sharing can be un-ignored explicitly.
+.vs/
+.vscode/
+.idea/
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# Agent scratch. The .agent/ documents and .agent/reports/ ARE tracked - they are the coordination
+# layer. Only genuinely transient per-run output is ignored here.
+/.agent/scratch/
+/.agent/tmp/
+*.agent.log
+
+# Test and tooling run output. Never the tests themselves, and never research evidence.
+TestResults/
+*.trx
+*.coverage
+*.binlog
+coverage*.xml
+
+# Local-agent orchestration run state (.agent-control/agent.ps1). The scripts and config are the
+# infrastructure and stay tracked; per-dispatch task/result/log files and the GPU lock are transient
+# and machine-specific. Promote anything worth keeping into .agent/reports/ by hand.
+/.agent-control/tasks/
+/.agent-control/results/
+/.agent-control/logs/
+/.agent-control/.gpu.lock
