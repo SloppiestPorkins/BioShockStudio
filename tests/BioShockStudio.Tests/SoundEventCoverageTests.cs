@@ -12,7 +12,8 @@ public sealed class SoundEventCoverageTests(GameFixture game)
     [RequiresGameFact]
     public void EveryShippedResponseAndVariationDecodesExactly()
     {
-        int exports = 0, responses = 0, entries = 0, multiple = 0, mode6 = 0, mode7 = 0, unresolved = 0;
+        int exports = 0, responses = 0, entries = 0, multiple = 0, sixByteNames = 0, sevenByteNames = 0,
+            unresolved = 0;
         int responsesWithChance = 0, chanceEntries = 0, responsesWithContext = 0, contextEntries = 0;
         var chanceValues = new HashSet<int>();
         foreach (string map in Directory.GetFiles(GameLocator.MapsDirectory(game.RequireRoot), "*.bsm"))
@@ -23,8 +24,8 @@ public sealed class SoundEventCoverageTests(GameFixture game)
             responses += decoded.Count;
             entries += decoded.Sum(response => response.Specifications.Count);
             multiple += decoded.Count(response => response.Specifications.Count > 1);
-            mode6 += decoded.Sum(response => response.Specifications.Count(specification => specification.Mode == 0x06));
-            mode7 += decoded.Sum(response => response.Specifications.Count(specification => specification.Mode == 0x07));
+            sixByteNames += decoded.Sum(response => response.Specifications.Count(specification => specification.EncodedNameSize == 6));
+            sevenByteNames += decoded.Sum(response => response.Specifications.Count(specification => specification.EncodedNameSize == 7));
             unresolved += decoded.Count(response => !response.IsResolved);
             responsesWithChance += decoded.Count(response => response.Chances.Count > 0);
             chanceEntries += decoded.Sum(response => response.Chances.Count);
@@ -36,13 +37,15 @@ public sealed class SoundEventCoverageTests(GameFixture game)
             Assert.All(decoded.Where(response => !response.IsResolved), response => Assert.False(response.SpecificationPresent));
             Assert.All(decoded.Where(response => response.SpecificationPresent), response =>
                 Assert.Equal(response.Specifications.Count, response.Chances.Count));
+            Assert.All(decoded.SelectMany(response => response.Specifications), specification =>
+                Assert.Equal("SoundEffectSpecification", specification.SpecificationClass));
         }
         Assert.Equal(106_000, exports);
         Assert.Equal(exports, responses);
         Assert.Equal(110_120, entries);
         Assert.Equal(1_760, multiple);
-        Assert.Equal(62_084, mode6);
-        Assert.Equal(48_036, mode7);
+        Assert.Equal(62_084, sixByteNames);
+        Assert.Equal(48_036, sevenByteNames);
         Assert.Equal(420, unresolved);
         Assert.Equal(105_580, responsesWithChance);
         Assert.Equal(110_120, chanceEntries);

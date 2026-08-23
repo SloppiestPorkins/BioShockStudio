@@ -185,8 +185,8 @@ Nothing in the application or the exporters consumes it yet.
 
 1. **Where do sound-effect samples ship?** §4. Test `BulkTextureCatalog` against a known sound name
    first — it is a few lines and it either finds them or rules the bulk store out.
-2. ~~**What are the other bytes of `Specification`?**~~ The whole-game array framing and its two
-   shipped modes are decoded below; unknown tail bytes remain preserved per entry.
+2. ~~**What are the other bytes of `Specification`?**~~ The whole-game array framing and nested
+   `SpecificationType`/`SpecificationClass` property lists are decoded below.
 3. **Is mode 15 really Vorbis here?** Decode one sample and hear it, or do not claim it.
 4. **Do all notify classes resolve this way?** Only `AnimNotify_EffectEvent` has been traced.
    `AnimNotify_UseAbility`, `AnimNotify_InitiateDamage` and
@@ -361,9 +361,12 @@ before stdout, so a large FMOD `--list` response could fill the stdout pipe and 
 ## Response alternatives, chance and level contexts
 
 **Status: `CONFIRMED_BYTES` across all 106,000 shipped response objects, 23 Aug 2026.** The old
-single-19-byte `Specification` interpretation was wrong. The property is an array whose entries are
-exactly 25 bytes in mode 6 or 26 bytes in mode 7. There are **110,120 entries** total: 62,084 mode 6
-and 48,036 mode 7. **1,760 responses contain more than one sound alternative.** Another 420 response
+single-19-byte `Specification` interpretation was wrong. The property is an array whose entries each
+contain a nested property list with a `SpecificationType` Name property (the sound name) and a
+`SpecificationClass` object reference. The numbered-FName
+value occupies six bytes in 62,084 entries or seven bytes in 48,036, making the complete entries 25
+or 26 bytes. There are **110,120 entries** total. **1,760 responses contain more than one sound
+alternative.** Another 420 response
 objects intentionally omit `Specification`; absence is now distinct from malformed bytes.
 
 `Chance` is a parallel compact-count array of int32 values and its count equals the specification
@@ -373,4 +376,11 @@ promoted to a rule. `LevelContext` is an exact numbered-FName array: 51,620 resp
 context entries. `FilteredState` is a byte (0/1), and `bLevelContextsMoved` retains its serialized
 bool value. These fields are exposed on `SoundEventResponse`; selecting the runtime winner remains
 engine-behaviour work. `SoundEventCoverageTests` pins every count and full-array consumption.
+
+Every one of the 110,120 `SpecificationClass` object references resolves to the shipped
+`SoundEffectSpecification` class. The class defaults in `IGSoundEffectsSubsystem.U` decode as
+`OuterRadius=3000`, `Volume=100` and `Pitch=1` (along with range and dynamic-modulation fields).
+Those values are `CONFIRMED_BYTES` as class defaults. They are not promoted to per-sound values:
+the concrete override source has not yet been located, and absence of a standalone specification
+export does not prove that overrides do not exist elsewhere.
 

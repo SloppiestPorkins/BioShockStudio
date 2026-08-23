@@ -139,7 +139,7 @@ public sealed class SoundEventTests(GameFixture game)
         Assert.Contains(responses, response => !response.SpecificationPresent);
         Assert.Contains(responses, response => response.Specifications.Count > 1);
         Assert.All(responses.SelectMany(response => response.Specifications), specification =>
-            Assert.Equal(specification.Mode == 0x06 ? 25 : 26, specification.RawPayload.Length));
+            Assert.Equal(specification.EncodedNameSize == 6 ? 25 : 26, specification.RawPayload.Length));
     }
 
     /// <summary>The bulk catalogue does not contain the pistol reload effects.</summary>

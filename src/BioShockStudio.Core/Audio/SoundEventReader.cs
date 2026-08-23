@@ -39,7 +39,8 @@ public sealed record SoundEventResponse(
 }
 
 /// <summary>One exact variable-length entry from a response's <c>Specification</c> array.</summary>
-public sealed record SoundEventSpecification(string SoundName, byte Mode, byte[] RawPayload);
+public sealed record SoundEventSpecification(
+    string SoundName, string SpecificationClass, byte EncodedNameSize, byte[] RawPayload);
 
 /// <summary>
 /// Reads <c>EventResponse_SoundEffectsSubsystem</c> objects — the bridge from an animation event to a
@@ -58,13 +59,15 @@ public sealed record SoundEventSpecification(string SoundName, byte Mode, byte[]
 /// </code>
 /// <para>
 /// <b>How the sound names are read, and why it is not a guess.</b> <c>Specification</c> is an array
-/// of 25-byte mode-6 or 26-byte mode-7 entries. Each contains a numbered FName into the package's
-/// own name table. Across all 21 maps, 106,000 response objects contain 110,120 entries and every
+/// of nested property-list entries. Each has one <c>SpecificationType</c> name and one
+/// <c>SpecificationClass</c> object reference; the numbered sound FName takes
+/// six or seven bytes, making the complete entries 25 or 26 bytes. Each
+/// name points into the package's own name table. Across all 21 maps, 106,000 response objects contain 110,120 entries and every
 /// array boundary consumes exactly; 1,760 responses carry several alternatives.
 /// </para>
 /// <para>
 /// <b>The other bytes remain <c>UNKNOWN</c> and are preserved rather than interpreted.</b> The reader
-/// validates the count, mode-specific entry length, two stable marker bytes and full consumption.
+/// validates the count, nested property, entry length and full consumption.
 /// A response with no <c>Specification</c> remains explicitly distinct from malformed bytes.
 /// </para>
 /// <para>
@@ -140,13 +143,15 @@ public static class SoundEventReader
     }
 
     /// <summary>
-    /// Reads the exact variable-length specification array: 25-byte mode-6 entries and 26-byte
-    /// mode-7 entries. The count, every entry boundary and final byte consumption must agree.
+    /// Reads the exact variable-length specification array. Each entry begins with a nested
+    /// <c>SpecificationType</c> name whose value occupies six or seven bytes and a
+    /// <c>SpecificationClass</c> reference. The nested
+    /// terminator proves each entry boundary; the count and final consumption must also agree.
     /// </summary>
     /// <remarks>
     /// The earlier single-19-byte interpretation was refuted by the whole-game census. Shipped
     /// responses contain 110,120 entries, including 1,760 responses with more than one alternative.
-    /// The package-local leading integer and unknown tail remain preserved in <see cref="SoundEventSpecification.RawPayload"/>.
+    /// Fields other than the sound name remain preserved in <see cref="SoundEventSpecification.RawPayload"/>.
     /// </remarks>
     private static IReadOnlyList<SoundEventSpecification> SpecificationsFrom(
         BioShockPackage package, byte[] value)
@@ -160,22 +165,24 @@ public static class SoundEventReader
             for (int i = 0; i < count; i++)
             {
                 int elementStart = offset;
-                if (offset + 8 > value.Length || value[offset + 4] != 0x00 || value[offset + 5] != 0x56)
+                var fields = UnrealPropertyReader.Read(value, package.Names, out int propertiesEnd,
+                    out bool truncated, elementStart);
+                var soundNames = fields.Where(field => field is
+                    { Name: "SpecificationType", Type: UnrealPropertyType.Name }).ToList();
+                var classes = fields.Where(field => field is
+                    { Name: "SpecificationClass", Type: UnrealPropertyType.Object }).ToList();
+                if (truncated || fields.Count != 2 || soundNames.Count != 1 || classes.Count != 1
+                    || !classes[0].TryAsObjectReference(out var classReference))
                     return [];
-                byte mode = value[offset + 6];
-                int elementSize = mode switch { 0x06 => 25, 0x07 => 26, _ => 0 };
-                if (elementSize == 0 || elementStart + elementSize > value.Length) return [];
-                offset += 7;
-                int nameIndex = ReadCompactIndex(value, ref offset);
-                if (nameIndex < 0 || nameIndex >= package.Names.Count || offset + 4 > elementStart + elementSize)
-                    return [];
-                int nameNumber = BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(offset));
-                offset += 4;
-                string name = package.Names[nameIndex].Name;
-                if (nameNumber != 0) name += nameNumber - 1;
-                result.Add(new SoundEventSpecification(
-                    name, mode, value.AsSpan(elementStart, elementSize).ToArray()));
-                offset = elementStart + elementSize;
+                var soundName = soundNames[0];
+                if (soundName.Value.Length is not (6 or 7)) return [];
+                if (!TryNumberedName(soundName.Value, package, out string name)) return [];
+                int elementEnd = propertiesEnd;
+                if (elementEnd - elementStart is not (25 or 26)) return [];
+                result.Add(new SoundEventSpecification(name, package.ResolveName(classReference),
+                    (byte)soundName.Value.Length,
+                    value.AsSpan(elementStart, elementEnd - elementStart).ToArray()));
+                offset = elementEnd;
             }
             return offset == value.Length ? result : [];
         }
@@ -183,6 +190,26 @@ public static class SoundEventReader
                                        or ArgumentOutOfRangeException)
         {
             return [];
+        }
+    }
+
+    private static bool TryNumberedName(byte[] value, BioShockPackage package, out string name)
+    {
+        name = string.Empty;
+        int offset = 0;
+        try
+        {
+            int index = ReadCompactIndex(value, ref offset);
+            if (index < 0 || index >= package.Names.Count || offset + 4 != value.Length) return false;
+            int number = BinaryPrimitives.ReadInt32LittleEndian(value.AsSpan(offset));
+            name = package.Names[index].Name;
+            if (number > 0) name += $"_{number - 1}";
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return false;
         }
     }
 
