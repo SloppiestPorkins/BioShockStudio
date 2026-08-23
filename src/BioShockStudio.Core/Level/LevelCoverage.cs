@@ -39,6 +39,9 @@ public enum LevelActorCoverage
     /// <summary>A placed editor/gameplay marker with no class-specific payload beyond the common actor fields.</summary>
     MarkerPending,
 
+    /// <summary>A decoded AI population spawner awaiting a UE5 gameplay representation.</summary>
+    SpawnerPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -139,6 +142,7 @@ public sealed record LevelCoverageReport
             return LevelActorCoverage.NavigationPending;
         if (HasAny(actor, "Actions", "Concepts")) return LevelActorCoverage.ScriptPending;
         if (actor.Source.ClassName == "Marker") return LevelActorCoverage.MarkerPending;
+        if (actor.Spawner is not null) return LevelActorCoverage.SpawnerPending;
 
         return LevelActorCoverage.Unclassified;
     }

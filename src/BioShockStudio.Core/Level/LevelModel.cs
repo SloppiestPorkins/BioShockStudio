@@ -228,6 +228,21 @@ public sealed record ZoneActorData
     public IReadOnlyList<AssetReference> ManualExcludes { get; init; } = [];
 }
 
+/// <summary>Typed AI population declaration carried by an aggressor spawner.</summary>
+public sealed record SpawnerActorData
+{
+    public string? GlobalPatrol { get; init; }
+    public string? InitialPatrol { get; init; }
+    public string? RepopulationPatrol { get; init; }
+    public string? InitialLabel { get; init; }
+    public IReadOnlyList<string> GlobalAiTypes { get; init; } = [];
+    public IReadOnlyList<string> InitialAiTypes { get; init; } = [];
+    public IReadOnlyList<string> RepopulationAiTypes { get; init; } = [];
+    public IReadOnlyList<string> OverriddenAiArchetypeNames { get; init; } = [];
+    public IReadOnlyList<string> SpawnZones { get; init; } = [];
+    public bool Complete { get; init; }
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -254,6 +269,9 @@ public sealed record LevelActor
 
     /// <summary>Exact training concept FNames declared by a <c>TrainingScript</c>.</summary>
     public IReadOnlyList<string> TrainingConcepts { get; init; } = [];
+
+    /// <summary>Typed AI population declaration; null for actors without spawner properties.</summary>
+    public SpawnerActorData? Spawner { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

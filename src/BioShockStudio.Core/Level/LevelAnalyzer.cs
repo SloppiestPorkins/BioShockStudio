@@ -43,7 +43,9 @@ public static class LevelAnalyzer
         "HighEnableDistanceFog", "HighDistanceFogColor", "HighDistanceFogStart", "HighDistanceFogEnd",
         "HighMaxFogContribution", "ReverbType", "MapUIRegion", "PressureRegion",
         "PressureEffectsDuration", "TimeLastPressureChange", "SpawnZones", "EffectsContexts",
-        "ManualExcludes", "Concepts",
+        "ManualExcludes", "Concepts", "GlobalPatrol", "InitialPatrol", "RepopulationPatrol",
+        "InitialLabel", "GlobalAITypes", "InitialAITypes", "RepopulationAITypes",
+        "OverriddenAIArchetypeNames",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -133,6 +135,7 @@ public static class LevelAnalyzer
             Region = ReadRegion(package, payload),
             RegionActor = RegionActor(package, source.ClassName, payload),
             TrainingConcepts = NameArray(package, payload, "Concepts"),
+            Spawner = Spawner(package, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -196,6 +199,45 @@ public static class LevelAnalyzer
     private static IReadOnlyList<string> NameArray(BioShockPackage package, ActorPayload payload, string property) =>
         payload.Find(property) is { Type: UnrealPropertyType.Array } found
         && PropertyValues.TryAsNameIndexArrayExact(found, package, out var values) ? values : [];
+
+    private static SpawnerActorData? Spawner(BioShockPackage package, string className, ActorPayload payload)
+    {
+        if (!className.EndsWith("Spawner", StringComparison.Ordinal)) return null;
+        string[] aiArrayNames = ["GlobalAITypes", "InitialAITypes", "RepopulationAITypes"];
+        if (!aiArrayNames.Any(name => payload.Find(name) is not null)
+            && payload.Find("OverriddenAIArchetypeNames") is null
+            && payload.Find("SpawnZones") is null) return null;
+
+        bool complete = true;
+        IReadOnlyList<string> IndexNames(string name)
+        {
+            if (payload.Find(name) is not { Type: UnrealPropertyType.Array } property) return [];
+            if (PropertyValues.TryAsNameIndexArrayExact(property, package, out var values)) return values;
+            complete = false;
+            return [];
+        }
+        IReadOnlyList<string> NumberedNames(string name)
+        {
+            if (payload.Find(name) is not { Type: UnrealPropertyType.Array } property) return [];
+            if (PropertyValues.TryAsNameArrayExact(property, package, out var values)) return values;
+            complete = false;
+            return [];
+        }
+
+        return new SpawnerActorData
+        {
+            GlobalPatrol = ReadName(package, payload, "GlobalPatrol"),
+            InitialPatrol = ReadName(package, payload, "InitialPatrol"),
+            RepopulationPatrol = ReadName(package, payload, "RepopulationPatrol"),
+            InitialLabel = ReadName(package, payload, "InitialLabel"),
+            GlobalAiTypes = IndexNames("GlobalAITypes"),
+            InitialAiTypes = IndexNames("InitialAITypes"),
+            RepopulationAiTypes = IndexNames("RepopulationAITypes"),
+            OverriddenAiArchetypeNames = NumberedNames("OverriddenAIArchetypeNames"),
+            SpawnZones = NumberedNames("SpawnZones"),
+            Complete = complete,
+        };
+    }
 
     private static NavigationActorData? Navigation(BioShockPackage package, ActorPayload payload)
     {

@@ -947,7 +947,14 @@ material.
    compact-count sequence of compact name-table indices, without the numbered-name suffix used by
    the other FName-array form; a separate exact decoder preserves that byte distinction. The script
    total is now 325 and every decoded concept reaches the manifest. `TrainingScriptActorTests`.
-   **Next:** the remaining 126 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+
+   **AI population spawners decoded, 23 Aug 2026.** The next 19 `AggressorSpawner` actors and the
+   four later `ProtectorSpawner` actors share one exact schema and now report as `SpawnerPending`.
+   Patrol and initial-label fields are FNames; global/initial/repopulation AI types are compact
+   name-index arrays; overridden archetypes and spawn zones retain the numbered-FName array form.
+   All 23 open-category declarations decode completely and reach the manifest. The distinction
+   between the two array encodings is tested rather than normalised away. `SpawnerActorSchemaTests`.
+   **Next:** the remaining 103 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

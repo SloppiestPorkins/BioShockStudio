@@ -213,6 +213,19 @@ public static class LevelSceneExporter
                     Complete = actor.RegionActor.Complete,
                 },
                 TrainingConcepts = actor.TrainingConcepts.ToList(),
+                Spawner = actor.Spawner is null ? null : new LevelSpawnerActorDocument
+                {
+                    GlobalPatrol = actor.Spawner.GlobalPatrol,
+                    InitialPatrol = actor.Spawner.InitialPatrol,
+                    RepopulationPatrol = actor.Spawner.RepopulationPatrol,
+                    InitialLabel = actor.Spawner.InitialLabel,
+                    GlobalAiTypes = actor.Spawner.GlobalAiTypes.ToList(),
+                    InitialAiTypes = actor.Spawner.InitialAiTypes.ToList(),
+                    RepopulationAiTypes = actor.Spawner.RepopulationAiTypes.ToList(),
+                    OverriddenAiArchetypeNames = actor.Spawner.OverriddenAiArchetypeNames.ToList(),
+                    SpawnZones = actor.Spawner.SpawnZones.ToList(),
+                    Complete = actor.Spawner.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -581,6 +594,7 @@ public sealed record LevelActorDocument
     public required float[] PrePivot { get; init; }
     public LevelRegionDocument? Region { get; init; }
     public List<string> TrainingConcepts { get; init; } = [];
+    public LevelSpawnerActorDocument? Spawner { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -598,6 +612,20 @@ public sealed record LevelActorDocument
     public required List<LevelPropertyDocument> Properties { get; init; }
     public required string TrailerHex { get; init; }
     public required bool Truncated { get; init; }
+}
+
+public sealed record LevelSpawnerActorDocument
+{
+    public string? GlobalPatrol { get; init; }
+    public string? InitialPatrol { get; init; }
+    public string? RepopulationPatrol { get; init; }
+    public string? InitialLabel { get; init; }
+    public required List<string> GlobalAiTypes { get; init; }
+    public required List<string> InitialAiTypes { get; init; }
+    public required List<string> RepopulationAiTypes { get; init; }
+    public required List<string> OverriddenAiArchetypeNames { get; init; }
+    public required List<string> SpawnZones { get; init; }
+    public required bool Complete { get; init; }
 }
 
 public sealed record LevelRegionDocument
