@@ -149,7 +149,7 @@ Each of these produced a plausible, wrong result before it was understood.
   | Bucket | Composition | Total |
   |---|---|---|
   | `MarkerPending` | `Marker`(150) + `TrainingMarker`(6) + `MapUILayerScaleMarker`(3) | 159 |
-  | `InteractionPending` | `MedHypoPickup`(11) + `PlaceableVendingStation`(3) + `Interaction`(2) | 16 |
+  | `InteractionPending` | `MedHypoPickup`(11) + `PlaceableVendingStation`(3) + `DoorKeypadControl`(1) + `dyn_toolbox_open`(1) | 16 |
   | `ScriptPending` | `Script`(300) + `TrainingScript`(26) | 326 |
 
   **The trap is that the failure looks like a decode regression and the tempting fix is the wrong
@@ -159,12 +159,26 @@ Each of these produced a plausible, wrong result before it was understood.
   changed. The correct idiom already existed in `MapUiMarkerSchemaTests.cs` and
   `CoverageBoundaryActorTests.cs`: filter `coverage.Classes` to your own `ClassName` before summing.
   Fixed 23 Aug 2026 in `43dcaaa`; three more tests carrying the same latent bug were hardened in
-  `1782d3b` before they broke.
+  `1782d3b` before they broke. An eighth, `InteractionActorSchemaTests`, asserted the whole
+  `InteractionPending` total (16) while testing two of its classes and passed only by numeric
+  coincidence; it was closed the same day. **`InteractionPending` is now pinned per class and in
+  full** — 11 + 3 + 2 = 16 across `PickupActorSchemaTests`, `VendingActorSchemaTests` and
+  `InteractionActorSchemaTests` — so the bucket keeps its total coverage without any one test
+  claiming that total as its own class's count.
 
   **Known gap left behind:** filtering to your own class means no test now notices a *new* class
-  joining a bucket. The buggy form at least went red. `EffectActorSchemaTests`,
-  `HavokConstraintActorSchemaTests`, `ProjectorActorSchemaTests` and `LevelSceneTests` still assert
-  unfiltered totals and are the remaining canaries by accident, not by design.
+  joining a bucket. The buggy form at least went red. Nine assertions still sum a whole bucket and
+  are the remaining canaries — `EffectActorSchemaTests`, `HavokConstraintActorSchemaTests`,
+  `HavokForceActorSchemaTests`, `LevelInfoActorSchemaTests`, `LevelSceneTests`,
+  `MapUiMarkerSchemaTests` (its `MapMarkerPending` line only), `ProjectorActorSchemaTests`,
+  `ShockAiScoutActorSchemaTests` and `SoundActorSchemaTests`. Each of those buckets holds one class
+  today, so they are canaries by accident rather than design; **do not "fix" them without replacing
+  the signal.**
+
+  **Counting them is itself a trap.** A first pass at this list found four, by grepping for the
+  bucket sum and excluding any file containing `ClassName` — which wrongly drops every test that
+  mentions `ClassName` in an unrelated assertion (`document.Actors.Where(a => a.ClassName == ...)`).
+  Grep for the sum and exclude the match *line*, not the file.
 
 - **A numbered FName renders `nameN`, with no separator — and one reader wrote `name_N`.**
   `BioShockPackage.ReadFName` appends `extra - 1` directly (CONFIRMED_EXTERNAL against UEViewer's

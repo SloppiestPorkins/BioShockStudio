@@ -1290,12 +1290,23 @@ retired `.agent/TASK_QUEUE.md`; it is recorded here because that file is gone.)
 question** — the categories do partition, and the per-class census above is what shows it.
 
 **The same landmine, swept.** `1782d3b` hardened `AntiPortalActorSchemaTests`,
-`CubemapProbeActorTests` and `SpawnerActorSchemaTests`, which were not failing yet.
-`InteractionActorSchemaTests` was the last one left and is fixed here — it summed
-`InteractionPending` across all classes (16) while testing two of them, and passed only by
-coincidence; it now asserts its own 2. **`SoundActorSchemaTests` is left deliberately unfixed**: its
-scope reads as genuinely ambiguous rather than accidental, so narrowing it would be a guess about
-intent, not a fix. That is the one remaining raw bucket sum in the suite.
+`CubemapProbeActorTests` and `SpawnerActorSchemaTests` before they could break.
+`InteractionActorSchemaTests` was the one left that was demonstrably wrong rather than merely
+unguarded — it asserted `InteractionPending` summed over *every* class (16) while testing two of
+them, and passed by numeric coincidence — and it is fixed here to assert its own 2. **That closes
+the bucket rather than shrinking its coverage:** `InteractionPending` is now pinned per class and in
+full, 11 + 3 + 2 = 16, across `PickupActorSchemaTests`, `VendingActorSchemaTests` and this one.
+
+**What is deliberately left unfiltered, and why.** `EffectActorSchemaTests` (134),
+`HavokConstraintActorSchemaTests` (6), `HavokForceActorSchemaTests` (12),
+`LevelInfoActorSchemaTests` (1), `MapUiMarkerSchemaTests` (3, its `MapMarkerPending` line only),
+`ProjectorActorSchemaTests` (21), `ShockAiScoutActorSchemaTests` (1) and `LevelSceneTests` still sum
+a whole bucket. Each of those buckets holds one class today, so
+they are the suite's only remaining canaries for a *new* class joining a bucket — the known gap
+`docs/HANDOFF.md` §4 records as the cost of the filtering idiom. They are not oversights and should
+not be "fixed" without replacing that signal. **`SoundActorSchemaTests` (345) is unfixed for a
+different reason**: its scope reads as genuinely ambiguous rather than accidental, so narrowing it
+would be a guess about intent.
 
 **Measured after the 550/550 stamp, by name** — the tree has moved on since, and
 `docs/ENGINEERING_RULES.md` §60 says run what the diff could have touched, not everything:
