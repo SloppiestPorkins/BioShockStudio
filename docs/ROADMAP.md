@@ -829,11 +829,24 @@ material.
      real, related structures, not duplicates.
    - Leaves already carry their own zone/permeating/volumetric fields (`BspLeaf`).
 
+   - **Portal geometry done, 23 Aug 2026 — and the reference had two bytes backwards.** Nyko's SDK
+     notes label `+76` as `NodeFlags` and `+79` as "iZone[1] / Pad"; the shipped bytes say the
+     opposite, and stock UE2's own field order (`iZone[0]`, `iZone[1]`, `NumVertices`, `NodeFlags`)
+     is what actually holds. `+76` takes **121 distinct values** (an index); `+79` takes **four**
+     (a flag byte), and **`+79 == 5` marks every one of the game's 2,386 portals, no exceptions**.
+     Each portal polygon therefore names the two zones it joins.
+     - **The cross-check is the evidence:** all 2,259 portal pairs that name two different zones are
+       already claimed by both zones' 128-bit connectivity masks — **0 disagreements** — and those
+       masks were decoded from the zone records, a different part of the file. Independent, not
+       circular. `PortalGeometryTests`; `docs/research/bsp.md`.
+     - `UNKNOWN`: the individual bit names in `+79`. Consistent with UE2's `NF_NotCsg`|
+       `NF_NotVisBlocking` but no available reference declares those constants, so the raw byte is
+       stored and the reading stays `PLAUSIBLE`.
+
    **Still open:** what the zone record's constant trailing 20 bytes are (possibly a
    `VisibilityBitMask` or an unused environment default — no per-zone variation exists to correlate
    it against, so this may stay `UNKNOWN`); the other 6% where node visibility isn't a subset of
-   zone connectivity; actual portal *geometry* (as opposed to zone-to-zone adjacency); and collision
-   relationships.
+   zone connectivity; and collision relationships.
 2. Placed-actor transforms, parent/base links, draw scale, tags, material overrides — for every
    actor class, not just the geometry-bearing ones already placed.
 3. Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
@@ -935,7 +948,7 @@ dotnet test                         # both — the number to report
 That commit adds 4 tests, so the current tree's full total is **expected to be 468 and has not been
 measured**. Reported as unrun, not as passing.
 
-**Measured on the current tree, 23 Aug 2026** (HEAD `96265a8`):
+**Measured on the current tree, 23 Aug 2026** (HEAD `pending`):
 
 | Run | Result |
 |---|---|

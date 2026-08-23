@@ -766,3 +766,46 @@ writes light parameters with **different types** from stock UE2.5, which is why 
 Lighthouse. The class default applies.
 
 `0-Lighthouse` has 318 light actors. Reading three float/struct properties is the whole job.
+
+## Portal geometry, and two bytes the reference had backwards
+
+**Status: `CONFIRMED_BYTES` across all 21 maps, 23 Aug 2026.** 81,566 polygon nodes, 2,386 portal
+surfaces. Pinned by `PortalGeometryTests`.
+
+Gate 3 item 1 listed "actual portal geometry (as opposed to zone-to-zone adjacency)" as open. It
+was reachable from two bytes of `FBspNode` that nothing was reading - **and Nyko's SDK notes have
+both of them the wrong way round**:
+
+| Offset | Reference says | Actually |
+|---|---|---|
+| `+76` | `NodeFlags` | **`iZone[0]`** - a zone index |
+| `+77` | `iZone[0]` | `iZone[1]` - already read, correlates 100% with the zone mask |
+| `+78` | `NumVertices` | `NumVertices` (the reference already corrected this one itself) |
+| `+79` | `iZone[1]` / Pad | **`NodeFlags`** |
+
+That ordering - `iZone[0]`, `iZone[1]`, `NumVertices`, `NodeFlags` - is stock UE2's, so the surprise
+is that the reference departed from it, not that the bytes follow it.
+
+**`+76` is an index, `+79` is a flag byte**, and the distributions say so unambiguously: `+76` takes
+**121 distinct values** across the game, `+79` takes **four** (0, 1, 4, 5). An index does not have
+four values and a two-bit flag does not have 121.
+
+**`+79 == 5` marks every portal in the game** - all 2,386, no exceptions - and appears on only 36
+non-portal nodes. `UNKNOWN`: the individual bit names. The pattern matches UE2's `NF_NotCsg` (1) and
+`NF_NotVisBlocking` (4) - "not solid geometry, does not block visibility", which is what a portal is
+- but no reference available here declares those constants, so that reading stays `PLAUSIBLE` and
+the raw byte is what is stored.
+
+### The cross-check is the evidence
+
+Each portal polygon names two zones via (`+76`, `+77`), differing on 2,259 of the 2,386. **Every one
+of those 2,259 pairs is already claimed by both zones' 128-bit connectivity masks - 0
+disagreements.** Those masks were decoded from the zone records (SS5.5c), a different part of the
+file entirely, so the agreement is independent rather than circular. Two structures decoded from
+unrelated bytes describing the same adjacency is what makes this a decode rather than a plausible
+guess.
+
+This gives what the item asked for: not just "zone A connects to zone B", but **the actual polygon
+that joins them**, with its vertices, plane and the ordered zone pair - which is what a UE5 level
+streaming or occlusion bridge would need.
+

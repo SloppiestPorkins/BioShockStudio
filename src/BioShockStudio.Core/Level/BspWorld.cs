@@ -54,6 +54,51 @@ public sealed record BspNode
     public required byte Zone { get; init; }
 
     /// <summary>
+    /// The zone on this node's other side — <c>iZone[0]</c> at <c>+76</c>, where <see cref="Zone"/>
+    /// is <c>iZone[1]</c> at <c>+77</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CONFIRMED_BYTES</c>, 23 Aug 2026, and <b>this corrects the reference</b>. Nyko's SDK notes
+    /// label <c>+76</c> as <c>NodeFlags</c> and <c>+79</c> as "iZone[1] / Pad"; the shipped bytes
+    /// say the opposite. <c>+76</c> takes <b>121 distinct values</b> across the game — the range of
+    /// a zone index, not a flag byte — and is 0 on 78,062 of 81,566 polygon nodes, which is the
+    /// "solid / outside" side of an ordinary wall.
+    /// </para>
+    /// <para>
+    /// <b>Together with <see cref="Zone"/> this is portal adjacency, and it cross-validates
+    /// perfectly.</b> On the game's 2,386 portal surfaces the pair names two different zones 2,259
+    /// times, and <b>every one of those 2,259 pairs is already claimed by both zones' connectivity
+    /// masks — 0 disagreements</b>. Those masks were decoded from the zone records, a completely
+    /// different part of the file, so the agreement is independent rather than circular.
+    /// </para>
+    /// </remarks>
+    public required byte FrontZone { get; init; }
+
+    /// <summary>
+    /// <c>NodeFlags</c> at <c>+79</c> — the byte the reference labels "iZone[1] / Pad".
+    /// </summary>
+    /// <remarks>
+    /// <c>CONFIRMED_BYTES</c> that it is a flag byte and not a zone: only <b>four</b> distinct
+    /// values exist across all 81,566 polygon nodes (0, 1, 4, 5), which is a two-bit field rather
+    /// than an index. <b>Value 5 marks every portal in the game — all 2,386, no exceptions</b>, and
+    /// appears on only 36 non-portal nodes.
+    /// <para>
+    /// <c>UNKNOWN</c>: what the individual bits are named. The pattern is consistent with UE2's
+    /// <c>NF_NotCsg</c> (1) and <c>NF_NotVisBlocking</c> (4) — "not solid geometry, does not block
+    /// visibility", which is exactly what a portal is — but no reference available here declares
+    /// those constants, so the reading is <c>PLAUSIBLE</c> and the raw byte is what gets stored.
+    /// </para>
+    /// </remarks>
+    public required byte NodeFlags { get; init; }
+
+    /// <summary>True when this node carries a portal surface, by its flags byte.</summary>
+    public bool IsPortalNode => NodeFlags == PortalNodeFlags;
+
+    /// <summary>The flags value every portal in the game carries.</summary>
+    public const byte PortalNodeFlags = 5;
+
+    /// <summary>
     /// Every zone index visible from this node — the node's own 128-bit mask at <c>+16</c>, per
     /// <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c> (a working, rendering
     /// level editor's reading, exercised there as a per-node visibility mask, not derived from these
@@ -932,6 +977,8 @@ public static class BspWorldReader
                 Front = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 44)),
                 LightMap = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(at + 96)),
                 Zone = data[at + 77],
+                FrontZone = data[at + 76],
+                NodeFlags = data[at + 79],
                 VertexCount = data[at + 78],      // A BYTE at +78. See the class remarks.
                 VisibleZones = visibleZones,
             });
