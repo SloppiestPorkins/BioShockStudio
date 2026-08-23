@@ -52,7 +52,9 @@ public static class LevelAnalyzer
         "ForceType", "ForceShape", "ForceFilter", "LootSlot", "hkAttachedActorA",
         "hkAttachedActorB", "bDisableCollisions", "hkUseLimitedHinge",
         "hkLimitedHingeFrictionValue", "hkLimitedHingeTauFactor",
-        "AntiPortal", "LayerName", "RegionNames", "ScaleMarkerName",
+        "AntiPortal", "LayerName", "RegionNames", "ScaleMarkerName", "VendingTableName",
+        "VendingTable", "HackInfoName", "StaticMeshInstance", "SendDestructionNotification",
+        "bCanBeHacked",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -150,6 +152,7 @@ public static class LevelAnalyzer
             HavokConstraint = HavokConstraint(package, defaults, source.ClassName, payload),
             AntiPortal = Reference(package, defaults, payload, "AntiPortal", null),
             MapUiMarker = MapUiMarker(package, source.ClassName, payload),
+            Vending = Vending(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -340,6 +343,31 @@ public static class LevelAnalyzer
             ScaleMarkerName = scale ?? string.Empty,
             RegionNames = complete ? regions : [],
             Complete = complete,
+        };
+    }
+
+    private static VendingActorData? Vending(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className != "PlaceableVendingStation") return null;
+        string? tableName = ReadName(package, payload, "VendingTableName");
+        string? hackInfo = ReadName(package, payload, "HackInfoName");
+        var table = Reference(package, defaults, payload, "VendingTable", null);
+        var meshInstance = Reference(package, defaults, payload, "StaticMeshInstance", null);
+        if (tableName is null || hackInfo is null || table is null || meshInstance is null) return null;
+        int? notification = payload.Find("SendDestructionNotification") is
+            { Type: UnrealPropertyType.Int, Value.Length: 4 } value
+            ? BinaryPrimitives.ReadInt32LittleEndian(value.Value) : null;
+        bool? canBeHacked = payload.Find("bCanBeHacked") is { Type: UnrealPropertyType.Bool } hack
+            ? hack.BoolValue : null;
+        return new VendingActorData
+        {
+            VendingTableName = tableName,
+            VendingTable = table,
+            HackInfoName = hackInfo,
+            StaticMeshInstance = meshInstance,
+            DestructionNotification = notification,
+            CanBeHacked = canBeHacked,
         };
     }
 

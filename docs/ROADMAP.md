@@ -998,6 +998,13 @@ material.
    scale-marker name and exact numbered-FName region lists (1, 15 and 24 entries) as
    `MapMarkerPending`. The three `MapUILayerScaleMarker`s carry no class-specific field and now join
    the plain marker category. `MapUiMarkerSchemaTests`. **Next:** the remaining nine genuinely
+   unclassified actors.
+
+   **Vending stations decoded, 23 Aug 2026.** All three `PlaceableVendingStation`s export their
+   table name/reference, hack-info name, static-mesh-instance reference, nullable hackable flag and
+   raw `SendDestructionNotification` integer as `InteractionPending`. The integer is retained under
+   its shipped declaration without guessing whether its numeric values are an actor index, event ID
+   or another gameplay handle. `VendingActorSchemaTests`. **Next:** the remaining six genuinely
    unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.

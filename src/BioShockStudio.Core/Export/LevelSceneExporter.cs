@@ -268,6 +268,16 @@ public static class LevelSceneExporter
                     RegionNames = actor.MapUiMarker.RegionNames.ToList(),
                     Complete = actor.MapUiMarker.Complete,
                 },
+                Vending = actor.Vending is null ? null : new LevelVendingActorDocument
+                {
+                    VendingTableName = actor.Vending.VendingTableName,
+                    VendingTable = Describe(actor.Vending.VendingTable)!,
+                    HackInfoName = actor.Vending.HackInfoName,
+                    StaticMeshInstance = Describe(actor.Vending.StaticMeshInstance)!,
+                    DestructionNotification = actor.Vending.DestructionNotification,
+                    CanBeHacked = actor.Vending.CanBeHacked,
+                    Complete = actor.Vending.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -644,6 +654,7 @@ public sealed record LevelActorDocument
     public LevelHavokConstraintActorDocument? HavokConstraint { get; init; }
     public LevelReferenceDocument? AntiPortal { get; init; }
     public LevelMapUiMarkerDocument? MapUiMarker { get; init; }
+    public LevelVendingActorDocument? Vending { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -717,6 +728,17 @@ public sealed record LevelMapUiMarkerDocument
     public required string LayerName { get; init; }
     public required string ScaleMarkerName { get; init; }
     public required List<string> RegionNames { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelVendingActorDocument
+{
+    public required string VendingTableName { get; init; }
+    public required LevelReferenceDocument VendingTable { get; init; }
+    public required string HackInfoName { get; init; }
+    public required LevelReferenceDocument StaticMeshInstance { get; init; }
+    public int? DestructionNotification { get; init; }
+    public bool? CanBeHacked { get; init; }
     public required bool Complete { get; init; }
 }
 

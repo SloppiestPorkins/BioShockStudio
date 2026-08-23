@@ -288,6 +288,18 @@ public sealed record MapUiMarkerData
     public bool Complete { get; init; }
 }
 
+public sealed record VendingActorData
+{
+    public required string VendingTableName { get; init; }
+    public required AssetReference VendingTable { get; init; }
+    public required string HackInfoName { get; init; }
+    public required AssetReference StaticMeshInstance { get; init; }
+    public int? DestructionNotification { get; init; }
+    public bool? CanBeHacked { get; init; }
+    public bool Complete => VendingTable.Status != ResolutionStatus.Failed
+                            && StaticMeshInstance.Status != ResolutionStatus.Failed;
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -330,6 +342,7 @@ public sealed record LevelActor
     /// <summary>The occlusion volume/model selected by an anti-portal actor.</summary>
     public AssetReference? AntiPortal { get; init; }
     public MapUiMarkerData? MapUiMarker { get; init; }
+    public VendingActorData? Vending { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

@@ -172,6 +172,7 @@ public sealed record LevelCoverageReport
         if (actor.HavokConstraint is not null) return LevelActorCoverage.PhysicsConstraintPending;
         if (actor.AntiPortal is not null) return LevelActorCoverage.VisibilityPending;
         if (actor.MapUiMarker is not null) return LevelActorCoverage.MapMarkerPending;
+        if (actor.Vending is not null) return LevelActorCoverage.InteractionPending;
 
         return LevelActorCoverage.Unclassified;
     }
