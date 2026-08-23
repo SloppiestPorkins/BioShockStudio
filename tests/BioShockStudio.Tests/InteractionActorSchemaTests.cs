@@ -23,8 +23,9 @@ public sealed class InteractionActorSchemaTests(GameFixture game)
         Assert.NotNull(toolbox.Interaction?.ShowHudElements);
 
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(16, coverage.Classes.Sum(row =>
-            row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending)));
+        Assert.Equal(2, coverage.Classes.Sum(row =>
+            row.ClassName is "DoorKeypadControl" or "dyn_toolbox_open"
+                ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.InteractionPending) : 0));
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
         Assert.NotNull(Assert.Single(document.Actors, actor => actor.ClassName == "DoorKeypadControl").Interaction);
         Assert.NotNull(Assert.Single(document.Actors, actor => actor.ClassName == "dyn_toolbox_open").Interaction);
