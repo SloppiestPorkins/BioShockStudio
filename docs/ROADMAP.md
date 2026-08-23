@@ -965,7 +965,14 @@ material.
    reach the manifest. The caustics' 27-byte `ProjectorGradient` is an exact two-field tagged layout
    (`FadeInEnd`, `FadeOutStart`), not a generic nested property stream; its decoder validates both
    names, types, terminator and full byte consumption. All 21 report as `ProjectorPending`.
-   `ProjectorActorSchemaTests`. **Next:** the remaining 53 genuinely unclassified actors. The now 345 Medical audio actors' declaration was
+   `ProjectorActorSchemaTests`.
+
+   **Havok force actors decoded, 23 Aug 2026.** All 12 `HavokForceActor`s export typed object
+   references for force type and force shape; eight also carry a force filter and four explicitly
+   omit it. No target has failed resolution, and all declarations reach the manifest as
+   `PhysicsForcePending`. This records the shipped composition graph without guessing how UE5's
+   physics fields should reproduce it. `HavokForceActorSchemaTests`. **Next:** the remaining 41
+   genuinely unclassified actors. The now 345 Medical audio actors' declaration was
    settled under Gate 4 item 1; their
    unresolved sound-event targets remain audio-system work, not another actor-payload decode.
    Navigation has a

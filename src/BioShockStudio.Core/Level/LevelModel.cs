@@ -258,6 +258,16 @@ public sealed record ProjectorActorData
     public bool Complete { get; init; }
 }
 
+public sealed record HavokForceActorData
+{
+    public required AssetReference ForceType { get; init; }
+    public required AssetReference ForceShape { get; init; }
+    public AssetReference? ForceFilter { get; init; }
+    public bool Complete => ForceType.Status != ResolutionStatus.Failed
+                            && ForceShape.Status != ResolutionStatus.Failed
+                            && ForceFilter?.Status != ResolutionStatus.Failed;
+}
+
 public sealed record LevelActor
 {
     public required SourceId Source { get; init; }
@@ -291,6 +301,7 @@ public sealed record LevelActor
     /// <summary>The reflection cubemap selected by a placed probe.</summary>
     public AssetReference? Cubemap { get; init; }
     public ProjectorActorData? Projector { get; init; }
+    public HavokForceActorData? HavokForce { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

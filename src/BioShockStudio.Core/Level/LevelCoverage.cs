@@ -48,6 +48,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded UE2 projector/decal awaiting a UE5 decal representation.</summary>
     ProjectorPending,
 
+    /// <summary>A decoded Havok force declaration awaiting a UE5 physics-field representation.</summary>
+    PhysicsForcePending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -151,6 +154,7 @@ public sealed record LevelCoverageReport
         if (actor.Spawner is not null) return LevelActorCoverage.SpawnerPending;
         if (actor.Cubemap is not null) return LevelActorCoverage.ReflectionProbePending;
         if (actor.Projector is not null) return LevelActorCoverage.ProjectorPending;
+        if (actor.HavokForce is not null) return LevelActorCoverage.PhysicsForcePending;
 
         return LevelActorCoverage.Unclassified;
     }

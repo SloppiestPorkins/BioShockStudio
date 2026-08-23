@@ -49,6 +49,7 @@ public static class LevelAnalyzer
         "OverriddenAIArchetypeNames", "Cubemap", "Material", "Tile", "MaxTraceDistance",
         "ZBiasOverride", "ScaleInTime", "AngleGradient", "bProjectOnBackfaces",
         "bProjectStaticMesh", "bProjectSkeletalMesh", "bShouldBeAttached",
+        "ForceType", "ForceShape", "ForceFilter",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -141,6 +142,7 @@ public static class LevelAnalyzer
             Spawner = Spawner(package, source.ClassName, payload),
             Cubemap = Reference(package, defaults, payload, "Cubemap", "Cubemap"),
             Projector = Projector(package, defaults, source.ClassName, payload),
+            HavokForce = HavokForce(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -276,6 +278,21 @@ public static class LevelAnalyzer
             ProjectSkeletalMesh = Bool("bProjectSkeletalMesh"),
             ShouldBeAttached = Bool("bShouldBeAttached"),
             Complete = complete,
+        };
+    }
+
+    private static HavokForceActorData? HavokForce(
+        BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className != "HavokForceActor") return null;
+        var forceType = Reference(package, defaults, payload, "ForceType", null);
+        var forceShape = Reference(package, defaults, payload, "ForceShape", null);
+        if (forceType is null || forceShape is null) return null;
+        return new HavokForceActorData
+        {
+            ForceType = forceType,
+            ForceShape = forceShape,
+            ForceFilter = Reference(package, defaults, payload, "ForceFilter", null),
         };
     }
 

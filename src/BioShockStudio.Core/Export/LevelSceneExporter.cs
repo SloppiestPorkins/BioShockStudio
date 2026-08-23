@@ -242,6 +242,13 @@ public static class LevelSceneExporter
                     ShouldBeAttached = actor.Projector.ShouldBeAttached,
                     Complete = actor.Projector.Complete,
                 },
+                HavokForce = actor.HavokForce is null ? null : new LevelHavokForceActorDocument
+                {
+                    ForceType = Describe(actor.HavokForce.ForceType)!,
+                    ForceShape = Describe(actor.HavokForce.ForceShape)!,
+                    ForceFilter = Describe(actor.HavokForce.ForceFilter),
+                    Complete = actor.HavokForce.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -613,6 +620,7 @@ public sealed record LevelActorDocument
     public LevelSpawnerActorDocument? Spawner { get; init; }
     public LevelReferenceDocument? Cubemap { get; init; }
     public LevelProjectorActorDocument? Projector { get; init; }
+    public LevelHavokForceActorDocument? HavokForce { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -659,6 +667,14 @@ public sealed record LevelProjectorActorDocument
     public bool? ProjectStaticMesh { get; init; }
     public bool? ProjectSkeletalMesh { get; init; }
     public bool? ShouldBeAttached { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelHavokForceActorDocument
+{
+    public required LevelReferenceDocument ForceType { get; init; }
+    public required LevelReferenceDocument ForceShape { get; init; }
+    public LevelReferenceDocument? ForceFilter { get; init; }
     public required bool Complete { get; init; }
 }
 
