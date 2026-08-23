@@ -1102,8 +1102,23 @@ material.
      same-name `SoundEffectSpecification` exports. The pistol reload explicitly overrides
      `InnerRadius=1000`, `Volume=80` and `VolumeCategory=3`, while absent `OuterRadius`/`Pitch`
      inherit the script-class defaults. `SoundEffectSpecificationReader` preserves that distinction.
-   - **Note:** recorded by the Claude session while auditing the roadmap. The audio track is worked
-     concurrently by another session, so this stops at what the level actors declare.
+   - **The settings do exist — on `SoundEffectSpecification`, not on the actors. Whole-game census
+     done, 23 Aug 2026, closing that open sub-part.** 33,227 specifications across 20 of 21 map
+     packages decode completely, 0 failures, and they serialize 31 distinct properties covering
+     exactly what this item asks for: attenuation (`OuterRadius` 12,225, `InnerRadius` 19,438),
+     level and pitch (`Volume` 31,669, `VolumeRange` 32,693, `PitchRange` 3,048), timing
+     (`DelayRange` 1,327, `Monoloop` 30,414, `Polyloop` 32,995) and variation — a `SoundSpecs`
+     array naming **81,775 sample entries, 5,726 distinct names in 91 units**, with **8,561
+     specifications offering more than one alternative**. Every array consumes its value exactly;
+     none is absent. `Range` turned out to be a nested tagged `Min`/`Max` list rather than a pair
+     of floats, which reads as a plausible tiny number if taken literally. `SoundToPlay` is null on
+     every one of the 81,775 entries, so the name is the only link to the sample.
+     `SoundEffectSpecificationCoverageTests`, `SoundEffectSpecificationTests`;
+     `docs/research/audio.md`.
+   - **Note:** the earlier "those settings do not exist" reading was recorded by the Claude session
+     while auditing the roadmap, and was correct about the actors and wrong about the game. The
+     audio track was worked concurrently by another session until 23 Aug 2026, when this session
+     took it over.
 2. Export FSB/native audio to UE5 SoundWave/SoundCue manifests, keeping the original MP3/WAV.
 3. Particle/emitter templates and material parameters — enough to build real UE5 Niagara
    placeholders, not a static mesh standing in for an effect.

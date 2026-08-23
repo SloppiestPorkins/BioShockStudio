@@ -225,18 +225,4 @@ public sealed class SoundEventTests(GameFixture game)
             try { Directory.Delete(directory, recursive: true); } catch { /* best effort */ }
         }
     }
-
-    [RequiresGameFact]
-    public void PistolReloadCarriesExplicitSoundEffectOverrides()
-    {
-        using var package = BioShockPackage.Open(game.LighthousePackage);
-        var metadata = Assert.Single(SoundEffectSpecificationReader.Read(package),
-            item => item.SoundName == "weapons_pistol_reload_one");
-
-        Assert.Null(metadata.OuterRadius); // inherits the shipped class default of 3000
-        Assert.Equal(1000f, metadata.InnerRadius);
-        Assert.Equal(80, metadata.Volume);
-        Assert.Null(metadata.Pitch); // inherits the shipped class default of 1
-        Assert.Equal((byte)3, metadata.VolumeCategory);
-    }
 }

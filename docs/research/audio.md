@@ -388,6 +388,83 @@ That concrete source is now proven for native sounds: map packages carry a same-
 `weapons_pistol_reload_one`, shipped properties explicitly give `InnerRadius=1000`, `Volume=80`
 and `VolumeCategory=3`; `OuterRadius` and `Pitch` are absent, so the class defaults remain in force.
 `SoundEffectSpecificationReader` exposes only serialized overrides as nullable values, keeping
-inheritance distinct from an explicit zero or a guessed default. A whole-game metadata census is
-still required before this sub-part is closed.
+inheritance distinct from an explicit zero or a guessed default.
+
+## The specification schema, whole-game — `CONFIRMED_BYTES`
+
+**Status: `CONFIRMED_BYTES` across all 33,227 shipped specifications, 23 Aug 2026.** This is the
+whole-game census the section above said was still required, and it closes that sub-part.
+`SoundEffectSpecificationCoverageTests`; the single-object reading is
+`SoundEffectSpecificationTests`.
+
+**`SoundEffectSpecification` is where the game keeps the settings Gate 4 item 1 asks for.** The
+placed actors carry no volume, pitch, radius or variation — that finding stands — but the earlier
+conclusion drawn from it, that those settings do not exist in this game, was wrong about *where*,
+not about the actors. Thirty-one distinct properties are serialized across the class:
+
+| Group | Fields |
+|---|---|
+| Attenuation | `OuterRadius`, `InnerRadius`, `Is2DPositional`, `AttachToSource`, `Local` |
+| Level and pitch | `Volume`, `VolumeCategory`, `VolumeRange`, `Pitch`, `PitchRange`, `DynamicPitchInputRange`, `DynamicPitchOutputRange` |
+| Timing and looping | `DelayRange`, `FadeInTime`, `FadeOutTime`, `Monoloop`, `Polyloop`, `Monophonic`, `MonophonicPriority`, `NeverRepeat`, `NoRepeat`, `Retriggerable`, `PlayOnce`, `JumpToFinalPart`, `IsThreePartSound`, `ThreePartLoopPoints` |
+| Plumbing | `Precache`, `ExemptFromPausing`, `bStreamingOnWindows`, `bStreamingOnXenon`, `CheckpointTypePadding` |
+| The samples | `SoundSpecs` |
+
+The census, over the 21 shipped non-localised map packages (the 140 localised variants repeat the
+same objects):
+
+| Figure | Value |
+|---|---|
+| Packages carrying specifications | **20 of 21** — `Entry` ships none |
+| Specifications | **33,227**, all decoding, 0 failures |
+| `SoundSpecs` arrays absent | **0** |
+| `SoundSpecs` arrays that did not consume their value exactly | **0** |
+| Sample entries | **81,775**, every one carrying both a name and a unit |
+| Specifications offering more than one alternative | **8,561** |
+| Distinct sample names | **5,726** |
+| Distinct sound units | **91** |
+| Explicit `OuterRadius` / `InnerRadius` | 12,225 / 19,438 |
+| Explicit `Volume` / `VolumeRange` | 31,669 / 32,693 |
+| Explicit `PitchRange` / `DelayRange` | 3,048 / 1,327 |
+| Explicit `Monoloop` / `Polyloop` | 30,414 / 32,995 |
+| Explicit `ThreePartLoopPoints` | 387 |
+| `VolumeCategory` values shipped | 1–11, 13, 15 |
+
+### `Range` is a nested tagged list, not a pair of floats
+
+A `Range` value is its own property list terminated by `None`: `Min` and `Max`, both `Float`, 25
+bytes. Reading it as a bare pair of floats does not throw — the first four bytes are a name index
+and a count, so it yields a plausible tiny number instead — which is exactly the failure mode
+§ "never promote a hypothesis to a fact" exists for. The reader requires both tagged field names
+before it reports a range at all. `PolyLoopStruct` is a `Range` inside a struct plus an int
+`LoopSoundLimit`, and both levels decode; all 68,149 shipped `Range` structs and all 32,995
+`PolyLoopStruct`s carry exactly those fields and nothing else.
+
+### `SoundSpecs` — the link from an effect to its samples
+
+Each element is a tagged property list with seven fields, present on all 81,775 entries:
+
+```
+SoundUnit                  Str      logical unit — "Weapons", "Footsteps", "ambience_0_Lighthouse"
+SoundName                  Str      the sample's exact name
+StreamingBlockIndexXenon   Int
+StreamingBlockIndexWindows Int
+Flag                       Byte     0-27; groups the alternatives (PLAUSIBLE, see below)
+SoundToPlay                Object   null on every shipped entry
+PerSoundVolumeMod          Byte     0 on every shipped entry
+```
+
+**`SoundUnit` is not a bank filename.** `Weapons` is not any shipped `.fsb`, and the banks are named
+`streams_<n>_audio.fsb`. It is exported as declared rather than resolved to a file.
+
+**`SoundToPlay` is null on all 81,775 entries.** That is an honest negative worth stating: the name
+is the only link to the sample, so an implementation that followed the object reference would
+resolve nothing at all.
+
+**`Flag` groups the alternatives — `PLAUSIBLE`, from the names alone.** On `bullet_hit`, the 78
+entries carrying flags 0 and 1 are all `bullet_hit_default_*`, 7 and 8 are `bullet_hit_metalThin_*`
+and `bullet_hit_metalThick_*`, and 11 is `bullet_hit_cardboard_*`. Sixteen samples appear twice
+under two different flags, which is why the array is a list and not a set of names. Impact surface
+is the obvious reading and is **not** promoted to a fact: the correspondence has nothing outside the
+sample names supporting it yet.
 
