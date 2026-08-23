@@ -506,3 +506,38 @@ than the two being silently merged), and the meaning of the `Waveform` byte. `Ro
 and confirmed against nothing, so no conversion to degrees is applied. A wrong conversion would be
 invisible in the data and obvious only on screen.
 
+## MaterialSwitch candidates, and MaterialSequence's wiring gap
+
+**Status: `CONFIRMED_BYTES`, 23 Aug 2026.** Pinned by `MaterialSwitchTests`,
+`MaterialSwitchCoverageTests` and `MaterialAnimatorTests`.
+
+### The candidate array decodes
+
+A `MaterialSwitch`'s `Materials` property is an `FCompactIndex` count followed by that many
+`FCompactIndex` object references, consuming its declared size exactly. **All 45 switches in the
+game yield their candidates.**
+
+**This settles the candidates, not the selection.** Which one a running game picks is `UNKNOWN` —
+it is game logic, not package data — so a switch still resolves to its authored default for
+rendering and export, with the candidate list carried alongside. The candidates are useful without
+the rule, because they are the material's full set of states: `Resurrection_Shader` beside
+`Resurrection_Shader_NoLights`, a quarantine sign's `_scroll` beside its `_off`.
+
+**44 of 45 looked like success.** The first cut attached candidates only on the path where the
+switch's authored default resolves as a shader. `LangScreenSwitch`'s default is a class this reader
+does not parse as one, so it took the fallback path and reported no candidates — while its array
+decoded perfectly well. Candidates are now decoded before the child is followed and kept whichever
+way that goes. One package would not have caught this; the whole-game count did.
+
+### MaterialSequence was decoded all along
+
+`MaterialSequenceReader` has read these for a long time and had its own direct test. **Nothing
+called it from the material walk**, so a sequence bound to a slot fell through into
+`UnhandledProperties` and was indistinguishable from a property the reader does not understand.
+Now `BioShockMaterial.Sequences`, keyed by slot — the census found them under `Emissive`,
+`NormalMap`, `FluidNormalMap` and `Material`, which are four very different things to animate.
+
+This is the same shape as the skeletal-mesh section table, `m_extractedMotion` and the cubemaps: a
+roadmap entry saying "not decoded" when the decoder already existed and only the wiring was missing.
+Worth checking for directly before starting any item that claims something is undecoded.
+

@@ -102,6 +102,39 @@ public sealed class MaterialAnimatorTests(GameFixture game)
     }
 
     /// <summary>
+    /// A `MaterialSequence` bound to a slot now reaches the material.
+    /// </summary>
+    /// <remarks>
+    /// <c>MaterialSequenceReader</c> has decoded these for a long time and
+    /// <c>MaterialClassTests</c> covers the reader directly. What was missing was anything calling
+    /// it from the material walk, so a sequence binding was reported as an unknown property — the
+    /// same wiring gap as the animators, and the same shape as the roadmap entry that called this
+    /// undecoded when the decoder already existed.
+    /// </remarks>
+    [RequiresGameFact]
+    public void ASequenceBoundToASlotReachesTheMaterial()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+
+        var withSequences = Materials(package).Where(m => m.Sequences.Count > 0).ToList();
+        Assert.NotEmpty(withSequences);
+
+        foreach (var material in withSequences)
+        {
+            foreach (var bound in material.Sequences)
+            {
+                Assert.False(string.IsNullOrEmpty(bound.Slot));
+
+                // ...and it is no longer reported as a property the reader does not understand.
+                Assert.DoesNotContain(bound.Slot, material.UnhandledProperties);
+            }
+        }
+
+        // At least one carries real timeline items rather than an empty shell.
+        Assert.Contains(withSequences.SelectMany(m => m.Sequences), b => b.Sequence.Items.Count > 0);
+    }
+
+    /// <summary>
     /// All four animator classes are recognised, and nothing else claims to be one.
     /// </summary>
     [RequiresGameFact]

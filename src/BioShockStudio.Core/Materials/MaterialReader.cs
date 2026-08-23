@@ -42,6 +42,34 @@ public sealed record BioShockMaterial
     /// </summary>
     public IReadOnlyList<MaterialAnimator> Animators { get; init; } = [];
 
+    /// <summary>
+    /// <c>MaterialSequence</c> timelines bound to this material's slots.
+    /// </summary>
+    /// <remarks>
+    /// The sequence itself has been decoded by <see cref="MaterialSequenceReader"/> for a long
+    /// time; what was missing was anything calling it from the material walk, so a sequence
+    /// binding was reported as an unknown property. Its <c>Action</c> ordinals and timing
+    /// semantics remain as that reader documents them — corroborated for 0 and 1, preserved
+    /// verbatim otherwise.
+    /// </remarks>
+    public IReadOnlyList<MaterialSlotSequence> Sequences { get; init; } = [];
+
+    /// <summary>
+    /// When this material was reached through a <c>MaterialSwitch</c>, that switch's name.
+    /// </summary>
+    public string? SwitchName { get; init; }
+
+    /// <summary>
+    /// Every material the switch could select, including the one actually resolved.
+    /// </summary>
+    /// <remarks>
+    /// <b>Which one a running game picks is <c>UNKNOWN</c></b> — that is game logic, not data in
+    /// the package. What the array does give is the full set of states: <c>Resurrection_Shader</c>
+    /// beside <c>Resurrection_Shader_NoLights</c>, a sign's <c>_scroll</c> beside its <c>_off</c>
+    /// variant. A consumer can carry all of them across and drive the choice itself.
+    /// </remarks>
+    public IReadOnlyList<MaterialSwitchCandidate> SwitchCandidates { get; init; } = [];
+
     public float? Glossiness { get; init; }
     public float? SpecularBrightness { get; init; }
     public float? EmissiveBrightness { get; init; }
@@ -561,10 +589,28 @@ public static class MaterialReader
         // explicit reference improves static reconstruction without guessing how a live switch
         // chooses among candidates.  MaterialSequence deliberately does not enter this branch:
         // it only serialises SequenceItems structs, whose timing/selection semantics are unknown.
+        string? switchName = null;
+        IReadOnlyList<MaterialSwitchCandidate> switchCandidates = [];
+
         if (className == "MaterialSwitch")
         {
             var selected = properties.FirstOrDefault(property =>
                 property.Name == "Material" && property.Type == UnrealPropertyType.Object);
+
+            // Decoded before the child is followed, and kept whichever way that goes. Attaching it
+            // only on the child-resolved path lost the candidates on any switch whose default child
+            // is not a class this reader parses as a shader — LangScreenSwitch is exactly that, and
+            // was the one switch in the game (of 45) reporting no candidates while its array
+            // decoded perfectly well.
+            string? defaultName = selected is not null
+                                  && TryReadObjectReference(selected, out var defaultReference)
+                                  && defaultReference.IsExport
+                                  && defaultReference.ExportIndex < package.Exports.Count
+                ? package.Exports[defaultReference.ExportIndex].ObjectName
+                : null;
+
+            switchName = export.ObjectName;
+            switchCandidates = MaterialSwitchReader.ReadCandidates(package, properties, defaultName);
             if (selected is not null && TryReadObjectReference(selected, out var reference)
                 && reference.IsExport && reference.ExportIndex < package.Exports.Count)
             {
@@ -576,7 +622,18 @@ public static class MaterialReader
                 if (IsMaterialClass(package.GetClassName(childExport)))
                 {
                     var child = Read(package, childExport, visited);
-                    if (child is not null) return child;
+                    if (child is not null)
+                    {
+                        // The switch still resolves to its authored default, as before — which
+                        // candidate a running game picks is UNKNOWN and is not in this data. The
+                        // candidate list rides alongside so a consumer can carry every state
+                        // across and drive the choice itself.
+                        return child with
+                        {
+                            SwitchName = switchName,
+                            SwitchCandidates = switchCandidates,
+                        };
+                    }
                 }
             }
         }
@@ -605,6 +662,7 @@ public static class MaterialReader
         float? glossiness = null, specularBrightness = null, emissiveBrightness = null;
         MaterialColor? diffuseColor = null, specularColor = null, emissiveColor = null;
         var animators = new List<MaterialAnimator>();
+        var sequences = new List<MaterialSlotSequence>();
         bool twoSided = false, masked = false, usesSpecularCubemap = false;
         float? specularCubemapBrightness = null;
         byte? outputBlending = null;
@@ -662,6 +720,12 @@ public static class MaterialReader
                 // surface was meant to do. See MaterialAnimator.
                 var animator = MaterialAnimatorReader.Read(package, property.Name, property);
                 if (animator is not null) { animators.Add(animator); continue; }
+
+                // A MaterialSequence in a slot is the third legitimate non-texture binding.
+                // MaterialSequenceReader has decoded these for a long time; nothing was calling it
+                // from here, so a sequence binding looked like an unknown property.
+                var sequence = ReadSequence(package, property.Name, property);
+                if (sequence is not null) { sequences.Add(sequence); continue; }
             }
 
             unhandled.Add(property.Name);
@@ -673,6 +737,9 @@ public static class MaterialReader
             ClassName = className,
             Textures = textures,
             Animators = animators,
+            Sequences = sequences,
+            SwitchName = switchName,
+            SwitchCandidates = switchCandidates,
             Glossiness = glossiness,
             SpecularBrightness = specularBrightness,
             EmissiveBrightness = emissiveBrightness,
@@ -698,6 +765,27 @@ public static class MaterialReader
         if (name is null) return null;
 
         return new MaterialTexture { Slot = property.Name, TextureName = name, Reference = reference };
+    }
+
+    /// <summary>Reads a <c>MaterialSequence</c> a slot points at, or null if it points elsewhere.</summary>
+    private static MaterialSlotSequence? ReadSequence(
+        BioShockPackage package, string slot, UnrealProperty property)
+    {
+        if (!TryReadObjectReference(property, out var reference)) return null;
+        if (!reference.IsExport || reference.ExportIndex >= package.Exports.Count) return null;
+
+        var export = package.Exports[reference.ExportIndex];
+        if (package.GetClassName(export) != MaterialSequenceReader.ClassName) return null;
+
+        MaterialSequence? sequence;
+        try { sequence = MaterialSequenceReader.Read(package, export); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            sequence = null;
+        }
+
+        return sequence is null ? null : new MaterialSlotSequence { Slot = slot, Sequence = sequence };
     }
 
     private static bool TryReadObjectReference(UnrealProperty property, out PackageIndex reference)

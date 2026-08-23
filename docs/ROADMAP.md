@@ -543,9 +543,23 @@ material.
    takes the material's declaration or measured cutout holes; see
    `docs/research/materials.md`.
 
-   What's still genuinely open: `MaterialSwitch`'s
-   static-default branch is decoded (19 Aug 2026 — see "What's done" above), its dynamic candidate
-   selection and `MaterialSequence` are not.
+   ~~What's still genuinely open: `MaterialSwitch`'s dynamic candidate selection and
+   `MaterialSequence`.~~ **Both closed, 23 Aug 2026 — and `MaterialSequence` was never undecoded.**
+   - **`MaterialSwitch` candidates decode: all 45 switches in the game.** The `Materials` array is
+     an `FCompactIndex` count followed by that many object references, consuming its declared size
+     exactly. **This settles the candidates, not the selection** — which one a running game picks
+     is `UNKNOWN` game logic, not package data — so a switch still resolves to its authored default
+     and the candidate list rides alongside. That is enough to carry every state across:
+     `Resurrection_Shader` beside `Resurrection_Shader_NoLights`, a sign's `_scroll` beside `_off`.
+     **44 of 45 looked like success** until the whole-game count: `LangScreenSwitch`'s default is
+     not a class the reader parses as a shader, so it took the fallback path and lost its
+     candidates while its array decoded fine.
+   - **`MaterialSequence` was decoded all along.** `MaterialSequenceReader` has read these for a
+     long time with its own test; nothing called it from the material walk, so a sequence binding
+     landed in `UnhandledProperties`. Now `BioShockMaterial.Sequences`, keyed by slot.
+   - **A pattern worth naming:** this is the fourth item this cycle where "not decoded" meant "not
+     wired" — the skeletal-mesh section table, `m_extractedMotion`, the cubemaps, and now this.
+     Check whether a reader already exists before opening any item that claims otherwise.
    - ~~**panners/rotators**~~ **decoded, 23 Aug 2026 — and the reference projects were no help,
      which is the finding.** UModel documents UE2's `TexPanner`/`TexRotator`; **this game ships
      neither name nor either layout.** It ships `TexturePanner` (2,823 — `UPan`/`VPan`/`PanTime`),

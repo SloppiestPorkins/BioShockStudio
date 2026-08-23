@@ -22,6 +22,9 @@ public sealed class GameFixture
     /// <summary>Holds the first-person hands mesh and its animation package.</summary>
     public string LighthousePackage => Path.Combine(GameLocator.MapsDirectory(RequireRoot), "0-Lighthouse.bsm");
 
+    /// <summary>Holds the shipped <c>MaterialSwitch</c> examples used to pin the candidate array.</summary>
+    public string MedicalPackage => Path.Combine(GameLocator.MapsDirectory(RequireRoot), "1-Medical.bsm");
+
     /// <summary>The script package holding the first-person weapon viewmodels.</summary>
     public string WeaponPackage =>
         GameLocator.WeaponPackage(RequireRoot) ?? throw new InvalidOperationException("ShockGame.U not found.");

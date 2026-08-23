@@ -420,6 +420,18 @@ public sealed record SceneMaterial
     /// </remarks>
     public IReadOnlyList<Materials.MaterialAnimator> Animators { get; init; } = [];
 
+    /// <summary>`MaterialSequence` timelines this material binds, by slot. Carried, not interpreted.</summary>
+    public IReadOnlyList<Materials.MaterialSlotSequence> Sequences { get; init; } = [];
+
+    /// <summary>The `MaterialSwitch` this material was reached through, when there was one.</summary>
+    public string? SwitchName { get; init; }
+
+    /// <summary>
+    /// Every material that switch could select. Which one a running game picks is UNKNOWN, so an
+    /// importer receives all the states and drives the choice itself.
+    /// </summary>
+    public IReadOnlyList<Materials.MaterialSwitchCandidate> SwitchCandidates { get; init; } = [];
+
     /// <summary>True when the shader's property list could not be walked to its end.</summary>
     public required bool Partial { get; init; }
 

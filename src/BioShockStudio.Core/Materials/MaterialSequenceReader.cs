@@ -169,3 +169,15 @@ public static class MaterialSequenceReader
         return negative ? -value : value;
     }
 }
+
+/// <summary>A <see cref="MaterialSequence"/> together with the material slot that binds it.</summary>
+/// <remarks>
+/// The slot is what says which channel the timeline drives — the census found sequences bound under
+/// <c>Emissive</c>, <c>NormalMap</c>, <c>FluidNormalMap</c> and <c>Material</c>, which are four very
+/// different things to animate.
+/// </remarks>
+public sealed record MaterialSlotSequence
+{
+    public required string Slot { get; init; }
+    public required MaterialSequence Sequence { get; init; }
+}
