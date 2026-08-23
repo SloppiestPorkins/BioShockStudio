@@ -25,10 +25,12 @@
 3. From UE Python, add this directory to `sys.path` and call
    `import_bioshock.main(<export-directory>, "/Game/BioShock")`.
 
-The importer normalizes each FBX through Blender before import, persists the companion Skeleton
-assets, restores valid manifest sockets through the plugin, and keeps every source socket in
-`BioShockSockets` metadata. The first-person pistol (12 animations) and TommyGun (13 animations)
-slices are verified in UE5.7, and `verify_bioshock_import.py` passes against both resulting sets.
+The importer normalizes each FBX through an empty Blender scene before import, persists the
+companion Skeleton assets, restores valid manifest sockets through the plugin, and keeps every
+source socket in `BioShockSockets` metadata. Manifest v2 rig imports also create material instances,
+bind decoded base-colour/normal textures, and place them in the slot used by the imported LOD
+section. The textured first-person pistol is visually verified in UE5.7. The pistol (12 animations)
+and TommyGun (13 animations) slices pass `verify_bioshock_import.py`.
 
 For a level JSON export, run `validate_level_manifest.py <map>.ue5-level.json` before importing. It
 requires manifest version 3, verifies that the actor coverage ledger reconciles to the raw actor
@@ -78,10 +80,10 @@ lose their colour, or skeletal meshes stop instancing, opening this map shows it
 `missing` field is the one that matters — a class the pipeline claims to support but could not
 instance is a failure, and is reported rather than skipped silently.
 
-Supported today: `SkeletalMesh`, `Skeleton`, `AnimSequence`, `Texture2D`, `PointLight`.
+Supported today: `SkeletalMesh`, `Skeleton`, `AnimSequence`, `Texture2D`, rig `MaterialInstance`,
+`PointLight`.
 Explicitly **not** supported, and stated in the report so the map cannot imply otherwise: level
-geometry (exported as OBJ, not imported as UE5 meshes), UE5 material graphs (bindings are exported,
-no graph is generated), and cubemaps (decoded and probe-located, but not imported as reflection
+material assignment/graphs and cubemaps (decoded and probe-located, but not imported as reflection
 captures).
 
 ## Headless gotchas

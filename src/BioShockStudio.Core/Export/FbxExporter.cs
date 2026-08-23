@@ -36,11 +36,10 @@ public static class FbxExporter
     /// Schema version of <see cref="ManifestFileName"/>. Bump only for incompatible changes.
     /// </summary>
     /// <remarks>
-    /// <b>1</b> is the first versioned schema, which is also the first to carry
-    /// <see cref="FbxRig.Textures"/>. An importer seeing no version at all is reading an export that
-    /// predates texture intent.
+    /// <b>1</b> first carried texture intent. <b>2</b> carries the authored material records those
+    /// textures belong to, so an engine can create instances without inferring shader defaults.
     /// </remarks>
-    public const int ManifestVersion = 1;
+    public const int ManifestVersion = 2;
 
     /// <param name="previewAnimation">
     /// When set, also writes one extra file per rig holding the mesh and that animation together.
@@ -139,6 +138,11 @@ public static class FbxExporter
         return entries;
     }
 
+    private static IReadOnlyList<SceneMaterial> MaterialEntries(AnimationScene scene) =>
+        scene.Materials.Count > 0
+            ? scene.Materials
+            : scene.Material is null ? [] : [scene.Material];
+
     private static FbxRig WriteRig(
         AnimationScene scene,
         string outputDirectory,
@@ -202,6 +206,7 @@ public static class FbxExporter
             VertexCount = scene.Mesh is null ? 0 : scene.Mesh.Positions.Length / 3,
             Sockets = scene.Sockets.Select(s => new FbxSocketEntry { Name = s.Name, Bone = s.BoneName }).ToList(),
             Textures = TextureEntries(scene),
+            Materials = MaterialEntries(scene),
             AttachedTo = attachedTo,
             Animations = animations,
             Undecoded = scene.Failures.Count,
@@ -333,6 +338,12 @@ public sealed record FbxRig
     /// correct.
     /// </remarks>
     public IReadOnlyList<FbxTextureEntry> Textures { get; init; } = [];
+
+    /// <summary>
+    /// Authored material parameters and slot bindings. Texture files remain relative to the
+    /// manifest; unknown blend ordinals and animator timing remain carried, not interpreted.
+    /// </summary>
+    public IReadOnlyList<SceneMaterial> Materials { get; init; } = [];
 
     /// <summary>Set when this rig hangs off another rig's socket rather than standing alone.</summary>
     public FbxAttachmentPoint? AttachedTo { get; init; }

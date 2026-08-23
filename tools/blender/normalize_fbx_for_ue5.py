@@ -26,6 +26,10 @@ def main():
         raise SystemExit(f"Input FBX does not exist: {source}")
 
     os.makedirs(os.path.dirname(destination), exist_ok=True)
+    # Background Blender still opens its startup scene. Without clearing it, every normalized FBX
+    # also contains Blender's cube, camera and light; UE can then build an extra material section or
+    # consume the wrong mesh data during skeletal import.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.fbx(filepath=source)
     # Keep the skeleton's authored bone count; leaf bones would alter it.
     bpy.ops.export_scene.fbx(filepath=destination, use_selection=False, add_leaf_bones=False)

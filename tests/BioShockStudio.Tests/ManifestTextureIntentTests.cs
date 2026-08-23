@@ -66,6 +66,9 @@ public sealed class ManifestTextureIntentTests(GameFixture game)
 
             var rig = manifest.Rigs[0];
             Assert.NotEmpty(rig.Textures);
+            Assert.NotEmpty(rig.Materials);
+            Assert.Contains(rig.Materials, m => m.Name == material!.Name
+                                                && m.ClassName == material.ClassName);
 
             // A normal map must not arrive as colour - the whole point of carrying intent.
             var normal = rig.Textures.First(t => t.Usage == "NormalMap");
@@ -90,7 +93,9 @@ public sealed class ManifestTextureIntentTests(GameFixture game)
             string json = File.ReadAllText(Path.Combine(directory, FbxExporter.ManifestFileName));
             using var document = JsonDocument.Parse(json);
             var textures = document.RootElement.GetProperty("rigs")[0].GetProperty("textures");
+            var materials = document.RootElement.GetProperty("rigs")[0].GetProperty("materials");
             Assert.True(textures.GetArrayLength() > 0);
+            Assert.True(materials.GetArrayLength() > 0);
             Assert.Contains("Linear", json, StringComparison.Ordinal);
             Assert.Equal(FbxExporter.ManifestVersion, document.RootElement.GetProperty("version").GetInt32());
         }

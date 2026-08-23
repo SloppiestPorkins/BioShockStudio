@@ -117,8 +117,11 @@ before a working slice multiplies that class of problem by 21 maps.
 
 1. **Level geometry as real UE5 meshes.** Today the BSP world exports as OBJ and the level importer
    places `TargetPoint` placeholders where geometry should be. The single biggest visible gap.
-2. **Materials as UE5 material instances.** Bindings, intent and animators are decoded; no UE5
-   material graph is generated. Build one master material per shader class, then instance it.
+2. **Materials as UE5 material instances (rig slice verified).** The manifest v2 rig path now
+   generates authored-material parents and instances, binds base colour/normal textures, preserves
+   raw material provenance, and assigns them to the UE LOD section's actual slot index. Visually
+   verified on `WP_Pistol` in UE5.7. **Still open:** carry the same graph/instance path onto level
+   geometry; this is not evidence that BSP/static-mesh materials are finished.
 3. **Cubemaps as reflection captures**, using the `CubemapProbe` actors' positions (281 of them,
    each naming its `Cubemap`).
 4. **Lighting.** 465+ lights per map already export with colour and brightness. Brightness has no

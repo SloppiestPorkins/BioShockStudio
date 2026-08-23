@@ -298,3 +298,18 @@ what produced the table below.
 Imported into `/Game/BioShockTextureTest` alongside the skeletal mesh, skeleton and 10 animations.
 `ManifestTextureIntentTests` pins the manifest half so the two documents cannot drift apart again.
 
+## Rig material instances, visually verified (23 Aug 2026)
+
+Rig manifest schema v2 carries the full authored material records. `import_bioshock.py` now creates
+skeletal-compatible material parents and instances, binds base-colour and normal textures, retains
+unknown/raw values as metadata, and assigns instances to the material indexes referenced by UE's
+LOD sections. The last detail is essential: Blender-normalized FBX imports reference slot 1 even
+when the rig has one authored material; replacing the array with only slot 0 renders UE's grey
+fallback despite a valid instance and intact UVs.
+
+The Blender normalizer also clears the startup scene before importing, so its cube, camera and light
+are no longer exported into every normalized FBX. A fresh UE5.7 commandlet import completed with 0
+errors and the known 7 bind-pose/smoothing warnings. Visual inspection of `WP_Pistol` confirmed the
+shipped dark metal, red wear/patina and wooden grip textures. This verification covers rig/skeletal
+imports only; level geometry material assignment remains open.
+

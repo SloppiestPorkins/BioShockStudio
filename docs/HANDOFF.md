@@ -14,7 +14,6 @@ means no row is currently claimed, not that no one is working — always check t
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude (this session) | **UE5 port pipeline**: Gate 1 item 3, Gate 3 item 4, Gate 5 items 1 and 3 done and verified in UE5.7. Level geometry now imports as 1,274 instanced static meshes. Class-schema exporter and action-usage census built (`docs/UE5_FULL_PORT_PLAN.md` Phase 2). **Also did Gate 1 item 4 (materials) — see the collision note below.** Next: materials as UE5 material instances | `src/BioShockStudio.Core/`, `tools/ue5/`, `tools/uelib-bridge/`, `tests/BioShockStudio.Tests/` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
 
 > **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims

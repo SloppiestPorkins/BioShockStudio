@@ -304,7 +304,158 @@ def _import_textures(rig, export_directory, destination, report=None):
     return imported
 
 
-SUPPORTED_MANIFEST_VERSION = 1
+def _safe_name(value):
+    """A deterministic UE object name, without collapsing distinct source identities."""
+    cleaned = "".join(c if c.isalnum() or c == "_" else "_" for c in value)
+    return cleaned.strip("_") or "Material"
+
+
+def _load_if_exists(path):
+    """Load without making an expected first-import miss count as a commandlet error."""
+    return unreal.EditorAssetLibrary.load_asset(path) if _existed(path) else None
+
+
+def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None):
+    """Create the small, shared graph every imported BioShock material instances.
+
+    Blend ordinals remain UNKNOWN, so only the independently decoded Masked flag affects blend
+    mode. Two-sidedness and masking are part of the master key because UE does not expose them as
+    ordinary instance parameters.
+    """
+    suffix = ("_Masked" if material.get("masked") else "_Opaque")
+    suffix += "_TwoSided" if material.get("twoSided") else ""
+    # Keep an authored-material-specific parent so its decoded textures are also valid compile-time
+    # defaults. UE 5.7 can resolve the instance override in Python while still rendering the white
+    # parent default on an imported skeletal mesh.
+    name = "M_BioShock_%s_%s%s_V4" % (
+        _safe_name(material.get("className") or "Material"),
+        _safe_name(material.get("name") or "Material"), suffix)
+    path = "%s/Materials/Masters/%s" % (content_root, name)
+    existing = _load_if_exists(path)
+    if existing is not None:
+        return existing
+
+    factory = unreal.MaterialFactoryNew()
+    master = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+        name, "%s/Materials/Masters" % content_root, unreal.Material, factory)
+    if master is None:
+        raise RuntimeError("could not create master material %s" % path)
+
+    master.set_editor_property("two_sided", bool(material.get("twoSided")))
+    master.set_editor_property("used_with_skeletal_mesh", True)
+    if material.get("masked"):
+        master.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+
+    edit = unreal.MaterialEditingLibrary
+    base = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, -150)
+    base.set_editor_property("parameter_name", "BaseColor")
+    base.set_editor_property(
+        "texture", diffuse_texture or _load_if_exists("/Engine/EngineResources/WhiteSquareTexture"))
+    edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    if material.get("masked"):
+        edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+
+    normal = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 50)
+    normal.set_editor_property("parameter_name", "Normal")
+    normal.set_editor_property(
+        "texture", normal_texture or _load_if_exists("/Engine/EngineMaterials/DefaultNormal"))
+    normal.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    edit.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
+
+    roughness = edit.create_material_expression(master, unreal.MaterialExpressionScalarParameter, -500, 250)
+    roughness.set_editor_property("parameter_name", "Roughness")
+    roughness.set_editor_property("default_value", 0.5)
+    edit.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return master
+
+
+def _create_material_instances(rig, destination, content_root):
+    """Create/update one material instance per authored material, preserving slot order."""
+    textures = {}
+    for entry in rig.get("textures") or []:
+        stem = os.path.splitext(os.path.basename(entry["file"]))[0]
+        textures[(entry["material"], entry["slot"])] = _load_if_exists(
+            "%s/Textures/%s" % (destination, stem))
+
+    instances = []
+    for material in rig.get("materials") or []:
+        name = "MI_%s" % _safe_name(material["name"])
+        folder = "%s/Materials" % destination
+        path = "%s/%s" % (folder, name)
+        instance = _load_if_exists(path)
+        if instance is None:
+            instance = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+                name, folder, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        if instance is None:
+            raise RuntimeError("could not create material instance %s" % path)
+
+        library = unreal.MaterialEditingLibrary
+        diffuse = material.get("diffuse")
+        normal = material.get("normalMap")
+        diffuse_texture = None
+        normal_texture = None
+        for (owner, slot), texture in textures.items():
+            if owner != material["name"] or texture is None:
+                continue
+            file = next((e["file"] for e in rig["textures"]
+                         if e["material"] == owner and e["slot"] == slot), None)
+            if file == diffuse:
+                diffuse_texture = texture
+            elif file == normal:
+                normal_texture = texture
+
+        instance.set_editor_property(
+            "parent", _load_or_create_master(
+                material, content_root, diffuse_texture=diffuse_texture, normal_texture=normal_texture))
+        if diffuse_texture is not None:
+            library.set_material_instance_texture_parameter_value(instance, "BaseColor", diffuse_texture)
+        if normal_texture is not None:
+            library.set_material_instance_texture_parameter_value(instance, "Normal", normal_texture)
+
+        # BioShock's Glossiness is not a normalised UE5 roughness value (the pistol writes 30),
+        # so it is retained as provenance below rather than forced through an invented mapping.
+        _tag(instance, {
+            "BioShockClass": material.get("className") or "",
+            "BioShockSourceFile": material.get("sourceFile") or "",
+            "BioShockSourceExport": material.get("sourceExportIndex"),
+            "BioShockOutputBlending": material.get("outputBlending"),
+            "BioShockGlossiness": material.get("glossiness"),
+        })
+        library.update_material_instance(instance)
+        unreal.EditorAssetLibrary.save_loaded_asset(instance)
+        instances.append(instance)
+    return instances
+
+
+def _assign_materials(mesh, materials):
+    """Assign authored materials to the slot indexes used by UE's imported LOD sections."""
+    slots = list(mesh.get_editor_property("materials"))
+    subsystem = unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem)
+    section_slots = []
+    for section_index in range(len(materials)):
+        try:
+            section_slots.append(subsystem.get_lod_material_slot(mesh, 0, section_index))
+        except Exception:
+            section_slots.append(section_index)
+
+    for index, material in enumerate(materials):
+        target_index = section_slots[index]
+        if target_index < 0:
+            target_index = index
+        while len(slots) <= target_index:
+            slots.append(unreal.SkeletalMaterial())
+        slot = unreal.SkeletalMaterial()
+        slot.set_editor_property("material_interface", material)
+        slot.set_editor_property("material_slot_name", unreal.Name("BioShock_%d" % index))
+        slots[target_index] = slot
+    if slots:
+        mesh.set_editor_property("materials", slots)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+
+
+SUPPORTED_MANIFEST_VERSION = 2
 
 
 def _existed(path):
@@ -384,6 +535,11 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         textures = _import_textures(rig, export_directory, destination, report)
         if textures:
             _log(f"  imported {len(textures)} texture(s) with declared intent")
+
+        materials = _create_material_instances(rig, destination, content_root)
+        _assign_materials(mesh, materials)
+        if materials:
+            _log(f"  created/updated and assigned {len(materials)} material instance(s)")
 
         _tag(mesh, {
             "BioShockPackage": manifest["sourcePackage"],
