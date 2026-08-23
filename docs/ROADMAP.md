@@ -397,7 +397,7 @@ material.
    *looked at* in a test for the first time; it previously reached only the GPU viewport, which
    cannot render headless. **The picture is wrong, and now visibly so:** every surface draws a flat
    saturated primary. Cause measured and written up in `docs/research/bsp.md` §5.5e — the atlas is a
-   pack of *per-light* contributions in each light's own colour, a surface commonly has several
+   pack of separate coloured layer tiles, a surface commonly has several
    (1,122 of `1-Medical`'s descriptors carry 2-10 layers), and this project applies only
    `Lights[0]`. The layers are not channel-packed: 0 of 1,122 put their layers on one tile.
    **Layer accumulation was then implemented, measured, and reverted** — it is not the answer.
@@ -405,16 +405,17 @@ material.
    have only one layer** (1,668 of `1-Medical`'s 3,386 descriptors) and a single-layer surface shows
    the fault just as strongly. **What a tile's RGB means is `UNKNOWN`**, and §5.5e now records five
    measured constraints on any future answer — three light slots per layer, slot position refuted as
-   a channel selector, only slot 0 ever singly occupied, 58.7% single-channel, and summed layers
-   staying broadly in range. Two readings remain open: the tile is per-light radiance in that light's
-   own colour, or the atlas channels are decoded in the wrong sense for this texture format. Nothing
-   measured yet distinguishes them. **The second branch is now narrowed, 23 Aug:** all 14
+   a channel selector, only slot 0 ever singly occupied, and summed layers staying broadly in range.
+   **The format branch was narrowed, 23 Aug:** all 14
    `1-Medical` atlas-pool textures declare ordinary DXT1 and decode through the shared BC1 path;
-   there is no special format ordinal or header flag (`LightmapAtlasFormatTests`). Direct colour
-   correlation cannot yet be measured honestly because 752/753 single-light layers inherit
-   `LightColor` through class imports whose defaults live in script packages. Resolving those
-   external class-default chains is the next discriminator. Default-on stays blocked; the
-   per-vertex GPU path has the same defect and merely blurs it.
+   there is no special format ordinal or header flag (`LightmapAtlasFormatTests`). **A retained
+   full-atlas actor-colour probe then corrected the earlier ad-hoc census on 23 Aug:** 868 of 1,039
+   single-actor layers carry a directly serialised non-zero colour. Across all four atlas axis
+   orientations and all six RGB
+   permutations, matched tile/actor cosine improves by at most +0.009 over shuffled actor pairing.
+   The simple "tile RGB is this light's radiance" reading is therefore refuted, while the actual
+   channel semantics remain `UNKNOWN`. Default-on stays blocked; the per-vertex GPU path has the
+   same defect and merely blurs it.
 4. ~~**Viewer visibility matrix** — every drawable category needs its own toggle (compiled world,
    static meshes, skeletal meshes, source brushes, gameplay volumes/zones/triggers, lights,
    experimental lightmaps); non-drawable actor classes should be listed explicitly, not silently

@@ -580,9 +580,10 @@ green ceiling, a magenta floor. The cause is not the projection and not the samp
 - **The atlas UVs are fine.** Across 25 sampled batches in `1-Medical` the per-batch UV spread is
   hundreds of texels (up to 1,019 of 1,024); **none** collapses to under 2 texels. A surface's own
   tile is small — descriptors measure 19x27, 19x15, 31x27 and similar — but it is a real footprint.
-- **The atlas is a pack of per-light contributions, and they are coloured.** Dumped through the
-  application's own decode path, a 1024² atlas is hundreds of small tiles, each a saturated red,
-  green or blue falloff blob: one light's contribution to one surface, in that light's own colour.
+- **The atlas is a pack of per-layer coloured data.** Dumped through the application's own decode
+  path, a 1024² atlas is hundreds of small saturated red, green or blue falloff tiles. Each layer
+  references light actors, but the later actor-colour census below refutes interpreting the RGB as
+  the sole referenced light's colour.
 - **A surface usually has more than one, and this project applies only the first.**
   `BspGeometry.ToLightMapBatches` emits `descriptor.Lights[0]` alone. Across `1-Medical`'s 3,386
   descriptors: **1,668 carry one layer, 828 carry two, 195 three, 66 four, 23 five, 8 six, one
@@ -607,10 +608,10 @@ answer:**
 - **Slot position does not select a colour channel.** The obvious reading — slot 0 to R, 1 to G, 2 to
   B — is **refuted**: of the layers with only slot 0 occupied, the tiles are as often pure green or
   pure blue, and the contingency table is R 40 / G 326 / B 76, a green bias rather than a mapping.
-- **Only slot 0 is ever the singly-occupied one** (753 layers). Slots 1 and 2 are never occupied
-  alone, so the three are filled in order rather than independently.
-- **A single-light layer is usually but not always single-channel**: 442 of 753 (58.7%) put over 90%
-  of their energy in one channel. A strict one-light-one-channel encoding would be near 100%.
+- **Only slot 0 is ever the singly-occupied one** (1,039 layers in the retained full census). Slots 1
+  and 2 are never occupied alone, so the three are filled in order rather than independently.
+- The earlier 753-layer ad-hoc figure is not reproducible by the retained probe and is superseded by
+  the 1,039-layer census. It did not survive as a test, so no stronger explanation is claimed.
 - **Summing layers stays broadly in range**, which is consistent with addition without proving it:
   across the 853 descriptors with two or more readable layers, the summed peak channel has a median
   of 182.5 and a 90th percentile of 365; 27.2% exceed 255 and none collapse to black.
@@ -623,14 +624,19 @@ count and format. A hidden lightmap-specific convention is not impossible, but "
 is simply wrong" now requires DXT1 to mean something different only for this group despite the
 package declaring the same format.
 
-**The direct actor-colour comparison was attempted and correctly stopped for lack of evidence.** Of
-the 753 singly-occupied layers, only one referenced actor exposes a locally readable non-zero
-`LightColor`; the rest inherit their colour through class imports whose defaults live in script
-packages, beyond the map-local `ClassDefaults` chain. One sample cannot settle a channel mapping.
-The next discriminating step is therefore explicit: resolve those imported class-default chains,
-then compare each single-actor tile's RGB vector with its referenced light's shipped colour. Until
-that census exists, per-light radiance remains plausible but unconfirmed and default-on stays
-blocked.
+**Direct actor-colour correlation now refutes the simple per-light-radiance reading, 23 Aug 2026.**
+The retained `LightmapColourCorrelationTests` probe resolves a non-zero, explicitly serialised
+`LightColor` for 868 of the 1,039 single-actor layers. It compares the full bulk-backed 1024x1024
+atlas, tests all four X/Y axis orientations and all six RGB channel permutations, and measures each
+matched cosine against four deterministic shuffled-actor baselines. Depending on orientation,
+524-610 non-black tiles can be compared. The best channel/orientation result has only **+0.009**
+mean-cosine lift over shuffled pairing; the other three are +0.000 to +0.004. Dominant-channel
+agreement is at most 39.6% for the axis-corrected placements. In other words, a sole referenced
+light's shipped RGB does not explain the tile RGB under any axis flip or fixed channel swizzle.
+
+This also corrects the earlier claim that almost every colour required imported class defaults:
+868 referenced actors carry `LightColor` directly in their placed-actor payload. That earlier probe
+was wrong. What the three DXT1 channels encode remains `UNKNOWN`; default-on stays blocked.
 
 Note that the per-vertex GPU path has the same defect and merely hides it: averaging over three
 corners produces a dull tint rather than an obvious flat primary.
