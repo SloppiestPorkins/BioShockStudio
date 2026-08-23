@@ -87,6 +87,48 @@ public static class FbxExporter
         return manifest;
     }
 
+    /// <summary>
+    /// Every texture the scene's materials bind, with its intent, deduplicated by file and slot.
+    /// </summary>
+    /// <remarks>
+    /// Keyed by material and slot rather than by file: the same image is legitimately a base colour
+    /// in one binding and a mask in another, and an importer that collapsed them would have to
+    /// pick one colour space for both.
+    /// </remarks>
+    private static List<FbxTextureEntry> TextureEntries(AnimationScene scene)
+    {
+        var entries = new List<FbxTextureEntry>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var materials = scene.Materials.Count > 0
+            ? scene.Materials
+            : scene.Material is null ? [] : new List<SceneMaterial> { scene.Material };
+
+        foreach (var material in materials)
+        {
+            foreach (var (slot, file) in material.Textures)
+            {
+                if (!material.TextureIntents.TryGetValue(slot, out var intent)) continue;
+                if (!seen.Add($"{material.Name}|{slot}")) continue;
+
+                entries.Add(new FbxTextureEntry
+                {
+                    File = file,
+                    Slot = slot,
+                    Material = material.Name,
+                    Usage = intent.Usage.ToString(),
+                    ColourSpace = intent.ColourSpace.ToString(),
+                    AddressU = intent.AddressU.ToString(),
+                    AddressV = intent.AddressV.ToString(),
+                    DeclaresMasked = intent.DeclaresMasked,
+                    DeclaresAlphaTexture = intent.DeclaresAlphaTexture,
+                });
+            }
+        }
+
+        return entries;
+    }
+
     private static FbxRig WriteRig(
         AnimationScene scene,
         string outputDirectory,
@@ -149,6 +191,7 @@ public static class FbxExporter
             BoneCount = scene.Bones.Count,
             VertexCount = scene.Mesh is null ? 0 : scene.Mesh.Positions.Length / 3,
             Sockets = scene.Sockets.Select(s => new FbxSocketEntry { Name = s.Name, Bone = s.BoneName }).ToList(),
+            Textures = TextureEntries(scene),
             AttachedTo = attachedTo,
             Animations = animations,
             Undecoded = scene.Failures.Count,
@@ -201,6 +244,39 @@ public sealed record FbxManifest
     public required IReadOnlyList<FbxRig> Rigs { get; init; }
 }
 
+/// <summary>One texture an import should create, and how it must be sampled.</summary>
+public sealed record FbxTextureEntry
+{
+    /// <summary>Path of the PNG, relative to the manifest.</summary>
+    public required string File { get; init; }
+
+    /// <summary>The material slot that binds it, which is where the usage comes from.</summary>
+    public required string Slot { get; init; }
+
+    /// <summary>The material binding it, so several materials' textures stay distinguishable.</summary>
+    public required string Material { get; init; }
+
+    /// <summary>Base colour, normal map, mask and so on.</summary>
+    public required string Usage { get; init; }
+
+    /// <summary>
+    /// <c>Srgb</c> or <c>Linear</c>. <b>Inferred from usage, not declared by the game</b> - see
+    /// <see cref="Textures.TextureColourSpace"/>.
+    /// </summary>
+    public required string ColourSpace { get; init; }
+
+    /// <summary>Sampler addressing, <c>Wrap</c> or <c>Clamp</c>.</summary>
+    public required string AddressU { get; init; }
+
+    public required string AddressV { get; init; }
+
+    /// <summary>The texture declares its alpha to be a cutout.</summary>
+    public bool DeclaresMasked { get; init; }
+
+    /// <summary>The texture declares its alpha to be for blending.</summary>
+    public bool DeclaresAlphaTexture { get; init; }
+}
+
 public sealed record FbxRig
 {
     /// <summary>What the asset is called, without the animation package's internal prefix.</summary>
@@ -223,6 +299,18 @@ public sealed record FbxRig
     public required int BoneCount { get; init; }
     public required int VertexCount { get; init; }
     public required IReadOnlyList<FbxSocketEntry> Sockets { get; init; }
+
+    /// <summary>
+    /// The textures this rig's materials bind, with the engine-facing intent for each.
+    /// </summary>
+    /// <remarks>
+    /// <b>Added because a UE5 import run proved the gap.</b> The intent was already exported in the
+    /// scene JSON the Blender path consumes, but this manifest is a separate document and is what
+    /// <c>tools/ue5/import_bioshock.py</c> reads, so an importer had no way to know that a normal
+    /// map is not colour. Unit tests could not have caught that: both documents were individually
+    /// correct.
+    /// </remarks>
+    public IReadOnlyList<FbxTextureEntry> Textures { get; init; } = [];
 
     /// <summary>Set when this rig hangs off another rig's socket rather than standing alone.</summary>
     public FbxAttachmentPoint? AttachedTo { get; init; }

@@ -232,3 +232,63 @@ standing policy (`ENGINEERING_RULES.md` — read reference material before deriv
 never guess), the first step is surveying UModel/UELib/Unreal-Library/Bioshock1REMSDK-WIP and UE2's
 UDN documentation for the UE2.5 script VM opcode format, which is externally documented. This has
 not been started.
+
+## Texture import, and a second headless Interchange trap (23 Aug 2026)
+
+**Gate 1 item 3's validation is done: textures now import with their declared intent, verified in
+UE5.7.**
+
+Two things this run found that no unit test could have:
+
+**1. The UE5 manifest did not carry texture intent at all.** The intent was exported into the scene
+JSON (the Blender path) and unit-tested there, but `ue5_manifest.json` is a *separate document* and
+is the one `import_bioshock.py` reads. Both documents were individually correct; the gap only
+existed between them. `FbxRig.Textures` now carries file, slot, material, usage, colour space and
+addressing per binding.
+
+**2. `import_bioshock.py` explicitly disabled texture and material import**
+(`import_textures=False`, `import_materials=False`), so nothing consumed them even once they were in
+the manifest. It now creates `Texture2D` assets and applies the intent: `sRGB` from colour space,
+`TC_NORMALMAP` for normal maps, `TC_MASKS` for masks and heightmaps, and `TA_WRAP`/`TA_CLAMP` from
+the declared addressing. Provenance goes into asset metadata (`BioShockUsage`, `BioShockColourSpace`,
+`BioShockSlot`, `BioShockMaterial`).
+
+### The headless Interchange trap, again
+
+**Interchange's PNG importer crashes the editor under `-unattended`:**
+
+```
+Assertion failed: CurrentApplication.IsValid()
+  [File:.../Slate/Public/Framework/Application/SlateApplication.h] [Line: 321]
+  ... UnrealEditor-ContentBrowser.dll ... UnrealEditor-InterchangeEngine.dll
+```
+
+It reaches into Slate/ContentBrowser, which does not exist in a commandlet. This is the same family
+as the FBX Interchange problem SS2 documents, and the fix is the same shape — disable it. Doing it at
+runtime keeps the user's project config untouched:
+
+```python
+for cvar in ("Interchange.FeatureFlags.Import.PNG",
+             "Interchange.FeatureFlags.Import.Texture",
+             "Interchange.FeatureFlags.Import.FBX"):
+    unreal.SystemLibrary.execute_console_command(None, f"{cvar} 0")
+```
+
+### `unreal.log` does not reach the captured log either
+
+SS2 warns that `print()` is unreliable under `-run=pythonscript ... -log`. **`unreal.log` is no
+better** — a verification script produced no output at all despite reporting
+"Python script executed successfully". **Write results to a file** and read that instead; that is
+what produced the table below.
+
+### Verified in UE5.7, 23 Aug 2026
+
+| Asset | sRGB | Compression | Usage |
+|---|---|---|---|
+| `Hand_NORM`, `Pistol_NORM` | **false** | **TC_NORMALMAP** | NormalMap |
+| `Hand_DIFF`, `Pistol_DIFF` | true | TC_DEFAULT | BaseColor |
+| `Hand_SPEC`, `WP_Pistol_Spec` | true | TC_DEFAULT | Specular |
+
+Imported into `/Game/BioShockTextureTest` alongside the skeletal mesh, skeleton and 10 animations.
+`ManifestTextureIntentTests` pins the manifest half so the two documents cannot drift apart again.
+

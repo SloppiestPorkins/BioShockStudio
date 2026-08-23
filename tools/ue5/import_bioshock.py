@@ -215,6 +215,88 @@ def _restore_manifest_sockets(mesh, sockets):
                                    [item["bone"] for item in valid])
 
 
+def _import_textures(rig, export_directory, destination):
+    """Create UE5 Texture2D assets from the manifest's texture entries.
+
+    The manifest states each texture's engine-facing intent, which the PNG cannot: whether it is
+    colour or data, and how it must be addressed. Applying that on import is the whole point --
+    a normal map brought in as sRGB is wrong in a way that is subtle on screen and invisible in a
+    file diff.
+
+    Colour space is INFERRED from usage rather than declared by the game (no shipped texture carries
+    an sRGB flag), so this mirrors an inference rather than a decode. See
+    docs/research/textures.md.
+    """
+    entries = rig.get("textures") or []
+    if not entries:
+        return []
+
+    address = {
+        "Wrap": unreal.TextureAddress.TA_WRAP,
+        "Clamp": unreal.TextureAddress.TA_CLAMP,
+    }
+
+    imported = []
+    seen = {}
+
+    for entry in entries:
+        source = os.path.join(export_directory, entry["file"].replace("/", os.sep))
+        if not os.path.exists(source):
+            _log(f"  texture missing on disk, skipped: {entry['file']}")
+            continue
+
+        # The same PNG can be bound twice with different intent. Import it once per distinct
+        # intent, suffixed, so neither binding has to compromise on colour space.
+        srgb = entry["colourSpace"] == "Srgb"
+        stem = os.path.splitext(os.path.basename(source))[0]
+        key = (stem, srgb)
+        if key in seen:
+            continue
+
+        options = unreal.AutomatedAssetImportData()
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", source)
+        task.set_editor_property("destination_path", f"{destination}/Textures")
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("save", True)
+        _asset_tools().import_asset_tasks([task])
+
+        objects = list(task.get_objects())
+        texture = next((o for o in objects if isinstance(o, unreal.Texture2D)), None)
+        if texture is None:
+            _log(f"  FAILED to import texture {entry['file']}")
+            continue
+
+        texture.set_editor_property("srgb", srgb)
+        if entry["usage"] == "NormalMap":
+            texture.set_editor_property("compression_settings",
+                                        unreal.TextureCompressionSettings.TC_NORMALMAP)
+        elif entry["usage"] in ("Mask", "Height"):
+            texture.set_editor_property("compression_settings",
+                                        unreal.TextureCompressionSettings.TC_MASKS)
+
+        if entry.get("addressU") in address:
+            texture.set_editor_property("address_x", address[entry["addressU"]])
+        if entry.get("addressV") in address:
+            texture.set_editor_property("address_y", address[entry["addressV"]])
+
+        _tag(texture, {
+            "BioShockUsage": entry["usage"],
+            "BioShockColourSpace": entry["colourSpace"],
+            "BioShockSlot": entry["slot"],
+            "BioShockMaterial": entry["material"],
+        })
+        unreal.EditorAssetLibrary.save_loaded_asset(texture)
+
+        seen[key] = texture
+        imported.append(texture)
+        _log(f"  texture {stem}: usage={entry['usage']} sRGB={srgb} "
+             f"address={entry.get('addressU')}/{entry.get('addressV')}")
+
+    return imported
+
+
 def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None):
     """Import every rig in an export directory. Returns the imported skeletal meshes by rig name.
 
@@ -261,6 +343,10 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         if bones and bones != rig["boneCount"]:
             # Almost certainly the SOCKET_ nulls; see the note at the top of this file.
             _log(f"WARNING: skeleton has {bones} bones, the export declares {rig['boneCount']}")
+
+        textures = _import_textures(rig, export_directory, destination)
+        if textures:
+            _log(f"  imported {len(textures)} texture(s) with declared intent")
 
         _tag(mesh, {
             "BioShockPackage": manifest["sourcePackage"],

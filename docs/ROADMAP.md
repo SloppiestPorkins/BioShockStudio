@@ -522,18 +522,19 @@ material.
      in the game resolve all six faces** (`CubemapReader`, `CubemapTests`, plus the whole-game
      check in `TextureIntentCensusTests`). Face *ordering* stays `UNKNOWN` — the game names them
      only `_Face_0..5` — so declaration order is preserved rather than a convention guessed at.
-   - **Item 3's remaining half is unstarted, NOT blocked: no representative UE5 import has been
-     validated.** Everything an importer would consume is exported and unit-tested; what is missing
-     is the import run and someone looking at the result — per the project's own "render it" rule,
-     a numeric round-trip would not settle it.
-     - **Correction, 23 Aug 2026.** This entry previously claimed the item was *blocked* because no
-       UE5 engine existed on this machine, on the strength of Epic's folder under `Program Files`
-       containing only the Launcher. **That was wrong.** UE5.7 is at `G:\\Games\\UE_5.7\\`, which
-       `docs/HANDOFF_UE5_IMPORT.md` and `docs/NEXT_SESSION.md` both state explicitly — the latter
-       warning in as many words that it is *not* under Epic's `Program Files` folder. Gate 2 item 4's
-       record of successful imports was a second contradiction sitting in this same file.
-       **Read the handoff before probing the filesystem**: the answer was already written down, and
-       a "blocked" label asserted from a partial check is worse than no label at all.
+   - ~~**Item 3's remaining half: no representative UE5 import has been validated.**~~
+     **Done, 23 Aug 2026 — imported into UE5.7 and verified in the engine.** Normal maps land with
+     `sRGB=false` and `TC_NORMALMAP`, colour maps with `sRGB=true` and `TC_DEFAULT`, addressing as
+     declared, and provenance in asset metadata. **Gate 1 item 3 is now closed.**
+     - **The import found a gap unit tests could not.** Intent was exported into the scene JSON and
+       tested there, but `ue5_manifest.json` is a separate document and is the one the importer
+       reads — and `import_bioshock.py` had texture/material import switched off outright. Both
+       documents were individually correct; the gap lived between them. This is the
+       "render it" rule earning its place: numeric validation passed throughout.
+     - `FbxRig.Textures` now carries the intent; the importer applies it and tags provenance.
+       `ManifestTextureIntentTests` pins the manifest half. Headless traps (Interchange PNG
+       crashing under `-unattended`, `unreal.log` not reaching the captured log) are recorded in
+       `docs/HANDOFF_UE5_IMPORT.md`.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.
