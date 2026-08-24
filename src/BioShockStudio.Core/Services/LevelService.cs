@@ -105,13 +105,23 @@ public sealed class LevelService
     /// together and are named after the map, so writing them all into one folder would interleave
     /// maps and make it unclear which OBJ went with which scene.
     /// </remarks>
+    /// <param name="bulk">
+    /// The whole-game texture index, if the caller has one loaded — a level's materials can bind
+    /// textures that ship in the 8 GB bulk-mip store rather than beside the package, the same way a
+    /// mesh's can. Optional: without it, only textures the package itself carries resolve.
+    /// </param>
     public IReadOnlyList<string> Extract(
         string packageFile, string outputDirectory, LevelExportFormats formats, bool readable = false,
-        IProgress<string>? progress = null)
+        IProgress<string>? progress = null, Textures.BulkTextureCatalog? bulk = null)
     {
-        var scene = Load(packageFile, progress);
+        using var package = BioShockPackage.Open(packageFile);
+        progress?.Report("Reading actors…");
+        var context = LevelAnalyzer.Analyze(package, progress);
+        progress?.Report("Assembling geometry…");
+        var scene = LevelSceneBuilder.Build(package, context, progress);
+
         string directory = Path.Combine(outputDirectory, scene.PackageName);
         progress?.Report($"Writing {scene.Instances.Count:N0} instances…");
-        return LevelSceneExporter.Write(scene, directory, formats, readable);
+        return LevelSceneExporter.Write(scene, directory, formats, readable, package, bulk);
     }
 }

@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using BioShockStudio.Core.Level;
+using BioShockStudio.Core.Packages;
+using BioShockStudio.Core.Textures;
 
 namespace BioShockStudio.Core.Export;
 
@@ -70,17 +72,38 @@ public static class LevelSceneExporter
     private static readonly JsonSerializerOptions ReadableOptions = new(Options) { WriteIndented = true };
 
     /// <summary>Writes the requested formats into <paramref name="directory"/> and returns the paths.</summary>
+    /// <summary>
+    /// Writes the requested formats into <paramref name="directory"/> and returns the paths.
+    /// </summary>
+    /// <param name="package">
+    /// The package <paramref name="scene"/> was built from, still open. Optional, and materials-only
+    /// — everything else <see cref="LevelScene"/> already carries in memory. Omit it and the export
+    /// proceeds exactly as before, with no materials resolved, rather than failing; the caller must
+    /// keep the package open across this call if it wants them, since resolving a material means
+    /// reading its export's own bytes.
+    /// </param>
     public static IReadOnlyList<string> Write(
         LevelScene scene, string directory, LevelExportFormats formats = LevelExportFormats.All,
-        bool readable = false)
+        bool readable = false, BioShockPackage? package = null, BulkTextureCatalog? bulk = null)
     {
         Directory.CreateDirectory(directory);
         var written = new List<string>();
 
+        // Written before either JSON, because both manifests record each material's texture paths.
+        List<(Level.SourceId Id, SceneMaterial Material)> materials = [];
+        List<FbxTextureEntry> textures = [];
+        if (package is not null
+            && (formats.HasFlag(LevelExportFormats.SceneJson) || formats.HasFlag(LevelExportFormats.Ue5Manifest)))
+        {
+            (materials, textures) = WriteMaterials(package, scene, directory, written, bulk);
+        }
+
         if (formats.HasFlag(LevelExportFormats.SceneJson))
         {
             string path = Path.Combine(directory, scene.PackageName + ".level.json");
-            File.WriteAllText(path, JsonSerializer.Serialize(ToDocument(scene), readable ? ReadableOptions : Options));
+            File.WriteAllText(path, JsonSerializer.Serialize(
+                ToDocument(scene, materials: materials, textures: textures),
+                readable ? ReadableOptions : Options));
             written.Add(path);
         }
 
@@ -95,7 +118,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, includeGeometry: false, assetFiles),
+                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -114,7 +137,9 @@ public static class LevelSceneExporter
     public static LevelDocument ToDocument(
         LevelScene scene,
         bool includeGeometry = true,
-        IReadOnlyDictionary<string, string>? assetFiles = null) => new()
+        IReadOnlyDictionary<string, string>? assetFiles = null,
+        IReadOnlyList<(Level.SourceId Id, SceneMaterial Material)>? materials = null,
+        IReadOnlyList<FbxTextureEntry>? textures = null) => new()
     {
         FormatVersion = LevelManifestVersion,
         Package = scene.PackageName,
@@ -123,6 +148,8 @@ public static class LevelSceneExporter
         BoundsMin = ToArray(scene.Bounds.Min),
         BoundsMax = ToArray(scene.Bounds.Max),
         GeometryEmbedded = includeGeometry,
+        Materials = materials?.Select(pair => MaterialDocument(pair.Id, pair.Material)).ToList() ?? [],
+        Textures = textures?.ToList() ?? [],
         Assets = scene.Instances
             .GroupBy(i => i.Asset)
             .Select(g => new LevelAssetDocument
@@ -571,6 +598,70 @@ public static class LevelSceneExporter
         return files;
     }
 
+    /// <summary>
+    /// Resolves every distinct material a placed asset's sections name and writes its textures
+    /// beside the scene, the same way <see cref="WriteAssetMeshes"/> does for geometry. Needs the
+    /// package the scene was built from still open — <see cref="LevelScene"/> itself only carries
+    /// each material's identity (<see cref="Level.SourceId"/>), not its resolved texture bindings,
+    /// because resolving means reading the material export's own bytes.
+    /// </summary>
+    /// <remarks>
+    /// Each result is paired with the <see cref="Level.SourceId"/> a section actually names —
+    /// <b>not</b> necessarily the same export the returned <see cref="SceneMaterial"/> describes.
+    /// A <c>MaterialSwitch</c> reference resolves to its default child (<see cref="MaterialReader"/>
+    /// follows it), so the child's own class/name/index ride in the <see cref="SceneMaterial"/> while
+    /// the section's <c>MaterialKey</c> still names the switch. Keying the written
+    /// <see cref="LevelMaterialDocument"/> by the child's identity instead of the switch's would
+    /// build a manifest that looks complete — non-empty materials, real textures on disk — while
+    /// every switch-routed section's key silently finds nothing. Pinned by
+    /// <c>LevelSceneTests.MaterialsResolveAndTheirTexturesAreWrittenForAPlacedLevel</c>.
+    /// </remarks>
+    private static (List<(Level.SourceId Id, SceneMaterial Material)> Materials, List<FbxTextureEntry> Textures)
+        WriteMaterials(BioShockPackage package, LevelScene scene, string directory, List<string> written, BulkTextureCatalog? bulk = null)
+    {
+        var materials = new List<(Level.SourceId Id, SceneMaterial Material)>();
+        var textures = new List<FbxTextureEntry>();
+        var seenMaterials = new HashSet<Level.SourceId>();
+        var seenTextures = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var group in scene.Instances.GroupBy(i => i.Asset))
+        {
+            foreach (var materialId in group.First().Materials)
+            {
+                if (materialId is not { } id || !seenMaterials.Add(id)) continue;
+                if (id.ExportIndex >= package.Exports.Count) continue;
+
+                var resolved = MaterialExporter.ResolveMaterial(package, package.Exports[id.ExportIndex], directory, bulk);
+                if (resolved is null) continue;
+                materials.Add((id, resolved));
+
+                foreach (var (slot, file) in resolved.Textures)
+                {
+                    if (!resolved.TextureIntents.TryGetValue(slot, out var intent)) continue;
+                    if (!seenTextures.Add(resolved.Name + "|" + slot)) continue;
+
+                    textures.Add(new FbxTextureEntry
+                    {
+                        File = file,
+                        Slot = slot,
+                        Material = resolved.Name,
+                        Usage = intent.Usage.ToString(),
+                        ColourSpace = intent.ColourSpace.ToString(),
+                        AddressU = intent.AddressU.ToString(),
+                        AddressV = intent.AddressV.ToString(),
+                        DeclaresMasked = intent.DeclaresMasked,
+                        DeclaresAlphaTexture = intent.DeclaresAlphaTexture,
+                    });
+                }
+            }
+        }
+
+        foreach (string relative in materials.SelectMany(m => m.Material.Textures.Values).Distinct(StringComparer.Ordinal))
+            written.Add(Path.Combine(directory, relative));
+
+        return (materials, textures);
+    }
+
     /// <summary>One asset's geometry, untransformed.</summary>
     private static string BuildAssetObj(string name, Mesh.MeshGeometry geometry)
     {
@@ -696,6 +787,34 @@ public static class LevelSceneExporter
             SourcePackage = reference.Source?.Package,
             SourceExportIndex = reference.Source?.ExportIndex,
         };
+
+    /// <summary>
+    /// Keyed by the <see cref="Level.SourceId"/> a section actually names, not by the resolved
+    /// material's own class/name/index — see <see cref="WriteMaterials"/>'s remarks on why those
+    /// two can differ for a <c>MaterialSwitch</c>. This is what lets a
+    /// <see cref="LevelSectionDocument.MaterialKey"/> find its entry in
+    /// <see cref="LevelDocument.Materials"/> unconditionally.
+    /// </summary>
+    private static LevelMaterialDocument MaterialDocument(Level.SourceId id, SceneMaterial material) => new()
+    {
+        Key = id.Key,
+        Name = material.Name,
+        ClassName = material.ClassName,
+        SourceFile = material.SourceFile,
+        SourceExportIndex = material.SourceExportIndex,
+        Diffuse = material.Diffuse,
+        NormalMap = material.NormalMap,
+        Specular = material.Specular,
+        Glossiness = material.Glossiness,
+        SpecularBrightness = material.SpecularBrightness,
+        EmissiveBrightness = material.EmissiveBrightness,
+        DiffuseColor = material.DiffuseColor,
+        SpecularColor = material.SpecularColor,
+        EmissiveColor = material.EmissiveColor,
+        TwoSided = material.TwoSided,
+        Masked = material.Masked,
+        OutputBlending = material.OutputBlending,
+    };
 }
 
 /// <summary>The level scene's serialised shape.</summary>
@@ -708,6 +827,18 @@ public sealed record LevelDocument
     public required float[] BoundsMin { get; init; }
     public required float[] BoundsMax { get; init; }
     public required bool GeometryEmbedded { get; init; }
+
+    /// <summary>
+    /// Every distinct material a placed asset's sections name, resolved and with its textures
+    /// already written beside the scene. Empty when the caller did not provide an open package to
+    /// resolve them (<see cref="Write"/> only does this when a <c>package</c> is given, for the
+    /// scene JSON and the UE5 manifest alike) — that is a scope choice, not a claim that the level
+    /// has no materials.
+    /// </summary>
+    public required List<LevelMaterialDocument> Materials { get; init; }
+
+    public required List<FbxTextureEntry> Textures { get; init; }
+
     public required List<LevelAssetDocument> Assets { get; init; }
     public required List<LevelInstanceDocument> Instances { get; init; }
     public required List<LevelActorDocument> Actors { get; init; }
@@ -760,6 +891,34 @@ public sealed record LevelSectionDocument
     public string? MaterialPackage { get; init; }
     public string? MaterialClassName { get; init; }
     public int? MaterialExportIndex { get; init; }
+}
+
+/// <summary>
+/// One material a placed asset's sections name, resolved and with its textures already written
+/// beside the scene. Field shape matches <c>SceneMaterial</c>/the rig manifest's own material
+/// entries deliberately, so an importer can share the same UE5-side code between the two.
+/// </summary>
+public sealed record LevelMaterialDocument
+{
+    /// <summary>Matches a <see cref="LevelSectionDocument.MaterialKey"/>.</summary>
+    public required string Key { get; init; }
+
+    public required string Name { get; init; }
+    public required string ClassName { get; init; }
+    public string? SourceFile { get; init; }
+    public required int SourceExportIndex { get; init; }
+    public string? Diffuse { get; init; }
+    public string? NormalMap { get; init; }
+    public string? Specular { get; init; }
+    public float? Glossiness { get; init; }
+    public float? SpecularBrightness { get; init; }
+    public float? EmissiveBrightness { get; init; }
+    public float[]? DiffuseColor { get; init; }
+    public float[]? SpecularColor { get; init; }
+    public float[]? EmissiveColor { get; init; }
+    public bool TwoSided { get; init; }
+    public bool Masked { get; init; }
+    public byte? OutputBlending { get; init; }
 }
 
 public sealed record LevelInstanceDocument

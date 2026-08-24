@@ -274,7 +274,8 @@ static int ExportLevel(string root, string[] args)
 
     string package = ResolvePackage(root, args[1]);
     var progress = new Progress<string>(message => Console.Error.WriteLine(message));
-    var files = new LevelService().Extract(package, args[2], LevelExportFormats.All, readable: true, progress);
+    var bulk = BulkTextureCatalog.Load(root);
+    var files = new LevelService().Extract(package, args[2], LevelExportFormats.All, readable: true, progress, bulk);
     foreach (string file in files) Console.WriteLine(file);
     return 0;
 }

@@ -30,6 +30,19 @@ public static class MaterialExporter
     }
 
     /// <summary>
+    /// Resolves a material directly from its own export — a <c>Shader</c>/<c>FacingShader</c>/etc.
+    /// export, not a mesh that names one. For a level's placed geometry, which already knows each
+    /// section's material export identity directly (<see cref="Level.LevelInstance.Materials"/>)
+    /// rather than needing to look it up via a mesh.
+    /// </summary>
+    public static SceneMaterial? ResolveMaterial(
+        BioShockPackage package, ObjectExport materialExport, string outputDirectory, BulkTextureCatalog? bulk = null)
+    {
+        var material = MaterialReader.Read(package, materialExport);
+        return material is null ? null : Convert(package, material, outputDirectory, bulk);
+    }
+
+    /// <summary>
     /// Resolves every material a mesh uses and which triangles use each.
     /// </summary>
     /// <remarks>

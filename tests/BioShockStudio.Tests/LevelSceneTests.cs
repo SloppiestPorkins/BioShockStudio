@@ -683,6 +683,82 @@ public sealed class LevelSceneTests(GameFixture game)
         }
     }
 
+    /// <summary>
+    /// A placed level's sections name real materials, and those materials' own textures land on
+    /// disk where the manifest says they do.
+    /// </summary>
+    /// <remarks>
+    /// Every check here can pass numerically while the art is wrong — this project's own landmine
+    /// list (<c>docs/HANDOFF.md</c> §4) is mostly stories about exactly that. So this does not stop
+    /// at "the Materials array is non-empty": it looks a section's own <c>MaterialKey</c> up in
+    /// <see cref="LevelDocument.Materials"/> and requires the match, which is the one connection
+    /// <see cref="LevelSceneExporter.Write"/> and <see cref="LevelSceneExporter.ToDocument"/> compute
+    /// independently (a section's key from its <see cref="Level.SourceId.Key"/>, a material's key
+    /// from its own <see cref="Export.SceneMaterial"/> fields) and could disagree silently if either
+    /// side's key format ever drifts.
+    /// </remarks>
+    [RequiresGameFact]
+    public void MaterialsResolveAndTheirTexturesAreWrittenForAPlacedLevel()
+    {
+        string medical = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+        using var package = BioShockPackage.Open(medical);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+        var bulk = BulkTextureCatalog.Load(game.RequireRoot);
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-materials-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            LevelSceneExporter.Write(
+                scene, directory, LevelExportFormats.SceneJson | LevelExportFormats.Ue5Manifest,
+                readable: false, package, bulk);
+
+            string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".level.json"));
+            var document = JsonSerializer.Deserialize<LevelDocument>(
+                json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+            Log($"materials {document.Materials.Count}, textures {document.Textures.Count}");
+            Assert.NotEmpty(document.Materials);
+            Assert.NotEmpty(document.Textures);
+
+            // Keys are meant to be unique per distinct material; a collision would silently merge
+            // two different materials' textures under one entry.
+            var byKey = document.Materials.ToDictionary(m => m.Key, StringComparer.Ordinal);
+            Assert.Equal(document.Materials.Count, byKey.Count);
+
+            // The actual end-to-end connection: every section that names a material must find it.
+            var sectionKeys = document.Assets.SelectMany(a => a.Sections)
+                .Select(s => s.MaterialKey)
+                .Where(key => key is not null)
+                .ToList();
+            Assert.NotEmpty(sectionKeys);
+            Assert.All(sectionKeys, key => Assert.True(byKey.ContainsKey(key!),
+                $"section names material '{key}' but no such key is in document.Materials"));
+
+            // Every texture path a material or an FbxTextureEntry names must exist where written —
+            // "the manifest says a PNG is there" is not evidence the PNG is there.
+            foreach (var material in document.Materials)
+            {
+                foreach (string? path in new[]
+                         { material.Diffuse, material.NormalMap, material.Specular })
+                {
+                    if (path is null) continue;
+                    Assert.True(File.Exists(Path.Combine(directory, path)),
+                        $"{material.Key} names '{path}' but it was not written");
+                }
+            }
+
+            Assert.All(document.Textures, entry => Assert.True(
+                File.Exists(Path.Combine(directory, entry.File)),
+                $"texture entry '{entry.File}' ({entry.Material}/{entry.Slot}) was not written"));
+            Assert.All(document.Textures, entry => Assert.Contains(
+                document.Materials, m => m.Name == entry.Material));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static float Median(List<float> values)
     {
         var sorted = values.OrderBy(v => v).ToList();
