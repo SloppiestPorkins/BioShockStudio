@@ -508,6 +508,24 @@ Each of these produced a plausible, wrong result before it was understood.
   bounding diagonal came back **2422 units** — the exact reference value that test already
   established for a correctly-assembled arch (a twisted, wrong-handed one measures ~4295) — so this
   is a real run confirming the fix, not a repeat of the same static reasoning that produced it.
+- **Every level asset imported into UE5 had no UV mapping and no more than one material slot, and
+  neither gap was visible in a manifest or a report** (24 Aug 2026). `BuildAssetObj` wrote positions
+  and faces only — no `vt` line at all, and every face in one ungrouped run regardless of how many
+  materials the mesh's sections named. A material could still be *assigned* to the mesh (the
+  manifest's `materials`/`textures` arrays were genuinely populated, see the `MaterialSwitch` entry
+  above), which is what made this easy to miss: assignment succeeding said nothing about whether the
+  geometry could actually display it correctly. Fixed by writing one `vt` per vertex (same V-flip as
+  the already-proven FBX rig path) and one `usemtl BioShock_{n}` group per section; `_assign_asset_material`
+  now builds one material slot per section instead of skipping a mesh whose sections disagree.
+  Verified live, not assumed: of 792 `1-Medical` assets needing more than one slot, a 20-asset sample
+  all show the imported slot count matching the manifest's own section count exactly, confirming
+  UE5's OBJ importer does split by `usemtl` group in file order — the one empirical assumption this
+  fix depended on and the only way to actually know before running it. This also surfaced a third
+  headless-only crash, the same shape as the PNG/FBX ones: `Interchange.FeatureFlags.Import.OBJ`
+  started asserting under `-unattended` only once the writer began emitting UV/group data — a
+  translator that had imported OBJs cleanly for a long time, so the natural first suspect was the
+  new OBJ content itself rather than a known class of headless gap landing on a fourth translator.
+  Found by grepping the engine source for `InterchangeOBJTranslator.cpp`'s own registered CVar name.
 
 ## 5. Validation
 

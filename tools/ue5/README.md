@@ -76,12 +76,26 @@ correctly-assembled arch (a twisted, wrong-handed one measures ~4295). See `docs
 `LevelSceneExporter.Write`'s `package` parameter), `import_level.py` reuses
 `import_bioshock.py`'s texture-import and `MaterialInstanceConstant` creation unchanged, keyed by
 each manifest material's own `key` rather than its name (a `MaterialSwitch` reference and its
-resolved default child can share one instance under two different keys). The instance is assigned
-to a static mesh only when every one of its sections names the same material — the exported OBJ
-carries no per-section groups to assign multiple materials against, so a multi-material mesh is
-counted in the report's `multiMaterialMeshes` field rather than guessed at. On `1-Medical`: 619
-static meshes got a real material instance assigned, 738 multi-material meshes counted and left
-unassigned.
+resolved default child can share one instance under two different keys).
+
+**Multi-material meshes and UV mapping, 24 Aug 2026, also verified live.** `BuildAssetObj` now
+writes a "vt" line per vertex (same V-flip as the proven FBX rig path) and one "usemtl
+BioShock_{n}" group per section, instead of positions/faces only with no grouping at all — the
+latter meant every imported mesh had no UV mapping, and a multi-material mesh always collapsed to
+one slot, regardless of what got assigned to it. `_assign_asset_material` now builds one material
+slot per section, in order, rather than skipping a mesh whose sections disagree. Verified in a live
+UE5.7 editor: of 792 `1-Medical` assets needing more than one slot, a 20-asset sample all show the
+imported slot count matching the manifest's own section count exactly, and 1,357 static meshes
+total got at least one real material assigned (up from 619 when only single-material meshes were
+handled). A section whose material key doesn't resolve gets an empty slot rather than borrowing a
+neighbour's material.
+
+**A third headless-only crash, found and disabled the same way as the PNG/FBX ones above.**
+`Interchange.FeatureFlags.Import.OBJ` started asserting under `-unattended` only once the OBJ
+writer began emitting UV/group data — the same `CurrentApplication.IsValid()` Slate assertion, on a
+translator that had been importing OBJs cleanly for the single-section, UV-less case. Found by
+grepping the engine source for `InterchangeOBJTranslator.cpp`'s own registered CVar name rather than
+guessing.
 
 Actors with no geometry to attach become positioned, tagged `TargetPoint`s counted as
 `unsupported`. That count is deliberately
@@ -115,10 +129,15 @@ captures).
 
 Both documented the hard way; see `docs/HANDOFF_UE5_IMPORT.md` for the full record.
 
-- **Interchange asserts under `-unattended`** for FBX *and* PNG (`CurrentApplication.IsValid()`, via
-  Slate/ContentBrowser). Disable it at runtime rather than editing the project config:
+- **Interchange asserts under `-unattended`** for FBX, PNG, *and* OBJ once the OBJ writer emits
+  UV/group data (`CurrentApplication.IsValid()`, via Slate/ContentBrowser) — a single-section,
+  UV-less OBJ imported cleanly for a long time before this started, so it is easy to mistake for a
+  new bug in the OBJ content rather than the same known headless gap on a translator that wasn't
+  hit before. Disable it at runtime rather than editing the project config:
   `unreal.SystemLibrary.execute_console_command(None, "Interchange.FeatureFlags.Import.PNG 0")` and
-  the same for `.Texture` and `.FBX`.
+  the same for `.Texture`, `.FBX` and `.OBJ`. Each translator registers its own CVar
+  (`InterchangeOBJTranslator.cpp` for the last one) — grep the engine source for the exact name
+  rather than guessing it for a type not listed here yet.
 - **Neither `print()` nor `unreal.log()` reliably reaches the captured log** under
   `-run=pythonscript ... -log`. A script can report "executed successfully" having produced no
   visible output at all. **Write results to a file** and read that.
