@@ -286,3 +286,53 @@ viewport.
 
 **Still placeholders:** 1,401 actors with no geometry to attach, reported as `unsupported` exactly
 as before. Materials are the next gap — the meshes import untextured.
+
+### Phase 1.1 continued, 24 Aug 2026 — level materials, UV mapping, multi-material slots, and two
+bugs that had been reported as clean
+
+**Level materials landed and verified in a live UE5.7 run.** `LevelSceneExporter` now resolves every
+distinct material a level's placed sections use (455 materials, 1,179 texture bindings, 958 PNGs on
+`1-Medical`) and `import_level.py` creates/assigns real `MaterialInstanceConstant`s, reusing
+`import_bioshock.py`'s rig pipeline. Two real bugs found by regression tests that check the actual
+connection rather than that both sides are merely non-empty, not by inspection:
+
+- A `MaterialSwitch` section's key named the switch; the manifest entry resolving it was keyed by
+  the resolved *child* material instead — every other number looked complete (materials non-empty,
+  textures on disk) while that one lookup silently failed. Fixed by keying the written entry off the
+  section's own referenced identity.
+- `BuildAssetObj` wrote positions and faces only — no `vt` (UV) line at all, so **every** level asset
+  imported through this path had no texture mapping regardless of which material got assigned, and
+  every face in one ungrouped run regardless of how many materials a mesh's sections named. Fixed:
+  one `vt` per vertex (same V-flip convention as the proven FBX rig path) and one `usemtl
+  BioShock_{n}` group per section. Verified live: of 792 `1-Medical` assets needing more than one
+  slot, a 20-asset sample all show the imported slot count matching the manifest's section count
+  exactly — confirming UE5's OBJ importer does split by `usemtl` group in file order, the one
+  empirical assumption this depended on. 1,357 static meshes total got a real material assigned.
+
+**Instance placement was wrong the whole time this phase's own text above called it "placed
+correctly."** `import_level.py` never reversed `GameBasis.Convert` (the reflection this project's
+whole pipeline applies because Blender/FBX/glTF are right-handed and BioShock/Unreal are natively
+left-handed), so every instance landed mirrored in Y with an inverted rotation — plausible at a
+glance, wrong up close. **Found by the user exploring the imported level, not by any check this
+project runs.** Fixed and verified live by replaying `LevelSceneTests.
+TheMedicalPavilionCeilingArchFormsOneContinuousSurface`'s own geometric check against the
+actually-placed actors: combined bounding diagonal came back 2422 units, the test's own reference
+value for a correctly-assembled arch (a wrong-handed one measures ~4295).
+
+**The `unsupported` count itself was wrong since `import_level.py` was first written.**
+`_import_instances` marked an actor "handled" by its geometry instance's own composite key, never
+the bare actor key `_import_actors` checks — so every actor with real geometry also got a second,
+overlapping `TargetPoint` placeholder, miscounted as unsupported. On `1-Medical`, reported 7,337,
+true figure 2,018. This means every `unsupported` figure quoted earlier in this document and in
+`docs/ROADMAP.md` predates the fix and overstates the gap — not a new regression, a standing one.
+
+**Net effect on this plan:** Phase 1 (assets) for levels is now materially closer to done than §5/§9
+above describe — geometry, UV mapping, single- and multi-material texturing, correct placement, and
+accurate reporting are all verified live. What Phase 1 still does not cover for levels: animated
+`SkeletalMesh`-kind instances (currently imported as bind-pose-only static geometry through the same
+path as everything else — no skeleton, no animation, no link to the character's actual rig), and
+cubemaps as reflection captures (§5 Phase 1.3, untouched). Scoped but not yet started: the skeletal
+case needs the manifest to record each such asset's source package + character group (via the
+already-existing `AssetContextResolver.TopLevelGroup`, not a new resolver), an orchestration step to
+export/import the rig ahead of the level, and an `import_level.py` change to spawn
+`SkeletalMeshActor`s referencing it instead of a bind-pose `StaticMeshActor`.
