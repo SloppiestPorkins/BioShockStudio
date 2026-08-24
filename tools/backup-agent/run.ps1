@@ -44,6 +44,14 @@ Set-Content -Path $lockFile -Value (Get-Date).ToString("o")
 try {
     Set-Location $repoRoot
     $env:OLLAMA_API_BASE = "http://localhost:11434"
+    # Piping aider's output through Tee-Object strips the real console, which made aider's rich/
+    # prompt_toolkit output crash with UnicodeDecodeError on every past run (see logs from
+    # 2026-08-24 23:12 and 23:23) -- it printed the full drafted edit and then silently never
+    # applied it, because the apply step never ran after the crash. --no-pretty/--no-stream avoid
+    # the rich rendering that crashes, and forcing UTF-8 stdio avoids the console-codepage mismatch
+    # that triggered it.
+    $env:PYTHONIOENCODING = "utf-8"
+    $env:PYTHONUTF8 = "1"
 
     $tasks = Get-ChildItem -Path $agentDir -Filter "task-*.md" | Sort-Object Name
 
@@ -58,7 +66,7 @@ try {
         $logFile = Join-Path $logDir "$($task.BaseName)-$stamp.log"
         Write-Host "=== Running $($task.Name) -- log: $logFile ==="
 
-        & $aider --message-file $task.FullName *>&1 | Tee-Object -FilePath $logFile
+        & $aider --no-pretty --no-stream --message-file $task.FullName *>&1 | Tee-Object -FilePath $logFile
 
         $status = git status --short
         if ([string]::IsNullOrWhiteSpace($status)) {
