@@ -679,13 +679,51 @@ public static class LevelSceneExporter
                    .Append(vertex.Position.Z.ToString("0.####", culture)).AppendLine();
         }
 
-        var indices = geometry.Indices;
-        for (int i = 0; i + 2 < indices.Count; i += 3)
+        // UE5's OBJ importer has no other source of texture coordinates for this path, so a
+        // missing "vt" here is not a cosmetic gap: every material assigned post-import samples
+        // whatever default/absent UV the importer falls back to. Same V-flip as FbxSceneBuilder's
+        // proven-correct convention (`1 - v`), for the same reason — kept consistent so this path
+        // and the rig FBX path cannot disagree about which way up a texture reads.
+        foreach (var vertex in geometry.Vertices)
         {
-            builder.Append("f ")
-                   .Append(indices[i] + 1).Append(' ')
-                   .Append(indices[i + 1] + 1).Append(' ')
-                   .Append(indices[i + 2] + 1).AppendLine();
+            builder.Append("vt ").Append(vertex.Uv.X.ToString("0.####", culture)).Append(' ')
+                   .Append((1.0f - vertex.Uv.Y).ToString("0.####", culture)).AppendLine();
+        }
+
+        var indices = geometry.Indices;
+        if (geometry.Sections.Count == 0)
+        {
+            // No section table -- some geometry (compiled-world brushes) carries none. Every face
+            // in one ungrouped run, exactly as before this method split by section.
+            for (int i = 0; i + 2 < indices.Count; i += 3)
+            {
+                builder.Append("f ")
+                       .Append(indices[i] + 1).Append('/').Append(indices[i] + 1).Append(' ')
+                       .Append(indices[i + 1] + 1).Append('/').Append(indices[i + 1] + 1).Append(' ')
+                       .Append(indices[i + 2] + 1).Append('/').Append(indices[i + 2] + 1).AppendLine();
+            }
+        }
+        else
+        {
+            // One "usemtl" per section, no "g" -- a "g" line would make some importers treat each
+            // section as a separate mesh object rather than one mesh with several material slots,
+            // the opposite of what section-per-material assignment needs. The name only has to be
+            // distinct and stable in order: the importer assigns real materials by this position,
+            // not by parsing the string.
+            for (int s = 0; s < geometry.Sections.Count; s++)
+            {
+                var section = geometry.Sections[s];
+                builder.Append("usemtl BioShock_").Append(s).AppendLine();
+
+                int end = section.FirstIndex + section.TriangleCount * 3;
+                for (int i = section.FirstIndex; i < end; i += 3)
+                {
+                    builder.Append("f ")
+                           .Append(indices[i] + 1).Append('/').Append(indices[i] + 1).Append(' ')
+                           .Append(indices[i + 1] + 1).Append('/').Append(indices[i + 1] + 1).Append(' ')
+                           .Append(indices[i + 2] + 1).Append('/').Append(indices[i + 2] + 1).AppendLine();
+                }
+            }
         }
 
         return builder.ToString();

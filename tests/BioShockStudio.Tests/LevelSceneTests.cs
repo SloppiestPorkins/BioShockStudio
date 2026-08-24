@@ -604,6 +604,33 @@ public sealed class LevelSceneTests(GameFixture game)
             Assert.True(meshes.Count > 100, $"only {meshes.Count} asset meshes were written");
             Assert.All(meshes, path => Assert.True(new FileInfo(path).Length > 0, $"{path} is empty"));
 
+            // BuildAssetObj used to write positions and faces only, with no "vt" line at all -- so
+            // every asset UE5 imports through this path had no UV mapping regardless of which
+            // material later got assigned to it. A vertex count is not the same value as a triangle
+            // count, so this checks the actual index used on each face line, not just presence.
+            string sampleMesh = File.ReadAllText(meshes.First(p => new FileInfo(p).Length > 200));
+            var vLines = sampleMesh.Split('\n').Where(l => l.StartsWith("v ", StringComparison.Ordinal)).ToList();
+            var vtLines = sampleMesh.Split('\n').Where(l => l.StartsWith("vt ", StringComparison.Ordinal)).ToList();
+            var fLines = sampleMesh.Split('\n').Where(l => l.StartsWith("f ", StringComparison.Ordinal)).ToList();
+            Assert.NotEmpty(vtLines);
+            Assert.Equal(vLines.Count, vtLines.Count);
+            Assert.All(vtLines, line =>
+            {
+                var parts = line[3..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Assert.Equal(2, parts.Length);
+            });
+            Assert.All(fLines, line =>
+                Assert.All(line[2..].TrimEnd().Split(' ', StringSplitOptions.RemoveEmptyEntries), token =>
+                {
+                    var indices = token.Split('/');
+                    Assert.Equal(2, indices.Length);
+                    // Each vertex carries exactly one UV, so the position and UV index must match --
+                    // a mismatch would mean a vertex samples a different vertex's texture coordinate.
+                    Assert.Equal(indices[0], indices[1]);
+                    int index = int.Parse(indices[0]);
+                    Assert.InRange(index, 1, vLines.Count);
+                }));
+
             string json = File.ReadAllText(written.First(p => p.EndsWith(".json", StringComparison.Ordinal)));
             var document = JsonSerializer.Deserialize<LevelDocument>(
                 json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
@@ -752,6 +779,84 @@ public sealed class LevelSceneTests(GameFixture game)
                 $"texture entry '{entry.File}' ({entry.Material}/{entry.Slot}) was not written"));
             Assert.All(document.Textures, entry => Assert.Contains(
                 document.Materials, m => m.Name == entry.Material));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A multi-material asset's mesh file groups its faces by section, so an importer can give it
+    /// more than one UE5 material slot instead of collapsing every section onto one.
+    /// </summary>
+    /// <remarks>
+    /// The exported OBJ has no other way to signal "these faces use a different material than
+    /// those faces" -- an importer sees only face runs and "usemtl" markers, not this project's own
+    /// section table. A geometry with a one-section table still gets exactly one "usemtl" line
+    /// (harmless: one group is one UE5 material slot, same as none); only geometry with genuinely no
+    /// section table at all writes with no grouping, which this checks if the map has any -- BSP
+    /// world geometry populates a section table too, so whether one exists at all is itself
+    /// something to find out empirically rather than assume.
+    /// </remarks>
+    [RequiresGameFact]
+    public void AMultiMaterialAssetsMeshFileGroupsFacesBySection()
+    {
+        var scene = Build(game.LighthousePackage);
+        var multiSection = scene.Instances.FirstOrDefault(i => i.Geometry.Sections.Count > 1);
+        Assert.NotNull(multiSection);
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-multimat-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var written = LevelSceneExporter.Write(scene, directory, LevelExportFormats.AssetMeshes);
+            // The exporter's own Sanitise() isn't visible from here; matching the file by its
+            // "_<exportIndex>.obj" suffix is exact regardless of how the object name is sanitised,
+            // since WriteAssetMeshes always builds the stem as "<sanitised-name>_<exportIndex>".
+            string suffix = "_" + multiSection!.Asset.ExportIndex + ".obj";
+            string meshPath = written.Single(p => p.EndsWith(suffix, StringComparison.Ordinal));
+            string obj = File.ReadAllText(meshPath);
+
+            var usemtlLines = obj.Split('\n')
+                .Where(l => l.StartsWith("usemtl ", StringComparison.Ordinal))
+                .Select(l => l.TrimEnd())
+                .ToList();
+            Assert.Equal(multiSection.Geometry.Sections.Count, usemtlLines.Count);
+            Assert.Equal(usemtlLines.Distinct(StringComparer.Ordinal).Count(), usemtlLines.Count);
+
+            // Face count under each usemtl must match that section's own declared triangle count --
+            // not just that some grouping happened, but that it happened at the right boundaries.
+            var sectionsOfFaces = obj.Split('\n')
+                .Aggregate((Current: -1, Counts: new List<int>()), (acc, line) =>
+                {
+                    if (line.StartsWith("usemtl ", StringComparison.Ordinal)) { acc.Counts.Add(0); return (acc.Counts.Count - 1, acc.Counts); }
+                    if (line.StartsWith("f ", StringComparison.Ordinal) && acc.Current >= 0) acc.Counts[acc.Current]++;
+                    return acc;
+                }).Counts;
+            Assert.Equal(multiSection.Geometry.Sections.Select(s => s.TriangleCount).ToList(), sectionsOfFaces);
+
+            // The boundary case: a real one-section asset gets exactly one "usemtl", not zero and
+            // not "no grouping" -- the branch that matters is Sections.Count == 0 vs > 0, not
+            // <= 1 vs > 1.
+            var oneSection = scene.Instances.FirstOrDefault(i => i.Geometry.Sections.Count == 1);
+            if (oneSection is not null)
+            {
+                string oneSuffix = "_" + oneSection.Asset.ExportIndex + ".obj";
+                string onePath = written.Single(p => p.EndsWith(oneSuffix, StringComparison.Ordinal));
+                var oneUsemtl = File.ReadAllText(onePath).Split('\n')
+                    .Count(l => l.StartsWith("usemtl ", StringComparison.Ordinal));
+                Assert.Equal(1, oneUsemtl);
+            }
+
+            // A geometry with genuinely no section table must still write with no grouping at all --
+            // only exercised if this map actually has one; not assumed.
+            var noSections = scene.Instances.FirstOrDefault(i => i.Geometry.Sections.Count == 0 && i.Geometry.Vertices.Count > 0);
+            if (noSections is not null)
+            {
+                string noSuffix = "_" + noSections.Asset.ExportIndex + ".obj";
+                string noPath = written.Single(p => p.EndsWith(noSuffix, StringComparison.Ordinal));
+                Assert.DoesNotContain("usemtl", File.ReadAllText(noPath));
+            }
         }
         finally
         {
