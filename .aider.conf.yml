@@ -1,0 +1,18 @@
+# Backup-agent config: local Ollama models continue this repo's work when Claude usage runs out.
+# See tools/backup-agent/README.md for how this is meant to be invoked and reviewed.
+
+model: ollama_chat/qwen3-coder:30b
+weak-model: ollama_chat/qwen2.5-coder:14b
+
+# Never commits. Edits land in the working tree only -- the user reviews and commits by hand once
+# Claude is available again, the same trust level this session already used for qwen-drafted code.
+auto-commits: false
+
+# Runs non-interactively: no per-edit confirmation prompts, since nobody may be watching.
+yes-always: true
+
+# Catches an obviously broken edit immediately rather than letting it compound across tasks.
+auto-test: true
+test-cmd: dotnet test tests/BioShockStudio.Tests/BioShockStudio.Tests.csproj --filter Tier=Fast
+
+# Repo-map / gitignore already scope this correctly; nothing else needed here.

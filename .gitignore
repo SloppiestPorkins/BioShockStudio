@@ -50,5 +50,11 @@ coverage*.xml
 /.agent-control/logs/
 /.agent-control/.gpu.lock
 
-# Aider local session state, if the tool is used against this repo.
+# Aider local session state, if the tool is used against this repo. The project config is the
+# infrastructure and stays tracked, same convention as .agent-control/ above.
 .aider*
+!.aider.conf.yml
+
+# tools/backup-agent's own run logs are machine-specific and transient; the task queue and wrapper
+# script are the infrastructure and stay tracked.
+/tools/backup-agent/logs/
