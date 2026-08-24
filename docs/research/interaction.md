@@ -5,9 +5,10 @@ the source object graph backing them is known." This note is the first piece of 
 `ScriptableMover`, what triggers them, their start pose, and the census that scopes the rest of the
 item.
 
-**Status.** The trigger-wiring and start-pose fields are `CONFIRMED_BYTES`, and `TriggeredBy` is
-resolved against `Label` in code (§2). The keyframe motion path itself (`KeyPos`/`KeyRot`) is
-deliberately not decoded — see §3.
+**Status.** The trigger-wiring and start-pose fields are `CONFIRMED_BYTES`, and a mover's
+`TriggeredBy` is resolved against `Label` in code (§2). Triggers' own `TriggeredBy` turned out to be
+a class filter, not an object reference, and is closed rather than open (§4). The keyframe motion
+path itself (`KeyPos`/`KeyRot`) is deliberately not decoded — see §3.
 
 ## 1. The shape
 
@@ -137,16 +138,32 @@ order or count would be exactly the "numeric validation passes on visibly wrong 
 mode this project has already hit more than once — a mover's motion path is precisely the kind of
 thing that needs rendering, not just parsing, to confirm.
 
-## 4. What this note does not claim
+## 4. Triggers' own `TriggeredBy` — closed, and not a name at all
+
+Checked at whole-game scale, 24 Aug 2026, since the single `1-Medical` instance found earlier
+already looked different from movers': across every package, `RegionActorData.TriggeredBy` (the
+same property name, on `TriggerVolume`/`TriggerRadius`/`ZoneInfo`) has exactly **one distinct
+value across all 25 occurrences it has: the literal string `"Player"`.** It is a class filter, not
+an object reference — there is nothing to resolve, and the mover mechanism (§2) doesn't apply here
+at all. Confirmed rather than assumed: 25/25, not "mostly".
+
+**`TriggerOnlyByLabels` — despite its name, also not resolvable against `Label`.** It's a separate
+already-decoded array field, mostly `"Player"` again but also carrying what read at first like
+character names: `Steinman`, `Cohen`, `FinalAmbushDude`, `BerserkDude1`, and 21 others across the
+game. All 62 non-`"Player"` occurrences were checked against every already-decoded name-shaped field
+on every actor in the same package — `Tag`, `Label`, and `Spawner.InitialLabel` — and **none of the
+three resolves more than 1 of 62.** `LIKELY` these are AI-archetype or character-identity filters
+("only a Cohen-type enemy trips this"), resolved through a system this project hasn't decoded
+rather than a placed-actor name lookup. Left open rather than guessed at further — this is a
+different, unopened investigation, not a variant of §2's mechanism.
+
+## 5. What this note does not claim
 
 - **No door decode is included here**, despite the roadmap item naming it. Doors
   (`AccordianGateDoor`, `MedicalDoors_Solid`, ...) are skeletal-mesh actors with their own undecoded
   fields — `DoorPortal`, `bLocked`, `PathList`, `OpenAnimationRate`.
-- **Triggers already have their configuration typed** (`RegionActorData`, Gate 3 item 3), including
-  their own `TriggeredBy`, but that hasn't been resolved against `Label` the way movers' now is.
-  One instance was seen in `1-Medical` (`"Player"`), and it reads as a class-filter value rather
-  than a name — so triggers may use this property differently than movers do. Not checked at
-  whole-game scale.
+- **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
+  `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
 - **Plasmid/weapon effects weren't investigated in this pass.** A first grep of `ShockGame.U`'s
   decompiled output shows classes like `LiquidNitrogen_Player` and `MachineGun_MuzzleFX` that read
   as script-side class defaults — a different decode mechanism from everything else in this note,

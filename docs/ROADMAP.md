@@ -1247,15 +1247,20 @@ material.
      `BasePos`/`BaseRot`" reading is an unverified `HYPOTHESIS`. A wrong key count or order here is
      exactly the "numeric validation passes on visibly wrong output" failure mode this project has
      already hit — this needs a render check, not just a parse, before it's typed.
-   - **Doors and plasmid/weapon effects are unstarted.** Triggers already have their own
-     configuration typed (Gate 3 item 3's `RegionActorData`), including their own `TriggeredBy` —
-     unresolved against `Label` the same way movers' now is, one instance found in `1-Medical`
-     (`"Player"`, which itself reads as a class-filter value rather than a name, so triggers may
-     use this property differently than movers do; not yet checked at whole-game scale). Doors
-     carry their own undecoded fields (`DoorPortal`, `bLocked`, `PathList`, `OpenAnimationRate`).
-     Plasmid/weapon effects read as script-side class defaults
-     (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than placed-actor payloads — a
-     different decode mechanism from everything else in this item, not investigated yet.
+   - **Triggers' own `TriggeredBy` closed, 24 Aug 2026 — checked at whole-game scale and it isn't
+     a name at all.** All 25 shipped occurrences (`TriggerVolume`/`TriggerRadius`/`ZoneInfo`) are
+     the literal string `"Player"` — a class filter, not an object reference, so the mover
+     resolution mechanism doesn't apply. `TriggerOnlyByLabels` (a separate already-decoded array,
+     mostly `"Player"` but also carrying names like `Steinman`/`Cohen`/`FinalAmbushDude`) was
+     checked against every already-decoded name field — `Tag`, `Label`, `Spawner.InitialLabel` —
+     and none resolves more than 1 of 62. `LIKELY` an AI-archetype/character-identity filter
+     resolved through a system this project hasn't decoded. Left open rather than chased further —
+     a genuinely separate investigation from movers' `TriggeredBy`, not a variant of it.
+   - **Doors and plasmid/weapon effects remain unstarted.** Doors carry their own undecoded fields
+     (`DoorPortal`, `bLocked`, `PathList`, `OpenAnimationRate`). Plasmid/weapon effects read as
+     script-side class defaults (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than
+     placed-actor payloads — a different decode mechanism from everything else in this item, not
+     investigated yet.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 
