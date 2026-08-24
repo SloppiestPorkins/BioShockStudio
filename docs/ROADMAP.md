@@ -42,7 +42,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | Audio — streamed FSB5 | Working — x86 FMOD bridge decodes any subsound to WAV; app has a Streamed Audio tab (65 banks, 10,882 subsounds). |
 | Application (GUI) | Asset browser (14,378 assets), 3D preview + animation playback, walkable level viewport (GPU + tested software fallback), Problems panel, audio tabs, profile editor. |
 | Export — Blender / FBX | Complete — skinned mesh, armature, actions, sockets, materials; FBX validated by round-trip through Blender. |
-| UE5 import | **Working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. See Gate 2 item 4 for the full list. No app-facing UI yet. |
+| UE5 import | **Rigs working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. **Levels: proof of concept on `1-Medical`, 24 Aug 2026** — 13,411 actors created, geometry and lights placed correctly at scale, confirmed by direct visual inspection (Gate 5 item 3). No materials yet (bindings exported, no UE5 graph generated). See Gate 2 item 4 for the rig list. No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
 | Tests | Full suite **550/550 passing** (measured 23 Aug 2026 at `9cb53b2`). See "Test health" below for the stamp and what has been run since. |
@@ -1309,6 +1309,20 @@ material.
      probe-located, not imported as reflection captures) — so the map cannot imply broader coverage
      than exists. The report's `missing` field is the one that matters: a class claimed as
      supported but not instanced is a failure, reported rather than skipped.
+   - **First proof of concept on `1-Medical`, 24 Aug 2026 — `import_level.py` run for real, at
+     scale, and looked at.** Previously verified only on `0-Lighthouse` (1,877 actors). Exported
+     and validated cleanly (`validate_level_manifest.py`, exit 0): 8,089 actors, 1,551 unique mesh
+     assets, 5,322 geometry instances, 692 lights. Imported into the `BioShockUE5` project's
+     `Untitled` transient level: **13,411 created, 0 updated, 0 skipped, 7,337 unsupported**
+     (typed placeholders — scripts, markers, spawners; correctly reported rather than silently
+     dropped). The user then looked at it directly in the editor — walls, floor and a room's worth
+     of geometry render at the correct scale and position, no materials (checkerboard, as
+     expected — bindings exist, no graph generated yet). **Confirmed against this session's own
+     work**: searching the Outliner for `MeatLocker` surfaces `MeatLockerDoor` as a real
+     `StaticMeshActor` with `MeatLockerDoorScript`/`MeatLockerOn` — its two `ResolvedTriggers`
+     targets from the same day's mover-resolution commit — placed nearby as the `TargetPoint`
+     placeholders their `Script` class predicts. Not saved as a persistent level asset yet — this
+     was a live, unsaved verification pass, not a checked-in result.
 4. Only add an app-facing "export to UE5" workflow once the command-line import reproduces cleanly
    on a fresh UE5 project — deliberately not sooner.
    **Precondition tested 23 Aug 2026 and it is *nearly* met, with one documented caveat.** A rig
