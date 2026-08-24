@@ -55,6 +55,9 @@ coverage*.xml
 .aider*
 !.aider.conf.yml
 
-# tools/backup-agent's own run logs are machine-specific and transient; the task queue and wrapper
-# script are the infrastructure and stay tracked.
+# tools/backup-agent's own run logs and lock file are machine-specific and transient; the task
+# queue and wrapper script are the infrastructure and stay tracked. task-*.done markers ARE
+# tracked deliberately -- they record which queued tasks have already been reviewed and committed,
+# which matters across machines/sessions, not just on this one.
 /tools/backup-agent/logs/
+/tools/backup-agent/.run.lock

@@ -32,7 +32,13 @@ records repeatedly — several of those needed a live UE5 run or a render to act
   "done" means for that task specifically, including "say so plainly" instructions for the parts
   that can't be verified without a live UE5 editor run.
 - **`run.ps1`** — runs the task queue in order, logs each run under `logs/`, stops on a fast-tier
-  failure.
+  failure. Skips a task once it has a `task-NN-*.done` marker next to it (see "After it runs"
+  below), and refuses to start a second overlapping run via `.run.lock` (auto-considered stale
+  after 2 hours, in case a previous run was killed rather than exiting cleanly).
+- **A `SessionEnd` hook** in `C:\Users\Jack\Documents\AI Test\.claude\settings.local.json` (that
+  project's own local settings, not this repo's — see below for why) launches `run.ps1` in a
+  detached background PowerShell process when a Claude Code session in that project ends, so the
+  backup agent picks up automatically rather than needing to be started by hand every time.
 
 ## Running it
 
@@ -59,7 +65,26 @@ ollama_chat/deepseek-coder-v2:16b` if needed.
 right: commit it yourself, or hand it to Claude next session to review and commit (mention this
 file so it knows to look here first, rather than re-deriving what's already been scoped).
 
+**Once a task's work is reviewed and committed, mark it done** so a later automatic run doesn't
+redo it: `New-Item -ItemType File tools\backup-agent\task-01-export-character-rigs.done` (matching
+the task's own base filename). `run.ps1` skips any task with a `.done` marker. These markers are
+tracked in git deliberately — they're a fact about the project's progress, not local machine state.
+
 If a task's log shows it got stuck, made a wrong call, or explicitly said it couldn't verify
 something (see each task file's point about live UE5 verification) — that's expected, not a
 failure of the setup. Read the log, decide whether to fix it by hand, re-run the task with a
 follow-up instruction, or leave it for Claude.
+
+## Why the SessionEnd hook lives in a different project's settings
+
+This repo (BioshockHavok) isn't the Claude Code project root this work has actually been done
+through this session — `C:\Users\Jack\Documents\AI Test` is, with BioshockHavok worked in via
+absolute paths as an additional directory. Claude Code project-scoped settings
+(`.claude/settings.local.json`) are read relative to the actual project root, so the hook has to
+live in *that* project's settings to fire when *this kind of session* ends. It was **not** placed
+in the global `~/.claude/settings.json`, since that would fire this repo-specific automation for
+every unrelated Claude Code session on the machine, not just ones doing BioShockHavok work.
+
+`SessionEnd` was used rather than `Stop` — `Stop` fires after every single turn (including
+`/clear`, `/resume`, `/compact`), which would mean starting a multi-minute aider+test run after
+nearly every message. `SessionEnd` only fires when the session itself concludes.
