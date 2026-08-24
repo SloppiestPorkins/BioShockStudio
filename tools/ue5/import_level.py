@@ -400,6 +400,16 @@ def _import_instances(manifest, meshes, existing, report, handled):
         actor.tags = [unreal.Name(KEY_TAG_PREFIX + key)]
         existing[key] = actor
 
+        # _import_actors checks the bare actor key, not this function's "instance:...:..." one --
+        # only added here, once a real mesh actor is actually standing, so a mesh lookup or spawn
+        # failure above still falls through to _import_actors' TargetPoint fallback rather than
+        # leaving the actor with no representation at all. Before this, EVERY actor that reached
+        # this point still got a second, overlapping TargetPoint spawned afterwards and miscounted
+        # as unsupported -- on 1-Medical this inflated the reported unsupported count from a true
+        # 2,018 to 7,337, since 5,321 actors with working geometry were double-counted as if they
+        # had none.
+        handled.add(instance["actorKey"])
+
 def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel"):
     """Import one level manifest. Returns the created/updated/skipped/unsupported report."""
     with open(manifest_path, "r", encoding="utf-8") as handle:
