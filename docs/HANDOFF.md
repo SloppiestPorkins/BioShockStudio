@@ -469,6 +469,45 @@ Each of these produced a plausible, wrong result before it was understood.
   direction is forcing surfaces opaque, which would turn the game's gratings into solid rectangles.
   Note the software preview renderer still decides transparency from observed alpha alone and has
   **not** been changed to match.
+- **A `MaterialSwitch` section's key named the switch; the material entry resolving it was keyed
+  by its default child instead, and the manifest looked complete either way** (24 Aug 2026, level
+  materials). `MaterialReader.Read` deliberately follows a switch to its authored default child and
+  returns the *child's* class/name/export index — correct for rendering, since the switch itself
+  never draws. `LevelSceneExporter.WriteMaterials` resolved each section's material this way and
+  then recomputed the written entry's key from the *resolved* material's own fields, so a section
+  naming switch export 12791 got a `LevelDocument.Materials` entry keyed by its child's identity
+  instead. Every other numeric check passed: materials non-empty (455 on `1-Medical`), 1,179
+  texture bindings, 958 real PNGs on disk — this is the same shape of failure as the coverage-bucket
+  and grey-security-camera entries above, a manifest that looks complete while one specific lookup
+  silently finds nothing. Caught by a test that resolves the connection itself — every section's own
+  `MaterialKey` against `LevelDocument.Materials`' keys — rather than checking either side alone;
+  2,673 of 2,674 sections on `1-Medical` passed even with the bug present, so a spot check would very
+  likely have missed it. Fixed by keying each written `LevelMaterialDocument` off the
+  `Level.SourceId` a section actually references, while still carrying the resolved child's real
+  class/name/textures for rendering — the two are allowed to describe different exports on purpose.
+  `LevelSceneTests.MaterialsResolveAndTheirTexturesAreWrittenForAPlacedLevel` pins it.
+- **`import_level.py` placed every instance mirrored in Y with an inverted rotation, and a quick
+  look still showed a recognisable, right-sized level** (24 Aug 2026, found by the user exploring
+  the imported `1-Medical` in the editor). `LevelSceneExporter` runs every instance transform and
+  light location through `GameBasis.Convert` — the reflection this project's whole pipeline applies
+  because Blender/FBX/glTF are right-handed and BioShock's Vengeance engine (like Unreal itself) is
+  left-handed. `import_level.py` fed those already-reflected numbers straight into
+  `unreal.Vector`/`unreal.Quat` with no reversal, so every placed actor landed with Y negated
+  relative to where Unreal's own left-handed +Y-right basis puts it, and every rotation extracted
+  from the (still-reflected) matrix meant something different once run through UE5's own
+  quaternion-to-rotator conversion. This is the same shape of trap as the two-year mirrored-asset
+  landmine above, on a different consumer of the same reflection: scale was right, the level was
+  still a recognisable hospital, and "confirmed by direct visual inspection" (this file, three
+  entries up) had already been written against exactly this bug. **Caught only because a user
+  actually explored the level**, not by any check this project runs. Fixed by reversing the same
+  reflection — it is an involution, so reversing it means negating Y and the quaternion's X/Z
+  components again — before every `set_actor_location`/`set_actor_rotation`/`spawn_actor_from_class`
+  call. Verified in a live UE5.7 editor by replaying `LevelSceneTests`'
+  `TheMedicalPavilionCeilingArchFormsOneContinuousSurface` check against the actually-placed actors'
+  real world bounds rather than the raw decode: the four `window_512_corner_4up` instances' combined
+  bounding diagonal came back **2422 units** — the exact reference value that test already
+  established for a correctly-assembled arch (a twisted, wrong-handed one measures ~4295) — so this
+  is a real run confirming the fix, not a repeat of the same static reasoning that produced it.
 
 ## 5. Validation
 

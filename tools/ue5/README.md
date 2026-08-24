@@ -58,6 +58,31 @@ become real `StaticMeshActor`s**: each unique asset is imported once from its lo
 (manifest v4's per-asset `file`) and placed by the manifest's per-instance transforms. Measured on
 `0-Lighthouse`: 422 meshes, 1,274 instances, 0 skipped.
 
+**Every instance was placed mirrored in Y with an inverted rotation until 24 Aug 2026, found by a
+user exploring the imported level** — the counts above were never wrong, but the placement was.
+`LevelSceneExporter` runs every instance transform and light location through `GameBasis.Convert`
+(this project's right-handed, +Y-left basis for Blender/FBX/glTF); Unreal's own basis is
+left-handed, +Y-right, the opposite. `import_level.py` fed the manifest's numbers straight into
+`unreal.Vector`/`unreal.Quat` with no reversal. Fixed by reversing the same reflection — it is an
+involution, so reversing it is negating Y again, and negating the quaternion's X and Z components —
+before every placement call. Verified in a live UE5.7 editor, not just re-derived: re-running
+`LevelSceneTests.TheMedicalPavilionCeilingArchFormsOneContinuousSurface`'s own check against the
+actually-placed actors on `1-Medical`, the four `window_512_corner_4up` instances' combined
+world-space bounding diagonal came back **2422 units** — that test's own reference value for a
+correctly-assembled arch (a twisted, wrong-handed one measures ~4295). See `docs/HANDOFF.md` §4.
+
+**Materials, verified in the same live UE5.7 run, 24 Aug 2026.** When the manifest carries a
+`materials`/`textures` array (only when the level was exported with an open package — see
+`LevelSceneExporter.Write`'s `package` parameter), `import_level.py` reuses
+`import_bioshock.py`'s texture-import and `MaterialInstanceConstant` creation unchanged, keyed by
+each manifest material's own `key` rather than its name (a `MaterialSwitch` reference and its
+resolved default child can share one instance under two different keys). The instance is assigned
+to a static mesh only when every one of its sections names the same material — the exported OBJ
+carries no per-section groups to assign multiple materials against, so a multi-material mesh is
+counted in the report's `multiMaterialMeshes` field rather than guessed at. On `1-Medical`: 619
+static meshes got a real material instance assigned, 738 multi-material meshes counted and left
+unassigned.
+
 Actors with no geometry to attach become positioned, tagged `TargetPoint`s counted as
 `unsupported`. That count is deliberately
 visible rather than folded into "created" — the coverage ledger already separates "placed" from
