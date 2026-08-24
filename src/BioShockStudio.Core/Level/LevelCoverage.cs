@@ -69,6 +69,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded saved runtime-state actor that should not be recreated as authored level content.</summary>
     RuntimeStatePending,
 
+    /// <summary>A decoded <c>Mover</c>/<c>ScriptableMover</c> awaiting a UE5 timeline/matinee representation.</summary>
+    MoverPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -184,6 +187,7 @@ public sealed record LevelCoverageReport
         if (actor.ShockAiScout is not null) return LevelActorCoverage.RuntimeStatePending;
         if (actor.Vending is not null) return LevelActorCoverage.InteractionPending;
         if (actor.Interaction is not null) return LevelActorCoverage.InteractionPending;
+        if (actor.Mover is not null) return LevelActorCoverage.MoverPending;
 
         return LevelActorCoverage.Unclassified;
     }

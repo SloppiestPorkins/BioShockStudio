@@ -337,6 +337,21 @@ public static class LevelSceneExporter
                     DestructionNotification = actor.ShockAiScout.DestructionNotification,
                     Complete = actor.ShockAiScout.Complete,
                 },
+                Mover = actor.Mover is null ? null : new LevelMoverActorDocument
+                {
+                    InitialState = actor.Mover.InitialState,
+                    TriggeredBy = actor.Mover.TriggeredBy,
+                    BasePos = actor.Mover.BasePos is { } basePos ? ToArray(basePos) : null,
+                    BaseRot = actor.Mover.BaseRot is { } baseRot
+                        ? [baseRot.Pitch, baseRot.Yaw, baseRot.Roll] : null,
+                    MoveTime = actor.Mover.MoveTime,
+                    StayOpenTime = actor.Mover.StayOpenTime,
+                    UseTriggered = actor.Mover.UseTriggered,
+                    TriggerOnceOnly = actor.Mover.TriggerOnceOnly,
+                    MoverEncroachType = actor.Mover.MoverEncroachType,
+                    MoverGlideType = actor.Mover.MoverGlideType,
+                    Complete = actor.Mover.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -368,6 +383,32 @@ public static class LevelSceneExporter
                         MaxParticles = template.MaxParticles,
                         ParticlesPerSecond = template.ParticlesPerSecond,
                         InitialParticlesPerSecond = template.InitialParticlesPerSecond,
+                        AutomaticInitialSpawning = template.AutomaticInitialSpawning,
+                        RespawnDeadParticles = template.RespawnDeadParticles,
+                        LifetimeRange = ToArray(template.LifetimeRange),
+                        StartSizeRange = ToArray(template.StartSizeRange),
+                        UniformSize = template.UniformSize,
+                        UseSizeScale = template.UseSizeScale,
+                        UseRegularSizeScale = template.UseRegularSizeScale,
+                        SizeScale = ToDocument(template.SizeScale),
+                        StartVelocityRange = ToArray(template.StartVelocityRange),
+                        Acceleration = template.Acceleration is { } acceleration ? ToArray(acceleration) : null,
+                        VelocityScale = ToDocument(template.VelocityScale),
+                        StartLocationRange = ToArray(template.StartLocationRange),
+                        StartLocationOffset = template.StartLocationOffset is { } offset ? ToArray(offset) : null,
+                        StartLocationShape = template.StartLocationShape,
+                        StartSpinRange = ToArray(template.StartSpinRange),
+                        SpinsPerSecondRange = ToArray(template.SpinsPerSecondRange),
+                        SpinParticles = template.SpinParticles,
+                        UseColorScale = template.UseColorScale,
+                        ColorScale = ToDocument(template.ColorScale),
+                        Blending = template.Blending,
+                        CoordinateSystem = template.CoordinateSystem,
+                        TextureUSubdivisions = template.TextureUSubdivisions,
+                        TextureVSubdivisions = template.TextureVSubdivisions,
+                        StaticMesh = Describe(template.StaticMesh),
+                        SegmentSizeScale = ToDocument(template.SegmentSizeScale),
+                        SegmentColorScale = ToDocument(template.SegmentColorScale),
                         PropertiesComplete = template.PropertiesComplete,
                     }).ToList(),
                 },
@@ -583,6 +624,27 @@ public static class LevelSceneExporter
 
     private static float[] ToArray(Vector3 v) => [v.X, v.Y, v.Z];
 
+    /// <summary>A <c>Range</c> as <c>[Min, Max]</c>, or null when the field was not serialised.</summary>
+    private static float[]? ToArray(FloatRange? range) =>
+        range is { } r ? [r.Min, r.Max] : null;
+
+    /// <summary>A <c>RangeVector</c> as <c>[MinX, MaxX, MinY, MaxY, MinZ, MaxZ]</c>.</summary>
+    private static float[]? ToArray(AxisRange? axis) =>
+        axis is { } a ? [a.X.Min, a.X.Max, a.Y.Min, a.Y.Max, a.Z.Min, a.Z.Max] : null;
+
+    private static List<LevelFloatCurveKeyDocument>? ToDocument(IReadOnlyList<FloatCurveKey>? curve) =>
+        curve?.Select(key => new LevelFloatCurveKeyDocument { RelativeTime = key.RelativeTime, Value = key.Value }).ToList();
+
+    private static List<LevelColorCurveKeyDocument>? ToDocument(IReadOnlyList<ColorCurveKey>? curve) =>
+        curve?.Select(key => new LevelColorCurveKeyDocument
+        {
+            RelativeTime = key.RelativeTime,
+            Color = [key.Color.R, key.Color.G, key.Color.B, key.Color.A],
+        }).ToList();
+
+    private static List<LevelVectorCurveKeyDocument>? ToDocument(IReadOnlyList<VectorCurveKey>? curve) =>
+        curve?.Select(key => new LevelVectorCurveKeyDocument { RelativeTime = key.RelativeTime, Value = ToArray(key.Value) }).ToList();
+
     private static float[] ToArray(Matrix4x4 m) =>
     [
         m.M11, m.M12, m.M13, m.M14,
@@ -717,6 +779,7 @@ public sealed record LevelActorDocument
     public LevelInteractionActorDocument? Interaction { get; init; }
     public LevelInfoActorDocument? LevelInfo { get; init; }
     public LevelShockAiScoutDocument? ShockAiScout { get; init; }
+    public LevelMoverActorDocument? Mover { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -861,6 +924,25 @@ public sealed record LevelShockAiScoutDocument
     public required bool Complete { get; init; }
 }
 
+/// <summary>
+/// The typed subset of a <c>Mover</c>/<c>ScriptableMover</c>. The keyframe path
+/// (<c>KeyPos</c>/<c>KeyRot</c>) is not included — see <c>docs/research/interaction.md</c>.
+/// </summary>
+public sealed record LevelMoverActorDocument
+{
+    public string? InitialState { get; init; }
+    public string? TriggeredBy { get; init; }
+    public float[]? BasePos { get; init; }
+    public int[]? BaseRot { get; init; }
+    public float? MoveTime { get; init; }
+    public float? StayOpenTime { get; init; }
+    public bool? UseTriggered { get; init; }
+    public bool? TriggerOnceOnly { get; init; }
+    public byte? MoverEncroachType { get; init; }
+    public byte? MoverGlideType { get; init; }
+    public required bool Complete { get; init; }
+}
+
 public sealed record LevelPressureRegionDocument(string Name, byte Pressure, float EffectsDuration);
 public sealed record LevelMapUiRegionDocument(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record LevelMapHudRegionDocument(string HudRegion, string Description);
@@ -986,7 +1068,13 @@ public sealed record LevelEmittersDocument
     public required List<LevelEmitterTemplateDocument> Templates { get; init; }
 }
 
-/// <summary>Known emitter-template fields; unsupported template properties remain in source bytes.</summary>
+/// <summary>
+/// Known emitter-template fields; unsupported template properties remain in source bytes. Range
+/// fields serialise as <c>[Min, Max]</c> (<see cref="LevelEmittersDocument"/>'s source type is UE2's
+/// <c>Range</c>) or, for an axis range, <c>[MinX, MaxX, MinY, MaxY, MinZ, MaxZ]</c>. <c>Blending</c>,
+/// <c>CoordinateSystem</c> and <c>StartLocationShape</c> are raw bytes — their enum meanings are
+/// `UNKNOWN`, see <c>docs/research/effects.md</c> §6.
+/// </summary>
 public sealed record LevelEmitterTemplateDocument
 {
     public required LevelReferenceDocument? Source { get; init; }
@@ -994,7 +1082,54 @@ public sealed record LevelEmitterTemplateDocument
     public int? MaxParticles { get; init; }
     public float? ParticlesPerSecond { get; init; }
     public float? InitialParticlesPerSecond { get; init; }
+    public bool? AutomaticInitialSpawning { get; init; }
+    public bool? RespawnDeadParticles { get; init; }
+    public float[]? LifetimeRange { get; init; }
+    public float[]? StartSizeRange { get; init; }
+    public bool? UniformSize { get; init; }
+    public bool? UseSizeScale { get; init; }
+    public bool? UseRegularSizeScale { get; init; }
+    public List<LevelFloatCurveKeyDocument>? SizeScale { get; init; }
+    public float[]? StartVelocityRange { get; init; }
+    public float[]? Acceleration { get; init; }
+    public List<LevelVectorCurveKeyDocument>? VelocityScale { get; init; }
+    public float[]? StartLocationRange { get; init; }
+    public float[]? StartLocationOffset { get; init; }
+    public byte? StartLocationShape { get; init; }
+    public float[]? StartSpinRange { get; init; }
+    public float[]? SpinsPerSecondRange { get; init; }
+    public bool? SpinParticles { get; init; }
+    public bool? UseColorScale { get; init; }
+    public List<LevelColorCurveKeyDocument>? ColorScale { get; init; }
+    public byte? Blending { get; init; }
+    public byte? CoordinateSystem { get; init; }
+    public int? TextureUSubdivisions { get; init; }
+    public int? TextureVSubdivisions { get; init; }
+    public LevelReferenceDocument? StaticMesh { get; init; }
+    public List<LevelFloatCurveKeyDocument>? SegmentSizeScale { get; init; }
+    public List<LevelColorCurveKeyDocument>? SegmentColorScale { get; init; }
     public required bool PropertiesComplete { get; init; }
+}
+
+/// <summary>One key of a <c>{ RelativeTime, RelativeSize }</c>-shaped curve, e.g. <c>SizeScale</c>.</summary>
+public sealed record LevelFloatCurveKeyDocument
+{
+    public required float RelativeTime { get; init; }
+    public required float Value { get; init; }
+}
+
+/// <summary>One key of a <c>{ RelativeTime, Color }</c>-shaped curve, e.g. <c>ColorScale</c>. <c>Color</c> is <c>[R, G, B, A]</c>.</summary>
+public sealed record LevelColorCurveKeyDocument
+{
+    public required float RelativeTime { get; init; }
+    public required byte[] Color { get; init; }
+}
+
+/// <summary>One key of a <c>{ RelativeTime, RelativeVelocity }</c>-shaped curve, i.e. <c>VelocityScale</c>.</summary>
+public sealed record LevelVectorCurveKeyDocument
+{
+    public required float RelativeTime { get; init; }
+    public required float[] Value { get; init; }
 }
 
 public sealed record LevelPropertyDocument

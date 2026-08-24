@@ -106,7 +106,28 @@ public sealed record EmitterActorData
     public required bool Complete { get; init; }
 }
 
-/// <summary>The byte-backed, deliberately small typed subset of one referenced emitter template.</summary>
+/// <summary>UE2's <c>Range</c> struct: an inclusive float interval, serialised as a nested tagged list.</summary>
+public readonly record struct FloatRange(float Min, float Max);
+
+/// <summary>UE2's <c>RangeVector</c> struct: one <see cref="FloatRange"/> per axis.</summary>
+public readonly record struct AxisRange(FloatRange X, FloatRange Y, FloatRange Z);
+
+/// <summary>One key of a <c>{ RelativeTime, RelativeSize }</c>-shaped curve array (e.g. <c>SizeScale</c>).</summary>
+public readonly record struct FloatCurveKey(float RelativeTime, float Value);
+
+/// <summary>One key of a <c>{ RelativeTime, Color }</c>-shaped curve array (e.g. <c>ColorScale</c>).</summary>
+public readonly record struct ColorCurveKey(float RelativeTime, LightColor Color);
+
+/// <summary>One key of a <c>{ RelativeTime, RelativeVelocity }</c>-shaped curve array (<c>VelocityScale</c>).</summary>
+public readonly record struct VectorCurveKey(float RelativeTime, Vector3 Value);
+
+/// <summary>
+/// The byte-backed typed subset of one referenced emitter template — enough to place, size, move
+/// and colour a particle without inventing a value the game did not ship. Eleven single-byte fields
+/// (<c>Blending</c>, <c>CoordinateSystem</c>, ...) are carried as their raw byte because their enum
+/// declarations are not in anything this project has read; see <c>docs/research/effects.md</c> §6.
+/// <c>SubdivisionScale</c> and <c>RevolutionScale</c> (6 and 1 shipped hits) remain undecoded.
+/// </summary>
 public sealed record EmitterTemplateData
 {
     public required AssetReference Source { get; init; }
@@ -114,6 +135,49 @@ public sealed record EmitterTemplateData
     public int? MaxParticles { get; init; }
     public float? ParticlesPerSecond { get; init; }
     public float? InitialParticlesPerSecond { get; init; }
+    public bool? AutomaticInitialSpawning { get; init; }
+    public bool? RespawnDeadParticles { get; init; }
+
+    public FloatRange? LifetimeRange { get; init; }
+
+    public AxisRange? StartSizeRange { get; init; }
+    public bool? UniformSize { get; init; }
+    public bool? UseSizeScale { get; init; }
+    public bool? UseRegularSizeScale { get; init; }
+    public IReadOnlyList<FloatCurveKey>? SizeScale { get; init; }
+
+    public AxisRange? StartVelocityRange { get; init; }
+    public Vector3? Acceleration { get; init; }
+    public IReadOnlyList<VectorCurveKey>? VelocityScale { get; init; }
+
+    public AxisRange? StartLocationRange { get; init; }
+    public Vector3? StartLocationOffset { get; init; }
+
+    /// <summary>Byte enum; meaning `UNKNOWN` (docs/research/effects.md §6).</summary>
+    public byte? StartLocationShape { get; init; }
+
+    public AxisRange? StartSpinRange { get; init; }
+    public AxisRange? SpinsPerSecondRange { get; init; }
+    public bool? SpinParticles { get; init; }
+
+    public bool? UseColorScale { get; init; }
+    public IReadOnlyList<ColorCurveKey>? ColorScale { get; init; }
+
+    /// <summary>Byte enum; meaning `UNKNOWN` (docs/research/effects.md §6).</summary>
+    public byte? Blending { get; init; }
+
+    /// <summary>Byte enum; meaning `UNKNOWN` (docs/research/effects.md §6).</summary>
+    public byte? CoordinateSystem { get; init; }
+
+    public int? TextureUSubdivisions { get; init; }
+    public int? TextureVSubdivisions { get; init; }
+
+    /// <summary><c>MeshEmitter</c> only — its visual, in place of the other classes' sprite texture.</summary>
+    public AssetReference? StaticMesh { get; init; }
+
+    /// <summary><c>MultipleRibbonEmitter</c>/<c>RibbonEmitter</c> only — the per-segment analogues of <see cref="SizeScale"/>/<see cref="ColorScale"/>.</summary>
+    public IReadOnlyList<FloatCurveKey>? SegmentSizeScale { get; init; }
+    public IReadOnlyList<ColorCurveKey>? SegmentColorScale { get; init; }
 
     /// <summary>Whether its ordinary tagged-property list walked cleanly; unsupported fields remain raw.</summary>
     public required bool PropertiesComplete { get; init; }
@@ -357,6 +421,41 @@ public sealed record ShockAiScoutData
     public bool Complete { get; init; }
 }
 
+/// <summary>
+/// The typed subset of a <c>Mover</c>/<c>ScriptableMover</c>: what triggers it and its start pose.
+/// The keyframe path itself (<c>KeyPos</c>/<c>KeyRot</c>, indexed arrays serialised one element per
+/// tagged property rather than a counted array) is deliberately not decoded here — see
+/// <c>docs/research/interaction.md</c> for the census and why it's a separate, unverified piece.
+/// </summary>
+public sealed record MoverActorData
+{
+    /// <summary>The state this mover starts in, e.g. <c>BumpOpenTimed</c> — not <see cref="LevelActor.Tag"/>/<c>Label</c>, already read generically for every actor.</summary>
+    public string? InitialState { get; init; }
+
+    /// <summary>
+    /// The comma-separated Script/Tag names that trigger this mover, in whatever order they were
+    /// authored. Kept as the raw string, the same convention <see cref="RegionActorData.TriggeredBy"/>
+    /// already uses — splitting is left to the caller since neither this project nor any reference
+    /// source has confirmed the separator is always a plain comma.
+    /// </summary>
+    public string? TriggeredBy { get; init; }
+
+    public Vector3? BasePos { get; init; }
+    public UnrealRotator? BaseRot { get; init; }
+    public float? MoveTime { get; init; }
+    public float? StayOpenTime { get; init; }
+    public bool? UseTriggered { get; init; }
+    public bool? TriggerOnceOnly { get; init; }
+
+    /// <summary>Byte enum; meaning `UNKNOWN` — not in `Bioshock1REMSDK-WIP--main`.</summary>
+    public byte? MoverEncroachType { get; init; }
+
+    /// <summary>Byte enum; meaning `UNKNOWN` — not in `Bioshock1REMSDK-WIP--main`.</summary>
+    public byte? MoverGlideType { get; init; }
+
+    public required bool Complete { get; init; }
+}
+
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
 public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record MapHudRegionData(string HudRegion, string Description);
@@ -408,6 +507,9 @@ public sealed record LevelActor
     public InteractionActorData? Interaction { get; init; }
     public LevelInfoActorData? LevelInfo { get; init; }
     public ShockAiScoutData? ShockAiScout { get; init; }
+
+    /// <summary>Typed motion/trigger-wiring fields for <c>Mover</c> and <c>ScriptableMover</c>.</summary>
+    public MoverActorData? Mover { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

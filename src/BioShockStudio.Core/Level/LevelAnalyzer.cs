@@ -63,6 +63,8 @@ public static class LevelAnalyzer
         "PointCollection", "LastPathfindingOrigin", "LastPathfindingLocation",
         "LastPathfindingTime", "LastPathfindingFailedTime", "LastPathfindingResult", "Controller",
         "bJumpCapable", "bCanFly", "bCanUseCeiling", "LastValidAnchorTime", "Floor", "HeadVolume",
+        "InitialState", "BasePos", "BaseRot", "MoveTime", "StayOpenTime", "bUseTriggered",
+        "bTriggerOnceOnly", "MoverEncroachType", "MoverGlideType",
     };
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
@@ -164,6 +166,7 @@ public static class LevelAnalyzer
             Interaction = Interaction(package, source.ClassName, payload),
             LevelInfo = LevelInfo(package, defaults, source.ClassName, payload),
             ShockAiScout = ShockAiScout(package, defaults, source.ClassName, payload),
+            Mover = Mover(package, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -776,6 +779,67 @@ public static class LevelAnalyzer
         };
     }
 
+    /// <summary>
+    /// The typed subset of a <c>Mover</c>/<c>ScriptableMover</c> — what triggers it and its start
+    /// pose, not its keyframe path (see <see cref="MoverActorData"/>). Gated on the exact class
+    /// names rather than a substring match: <c>Int_FireMover</c> shares the "Mover" name but not
+    /// the shape (no <c>BasePos</c>/<c>TriggeredBy</c> at all, confirmed by census), so a substring
+    /// gate would silently attach an empty record to an unrelated class.
+    /// </summary>
+    private static MoverActorData? Mover(BioShockPackage package, string className, ActorPayload payload)
+    {
+        if (className is not ("Mover" or "ScriptableMover")) return null;
+
+        bool complete = true;
+
+        string? Name(string name)
+        {
+            if (payload.Find(name) is not { Type: UnrealPropertyType.Name } value) return null;
+            var result = PropertyValues.AsName(value, package);
+            if (result is null) complete = false;
+            return result;
+        }
+
+        string? triggeredBy = null;
+        if (payload.Find("TriggeredBy") is { } triggeredByProperty)
+        {
+            if (triggeredByProperty.Type == UnrealPropertyType.Str)
+                triggeredBy = PropertyValues.AsString(triggeredByProperty);
+            if (triggeredBy is null) complete = false;
+        }
+
+        return new MoverActorData
+        {
+            InitialState = Name("InitialState"),
+            TriggeredBy = triggeredBy,
+            BasePos = payload.Find("BasePos") is { Type: UnrealPropertyType.Struct, StructName: "Vector" } basePos
+                ? PropertyValues.AsVector(basePos)
+                : null,
+            BaseRot = payload.Find("BaseRot") is { Type: UnrealPropertyType.Struct, StructName: "Rotator" } baseRot
+                ? PropertyValues.AsRotator(baseRot)
+                : null,
+            MoveTime = payload.Find("MoveTime") is { Type: UnrealPropertyType.Float } moveTime
+                ? moveTime.AsFloat()
+                : null,
+            StayOpenTime = payload.Find("StayOpenTime") is { Type: UnrealPropertyType.Float } stayOpenTime
+                ? stayOpenTime.AsFloat()
+                : null,
+            UseTriggered = payload.Find("bUseTriggered") is { Type: UnrealPropertyType.Bool } useTriggered
+                ? useTriggered.BoolValue
+                : null,
+            TriggerOnceOnly = payload.Find("bTriggerOnceOnly") is { Type: UnrealPropertyType.Bool } triggerOnceOnly
+                ? triggerOnceOnly.BoolValue
+                : null,
+            MoverEncroachType = payload.Find("MoverEncroachType") is { Type: UnrealPropertyType.Byte } encroach
+                ? encroach.AsByte()
+                : null,
+            MoverGlideType = payload.Find("MoverGlideType") is { Type: UnrealPropertyType.Byte } glide
+                ? glide.AsByte()
+                : null,
+            Complete = complete,
+        };
+    }
+
     private static ScriptActorData? ScriptActions(BioShockPackage package, ActorPayload payload)
     {
         if (payload.Find("Actions") is not { Type: UnrealPropertyType.Array } actions) return null;
@@ -828,33 +892,210 @@ public static class LevelAnalyzer
             return new EmitterTemplateData { Source = source, PropertiesComplete = false };
         }
 
-        AssetReference? material = properties.FirstOrDefault(property => property.Name == "Material"
-                                                               && property.Type == UnrealPropertyType.Object) is { } found
-            && PropertyValues.AsReference(found) is { } materialIndex
+        UnrealProperty? Find(string name, UnrealPropertyType type) =>
+            properties.FirstOrDefault(property => property.Name == name && property.Type == type);
+
+        AssetReference? material = Find("Material", UnrealPropertyType.Object) is { } materialProperty
+            && PropertyValues.AsReference(materialProperty) is { } materialIndex
             ? Describe(package, materialIndex, "emitter template", null)
             : null;
-        int? maxParticles = properties.FirstOrDefault(property => property.Name == "MaxParticles"
-                                                                  && property.Type == UnrealPropertyType.Int) is { } max
-            ? max.AsInt()
+        AssetReference? staticMesh = Find("StaticMesh", UnrealPropertyType.Object) is { } meshProperty
+            && PropertyValues.AsReference(meshProperty) is { } meshIndex
+            ? Describe(package, meshIndex, "emitter template", null)
             : null;
-        float? particlesPerSecond = properties.FirstOrDefault(property => property.Name == "ParticlesPerSecond"
-                                                                         && property.Type == UnrealPropertyType.Float) is { } rate
-            ? rate.AsFloat()
+
+        int? MaybeInt(string name) => Find(name, UnrealPropertyType.Int)?.AsInt();
+        float? MaybeFloat(string name) => Find(name, UnrealPropertyType.Float)?.AsFloat();
+        bool? MaybeBool(string name) => Find(name, UnrealPropertyType.Bool)?.BoolValue;
+        byte? MaybeByte(string name) => Find(name, UnrealPropertyType.Byte)?.AsByte();
+        FloatRange? MaybeRange(string name) => Find(name, UnrealPropertyType.Struct) is { } rangeProperty
+            ? ReadFloatRange(package, rangeProperty)
             : null;
-        float? initialParticlesPerSecond = properties.FirstOrDefault(property => property.Name == "InitialParticlesPerSecond"
-                                                                                && property.Type == UnrealPropertyType.Float) is { } initialRate
-            ? initialRate.AsFloat()
+        AxisRange? MaybeAxisRange(string name) => Find(name, UnrealPropertyType.Struct) is { } axisProperty
+            ? ReadAxisRange(package, axisProperty)
             : null;
+        Vector3? MaybeVector(string name) => Find(name, UnrealPropertyType.Struct) is { } vectorProperty
+            ? PropertyValues.AsVector(vectorProperty)
+            : null;
+        IReadOnlyList<FloatCurveKey>? MaybeFloatCurve(string name, string valueField) =>
+            Find(name, UnrealPropertyType.Array) is { } curveProperty
+                ? ReadFloatCurve(package, curveProperty, valueField)
+                : null;
+        IReadOnlyList<ColorCurveKey>? MaybeColorCurve(string name) =>
+            Find(name, UnrealPropertyType.Array) is { } curveProperty
+                ? ReadColorCurve(package, curveProperty)
+                : null;
+        IReadOnlyList<VectorCurveKey>? MaybeVectorCurve(string name, string valueField) =>
+            Find(name, UnrealPropertyType.Array) is { } curveProperty
+                ? ReadVectorCurve(package, curveProperty, valueField)
+                : null;
 
         return new EmitterTemplateData
         {
             Source = source,
             Material = material,
-            MaxParticles = maxParticles,
-            ParticlesPerSecond = particlesPerSecond,
-            InitialParticlesPerSecond = initialParticlesPerSecond,
+            MaxParticles = MaybeInt("MaxParticles"),
+            ParticlesPerSecond = MaybeFloat("ParticlesPerSecond"),
+            InitialParticlesPerSecond = MaybeFloat("InitialParticlesPerSecond"),
+            AutomaticInitialSpawning = MaybeBool("AutomaticInitialSpawning"),
+            RespawnDeadParticles = MaybeBool("RespawnDeadParticles"),
+            LifetimeRange = MaybeRange("LifetimeRange"),
+            StartSizeRange = MaybeAxisRange("StartSizeRange"),
+            UniformSize = MaybeBool("UniformSize"),
+            UseSizeScale = MaybeBool("UseSizeScale"),
+            UseRegularSizeScale = MaybeBool("UseRegularSizeScale"),
+            SizeScale = MaybeFloatCurve("SizeScale", "RelativeSize"),
+            StartVelocityRange = MaybeAxisRange("StartVelocityRange"),
+            Acceleration = MaybeVector("Acceleration"),
+            VelocityScale = MaybeVectorCurve("VelocityScale", "RelativeVelocity"),
+            StartLocationRange = MaybeAxisRange("StartLocationRange"),
+            StartLocationOffset = MaybeVector("StartLocationOffset"),
+            StartLocationShape = MaybeByte("StartLocationShape"),
+            StartSpinRange = MaybeAxisRange("StartSpinRange"),
+            SpinsPerSecondRange = MaybeAxisRange("SpinsPerSecondRange"),
+            SpinParticles = MaybeBool("SpinParticles"),
+            UseColorScale = MaybeBool("UseColorScale"),
+            ColorScale = MaybeColorCurve("ColorScale"),
+            Blending = MaybeByte("Blending"),
+            CoordinateSystem = MaybeByte("CoordinateSystem"),
+            TextureUSubdivisions = MaybeInt("TextureUSubdivisions"),
+            TextureVSubdivisions = MaybeInt("TextureVSubdivisions"),
+            StaticMesh = staticMesh,
+            SegmentSizeScale = MaybeFloatCurve("SegmentSizeScale", "RelativeSize"),
+            SegmentColorScale = MaybeColorCurve("SegmentColorScale"),
             PropertiesComplete = !truncated,
         };
+    }
+
+    /// <summary>
+    /// An array of small tagged-property structs — a curve — read element by element rather than by
+    /// a fixed stride: each element's own terminator reports where it ends, the same way the
+    /// top-level property list does. Returns null unless the compact count and every element consume
+    /// the array's complete value, so a curve whose shape doesn't match what's expected here yields
+    /// nothing rather than a partial or misaligned read.
+    /// </summary>
+    private static IReadOnlyList<List<UnrealProperty>>? ReadStructArrayElements(
+        BioShockPackage package, UnrealProperty property)
+    {
+        int offset = 0;
+        int count;
+        try { count = PropertyValues.ReadCompactIndex(property.Value, ref offset); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+        if (count < 0) return null;
+
+        var elements = new List<List<UnrealProperty>>(count);
+        for (int i = 0; i < count; i++)
+        {
+            List<UnrealProperty> fields;
+            bool truncated;
+            try
+            {
+                fields = UnrealPropertyReader.Read(property.Value, package.Names, out int end, out truncated, start: offset);
+                offset = end;
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                           or ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+            if (truncated) return null;
+            elements.Add(fields);
+        }
+
+        return offset == property.Value.Length ? elements : null;
+    }
+
+    private static IReadOnlyList<FloatCurveKey>? ReadFloatCurve(
+        BioShockPackage package, UnrealProperty property, string valueField)
+    {
+        if (ReadStructArrayElements(package, property) is not { } elements) return null;
+
+        var result = new List<FloatCurveKey>(elements.Count);
+        foreach (var fields in elements)
+        {
+            var time = fields.FirstOrDefault(f => f.Name == "RelativeTime" && f.Type == UnrealPropertyType.Float);
+            var value = fields.FirstOrDefault(f => f.Name == valueField && f.Type == UnrealPropertyType.Float);
+            if (time is null || value is null) return null;
+            result.Add(new FloatCurveKey(time.AsFloat(), value.AsFloat()));
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<ColorCurveKey>? ReadColorCurve(BioShockPackage package, UnrealProperty property)
+    {
+        if (ReadStructArrayElements(package, property) is not { } elements) return null;
+
+        var result = new List<ColorCurveKey>(elements.Count);
+        foreach (var fields in elements)
+        {
+            var time = fields.FirstOrDefault(f => f.Name == "RelativeTime" && f.Type == UnrealPropertyType.Float);
+            var color = fields.FirstOrDefault(f => f.Name == "Color" && f.Type == UnrealPropertyType.Struct);
+            if (time is null || color is null || PropertyValues.AsColor(color) is not { } decoded) return null;
+            result.Add(new ColorCurveKey(time.AsFloat(), decoded));
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<VectorCurveKey>? ReadVectorCurve(
+        BioShockPackage package, UnrealProperty property, string valueField)
+    {
+        if (ReadStructArrayElements(package, property) is not { } elements) return null;
+
+        var result = new List<VectorCurveKey>(elements.Count);
+        foreach (var fields in elements)
+        {
+            var time = fields.FirstOrDefault(f => f.Name == "RelativeTime" && f.Type == UnrealPropertyType.Float);
+            var value = fields.FirstOrDefault(f => f.Name == valueField && f.Type == UnrealPropertyType.Struct);
+            if (time is null || value is null || PropertyValues.AsVector(value) is not { } decoded) return null;
+            result.Add(new VectorCurveKey(time.AsFloat(), decoded));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// UE2's <c>Range</c> struct: a nested tagged list with two <c>Float</c> fields, <c>Min</c> and
+    /// <c>Max</c>. Returns null rather than a partial range when either field is missing, the same
+    /// contract <see cref="ReadRegion"/> uses for its own nested struct.
+    /// </summary>
+    private static FloatRange? ReadFloatRange(BioShockPackage package, UnrealProperty property)
+    {
+        List<UnrealProperty> fields;
+        try { fields = UnrealPropertyReader.Read(property.Value, package.Names, out _, start: 0); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        var min = fields.FirstOrDefault(field => field.Name == "Min" && field.Type == UnrealPropertyType.Float);
+        var max = fields.FirstOrDefault(field => field.Name == "Max" && field.Type == UnrealPropertyType.Float);
+        return min is null || max is null ? null : new FloatRange(min.AsFloat(), max.AsFloat());
+    }
+
+    /// <summary>UE2's <c>RangeVector</c> struct: one <see cref="FloatRange"/> per axis, X/Y/Z.</summary>
+    private static AxisRange? ReadAxisRange(BioShockPackage package, UnrealProperty property)
+    {
+        List<UnrealProperty> fields;
+        try { fields = UnrealPropertyReader.Read(property.Value, package.Names, out _, start: 0); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        FloatRange? Axis(string name) =>
+            fields.FirstOrDefault(field => field.Name == name && field.Type == UnrealPropertyType.Struct) is { } axisField
+                ? ReadFloatRange(package, axisField)
+                : null;
+
+        var x = Axis("X");
+        var y = Axis("Y");
+        var z = Axis("Z");
+        return x is null || y is null || z is null ? null : new AxisRange(x.Value, y.Value, z.Value);
     }
 
     /// <summary>
