@@ -45,7 +45,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | UE5 import | **Working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. See Gate 2 item 4 for the full list. No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
-| Tests | Full suite **464/464 passing** (measured 22 Aug 2026). See "Test health" below. |
+| Tests | Full suite **550/550 passing** (measured 23 Aug 2026 at `9cb53b2`). See "Test health" below for the stamp and what has been run since. |
 
 ---
 
@@ -1170,8 +1170,87 @@ material.
      the same "render it" rule that has caught real faults here before.
 3. Particle/emitter templates and material parameters — enough to build real UE5 Niagara
    placeholders, not a static mesh standing in for an effect.
+   **Census done, 23 Aug 2026 — the decode half is scoped from measurement rather than from
+   Medical.** `docs/research/effects.md`, pinned by `EmitterTemplateCensusTests` (all 161 shipped
+   packages, proved able to fail). What ships: **1,859 actors carry an `Emitters` array across 20
+   packages, referencing 3,211 templates with a vocabulary of 120 distinct properties.**
+   - **Two facts that bound the mapping.** **0 of 3,211 references are imports** — an effect never
+     crosses a package boundary the way a material can, so whatever a level needs, that level
+     ships. And **0 of 3,211 property walks truncate**, so those 120 names are the whole
+     vocabulary rather than a readable prefix of it.
+   - **`SpriteEmitter` is 96.0%** (3,084), then `MeshEmitter` 57, `BeamEmitter` 50,
+     `MultipleRibbonEmitter` 13, `RibbonEmitter` 7. All 57 `MeshEmitter` templates carry
+     `StaticMesh` and no other class does — which is why sprite-only is *wrong* rather than
+     approximate for that one class: it is this item's own "static mesh standing in for an effect"
+     failure, inverted.
+   - **The typed subset is 4 of those 120** (`Material`, `MaxParticles`, `ParticlesPerSecond`,
+     `InitialParticlesPerSecond`) — correctly scoped when the placement array's job was to
+     *identify* templates, and not enough to build a placeholder. The fields a placeholder needs
+     and does not have are listed with their shipped counts in §5 of the research note; all are
+     present on thousands of templates, so none of it is edge-case work.
+   - **Blocked, specifically, on eleven byte enums** (`Blending`, `CoordinateSystem`,
+     `StartLocationShape`, …): the values read, the *meanings* do not, and the declarations are
+     not in `Bioshock1REMSDK-WIP--main` (grepped, not assumed). The one real lead is Track B's
+     decompiler — UE2 declares them on `Engine.ParticleEmitter`, and `Engine.U` is exactly the
+     package that crashes it. Same blocker already recorded, not a new one. **A placeholder must
+     not blend or colour from a guess** until that resolves.
+   - **`EmitterTemplateData` widened, 24 Aug 2026, user-authorised** (the `Core/Level/` claim
+     collision above was raised and the user said to proceed). **31 of the 120 fields are now
+     typed, up from 4** — every field §5 listed as needed for a placeholder, including the three
+     curve arrays. `Range`/`RangeVector` turned out to be nested tagged-property structs (25/116
+     bytes), not fixed-size packed floats like `Vector` — read with the same nested-list idiom
+     `ReadRegion` already used.
+   - **The curve arrays turned out to be the same nested-struct shape as an array element, not a
+     separate reverse-engineering task as first assessed.** `SizeScale`/`SegmentSizeScale` are
+     `[{RelativeTime, RelativeSize}]` (25B/key); `ColorScale`/`SegmentColorScale` are
+     `[{RelativeTime, Color}]` (30B/key); `VelocityScale` is `[{RelativeTime, RelativeVelocity}]`
+     (39B/key). `ReadStructArrayElements` reads each key by its own terminator rather than a
+     computed stride, and requires the compact count and every key to consume the array's complete
+     value or the curve reads null rather than partial. `SubdivisionScale`/`RevolutionScale` (6/1
+     hits) are almost certainly the same shape but weren't worth a probe pass at that frequency —
+     the one thing still deliberately left out of the 120.
+   - Pinned against real bytes by `EmitterTemplateFieldTests` — a `SpriteEmitter` (21 of 24 scalar
+     fields present, plus all three curves — its `ColorScale` carries alpha 0 and 30, not 255,
+     which is exactly the kind of value a placeholder assuming opaque would get wrong), a
+     `MeshEmitter`'s `StaticMesh`, a `RibbonEmitter`'s segment curves, and the export-manifest
+     path — proved able to fail. **Still no Niagara mapping** — this is the decode half only, and
+     the byte enums' meanings are unchanged from `UNKNOWN` — now confirmed as blocked specifically
+     on the `Engine.U` decompiler crash (Track B item 4 below), not merely undecoded.
 4. Interaction metadata (movers, doors, triggers, plasmid/weapon effects) once the source object
    graph backing them is known.
+   - **First slice landed, 24 Aug 2026 — movers' trigger wiring and start pose.**
+     `docs/research/interaction.md`, `MoverActorSchemaTests`. `Mover`/`ScriptableMover` (94 + 15
+     actors across 15 packages, 0 incomplete) now export `TriggeredBy` — the comma-separated names
+     that trigger the mover, e.g. `MeatLockerDoorScript, MeatLockerOn` — which is literally the
+     "source object graph" this item names, plus `InitialState`, `BasePos`/`BaseRot`, `MoveTime`,
+     `StayOpenTime` and the two byte enums (`MoverEncroachType`/`MoverGlideType`, raw values,
+     meanings `UNKNOWN`). Gated on the exact class name: `Int_FireMover` shares the word "Mover"
+     but not the shape (confirmed by reading it, not assumed) and correctly gets no record.
+   - **The graph resolved, same day — `TriggeredBy` matches another actor's `Label`, not `Tag`.**
+     103 names across every package with movers, `Tag` and `Label` both already decoded generically
+     for every actor: **88 (85.4%) match a `Label` in the same package, 0 match a `Tag`** — ruling
+     out the obvious UE1/2 `Trigger`→`Tag` convention rather than leaving it assumed. The 15
+     unresolved (`MoveMe`, `TurretControlSwitchScript`, ...) read as UnrealScript state names a
+     script calls directly, not object references — `LIKELY`, consistent with `InitialState`
+     already being a state name in the same records. **Not yet wired into the typed record or
+     exporter** — it needs a second analysis pass (today's `BuildActor` decodes one actor at a time
+     with no visibility into the rest of the package), a real pipeline change kept separate from
+     this pass rather than folded in.
+   - **Deliberately not decoded: the keyframe motion path (`KeyPos`/`KeyRot`).** They're UE1/2
+     fixed-array properties (repeated same-name entries distinguished by `ArrayIndex`), a pattern
+     with no precedent elsewhere in this codebase, and the "index 0 is implicit, equals
+     `BasePos`/`BaseRot`" reading is an unverified `HYPOTHESIS`. A wrong key count or order here is
+     exactly the "numeric validation passes on visibly wrong output" failure mode this project has
+     already hit — this needs a render check, not just a parse, before it's typed.
+   - **Doors and plasmid/weapon effects are unstarted.** Triggers already have their own
+     configuration typed (Gate 3 item 3's `RegionActorData`), including their own `TriggeredBy` —
+     unresolved against `Label` the same way movers' now is, one instance found in `1-Medical`
+     (`"Player"`, which itself reads as a class-filter value rather than a name, so triggers may
+     use this property differently than movers do; not yet checked at whole-game scale). Doors
+     carry their own undecoded fields (`DoorPortal`, `bLocked`, `PathList`, `OpenAnimationRate`).
+     Plasmid/weapon effects read as script-side class defaults
+     (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than placed-actor payloads — a
+     different decode mechanism from everything else in this item, not investigated yet.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 
@@ -1239,8 +1318,17 @@ decompiled output, without first building an independent decoder. What remains:
    output: verify the bytecode length-framing hypothesis (`bytecode.md` §4) against this project's
    own byte reader, then hand-walk one simple function's bytecode against the opcode table before
    generalizing.
-4. Lower priority: investigate the `Engine.U` crash if its classes turn out to matter; expand the
-   native-function ID table beyond `coop-natives-map.md`'s partial coverage if needed.
+4. **Its classes now do turn out to matter, confirmed 24 Aug 2026** — Gate 4 item 3's eleven
+   emitter byte enums (`Blending`, `CoordinateSystem`, ...) are declared somewhere in `Engine.U`
+   specifically, not BioShock-side: the five emitter classes and any `ParticleEmitter` base were
+   searched for and not found in any of the other 11 packages the decompiler already handles
+   (`docs/research/effects.md` §6). The crash is in `UClass.Dependency.Deserialize` reading a
+   version-gated `bool` — `Unreal-Library-master` already special-cases one other build's
+   `Dependency.IsDeep` field the same shape of way, so there's a concrete fix shape, just not
+   verified for BioShock's version. **Not attempted** — patching UELib and re-verifying the other
+   11 packages still decompile clean is its own scoped task, deferred rather than opened inside
+   Gate 4 item 3. Expand the native-function ID table beyond `coop-natives-map.md`'s partial
+   coverage if needed, separately.
 
 ---
 
@@ -1316,10 +1404,18 @@ would be a guess about intent.
 | `AudioExportTests` | **6/6** (2s) |
 | `SoundActorSpecificationCoverageTests` | **4/4** (4m06s) |
 | the seven bucket-fixed schema classes | **9/9** (1m03s) |
+| `--filter Tier=Fast` | **249/249** (53s) |
+| `EmitterTemplateCensusTests` | **1/1** (11s, all 161 packages) |
+| `EmitterTemplateFieldTests`, `EmitterTemplateCensusTests`, `EffectActorSchemaTests`, `LevelSceneTests` | **18/18** (1m23s) |
+| `--filter Tier=Fast` | **249/249** (1m01s) |
+| `~Level` + `~Export` | **96/96** (4m59s), then **99/99** (4m39s) after `MoverActorSchemaTests` |
+| `--filter Tier=Fast` | **249/249** (53s), re-confirmed after the mover decode |
 
 Those cover everything added since `9cb53b2`: the audio exporter (`Core/Export/AudioExporter.cs`),
-the sample locator (`Core/Audio/AudioSampleLocator.cs`), and the rewritten sample-location census.
-Nothing else was touched. **The whole suite has not been re-run since that commit** and is reported
+the sample locator (`Core/Audio/AudioSampleLocator.cs`), the rewritten sample-location census, the
+last bucket-filter fix (`9cebd5a`, test-only), and the new emitter census (`EmitterTemplateCensusTests`,
+test-only — no production code changed for it). No production code outside `Core/Audio` and
+`Core/Export` has moved since the stamp. **The whole suite has not been re-run since that commit** and is reported
 as such rather than as passing.
 
 The recipe, which is a standing user instruction rather than a shortcut — see
@@ -1334,7 +1430,8 @@ Run the whole sweep when the diff reaches shared machinery (package reading, the
 the catalogue, the coordinate basis), when this stamp is many commits stale, or when a handover
 reports the whole-suite total — **and move this stamp forward in the same commit when you do.**
 
-Full suite: **464/464 passing** (measured 22 Aug 2026, 29m02s, after Gate 0 items 1 and 2 including
+**Superseded stamp, kept for its per-test classification.** Full suite: **464/464 passing** (measured
+22 Aug 2026, 29m02s, after Gate 0 items 1 and 2 including
 the roll correction — `ActorTransformReferenceTests`, `BspSurfaceCensusTests`,
 `BspWorldCoverageTests`, `BspSolidityTests`, `ActorPlacementAgainstTheWorldTests`,
 `BakedLightmapRenderTests`). Intermediate clean runs this session measured 452 and 458. The previous entry
