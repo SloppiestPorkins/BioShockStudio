@@ -90,14 +90,16 @@ project's own stated end goal and the closest of the four to actually done (Gate
 would compound less to drive that to Gate 5 before opening bytecode research cold, rather than
 have five open fronts at once.
 
-**0.5 — Look at the pistol inside the UE5.7 editor with human eyes.** Every "verified in UE5.7"
-claim to date is log evidence (`Success - 0 error(s), 7 warning(s)`, a clean `verify_bioshock_import`
-run) — real, but this project has already learned that "a numeric check cannot see a wrong quantity
-that is still present": six faults shipped in one session, every one passing the full suite, and a
-user caught five of them by looking at the screen (`docs/NEXT_SESSION.md`). Nobody has opened the
-UE5.7 editor and actually watched the imported pistol pose and animate yet. That's a ten-minute
-check that closes a real, specific gap between "the log says it worked" and "it actually looks
-right."
+~~**0.5 — Look at the pistol inside the UE5.7 editor with human eyes.**~~ **Done, 24 Aug 2026.**
+Every "verified in UE5.7" claim before this was log evidence (`Success - 0 error(s), 7 warning(s)`,
+a clean `verify_bioshock_import` run) — real, but this project has already learned that "a numeric
+check cannot see a wrong quantity that is still present": six faults shipped in one session, every
+one passing the full suite, and a user caught five of them by looking at the screen
+(`docs/NEXT_SESSION.md`). **The user opened `WP_Pistol` in the UE5.7 Skeletal Mesh editor and
+confirmed it directly**: correct geometry, `MI_PistolShi...` material instance bound (not the
+missing-material state an earlier screenshot in the same session briefly showed mid-load), wood
+grip and worn blued-steel texture rendering correctly. First human confirmation this project has
+had of any UE5-imported asset. Static pose only — animation playback in-editor still unconfirmed.
 
 **0.6 — Consolidate the status documents.** There are now six overlapping places project state gets
 written down (`ROADMAP.md`, `HANDOFF.md`, `HANDOFF_UE5_IMPORT.md`, `NEXT_SESSION.md`, `QUALITY.md`,
