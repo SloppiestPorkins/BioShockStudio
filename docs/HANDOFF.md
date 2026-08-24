@@ -526,6 +526,22 @@ Each of these produced a plausible, wrong result before it was understood.
   translator that had imported OBJs cleanly for a long time, so the natural first suspect was the
   new OBJ content itself rather than a known class of headless gap landing on a fourth translator.
   Found by grepping the engine source for `InterchangeOBJTranslator.cpp`'s own registered CVar name.
+- **`import_level.py`'s own `unsupported` count was wrong the whole time it had been reported as a
+  clean, honest number** (found 24 Aug 2026, pre-existing bug — not introduced this session).
+  `_import_instances` marked an actor "handled" using its geometry instance's own composite key
+  (`"instance:<actorKey>:<asset>"`), never the bare actor key `_import_actors` checks against. So
+  every actor that already got a real `StaticMeshActor` from `_import_instances` was *also* handed a
+  second, overlapping `TargetPoint` placeholder by `_import_actors` afterwards, and counted as
+  `unsupported` — the exact opposite of what "unsupported" was meant to mean for that actor. On
+  `1-Medical`: reported 7,337, true figure 2,018 — 5,321 actors with working geometry were being
+  double-counted as if they had none, and this had been true (and repeated as fact in this file and
+  `docs/ROADMAP.md`) since `import_level.py` first landed, not something today's changes introduced.
+  Every other report in this pipeline — `created`/`updated`/`skipped`, the materials counters — was
+  unaffected; only this one field, and only because two independent dedup mechanisms used two
+  different key shapes for the same actor. Fixed by having `_import_instances` also mark the bare
+  actor key handled, but only once a real mesh actor is actually standing (not on a mesh-lookup or
+  spawn failure), so that failure case still falls through to `_import_actors`'s placeholder rather
+  than losing its representation entirely.
 
 ## 5. Validation
 
