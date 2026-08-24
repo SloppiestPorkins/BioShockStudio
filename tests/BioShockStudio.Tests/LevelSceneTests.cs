@@ -864,6 +864,52 @@ public sealed class LevelSceneTests(GameFixture game)
         }
     }
 
+    /// <summary>
+    /// A placed SkeletalMesh asset carries its character/rig group when a package is open to
+    /// resolve it; a StaticMesh asset never does, even though the same package is open for it too.
+    /// </summary>
+    /// <remarks>
+    /// This is the first step toward level-placed characters actually animating in UE5 rather than
+    /// standing in bind pose: an importer needs this group identity to find or trigger the
+    /// character's own rig export. Gating on <see cref="LevelGeometryKind.SkeletalMesh"/> rather
+    /// than resolving it for every instance matters because <c>AssetContextResolver.TopLevelGroup</c>
+    /// is "the one moderately costly part" of cataloguing a package, per its own docs — a level with
+    /// thousands of static-mesh instances must not pay that for assets it will never need it for.
+    /// </remarks>
+    [RequiresGameFact]
+    public void SkeletalMeshAssetsCarryTheirCharacterGroup()
+    {
+        string medical = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "1-Medical.bsm");
+        using var package = BioShockPackage.Open(medical);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-skelgroup-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            LevelSceneExporter.Write(scene, directory, LevelExportFormats.SceneJson, readable: false, package);
+
+            string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".level.json"));
+            var document = JsonSerializer.Deserialize<LevelDocument>(
+                json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+            var skeletal = document.Assets.Where(a => a.Kind == nameof(LevelGeometryKind.SkeletalMesh)).ToList();
+            var staticMeshes = document.Assets.Where(a => a.Kind == nameof(LevelGeometryKind.StaticMesh)).ToList();
+            Assert.NotEmpty(skeletal);
+            Assert.NotEmpty(staticMeshes);
+
+            Log($"skeletal {skeletal.Count} ({skeletal.Count(a => a.Group is not null)} grouped), "
+                + $"static {staticMeshes.Count} ({staticMeshes.Count(a => a.Group is not null)} grouped)");
+
+            Assert.All(skeletal, a => Assert.True(a.Group is { Length: > 0 },
+                $"{a.Key} is a SkeletalMesh with an open package but carries no Group"));
+            Assert.All(staticMeshes, a => Assert.Null(a.Group));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static float Median(List<float> values)
     {
         var sorted = values.OrderBy(v => v).ToList();

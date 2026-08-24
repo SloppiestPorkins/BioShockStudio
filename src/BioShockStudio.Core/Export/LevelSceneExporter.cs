@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
+using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
@@ -102,7 +103,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, materials: materials, textures: textures),
+                ToDocument(scene, materials: materials, textures: textures, package: package),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -118,7 +119,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures),
+                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures, package: package),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -139,7 +140,8 @@ public static class LevelSceneExporter
         bool includeGeometry = true,
         IReadOnlyDictionary<string, string>? assetFiles = null,
         IReadOnlyList<(Level.SourceId Id, SceneMaterial Material)>? materials = null,
-        IReadOnlyList<FbxTextureEntry>? textures = null) => new()
+        IReadOnlyList<FbxTextureEntry>? textures = null,
+        BioShockPackage? package = null) => new()
     {
         FormatVersion = LevelManifestVersion,
         Package = scene.PackageName,
@@ -179,6 +181,7 @@ public static class LevelSceneExporter
                             : null,
                     })
                     .ToList(),
+                Group = AssetGroup(package, g.First()),
             })
             .ToList(),
         Instances = scene.Instances
@@ -506,6 +509,22 @@ public static class LevelSceneExporter
             .ToList() ?? [],
         Skipped = scene.Skipped.Select(s => $"{s.Actor}: {s.Reason}").ToList(),
     };
+
+    /// <summary>
+    /// For a SkeletalMesh instance, the game's own top-level character/rig grouping — the identity
+    /// a later import step needs to find or trigger that rig's own export, since this level export
+    /// only ever decodes bind-pose geometry for it. Null for anything else, or when no package was
+    /// open to resolve it (materials-only, like <see cref="WriteMaterials"/>).
+    /// </summary>
+    private static string? AssetGroup(BioShockPackage? package, LevelInstance instance)
+    {
+        if (package is null || instance.Kind != LevelGeometryKind.SkeletalMesh) return null;
+
+        int exportIndex = instance.Asset.ExportIndex;
+        if (exportIndex < 0 || exportIndex >= package.Exports.Count) return null;
+
+        return AssetContextResolver.TopLevelGroup(package, package.Exports[exportIndex]);
+    }
 
     private static LevelZoneActorDocument? ZoneDocument(ZoneActorData? zone) => zone is null ? null : new()
     {
@@ -902,6 +921,13 @@ public sealed record LevelAssetDocument
     public List<float[]>? Uvs { get; init; }
     public List<int>? Indices { get; init; }
     public required List<LevelSectionDocument> Sections { get; init; }
+
+    /// <summary>
+    /// For a SkeletalMesh, the game's own top-level character/rig grouping its animation set and
+    /// other mesh variants share — null for anything else, or when no package was open to resolve
+    /// it.
+    /// </summary>
+    public string? Group { get; init; }
 
     /// <summary>
     /// Path of this asset's local-space mesh, relative to the manifest, when one was written.
