@@ -370,6 +370,13 @@ public static class LevelSceneExporter
                     StayOpenDuration = actor.Door.StayOpenDuration,
                     Complete = actor.Door.Complete,
                 },
+                DoorSwitch = actor.DoorSwitch is null ? null : new LevelDoorSwitchActorDocument
+                {
+                    DamageResistanceSetName = actor.DoorSwitch.DamageResistanceSetName,
+                    UseVerbText = actor.DoorSwitch.UseVerbText,
+                    OverlayMaterial = Describe(actor.DoorSwitch.OverlayMaterial),
+                    Complete = actor.DoorSwitch.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -799,6 +806,7 @@ public sealed record LevelActorDocument
     public LevelShockAiScoutDocument? ShockAiScout { get; init; }
     public LevelMoverActorDocument? Mover { get; init; }
     public LevelDoorActorDocument? Door { get; init; }
+    public LevelDoorSwitchActorDocument? DoorSwitch { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -981,6 +989,14 @@ public sealed record LevelDoorActorDocument
     public float? CloseAnimationRate { get; init; }
     public float? DelayBeforeOpening { get; init; }
     public float? StayOpenDuration { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelDoorSwitchActorDocument
+{
+    public string? DamageResistanceSetName { get; init; }
+    public string? UseVerbText { get; init; }
+    public LevelReferenceDocument? OverlayMaterial { get; init; }
     public required bool Complete { get; init; }
 }
 

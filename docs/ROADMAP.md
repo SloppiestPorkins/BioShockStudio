@@ -1267,9 +1267,19 @@ material.
      bookkeeping fix landed alongside it: `PathList`/`PathCollisionRadius` were already decoded
      generically for any actor (doors included) but missing from the `Interpreted` property-name
      set, so doors were showing them as uninterpreted when they were already typed. Pinned by
-     `DoorActorSchemaTests`. Not decoded: `DoorSwitch`'s own interaction-verb fields
-     (`UseVerbText`/`DamagedReactions`), left for the same reason emitters' low-frequency flags
-     were — this targeted what a placeholder needs, not the whole vocabulary.
+     `DoorActorSchemaTests`.
+   - **`DoorSwitch` decoded separately, same day — and a real gating mistake caught before it
+     landed.** `DamageResistanceSetName`/`UseVerbText`/`OverlayMaterial` were first implemented
+     with `DoorActorData`'s field-presence gate, on the assumption a door-scoped census meant they
+     were door-specific. A whole-game check said otherwise: all three are generic
+     interaction/combat properties shared by 16+ unrelated classes (`BandagesPickup`,
+     `ArmorPiercingBulletPickup`, `Cabinet`, a generic `Switch`, ...) — that gate would have
+     attached a record to 98 actors in `1-Medical` alone, 94 of them not door switches. Fixed
+     before landing: gated on the exact class name instead. **37 `DoorSwitch` actors across 8
+     packages, 0 incomplete.** `UseVerbText` is the on-screen interaction prompt (`"Look"`,
+     `"TURN LATCH"`) — genuinely useful, and empty string is a real shipped value, not absence.
+     Not decoded: `DamagedReactions`/`UsedReactions` (complex nested arrays, the same shape of risk
+     that deferred `KeyPos`/`KeyRot`), `Attachments`, `ScriptedSequence`.
    - **Plasmid/weapon effects remain unstarted.** They read as script-side class defaults
      (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than placed-actor payloads — a
      different decode mechanism from everything else in this item, not investigated yet.

@@ -2,14 +2,15 @@
 
 Gate 4 item 4 asks for "interaction metadata (movers, doors, triggers, plasmid/weapon effects) once
 the source object graph backing them is known." This note covers three of those four: `Mover`/
-`ScriptableMover` (what triggers them, their start pose), the game's ~50 door classes (portal, lock
-and animation state), and triggers' own trigger-wiring field.
+`ScriptableMover` (what triggers them, their start pose), the game's ~50 door classes plus
+`DoorSwitch` (portal, lock, animation and interaction-verb state), and triggers' own trigger-wiring
+field.
 
 **Status.** Movers' and doors' state fields are `CONFIRMED_BYTES`, and a mover's `TriggeredBy` is
 resolved against `Label` in code (§2). Triggers' own `TriggeredBy` turned out to be a class filter,
-not an object reference, and is closed rather than open (§4). A mover's keyframe motion path itself
-(`KeyPos`/`KeyRot`) is deliberately not decoded — see §3. Plasmid/weapon effects are untouched — see
-§6.
+not an object reference, and is closed rather than open (§4). A mover's keyframe motion path
+(`KeyPos`/`KeyRot`) and `DoorSwitch`'s reaction arrays are both deliberately not decoded — see §3
+and §5. Plasmid/weapon effects are untouched — see §6.
 
 ## 1. The shape
 
@@ -197,17 +198,28 @@ already document. The typed record is populated regardless of which bucket repor
 `Interpreted` property-name set, so doors were showing these as "uninterpreted" in coverage reports
 when they were already typed. Added to `Interpreted`; no behaviour changed, only the bookkeeping.
 
-**Not decoded**: the more niche door-family fields the census in §3's shape of investigation would
-surface next — `DamageResistanceSetName`/`DamagedReactions`/`UseVerbText`/`UsedReactions` (all on
-`DoorSwitch`, an interaction-verb family of its own), `Attachments`, `ScriptedSequence`. Left out for
-the same reason emitters' lower-frequency flags were: this pass targeted the state a placeholder or
-UE5 door blueprint actually needs, not the whole vocabulary.
+**`DoorSwitch`'s interaction-verb fields, decoded separately — and a real gating mistake caught
+before it shipped.** `DamageResistanceSetName`, `UseVerbText` and `OverlayMaterial` were first
+implemented with the same field-presence gate as `DoorActorData`, on the assumption that a
+door-scoped census (which had only looked at classes with `"Door"` in the name) meant these fields
+were door-specific too. A whole-game check told a different story: **all three are generic
+interaction/combat properties** — `OverlayMaterial` alone is carried by 16 classes including
+`BandagesPickup`, `ArmorPiercingBulletPickup`, `Cabinet`, `Desk` and a generic `Switch` class, none
+of them doors. A field-presence gate would have silently attached a `DoorSwitchActorData` to 98
+actors in `1-Medical` alone, 94 of them not door switches at all. Fixed before landing: `DoorSwitch`
+is gated on the exact class name instead. **37 `DoorSwitch` actors across 8 packages, 0 incomplete**
+— `DamageResistanceSetName` 11, `UseVerbText` 9, `OverlayMaterial` 14. `UseVerbText` is genuinely
+useful: it's the on-screen interaction prompt (`"Look"`, `"TURN LATCH"`), and empty string is a real
+shipped value on most switches, not an absent one.
+
+**Still not decoded**: `DamagedReactions`/`UsedReactions` (large, complex nested arrays — not
+simple scalars, the same shape of risk that deferred `KeyPos`/`KeyRot` in §3), `Attachments`,
+`ScriptedSequence`. Left for the same reason as those: worth a dedicated pass, not this one.
 
 ## 6. What this note does not claim
 
-- **Doors' more niche interaction-verb fields remain undecoded** — see §5's "Not decoded"
-  paragraph. `DoorSwitch` in particular has its own `UseVerbText`/`DamagedReactions` family that
-  wasn't touched.
+- **`DoorSwitch`'s reaction arrays remain undecoded** — see §5's "Still not decoded" paragraph.
+  `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
 - **Plasmid/weapon effects weren't investigated in this pass.** A first grep of `ShockGame.U`'s

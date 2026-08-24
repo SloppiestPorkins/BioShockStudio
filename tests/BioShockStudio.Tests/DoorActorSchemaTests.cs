@@ -7,8 +7,9 @@ using Xunit;
 namespace BioShockStudio.Tests;
 
 /// <summary>
-/// Pins <see cref="DoorActorData"/> — the state fields shared by the game's ~50 door classes, gated
-/// on field presence rather than an enumerated class name. See docs/research/interaction.md.
+/// Pins <see cref="DoorActorData"/> (state fields shared by the game's ~50 door classes, gated on
+/// field presence) and <see cref="DoorSwitchActorData"/> (interaction-verb fields, gated on the
+/// exact class name instead — see its own doc comment for why). See docs/research/interaction.md.
 /// </summary>
 [Collection(GameCollection.Name)]
 [Trait(Tiers.Name, Tiers.Sweep)]
@@ -72,5 +73,47 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         Assert.Equal("Brush118", exported.Portal?.ObjectName);
         Assert.True(exported.Locked);
         Assert.Equal(0.3f, exported.OpenAnimationRate);
+    }
+
+    [RequiresGameFact]
+    public void MedicalDoorSwitchesDecodeTheirInteractionVerbFields()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        var switches = context.Actors.Where(actor => actor.Source.ClassName == "DoorSwitch").ToList();
+
+        // Exactly the DoorSwitch class -- confirmed whole-game that DamageResistanceSetName,
+        // UseVerbText and OverlayMaterial are also carried by dozens of unrelated classes
+        // (pickups, furniture, other switches), so this is gated on the class name rather than
+        // field presence, unlike DoorActorData.
+        Assert.Equal(4, switches.Count);
+        Assert.All(switches, actor => Assert.True(actor.DoorSwitch is { Complete: true }));
+
+        var breaker = switches.Single(actor => actor.Source.ExportIndex == 13778);
+        Assert.Equal("WelcomeCircuitbreakerresistanceset", breaker.DoorSwitch!.DamageResistanceSetName);
+        Assert.Equal(string.Empty, breaker.DoorSwitch.UseVerbText);
+        Assert.Null(breaker.DoorSwitch.OverlayMaterial);
+
+        var supplyCloset = switches.Single(actor => actor.Source.ExportIndex == 13821);
+        Assert.Null(supplyCloset.DoorSwitch!.DamageResistanceSetName);
+        Assert.Equal("LogShimmer_Shader", supplyCloset.DoorSwitch.OverlayMaterial?.ObjectName);
+    }
+
+    [RequiresGameFact]
+    public void NonDoorClassesCarryingTheSameFieldNamesAreNotGivenADoorSwitchRecord()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+
+        // BandagesPickup and NonPhysicalReactiveActor both carry DamageResistanceSetName and/or
+        // OverlayMaterial in this exact package -- real classes that would have wrongly received a
+        // DoorSwitchActorData under a field-presence gate.
+        var pickup = Assert.Single(context.Actors, actor => actor.Source.ExportIndex == 8161);
+        Assert.Equal("BandagesPickup", pickup.Source.ClassName);
+        Assert.Null(pickup.DoorSwitch);
+
+        var reactive = Assert.Single(context.Actors, actor => actor.Source.ExportIndex == 7145);
+        Assert.Equal("NonPhysicalReactiveActor", reactive.Source.ClassName);
+        Assert.Null(reactive.DoorSwitch);
     }
 }

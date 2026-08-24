@@ -69,6 +69,10 @@ public static class LevelAnalyzer
         "DoorPortal", "bLocked", "bInitiallyOpen", "OpenAnimationRate", "CloseAnimationRate",
         "DelayBeforeOpening", "StayOpenDuration",
     };
+    // DamageResistanceSetName, UseVerbText and OverlayMaterial are deliberately NOT in the set
+    // above: they're decoded only for DoorSwitch (see the DoorSwitch method below), but dozens of
+    // unrelated classes -- pickups, furniture, other switches -- also carry them, undecoded. Adding
+    // them here would mark those other classes' copies "interpreted" when nothing reads their value.
 
     /// <summary>Whether a property already has a typed representation in <see cref="LevelActor"/>.</summary>
     public static bool IsInterpretedProperty(string property) => Interpreted.Contains(property);
@@ -224,6 +228,7 @@ public static class LevelAnalyzer
             ShockAiScout = ShockAiScout(package, defaults, source.ClassName, payload),
             Mover = Mover(package, source.ClassName, payload),
             Door = Door(package, defaults, payload),
+            DoorSwitch = DoorSwitch(package, defaults, source.ClassName, payload),
             Transform = ReadTransform(payload),
             StaticMesh = Reference(package, defaults, payload, "StaticMesh", "StaticMesh"),
             SkeletalMesh = Reference(package, defaults, payload, "Mesh", "SkeletalMesh")
@@ -931,6 +936,35 @@ public static class LevelAnalyzer
             CloseAnimationRate = closeRate,
             DelayBeforeOpening = delay,
             StayOpenDuration = stayOpen,
+            Complete = true,
+        };
+    }
+
+    /// <summary>
+    /// A <c>DoorSwitch</c>'s interaction-verb fields. Gated on the exact class name, not field
+    /// presence — unlike <see cref="Door"/>'s fields, <c>DamageResistanceSetName</c>,
+    /// <c>UseVerbText</c> and <c>OverlayMaterial</c> turned out to be generic interaction/combat
+    /// properties shared by dozens of unrelated classes (pickups, furniture, other switches), found
+    /// only after a whole-game check — a field-presence gate here would have silently attached a
+    /// <see cref="DoorSwitchActorData"/> to actors with nothing to do with doors.
+    /// </summary>
+    private static DoorSwitchActorData? DoorSwitch(BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
+    {
+        if (className != "DoorSwitch") return null;
+
+        string? damageResistanceSetName = payload.Find("DamageResistanceSetName") is { Type: UnrealPropertyType.Name } drsn
+            ? PropertyValues.AsName(drsn, package)
+            : null;
+        string? useVerbText = payload.Find("UseVerbText") is { Type: UnrealPropertyType.Str } uvt
+            ? PropertyValues.AsString(uvt)
+            : null;
+        var overlayMaterial = Reference(package, defaults, payload, "OverlayMaterial", null);
+
+        return new DoorSwitchActorData
+        {
+            DamageResistanceSetName = damageResistanceSetName,
+            UseVerbText = useVerbText,
+            OverlayMaterial = overlayMaterial,
             Complete = true,
         };
     }

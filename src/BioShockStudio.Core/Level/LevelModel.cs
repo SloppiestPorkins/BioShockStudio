@@ -501,6 +501,30 @@ public sealed record DoorActorData
     public required bool Complete { get; init; }
 }
 
+/// <summary>
+/// The interaction-verb subset of a <c>DoorSwitch</c> — the panel/button, not the moving door
+/// panel itself (that's <see cref="DoorActorData"/>; the two are disjoint in practice). Gated on
+/// the exact class name, unlike <see cref="DoorActorData"/> — a field-presence gate does not work
+/// here, because <c>DamageResistanceSetName</c>, <c>UseVerbText</c> and <c>OverlayMaterial</c> are
+/// generic interaction/combat properties dozens of unrelated classes also carry (pickups,
+/// furniture, other switches), found only after checking the whole game rather than assumed from
+/// a door-scoped census.
+/// <c>UsedReactions</c>/<c>DamagedReactions</c> (complex nested arrays, not simple scalars) remain
+/// undecoded — see docs/research/interaction.md §5.
+/// </summary>
+public sealed record DoorSwitchActorData
+{
+    /// <summary>Always <c>WelcomeCircuitbreakerresistanceset</c> in every shipped instance — an electric-shock resistance set, not switch-specific despite the field living here.</summary>
+    public string? DamageResistanceSetName { get; init; }
+
+    /// <summary>The on-screen interaction prompt, e.g. <c>"Look"</c>, <c>"TURN LATCH"</c>. Empty string is a real shipped value, not absence.</summary>
+    public string? UseVerbText { get; init; }
+
+    public AssetReference? OverlayMaterial { get; init; }
+
+    public required bool Complete { get; init; }
+}
+
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
 public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record MapHudRegionData(string HudRegion, string Description);
@@ -558,6 +582,9 @@ public sealed record LevelActor
 
     /// <summary>Typed door-state fields; null for actors outside the door family (field presence, not class name, gates this).</summary>
     public DoorActorData? Door { get; init; }
+
+    /// <summary>Typed interaction-verb fields for a <c>DoorSwitch</c>; null off that family.</summary>
+    public DoorSwitchActorData? DoorSwitch { get; init; }
 
     public required ActorTransform Transform { get; init; }
 
