@@ -72,6 +72,9 @@ public enum LevelActorCoverage
     /// <summary>A decoded <c>Mover</c>/<c>ScriptableMover</c> awaiting a UE5 timeline/matinee representation.</summary>
     MoverPending,
 
+    /// <summary>A decoded door-state record awaiting a UE5 blueprint/timeline representation.</summary>
+    DoorPending,
+
     /// <summary>An actor whose bytes are retained but whose UE5 representation has not been selected.</summary>
     Unclassified,
 }
@@ -188,6 +191,7 @@ public sealed record LevelCoverageReport
         if (actor.Vending is not null) return LevelActorCoverage.InteractionPending;
         if (actor.Interaction is not null) return LevelActorCoverage.InteractionPending;
         if (actor.Mover is not null) return LevelActorCoverage.MoverPending;
+        if (actor.Door is not null) return LevelActorCoverage.DoorPending;
 
         return LevelActorCoverage.Unclassified;
     }

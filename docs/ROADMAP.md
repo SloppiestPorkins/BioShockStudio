@@ -1256,11 +1256,23 @@ material.
      and none resolves more than 1 of 62. `LIKELY` an AI-archetype/character-identity filter
      resolved through a system this project hasn't decoded. Left open rather than chased further —
      a genuinely separate investigation from movers' `TriggeredBy`, not a variant of it.
-   - **Doors and plasmid/weapon effects remain unstarted.** Doors carry their own undecoded fields
-     (`DoorPortal`, `bLocked`, `PathList`, `OpenAnimationRate`). Plasmid/weapon effects read as
-     script-side class defaults (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than
-     placed-actor payloads — a different decode mechanism from everything else in this item, not
-     investigated yet.
+   - **Doors decoded, 24 Aug 2026 — `DoorActorData`.** The game ships ~50 door-named classes with
+     no naming convention consistent enough to enumerate, so this is gated on field presence
+     instead: any actor carrying `DoorPortal`, `bLocked`, `bInitiallyOpen`, `OpenAnimationRate`,
+     `CloseAnimationRate`, `DelayBeforeOpening` or `StayOpenDuration` gets a record. Verified
+     whole-game that the gate can't misfire — every class carrying any of those fields has `"Door"`
+     in its name, and none outside that family does. **353 door actors across 18 packages, 0
+     incomplete.** `DoorKeypadControl` (a singleton interaction record that happens to share the
+     word "Door") correctly gets no record, confirmed by reading it rather than assumed. A
+     bookkeeping fix landed alongside it: `PathList`/`PathCollisionRadius` were already decoded
+     generically for any actor (doors included) but missing from the `Interpreted` property-name
+     set, so doors were showing them as uninterpreted when they were already typed. Pinned by
+     `DoorActorSchemaTests`. Not decoded: `DoorSwitch`'s own interaction-verb fields
+     (`UseVerbText`/`DamagedReactions`), left for the same reason emitters' low-frequency flags
+     were — this targeted what a placeholder needs, not the whole vocabulary.
+   - **Plasmid/weapon effects remain unstarted.** They read as script-side class defaults
+     (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than placed-actor payloads — a
+     different decode mechanism from everything else in this item, not investigated yet.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 

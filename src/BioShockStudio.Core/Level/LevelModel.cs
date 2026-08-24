@@ -480,6 +480,27 @@ public sealed record MoverTriggerTarget
     public string? TargetClassName { get; init; }
 }
 
+/// <summary>
+/// Typed door-state fields. Gated on field presence, not class name — the game's ~50 door classes
+/// share no naming convention consistent enough to enumerate, but every class that carries any of
+/// these fields also has "Door" in its name (verified against the whole game, not assumed), and no
+/// class outside that family carries them.
+/// </summary>
+public sealed record DoorActorData
+{
+    /// <summary>The <c>Brush</c> this door occludes/reveals when it opens, from <c>DoorPortal</c>.</summary>
+    public AssetReference? Portal { get; init; }
+
+    public bool? Locked { get; init; }
+    public bool? InitiallyOpen { get; init; }
+    public float? OpenAnimationRate { get; init; }
+    public float? CloseAnimationRate { get; init; }
+    public float? DelayBeforeOpening { get; init; }
+    public float? StayOpenDuration { get; init; }
+
+    public required bool Complete { get; init; }
+}
+
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
 public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record MapHudRegionData(string HudRegion, string Description);
@@ -534,6 +555,9 @@ public sealed record LevelActor
 
     /// <summary>Typed motion/trigger-wiring fields for <c>Mover</c> and <c>ScriptableMover</c>.</summary>
     public MoverActorData? Mover { get; init; }
+
+    /// <summary>Typed door-state fields; null for actors outside the door family (field presence, not class name, gates this).</summary>
+    public DoorActorData? Door { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

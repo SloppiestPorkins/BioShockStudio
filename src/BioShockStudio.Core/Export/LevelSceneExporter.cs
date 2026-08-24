@@ -359,6 +359,17 @@ public static class LevelSceneExporter
                     }).ToList(),
                     Complete = actor.Mover.Complete,
                 },
+                Door = actor.Door is null ? null : new LevelDoorActorDocument
+                {
+                    Portal = Describe(actor.Door.Portal),
+                    Locked = actor.Door.Locked,
+                    InitiallyOpen = actor.Door.InitiallyOpen,
+                    OpenAnimationRate = actor.Door.OpenAnimationRate,
+                    CloseAnimationRate = actor.Door.CloseAnimationRate,
+                    DelayBeforeOpening = actor.Door.DelayBeforeOpening,
+                    StayOpenDuration = actor.Door.StayOpenDuration,
+                    Complete = actor.Door.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -787,6 +798,7 @@ public sealed record LevelActorDocument
     public LevelInfoActorDocument? LevelInfo { get; init; }
     public LevelShockAiScoutDocument? ShockAiScout { get; init; }
     public LevelMoverActorDocument? Mover { get; init; }
+    public LevelDoorActorDocument? Door { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -958,6 +970,18 @@ public sealed record LevelMoverTriggerTargetDocument
     public required bool Resolved { get; init; }
     public int? TargetExportIndex { get; init; }
     public string? TargetClassName { get; init; }
+}
+
+public sealed record LevelDoorActorDocument
+{
+    public LevelReferenceDocument? Portal { get; init; }
+    public bool? Locked { get; init; }
+    public bool? InitiallyOpen { get; init; }
+    public float? OpenAnimationRate { get; init; }
+    public float? CloseAnimationRate { get; init; }
+    public float? DelayBeforeOpening { get; init; }
+    public float? StayOpenDuration { get; init; }
+    public required bool Complete { get; init; }
 }
 
 public sealed record LevelPressureRegionDocument(string Name, byte Pressure, float EffectsDuration);
