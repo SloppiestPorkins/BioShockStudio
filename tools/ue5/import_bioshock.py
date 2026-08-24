@@ -230,6 +230,11 @@ def _import_textures(rig, export_directory, destination, report=None):
     entries = rig.get("textures") or []
     if not entries:
         return []
+    if report is None:
+        # The one call site in main() always passes a real dict; this default exists so a caller
+        # importing just the textures (no full created/updated/skipped/unsupported report of its
+        # own) does not crash on the summary log below, which indexes report unconditionally.
+        report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0}
 
     address = {
         "Wrap": unreal.TextureAddress.TA_WRAP,
