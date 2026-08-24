@@ -453,7 +453,31 @@ public sealed record MoverActorData
     /// <summary>Byte enum; meaning `UNKNOWN` — not in `Bioshock1REMSDK-WIP--main`.</summary>
     public byte? MoverGlideType { get; init; }
 
+    /// <summary>
+    /// Each name in <see cref="TriggeredBy"/>, resolved against every other actor's <c>Label</c> in
+    /// the same package (never <c>Tag</c> — 0 of 103 shipped names matched one; see
+    /// docs/research/interaction.md §2). Populated by <c>LevelAnalyzer.ResolveMoverTriggers</c>, a
+    /// second pass over the whole package that runs after every actor is built. Empty when
+    /// <see cref="TriggeredBy"/> is null or the literal <c>"none"</c>.
+    /// </summary>
+    public IReadOnlyList<MoverTriggerTarget> ResolvedTriggers { get; init; } = [];
+
     public required bool Complete { get; init; }
+}
+
+/// <summary>
+/// One name from a mover's <see cref="MoverActorData.TriggeredBy"/>, and the actor it names if
+/// exactly one other actor in the package carries that <c>Label</c>. A name that matches more than
+/// one actor's <c>Label</c> is left unresolved rather than guessing which one was meant — never
+/// observed across the shipped game (0 of 103 names), but the check exists because <c>Label</c> is
+/// otherwise far from unique (auto-numbered names like <c>Light3</c> repeat hundreds of times).
+/// </summary>
+public sealed record MoverTriggerTarget
+{
+    public required string Name { get; init; }
+    public required bool Resolved { get; init; }
+    public int? TargetExportIndex { get; init; }
+    public string? TargetClassName { get; init; }
 }
 
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);

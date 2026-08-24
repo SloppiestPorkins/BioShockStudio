@@ -5,8 +5,9 @@ the source object graph backing them is known." This note is the first piece of 
 `ScriptableMover`, what triggers them, their start pose, and the census that scopes the rest of the
 item.
 
-**Status.** The trigger-wiring and start-pose fields are `CONFIRMED_BYTES`. The keyframe motion
-path itself (`KeyPos`/`KeyRot`) is deliberately not decoded — see §3.
+**Status.** The trigger-wiring and start-pose fields are `CONFIRMED_BYTES`, and `TriggeredBy` is
+resolved against `Label` in code (§2). The keyframe motion path itself (`KeyPos`/`KeyRot`) is
+deliberately not decoded — see §3.
 
 ## 1. The shape
 
@@ -75,6 +76,17 @@ convention — outright, rather than leaving it assumed. The actual mechanism is
 own editor-assigned display name, not the engine's native tag field. That's a real, useful, and
 non-obvious finding, exactly the kind this census exists to catch rather than guess at.
 
+**Every one of the 88 resolved matches is a `Script` actor — no exceptions.** A mover's
+`TriggeredBy` never names a door, a switch, or anything else directly; it always names a `Script`
+by its `Label`. Movers are triggered exclusively through the level's script layer.
+
+Resolution is also unambiguous across the whole game: `Label` is otherwise far from unique in this
+game (auto-numbered names like `Light3` repeat up to 962 times in one package), but checked against
+every actor in every package that has a mover, **all 88 resolved names match exactly one actor's
+`Label`, never more than one.** Nothing here had to pick an arbitrary match among several — the
+resolver still checks for that case and leaves an ambiguous name unresolved rather than guessing,
+but it has never actually had to.
+
 The 15 unresolved names read as UnrealScript state names rather than object references —
 `LIKELY`, not confirmed. `MoveMe` (`1-Welcome`, on a mover labelled `Lift`) matches no actor's `Tag`
 or `Label` in its package at all, and the pattern generalises: `MoveMe2`, `MoveMeFontaine`,
@@ -86,12 +98,15 @@ lines up with `InitialState` already being a state name in its own right (`Trigg
 pinned example): movers plausibly run their own state machine, and only some of what triggers them
 turns out to be a named level object.
 
-This resolution is a research finding over already-decoded fields (`Tag`/`Label`/`TriggeredBy`),
-not a new byte format, so it was safe to write up here. It is **not** wired into code yet, though.
-Turning it into an actual `LevelActor.Mover.ResolvedTriggers` field needs a second analysis pass —
-today's `BuildActor` decodes one actor at a time and has no visibility into the rest of the
-package's actors while doing so — which is a real pipeline change that deserves its own pass rather
-than folding into this one.
+**Wired into code, 24 Aug 2026 — `MoverActorData.ResolvedTriggers`.** This turned out to be a
+research finding over already-decoded fields (`Label`/`TriggeredBy`), not a new byte format, so
+implementing it didn't need any new byte-level reverse engineering. It does need a second analysis
+pass, though: `LevelAnalyzer.ResolveMoverTriggers` runs once per package after every actor is built,
+indexes every actor by `Label`, then updates each mover's `ResolvedTriggers` in place — the one
+piece of "interaction metadata" in this project so far that needs the whole package's actors, not
+just its own bytes, to resolve. Each `MoverTriggerTarget` carries the raw name, whether it resolved,
+and (if so) the target's export index and class name. Pinned against real bytes by
+`MoverActorSchemaTests`, including a game-wide regression that no resolved name is ever ambiguous.
 
 ## 3. What is typed today, and what is deliberately deferred
 

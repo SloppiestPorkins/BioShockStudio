@@ -109,7 +109,60 @@ public static class LevelAnalyzer
                 progress.Report($"{actors.Count} actors");
         }
 
+        ResolveMoverTriggers(actors);
+
         return Summarise(package, packageName, actors, failed, uninterpreted);
+    }
+
+    /// <summary>
+    /// Second pass over the whole package: resolves every mover's <c>TriggeredBy</c> names against
+    /// every other actor's <c>Label</c>, in place. Has to run after every actor in the package is
+    /// built, unlike every other field on <see cref="LevelActor"/>, which is decoded from that one
+    /// actor's own bytes — this is the one piece of "interaction metadata" that needs the whole
+    /// package's Labels to resolve at all. See docs/research/interaction.md §2 for why <c>Label</c>
+    /// and not <c>Tag</c>, and why an ambiguous name is left unresolved rather than guessed at.
+    /// </summary>
+    private static void ResolveMoverTriggers(List<LevelActor> actors)
+    {
+        var byLabel = new Dictionary<string, LevelActor>(StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var actor in actors)
+        {
+            if (actor.Label is not { } label) continue;
+            if (!byLabel.TryAdd(label, actor)) ambiguous.Add(label);
+        }
+
+        for (int i = 0; i < actors.Count; i++)
+        {
+            var actor = actors[i];
+            if (actor.Mover?.TriggeredBy is not { } raw
+                || raw.Equals("none", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var targets = new List<MoverTriggerTarget>();
+            foreach (string rawName in raw.Split(','))
+            {
+                string name = rawName.Trim();
+                if (name.Length == 0) continue;
+
+                if (!ambiguous.Contains(name) && byLabel.TryGetValue(name, out var target))
+                {
+                    targets.Add(new MoverTriggerTarget
+                    {
+                        Name = name,
+                        Resolved = true,
+                        TargetExportIndex = target.Source.ExportIndex,
+                        TargetClassName = target.Source.ClassName,
+                    });
+                }
+                else
+                {
+                    targets.Add(new MoverTriggerTarget { Name = name, Resolved = false });
+                }
+            }
+
+            actors[i] = actor with { Mover = actor.Mover with { ResolvedTriggers = targets } };
+        }
     }
 
     /// <summary>

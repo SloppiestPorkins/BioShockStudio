@@ -1226,16 +1226,21 @@ material.
      `StayOpenTime` and the two byte enums (`MoverEncroachType`/`MoverGlideType`, raw values,
      meanings `UNKNOWN`). Gated on the exact class name: `Int_FireMover` shares the word "Mover"
      but not the shape (confirmed by reading it, not assumed) and correctly gets no record.
-   - **The graph resolved, same day — `TriggeredBy` matches another actor's `Label`, not `Tag`.**
-     103 names across every package with movers, `Tag` and `Label` both already decoded generically
-     for every actor: **88 (85.4%) match a `Label` in the same package, 0 match a `Tag`** — ruling
-     out the obvious UE1/2 `Trigger`→`Tag` convention rather than leaving it assumed. The 15
-     unresolved (`MoveMe`, `TurretControlSwitchScript`, ...) read as UnrealScript state names a
-     script calls directly, not object references — `LIKELY`, consistent with `InitialState`
-     already being a state name in the same records. **Not yet wired into the typed record or
-     exporter** — it needs a second analysis pass (today's `BuildActor` decodes one actor at a time
-     with no visibility into the rest of the package), a real pipeline change kept separate from
-     this pass rather than folded in.
+   - **The graph resolved and wired in, 24 Aug 2026 — `TriggeredBy` matches another actor's
+     `Label`, not `Tag`.** 103 names across every package with movers, `Tag` and `Label` both
+     already decoded generically for every actor: **88 (85.4%) match a `Label` in the same
+     package, 0 match a `Tag`** — ruling out the obvious UE1/2 `Trigger`→`Tag` convention rather
+     than leaving it assumed. **Every one of those 88 resolves to a `Script` actor, no
+     exceptions** — a mover is triggered exclusively through the level's script layer, never
+     directly by a door or switch. **All 88 are unambiguous**, checked against a game where `Label`
+     is otherwise far from unique (one auto-numbered name repeats 962 times in a single package).
+     The 15 unresolved (`MoveMe`, `TurretControlSwitchScript`, ...) read as UnrealScript state
+     names a script calls directly, not object references — `LIKELY`, consistent with
+     `InitialState` already being a state name in the same records. **Now typed**:
+     `MoverActorData.ResolvedTriggers`, populated by a new `LevelAnalyzer.ResolveMoverTriggers`
+     second pass that runs once per package after every actor is built (the one piece of
+     interaction metadata so far that needs the whole package, not just its own actor's bytes) —
+     pinned by `MoverActorSchemaTests`, including a game-wide regression against ambiguity.
    - **Deliberately not decoded: the keyframe motion path (`KeyPos`/`KeyRot`).** They're UE1/2
      fixed-array properties (repeated same-name entries distinguished by `ArrayIndex`), a pattern
      with no precedent elsewhere in this codebase, and the "index 0 is implicit, equals

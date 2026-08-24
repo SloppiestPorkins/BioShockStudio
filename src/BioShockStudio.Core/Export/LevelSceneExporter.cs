@@ -350,6 +350,13 @@ public static class LevelSceneExporter
                     TriggerOnceOnly = actor.Mover.TriggerOnceOnly,
                     MoverEncroachType = actor.Mover.MoverEncroachType,
                     MoverGlideType = actor.Mover.MoverGlideType,
+                    ResolvedTriggers = actor.Mover.ResolvedTriggers.Select(target => new LevelMoverTriggerTargetDocument
+                    {
+                        Name = target.Name,
+                        Resolved = target.Resolved,
+                        TargetExportIndex = target.TargetExportIndex,
+                        TargetClassName = target.TargetClassName,
+                    }).ToList(),
                     Complete = actor.Mover.Complete,
                 },
                 StaticMesh = actor.StaticMesh?.ObjectName,
@@ -940,7 +947,17 @@ public sealed record LevelMoverActorDocument
     public bool? TriggerOnceOnly { get; init; }
     public byte? MoverEncroachType { get; init; }
     public byte? MoverGlideType { get; init; }
+    public required List<LevelMoverTriggerTargetDocument> ResolvedTriggers { get; init; }
     public required bool Complete { get; init; }
+}
+
+/// <summary>One <c>TriggeredBy</c> name, resolved against another actor's <c>Label</c> in the same package.</summary>
+public sealed record LevelMoverTriggerTargetDocument
+{
+    public required string Name { get; init; }
+    public required bool Resolved { get; init; }
+    public int? TargetExportIndex { get; init; }
+    public string? TargetClassName { get; init; }
 }
 
 public sealed record LevelPressureRegionDocument(string Name, byte Pressure, float EffectsDuration);
