@@ -278,32 +278,39 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
 
 
 def _assign_asset_material(mesh, asset, materials_by_key, report):
-    """Assign the one material a single-material static mesh uses.
+    """Assign each of a static mesh's sections its own material slot, in section order.
 
-    The OBJ this mesh was imported from carries no per-section groups -- `BuildAssetObj` writes
-    bare geometry only, and the manifest's own `sections` array is the section table this pipeline
-    reads instead -- so the importer always produces exactly one LOD section, regardless of how
-    many materials the original mesh's sections named. Assigning a single material interface is
-    therefore only correct when every section agrees on one; a mesh whose sections disagree is
-    counted as `multiMaterialMeshes` rather than guessed at, the same way an actor with no
-    importable geometry is counted as `unsupported` instead of silently skipped.
+    `BuildAssetObj` now writes one "usemtl BioShock_{index}" group per entry in the manifest's own
+    `sections` list, in that same order -- both are built by iterating the same geometry section
+    table -- so imported material slot N is assumed to correspond to `sections[N]`. One slot is
+    built per section regardless of whether several sections share a material key, so a later
+    section can't shift into an earlier section's slot index. A section with no resolved key gets
+    an empty slot (no material_interface) rather than silently inheriting a neighbour's material.
     """
-    keys = {section.get("materialKey")
-            for section in asset.get("sections") or [] if section.get("materialKey")}
-    if not keys:
-        return
-    if len(keys) > 1:
-        report["multiMaterialMeshes"] = report.get("multiMaterialMeshes", 0) + 1
-        return
-
-    material = materials_by_key.get(next(iter(keys)))
-    if material is None:
+    sections = asset.get("sections") or []
+    if not sections:
+        # No section table at all: leave whatever material the import gave the mesh alone, exactly
+        # as before this function assigned anything. Setting an empty static_materials list here
+        # would clear the mesh's material instead of leaving it untouched.
         return
 
-    slot = unreal.StaticMaterial()
-    slot.set_editor_property("material_interface", material)
-    slot.set_editor_property("material_slot_name", unreal.Name("BioShock_0"))
-    mesh.set_editor_property("static_materials", [slot])
+    static_materials = []
+    resolved_any = False
+    for index, section in enumerate(sections):
+        slot = unreal.StaticMaterial()
+        slot.set_editor_property("material_slot_name", unreal.Name("BioShock_%d" % index))
+
+        material = materials_by_key.get(section.get("materialKey"))
+        if material is not None:
+            slot.set_editor_property("material_interface", material)
+            resolved_any = True
+
+        static_materials.append(slot)
+
+    if not resolved_any:
+        return
+
+    mesh.set_editor_property("static_materials", static_materials)
     unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     report["materialsAssigned"] = report.get("materialsAssigned", 0) + 1
 
@@ -436,9 +443,9 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel"):
         _import_actors(manifest, existing, report, handled)
 
     _log("import report: %d created, %d updated, %d skipped, %d unsupported, "
-         "%d material(s) assigned, %d multi-material mesh(es) unassigned"
+         "%d mesh(es) with a material assigned"
          % (report["created"], report["updated"], report["skipped"], report["unsupported"],
-            report.get("materialsAssigned", 0), report.get("multiMaterialMeshes", 0)))
+            report.get("materialsAssigned", 0)))
 
     main.last_report = report
     return report
