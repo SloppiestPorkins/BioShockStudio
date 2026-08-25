@@ -1296,11 +1296,17 @@ material.
      `.HighPressureEmitterClass`. `CONFIRMED_BYTES` against all three ammo types, matching the
      UELib decompile exactly; a weapon that uses the array shape instead correctly reports neither
      flat property.
-     **Still unstarted**: the same flat-property idea on plasmid *ability* classes
-     (`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
-     `SpringBoardTrapAbility.TargetIndicatorClass`, `TrapBoltProjectile.BeamEffectClass`, ...) —
-     genuinely heterogeneous, a different property name per class rather than one shared base like
-     `EmitterAmmo`, not one mechanism. `docs/research/interaction.md` §6's last paragraph and §7.
+     **Plasmid ability flat properties landed, 25 Aug 2026** —
+     `WeaponEffects.ResolveEffectProperty` for arbitrary property names:
+     `SecurityBeaconAbility.ProjectileClass`, `SpringBoardTrapAbility.TargetIndicatorClass`,
+     `TrapBoltProjectile.BeamEffectClass`, and (after the ClassDefaults longest-walk fix)
+     `BerserkRageAbility.ProjectileClass` → `EnrageProjectile`.
+     **String-path shape also landed:** `DecoyHumanAbility.TargetIndicatorClassString` →
+     `"FXClass.DecoyHumanTarget"` via `WeaponEffects.ResolveEffectClassString` (`CONFIRMED_BYTES`);
+     the named class is not a local `ShockGame.U` export (`Resolved` null — where those class
+     bytes live is `UNKNOWN`). **Still open within this item:** `Attachments`/`ScriptedSequence`
+     on doors; `KeyPos`/`KeyRot` deliberately deferred pending a render check.
+     `docs/research/interaction.md` §6–§7.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 

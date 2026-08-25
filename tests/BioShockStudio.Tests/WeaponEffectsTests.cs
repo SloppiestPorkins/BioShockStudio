@@ -131,19 +131,65 @@ public sealed class WeaponEffectsTests(GameFixture game)
     }
 
     /// <summary>
-    /// Pins a currently-known-wrong answer, not a correct one — see
-    /// docs/research/interaction.md §6. <c>BerserkRageAbility.ProjectileClass</c> is real and present
-    /// in the decompiled source (the very first line of its defaultproperties), but
-    /// <c>ClassDefaults</c>' offset search recovers a property list that silently starts six
-    /// properties later, at <c>FriendlyName</c> -- so this currently, correctly-for-the-wrong-reason
-    /// returns null. If a future <c>ClassDefaults</c> fix recovers the true leading properties, this
-    /// assertion should flip to resolving <c>EnrageProjectile</c> -- that is the intended signal a
-    /// change here is meant to send, not a regression.
+    /// <c>ClassDefaults</c> must prefer the longest clean walk to EOF over the earliest one. An
+    /// earlier mid-stream hit on <c>BerserkRageAbility</c> used to return ten properties starting at
+    /// a numbered <c>Text…</c> name and silently drop the six real leading defaults, including
+    /// <c>ProjectileClass</c>. See <c>docs/research/interaction.md</c> §6.
     /// </summary>
     [RequiresGameFact]
-    public void BerserkRageAbilityDemonstratesAKnownClassDefaultsGap()
+    public void BerserkRageAbilityResolvesProjectileClassOnceClassDefaultsTakesTheLongestWalk()
     {
         using var package = BioShockPackage.Open(game.WeaponPackage);
-        Assert.Null(WeaponEffects.ResolveEffectProperty(package, "BerserkRageAbility", "ProjectileClass"));
+        Assert.Equal("EnrageProjectile",
+            WeaponEffects.ResolveEffectProperty(package, "BerserkRageAbility", "ProjectileClass")?.Source.ObjectName);
+    }
+
+    [RequiresGameFact]
+    public void ShockPlayerSanctuaryModelClassIsVisibleAfterTheLongestWalkFix()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        var export = package.Exports.First(e => e.ObjectName == "ShockPlayer" && e.ClassIndex.IsNull);
+        var defaults = new BioShockStudio.Core.Level.ClassDefaults(package).For(export);
+        Assert.Contains(defaults, p => p.Name == "SanctuaryModelClass");
+        Assert.DoesNotContain(defaults, p => p.Name == "GetNumberOfItems");
+    }
+
+    /// <summary>
+    /// <c>DecoyHumanAbility.TargetIndicatorClassString</c> is a plain Str naming a class by path,
+    /// not an Object/Class reference — the third plasmid-effect shape
+    /// (<c>docs/research/interaction.md</c> §6). The named class is not a <c>Class</c> export in
+    /// <c>ShockGame.U</c> (no name-table entry either); path resolution correctly stays null.
+    /// </summary>
+    [RequiresGameFact]
+    public void DecoyHumanAbilityTargetIndicatorClassStringDecodesToTheClassPath()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        var result = WeaponEffects.ResolveEffectClassString(
+            package, "DecoyHumanAbility", "TargetIndicatorClassString");
+
+        Assert.NotNull(result);
+        Assert.Equal("FXClass.DecoyHumanTarget", result!.ClassPath);
+        Assert.Null(result.Resolved);
+
+        // Path form matches how local FXClass children are named (e.g. SpringBoard_Cursor), but
+        // DecoyHumanTarget itself is absent from this package — Resolved null is the real answer,
+        // not a decode failure.
+        var cursor = package.Exports.First(e =>
+            e.ObjectName == "SpringBoard_Cursor" && package.GetClassName(e) == "Class");
+        Assert.Equal("FXClass.SpringBoard_Cursor", package.GetFullPath(cursor));
+        Assert.DoesNotContain(package.Exports, e =>
+            package.GetClassName(e) == "Class"
+            && package.GetFullPath(e).Equals("FXClass.DecoyHumanTarget", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RequiresGameFact]
+    public void ResolveEffectClassStringReturnsNullForMissingClassOrProperty()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        Assert.Null(WeaponEffects.ResolveEffectClassString(package, "Pistol", "NoSuchString"));
+        Assert.Null(WeaponEffects.ResolveEffectClassString(
+            package, "ThisClassDoesNotExist", "TargetIndicatorClassString"));
+        // Object/Class-typed properties are a different shape — not matched as Str.
+        Assert.Null(WeaponEffects.ResolveEffectClassString(package, "MachineGun", "EmitterClass"));
     }
 }

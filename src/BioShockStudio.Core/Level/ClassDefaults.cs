@@ -16,6 +16,14 @@ namespace BioShockStudio.Core.Level;
 /// constrained: the walk must terminate on a clean <c>None</c> exactly at the end of the payload and
 /// must not contain a property of type <c>None</c>, which is what a misaligned walk produces.
 /// </para>
+/// <para>
+/// When several offsets satisfy that constraint, the <b>longest</b> list wins. An earlier mid-stream
+/// start can invent a shorter garbage prefix (often a numbered <c>Text…</c> name) that still lands
+/// on the same terminator — returning the first hit silently drops real leading defaults
+/// (<c>BerserkRageAbility.ProjectileClass</c>, <c>ShockPlayer.SanctuaryModelClass</c>). Across all
+/// 654 <c>Class</c> exports in <c>ShockGame.U</c>, 17 differ between earliest and longest; longest
+/// is strictly longer on every one of them.
+/// </para>
 /// </summary>
 public sealed class ClassDefaults
 {
@@ -64,6 +72,7 @@ public sealed class ClassDefaults
         catch { return []; }
         if (data.Length <= UnrealPropertyReader.PayloadPropertyOffset) return [];
 
+        IReadOnlyList<UnrealProperty>? best = null;
         for (int start = UnrealPropertyReader.PayloadPropertyOffset; start < data.Length; start++)
         {
             List<UnrealProperty> properties;
@@ -75,9 +84,9 @@ public sealed class ClassDefaults
             if (truncated || end != data.Length || properties.Count == 0) continue;
             // A walk that lands mid-bytecode produces properties with no type. A real list has none.
             if (properties.Any(p => p.Type == UnrealPropertyType.None)) continue;
-            return properties;
+            if (best is null || properties.Count > best.Count) best = properties;
         }
 
-        return [];
+        return best ?? [];
     }
 }

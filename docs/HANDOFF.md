@@ -24,8 +24,9 @@ means no row is currently claimed, not that no one is working — always check t
 |---|---|---|---|
 | Codex | **Gate 4 item 1**: exact actor/schema-name resolution against shipped FSB sample names, then sound-event response routing | `src/BioShockStudio.Core/Audio/`, `src/BioShockStudio.Core/Level/`, `tests/BioShockStudio.Tests/*Audio*Tests.cs`, `docs/ROADMAP.md`, `docs/research/audio.md` | 23 Aug 2026 |
 | Claude (second session) | Gate 1 items 1 and 2 — **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials — panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
-| Claude (this session) | **Gate 4 item 3** landed (emitter census + `EmitterTemplateData` widening, 31/120 fields including all three curve arrays). **Now on Gate 4 item 4** — landed movers' trigger wiring (`TriggeredBy`) and start pose; doors, trigger cross-reference and plasmid/weapon effects still unstarted. Both items touch `Core/Level/`, which the Codex row above claims for Gate 4 item 1 (audio) — user-authorised to proceed, since Codex's claim is scoped to audio-adjacent work in that directory. | `docs/research/{effects,interaction}.md`, `docs/ROADMAP.md`, `src/BioShockStudio.Core/Level/{LevelModel,LevelAnalyzer,LevelCoverage}.cs`, `src/BioShockStudio.Core/Export/LevelSceneExporter.cs`, `tests/BioShockStudio.Tests/{EmitterTemplate{Census,Field},MoverActorSchema}Tests.cs` | 23–24 Aug 2026 |
+| Claude (prior session) | Gate 4 item 4 movers/doors/weapon/plasmid effects — **landed through** `ResolveEffectProperty` + DoorSwitch reactions. Row kept for history; no longer owning the track. | (released) | 23–25 Aug 2026 |
 | Claude (third session) | **TASK-000 / TASK-009 closeout** — the four bucket-sum tests, the last un-filtered one, and the stale verification stamp | `tests/BioShockStudio.Tests/InteractionActorSchemaTests.cs`; `docs/ROADMAP.md` "Test health" **only** (the ROADMAP touch was cleared with the user first, since the row above claims that file for Gate 4 audio edits at a different part of it) | 23 Aug 2026 |
+| Composer (this session) | **Gate 4 item 4** — `ClassDefaults` longest-walk fix + `DecoyHumanAbility.TargetIndicatorClassString` decode landed (uncommitted). Remaining Gate 4.4 opens are door `Attachments`/`ScriptedSequence` and deferred `KeyPos`/`KeyRot`. | `WeaponEffects*`, `docs/research/interaction.md`, `docs/ROADMAP.md` (Gate 4.4 status only — audio left alone) | 25 Aug 2026 |
 
 > **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,
@@ -141,22 +142,17 @@ data, the service should tell it.
 
 Each of these produced a plausible, wrong result before it was understood.
 
-- **`ClassDefaults` can silently recover a property list that starts mid-stream, skipping real
-  leading properties, on at least two classes.** Found decoding weapon/plasmid effects, 25 Aug 2026:
-  `BerserkRageAbility`'s `ProjectileClass` (the first property in its real decompiled
-  defaultproperties) is invisible to `ClassDefaults(package).For(export)` — the reader recovers a
-  clean-looking list that starts six properties later, at `FriendlyName`, with no error or
-  indication anything was skipped. `ShockPlayer` (32,464 bytes, the largest class in the game) shows
-  the same shape of symptom: a bogus leading `GetNumberOfItems Float` property — that's a *function*
-  name, not a property. `ClassDefaults`' offset search is documented as trying every start position
-  until one walks cleanly to the payload's end; `PLAUSIBLE` that the true start fails that check for
-  a reason related to an `Object`/`Class`-typed property's size (the same shape of bug
-  `UnrealPropertyReader.CorrectedStructSize` already fixed for struct-typed properties), unconfirmed.
-  **Not fixed** — `docs/research/interaction.md` §6 has the full evidence;
-  `WeaponEffectsTests.BerserkRageAbilityDemonstratesAKnownClassDefaultsGap` pins the current
-  (wrong-for-an-understood-reason) behavior so a future fix has a test that flips rather than one
-  that silently stays green. Any other caller of `ClassDefaults`/`ClassDefaults.Lookup` should treat
-  a short-looking property list on a large or early-heavy class with suspicion, not certainty.
+- ~~**`ClassDefaults` can silently recover a property list that starts mid-stream, skipping real
+  leading properties, on at least two classes.**~~ **Fixed, 25 Aug 2026.** The bug was not a
+  struct-size mis-walk: several offsets can produce a clean walk to EOF, and the reader returned the
+  *earliest*. On `BerserkRageAbility` that earliest hit was a 10-property mid-stream list starting at
+  a numbered `Text…` name; the true 14-property list (starting at `ProjectileClass`) starts 29 bytes
+  later. On `ShockPlayer` the earliest was a bogus `GetNumberOfItems` Float (a function name); the
+  longest clean walk (119 properties from `BasePlasmidSlots`) includes `SanctuaryModelClass`. Fix:
+  prefer the longest clean walk. Census on all 654 `Class` exports in `ShockGame.U`: 17 differ
+  between earliest and longest, and longest is strictly longer on every one. Pinned by
+  `WeaponEffectsTests.BerserkRageAbilityResolvesProjectileClassOnceClassDefaultsTakesTheLongestWalk`
+  and `ShockPlayerSanctuaryModelClassIsVisibleAfterTheLongestWalkFix`.
 - **The `properties` CLI command's own `Bool` display always printed `"true"`, regardless of the
   actual value.** Found 25 Aug 2026 decoding `DoorSwitch`'s `DamagedReactions`/`UsedReactions`: the
   tool's own output showed `OnceOnly` as `true`, a real decoded test assertion was written against

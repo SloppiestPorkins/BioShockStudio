@@ -3,16 +3,18 @@
 Gate 4 item 4 asks for "interaction metadata (movers, doors, triggers, plasmid/weapon effects) once
 the source object graph backing them is known." This note covers `Mover`/`ScriptableMover` (what
 triggers them, their start pose), the game's ~50 door classes plus `DoorSwitch` (portal, lock,
-animation and interaction-verb state), triggers' own trigger-wiring field, and one of the two
-weapon/plasmid-effect shapes (§6).
+animation and interaction-verb state), triggers' own trigger-wiring field, and the weapon/plasmid
+effect shapes in §6.
 
 **Status.** Movers' and doors' state fields, and `DoorSwitch`'s reaction arrays, are all
 `CONFIRMED_BYTES`, and a mover's `TriggeredBy` is resolved against `Label` in code (§2). Triggers'
 own `TriggeredBy` turned out to be a class filter, not an object reference, and is closed rather
 than open (§4). A mover's keyframe motion path (`KeyPos`/`KeyRot`) is deliberately not decoded —
-see §3. Weapon classes' `OnFiredEffects`/`TracerEffects`, and `EmitterAmmo`'s own flat `EmitterClass`/
-`HighPressureEmitterClass` pair, are both `CONFIRMED_BYTES` — see §6; the same flat-property idea on
-plasmid ability classes (different property name per class) remains untouched, same section.
+see §3. Weapon classes' `OnFiredEffects`/`TracerEffects`, `EmitterAmmo`'s flat `EmitterClass`/
+`HighPressureEmitterClass`, plasmid ability Object/Class properties via `ResolveEffectProperty`, and
+`DecoyHumanAbility.TargetIndicatorClassString` (Str path via `ResolveEffectClassString`) are all
+`CONFIRMED_BYTES` — see §6. Where the named `FXClass.DecoyHumanTarget` class bytes live is
+`UNKNOWN` (not a local `ShockGame.U` export).
 
 ## 1. The shape
 
@@ -291,29 +293,31 @@ ability classes resolve cleanly, `CONFIRMED_BYTES`, matching the UELib decompile
 `SecurityBeaconAbility.ProjectileClass` → `BeaconProjectile`, `SpringBoardTrapAbility.
 TargetIndicatorClass` → `SpringBoard_Cursor`, `TrapBoltProjectile.BeamEffectClass` → `TrapBoltBeam`.
 
-**A real, separate `ClassDefaults` limitation found along the way, not fixed here.**
-`BerserkRageAbility.ProjectileClass` and `ShockPlayer.SanctuaryModelClass` both resolve to null —
-correctly (no exception, no wrong data), but for a more interesting reason than "the property isn't
-there": `properties ShockGame.U BerserkRageAbility` shows `ClassDefaults` recovering a property list
-that starts mid-stream at `FriendlyName`, silently *skipping* the six properties that precede it in
-the real decompiled source — `ProjectileClass`, `bShouldHeatSeek`, `DamageStimuliSetName`,
-`ChanceToCrit`, `ModGroupName`, `BioAmmoCost`. Every property from `FriendlyName` onward reads
-correctly (`FriendlyName` itself decodes to the right UTF-16 `"Enrage"`), so this isn't a fully
-misaligned walk — `ClassDefaults.Read`'s offset search (documented as trying every start offset
-until one produces a "clean" walk) apparently finds the *true* start unable to walk cleanly to the
-payload's end, keeps searching, and lands on `FriendlyName`'s offset as the first one that does.
-`ShockPlayer` (32,464 bytes, the largest class in the game) shows the same shape of symptom —
-`GetNumberOfItems`, a *function* name, appearing as a bogus leading `Float` property. `PLAUSIBLE`
-that an `Object`/`Class`-typed property's size interacts with the walk the same way the already-fixed
-`MaskMaterial` struct-size bug did (`UnrealPropertyReader.CorrectedStructSize`'s own remarks), but
-unconfirmed — the byte-level cause hasn't been isolated, and fixing `ClassDefaults` itself is a
-separate, foundational-code investigation (it's used throughout this project) deliberately not
-opened inside this pass. Recorded rather than chased: two classes' first few properties being
-invisible to every caller of `ClassDefaults`, not just this one, is worth a dedicated look.
+**`ClassDefaults` mid-stream gap — diagnosed and fixed, 25 Aug 2026.** Earlier reading: the true
+start seemed unable to walk cleanly, and a later `FriendlyName` start won. Actual cause: **several
+offsets produce a clean walk to EOF**, and the reader returned the *earliest*. On
+`BerserkRageAbility` the earliest is a 10-property false positive starting at a numbered `Text…`
+name; the true list is 14 properties from offset 164 starting at `ProjectileClass` (includes the six
+previously "missing" leading defaults). On `ShockPlayer` the earliest is a bogus `GetNumberOfItems`
+Float; the longest clean walk (119 properties from `BasePlasmidSlots`) includes
+`SanctuaryModelClass`. Fix: prefer the longest clean walk. Census: 17 of 654 `ShockGame.U` classes
+differ; longest is strictly longer on all 17. Not an `Object`/`Class` size bug — that hypothesis is
+refuted. `WeaponEffectsTests` pins `BerserkRageAbility` → `EnrageProjectile` and
+`ShockPlayer.SanctuaryModelClass` present / `GetNumberOfItems` absent.
 
-**Still not decoded: the remaining plasmid classes' effect properties.** `DecoyHumanAbility.
-TargetIndicatorClassString` is a plain string naming a class by path (`"FXClass.DecoyHumanTarget"`),
-not a `Class`-typed reference property at all — a third, different shape not attempted here.
+**`DecoyHumanAbility.TargetIndicatorClassString` decoded, 25 Aug 2026 — the third plasmid-effect
+shape.** Plain `Str` default naming a class by Unreal path (`"FXClass.DecoyHumanTarget"`), not an
+Object/Class reference. `WeaponEffects.ResolveEffectClassString(package, className, propertyName)`
+reads it via `ClassDefaults` + `PropertyValues.AsString`, and sets `Resolved` only when a local
+`Class` export's `GetFullPath` matches (in-package only, same convention as
+`ResolveEffectProperty`). `CONFIRMED_BYTES`: the string is exactly `"FXClass.DecoyHumanTarget"`.
+The named class is **not** a `Class` export in `ShockGame.U` (absent from the name table and from
+`FXClass`'s 24 local children — contrast `FXClass.SpringBoard_Cursor`, which does ship and is what
+`SpringBoardTrapAbility.TargetIndicatorClass` references as an Object). `Resolved` is therefore
+null: the string decoded correctly; where the `DecoyHumanTarget` class bytes live is `UNKNOWN`.
+The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString`
+(`"ShockAIClasses.SpawnedDecoyHumanAI"`) — same API, same local-resolution outcome.
+`WeaponEffectsTests.DecoyHumanAbilityTargetIndicatorClassStringDecodesToTheClassPath`.
 
 ## 7. What this note does not claim
 
@@ -321,10 +325,10 @@ not a `Class`-typed reference property at all — a third, different shape not a
   `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
-- **A `ClassDefaults` limitation affecting at least two classes remains unfixed** —
-  `BerserkRageAbility` and `ShockPlayer` both recover a property list missing their true leading
-  properties. See §6's second-to-last paragraph; not specific to weapon/plasmid effects, worth its
-  own investigation.
-- **`DecoyHumanAbility.TargetIndicatorClassString` (a string, not a class reference) remains
-  undecoded** — see §6's last paragraph.
-- **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3.
+- **A `ClassDefaults` earliest-vs-longest false positive was fixed 25 Aug 2026** — see §6. Prefer
+  the longest clean walk to EOF; do not reopen as an Object-size bug.
+- **Where `FXClass.DecoyHumanTarget` (and `ShockAIClasses.SpawnedDecoyHumanAI`) ship as class
+  bytes remains `UNKNOWN`** — the Str path on `DecoyHumanAbility` is decoded; the named classes
+  are not local exports of `ShockGame.U`. See §6's last paragraph.
+- **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3. Deliberately deferred pending a render check.
+- **`Attachments` / `ScriptedSequence` on doors** — still open; dedicated pass, not this one.
