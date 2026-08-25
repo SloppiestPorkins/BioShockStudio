@@ -10,9 +10,9 @@ weapon/plasmid-effect shapes (§6).
 resolved against `Label` in code (§2). Triggers' own `TriggeredBy` turned out to be a class filter,
 not an object reference, and is closed rather than open (§4). A mover's keyframe motion path
 (`KeyPos`/`KeyRot`) and `DoorSwitch`'s reaction arrays are both deliberately not decoded — see §3
-and §5. Weapon classes' `OnFiredEffects`/`TracerEffects` are `CONFIRMED_BYTES` — see §6; the flat
-`EmitterClass` shape some ammo and plasmid ability classes use instead remains untouched, same
-section.
+and §5. Weapon classes' `OnFiredEffects`/`TracerEffects`, and `EmitterAmmo`'s own flat `EmitterClass`/
+`HighPressureEmitterClass` pair, are both `CONFIRMED_BYTES` — see §6; the same flat-property idea on
+plasmid ability classes (different property name per class) remains untouched, same section.
 
 ## 1. The shape
 
@@ -248,14 +248,21 @@ already resolves by mesh name, and `EmitterAction` plausibly distinguishes "spaw
 case) from "shell eject" (1, seen once on `MachineGun`'s fourth `OnFiredEffects` entry) — both
 `PLAUSIBLE`, neither cross-referenced against independent evidence yet.
 
-**Not decoded: the flat `EmitterClass`/`HighPressureEmitterClass` shape on ammo/ability classes.**
-`ChemicalThrower_LiquidNitrogen` and its siblings (`_IonicGel`, `_Kerosene`) declare `EmitterClass`
-directly on the ammo class's own defaults, not inside an `OnFiredEffects`-shaped array — a real
-class, correctly returning empty lists rather than being confused with a nonexistent one
-(`WeaponEffectsTests.AClassWithNeitherArrayReturnsEmptyListsNotNull`). Several plasmid ability
-classes (`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
+**The `EmitterClass`/`HighPressureEmitterClass` flat shape on `EmitterAmmo`, decoded too, 25 Aug
+2026.** `ChemicalThrower_LiquidNitrogen` and its siblings (`_IonicGel`, `_Kerosene`) declare
+`EmitterClass`/`HighPressureEmitterClass` directly on the ammo class's own defaults, not inside an
+`OnFiredEffects`-shaped array — resolved via the identical `ResolveEmitter` helper `OnFiredEffects`
+elements already use, exposed as `WeaponEffectsData.EmitterClass`/`.HighPressureEmitterClass`.
+`CONFIRMED_BYTES`: `ChemicalThrower_LiquidNitrogen` → `LiquidNitrogen_Player`/`LiquidNitrogenUp_Player`,
+`_IonicGel` → `IonGel`/`IonGelUp`, matching the UELib decompile exactly. A weapon that declares the
+array shape instead (`MachineGun`) correctly reports neither flat property —
+`WeaponEffectsTests.AnEmitterAmmoClassResolvesItsFlatEmitterClassPairInsteadOfTheArrayShape`.
+
+**Still not decoded: the same flat-property idea on plasmid ability classes.** Several
+(`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
 `SpringBoardTrapAbility.TargetIndicatorClass`, `TrapBoltProjectile.BeamEffectClass`) use the same
-flat-property shape under yet more different property names — genuinely heterogeneous, not one
+resolution mechanism in principle but under yet more different property names, one per class rather
+than a shared `EmitterAmmo`-style base — genuinely heterogeneous, not one
 mechanism, and not attempted in this pass.
 
 ## 7. What this note does not claim
@@ -264,6 +271,7 @@ mechanism, and not attempted in this pass.
   `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
-- **The flat `EmitterClass`/`HighPressureEmitterClass` ammo/ability shape remains undecoded** —
-  see §6's last paragraph.
+- **Plasmid ability classes' own effect-class properties remain undecoded** (`ProjectileClass`,
+  `TargetIndicatorClass`, `BeamEffectClass`, ... — a different name per class) — see §6's last
+  paragraph. The `EmitterAmmo` ammo-class shape (`ChemicalThrower_*`) is decoded.
 - **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3.

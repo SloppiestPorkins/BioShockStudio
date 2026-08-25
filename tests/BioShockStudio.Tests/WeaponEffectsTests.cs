@@ -73,19 +73,30 @@ public sealed class WeaponEffectsTests(GameFixture game)
     }
 
     [RequiresGameFact]
-    public void AClassWithNeitherArrayReturnsEmptyListsNotNull()
+    public void AnEmitterAmmoClassResolvesItsFlatEmitterClassPairInsteadOfTheArrayShape()
     {
         using var package = BioShockPackage.Open(game.WeaponPackage);
 
-        // ChemicalThrower_LiquidNitrogen names its FX classes directly on flat EmitterClass/
-        // HighPressureEmitterClass properties, not through OnFiredEffects/TracerEffects -- a
-        // different, not-yet-decoded shape (see docs/research/interaction.md §6). The class itself
-        // is real and present, so this must not be confused with the "class doesn't exist" case.
-        var data = WeaponEffects.For(package, "ChemicalThrower_LiquidNitrogen");
+        // ChemicalThrower ammo types name their FX classes directly on flat EmitterClass/
+        // HighPressureEmitterClass properties, not through OnFiredEffects/TracerEffects -- both
+        // arrays are correctly empty (not confused with "class doesn't exist", which returns null).
+        var liquidNitrogen = WeaponEffects.For(package, "ChemicalThrower_LiquidNitrogen");
+        Assert.NotNull(liquidNitrogen);
+        Assert.Empty(liquidNitrogen!.OnFiredEffects);
+        Assert.Empty(liquidNitrogen.TracerEffects);
+        Assert.Equal("LiquidNitrogen_Player", liquidNitrogen.EmitterClass?.Source.ObjectName);
+        Assert.Equal("LiquidNitrogenUp_Player", liquidNitrogen.HighPressureEmitterClass?.Source.ObjectName);
 
-        Assert.NotNull(data);
-        Assert.Empty(data!.OnFiredEffects);
-        Assert.Empty(data.TracerEffects);
+        var ionicGel = WeaponEffects.For(package, "ChemicalThrower_IonicGel");
+        Assert.Equal("IonGel", ionicGel?.EmitterClass?.Source.ObjectName);
+        Assert.Equal("IonGelUp", ionicGel?.HighPressureEmitterClass?.Source.ObjectName);
+
+        // A weapon that declares the array shape instead must not also report flat properties it
+        // never set -- the two shapes are mutually exclusive in the shipped data, and a false
+        // positive here would mean the flat lookup is matching something unrelated.
+        var machineGun = WeaponEffects.For(package, "MachineGun");
+        Assert.Null(machineGun?.EmitterClass);
+        Assert.Null(machineGun?.HighPressureEmitterClass);
     }
 
     [RequiresGameFact]

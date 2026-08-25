@@ -1270,6 +1270,10 @@ static int WeaponEffectsCommand(string root, string[] args)
     Console.WriteLine($"{data.ClassName}:");
     PrintEffects("OnFiredEffects", data.OnFiredEffects);
     PrintEffects("TracerEffects", data.TracerEffects);
+    if (data.EmitterClass is { } primary)
+        Console.WriteLine($"\nEmitterClass (flat): {primary.Source.ObjectName}");
+    if (data.HighPressureEmitterClass is { } highPressure)
+        Console.WriteLine($"HighPressureEmitterClass (flat): {highPressure.Source.ObjectName}");
     return 0;
 }
 

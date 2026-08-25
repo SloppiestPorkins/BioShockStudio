@@ -1297,11 +1297,18 @@ material.
      (`Class'...'` is only how the decompiler renders it), so every emitter/light silently resolved
      to null with a clean build until this was caught by running the CLI against real data and
      reading the output, not by trusting the exit code. `docs/research/interaction.md` §6.
-     **Still unstarted**: plasmid/weapon effects that use a flat `EmitterClass` property directly on
-     an ammo or ability class (`ChemicalThrower_LiquidNitrogen`, `BerserkRageAbility`, ...) rather
-     than through `OnFiredEffects`/`TracerEffects` — a genuinely different, heterogeneous shape
-     (inconsistent property names across classes), not one mechanism. `docs/research/interaction.md`
-     §6's last paragraph and §7.
+     **The flat-property shape decoded too, same day.** `EmitterAmmo`-derived ammo classes
+     (`ChemicalThrower_LiquidNitrogen`/`_IonicGel`/`_Kerosene`) name their effect directly on a flat
+     `EmitterClass`/`HighPressureEmitterClass` pair rather than through the array — resolved via the
+     same `ResolveEmitter` helper, exposed as `WeaponEffectsData.EmitterClass`/
+     `.HighPressureEmitterClass`. `CONFIRMED_BYTES` against all three ammo types, matching the
+     UELib decompile exactly; a weapon that uses the array shape instead correctly reports neither
+     flat property.
+     **Still unstarted**: the same flat-property idea on plasmid *ability* classes
+     (`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
+     `SpringBoardTrapAbility.TargetIndicatorClass`, `TrapBoltProjectile.BeamEffectClass`, ...) —
+     genuinely heterogeneous, a different property name per class rather than one shared base like
+     `EmitterAmmo`, not one mechanism. `docs/research/interaction.md` §6's last paragraph and §7.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 

@@ -40,6 +40,21 @@ public sealed record WeaponEffectsData
     public required string ClassName { get; init; }
     public required IReadOnlyList<WeaponFiredEffect> OnFiredEffects { get; init; }
     public required IReadOnlyList<WeaponFiredEffect> TracerEffects { get; init; }
+
+    /// <summary>
+    /// An <c>EmitterAmmo</c>-derived ammo class's own flat <c>EmitterClass</c>/
+    /// <c>HighPressureEmitterClass</c> properties — a chemical-thrower ammo type
+    /// (<c>ChemicalThrower_LiquidNitrogen</c>, <c>_IonicGel</c>, <c>_Kerosene</c>, ...) names its
+    /// effect directly here rather than through <see cref="OnFiredEffects"/>/
+    /// <see cref="TracerEffects"/>. Resolved the identical way an array element's own
+    /// <c>EmitterClass</c> is. Both null when the class declares neither — every weapon class in
+    /// <see cref="OnFiredEffects"/> above declares the array shape instead, not both.
+    /// </summary>
+    public EmitterTemplateData? EmitterClass { get; init; }
+
+    /// <summary>The higher-pressure variant of <see cref="EmitterClass"/> — held-trigger continuous
+    /// fire, for the ammo types that have one.</summary>
+    public EmitterTemplateData? HighPressureEmitterClass { get; init; }
 }
 
 /// <summary>
@@ -52,6 +67,11 @@ public sealed record WeaponEffectsData
 /// <c>Emitters</c> array uses — it is the identical shape either way) and, on <c>OnFiredEffects</c>
 /// elements only, an optional <c>LightClass</c> (a <c>DynamicLightEffect</c>-derived class, a
 /// different shape read directly here rather than through the emitter reader).
+/// </para>
+/// <para>
+/// An <c>EmitterAmmo</c>-derived ammo class instead names its effect on a flat <c>EmitterClass</c>/
+/// <c>HighPressureEmitterClass</c> pair of properties directly on its own defaults — see
+/// <see cref="WeaponEffectsData.EmitterClass"/>.
 /// </para>
 /// </summary>
 public static class WeaponEffects
@@ -69,12 +89,16 @@ public static class WeaponEffects
         if (export is null) return null;
 
         var defaults = new ClassDefaults(package).For(export);
+        UnrealProperty? Flat(string name) =>
+            defaults.FirstOrDefault(p => p.Name == name && p.Type is UnrealPropertyType.Object or UnrealPropertyType.Class);
 
         return new WeaponEffectsData
         {
             ClassName = export.ObjectName,
             OnFiredEffects = ReadEffectArray(package, defaults, "OnFiredEffects"),
             TracerEffects = ReadEffectArray(package, defaults, "TracerEffects"),
+            EmitterClass = ResolveEmitter(package, Flat("EmitterClass")),
+            HighPressureEmitterClass = ResolveEmitter(package, Flat("HighPressureEmitterClass")),
         };
     }
 
