@@ -442,11 +442,38 @@ static int Properties(string root, string[] args)
                 UnrealPropertyType.Int => property.AsInt().ToString(),
                 UnrealPropertyType.Float => property.AsFloat().ToString("0.####"),
                 UnrealPropertyType.Byte => property.AsByte().ToString(),
-                UnrealPropertyType.Bool => "true",
+                UnrealPropertyType.Bool => property.BoolValue.ToString(),
                 UnrealPropertyType.Name => NameOf(package, property.Value),
                 _ => Convert.ToHexString(raw ? property.Value : property.Value.Take(24).ToArray()),
             };
             Console.WriteLine($"  {property.Name,-28} {property.Type,-8} {property.StructName,-16} {value}");
+
+            // A dynamic array whose elements are themselves tagged property lists (a struct array,
+            // e.g. DoorSwitch's DamagedReactions/UsedReactions) reads as opaque hex above -- unpack
+            // it the same way ReadStructArrayElements does, so this stays the reconnaissance command
+            // for an unparsed array shape, not just scalars.
+            if (property.Type == UnrealPropertyType.Array && TryReadStructArray(package, property, out var elements))
+            {
+                for (int i = 0; i < elements.Count; i++)
+                {
+                    Console.WriteLine($"    [{i}]");
+                    foreach (var field in elements[i])
+                    {
+                        string fieldValue = field.Type switch
+                        {
+                            UnrealPropertyType.Object or UnrealPropertyType.Class =>
+                                DescribeReference(package, ReadCompact(field.Value)),
+                            UnrealPropertyType.Int => field.AsInt().ToString(),
+                            UnrealPropertyType.Float => field.AsFloat().ToString("0.####"),
+                            UnrealPropertyType.Byte => field.AsByte().ToString(),
+                            UnrealPropertyType.Bool => field.BoolValue.ToString(),
+                            UnrealPropertyType.Name => NameOf(package, field.Value),
+                            _ => Convert.ToHexString(field.Value.Take(24).ToArray()),
+                        };
+                        Console.WriteLine($"      {field.Name,-26} {field.Type,-8} {field.StructName,-16} {fieldValue}");
+                    }
+                }
+            }
         }
 
         int tail = Math.Min(64, payload.Length - end);
@@ -457,6 +484,38 @@ static int Properties(string root, string[] args)
 
     Console.WriteLine($"\n{matches.Count} shown.");
     return 0;
+}
+
+/// <summary>
+/// Reads an <c>Array</c> property whose elements are themselves tagged property lists (a struct
+/// array) -- the reconnaissance-command counterpart of <c>LevelAnalyzer.ReadStructArrayElements</c>
+/// (that one is <c>internal</c> to Core; this file has no access to it, so this is a self-contained
+/// read-only reimplementation of the same compact-index-prefixed-count format for display only).
+/// </summary>
+static bool TryReadStructArray(BioShockPackage package, UnrealProperty property, out List<List<UnrealProperty>> elements)
+{
+    elements = [];
+    int offset = 0;
+    int count;
+    try { count = ReadCompactAt(property.Value, ref offset); }
+    catch { return false; }
+    if (count < 0) return false;
+
+    for (int i = 0; i < count; i++)
+    {
+        List<UnrealProperty> fields;
+        bool truncated;
+        try
+        {
+            fields = UnrealPropertyReader.Read(property.Value, package.Names, out int end, out truncated, start: offset);
+            offset = end;
+        }
+        catch { return false; }
+        if (truncated) return false;
+        elements.Add(fields);
+    }
+
+    return offset == property.Value.Length;
 }
 
 /// <summary>Resolves an FCompactIndex package reference: positive is an export, negative an import.</summary>
@@ -476,6 +535,15 @@ static string DescribeReference(BioShockPackage package, int reference)
 static int ReadCompact(byte[] value)
 {
     int offset = 0;
+    return ReadCompactAt(value, ref offset);
+}
+
+/// <summary>Same FCompactIndex format, from an external, advancing offset -- for reading several in
+/// sequence out of one buffer (a struct array's leading element count, in <see cref="TryReadStructArray"/>).
+/// A distinct name, not an overload: local functions in this top-level-statements file don't
+/// overload the way regular class methods do.</summary>
+static int ReadCompactAt(byte[] value, ref int offset)
+{
     byte b = value[offset++];
     bool negative = (b & 0x80) != 0;
     int result = b & 0x3F;
