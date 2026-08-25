@@ -544,6 +544,18 @@ same shape as §0.4's "finish one track before starting the next" but one level 
 the four concurrent tracks (UE5/audio/lightmaps/bytecode), this governs the items *within* whichever
 track/gate is currently active.
 
+### Cursor session start — added 25 Aug 2026
+
+**Open a session with one named Gate item, not a full-repo re-survey.** Given directly by the user
+after a chat burned its first turn re-reading handoff/roadmap under "have a look through this and
+start working". The durable recipe lives in `docs/NEXT_SESSION.md` §"How to start in Cursor"; this
+entry makes it a standing instruction so it is not rediscovered.
+
+- User (or opening prompt): `@docs/NEXT_SESSION.md` + `@docs/ROADMAP.md` + one concrete Part 2 ask.
+- Agent: claim table → Fast-tier baseline → only the research note and code for that item.
+- Do not treat "orient yourself / look through this" as licence to re-summarise every gate before
+  writing code. If no Gate item is named, ask which one — do not invent a tour.
+
 ### Test-run economy — added 23 Aug 2026
 
 **Do not re-run the full suite to re-confirm a measurement another session just made.** Given

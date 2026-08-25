@@ -3,8 +3,13 @@
 **Read `docs/ENGINEERING_RULES.md` in full before changing anything.** It is the canonical ruleset;
 this file is the entry point, and it is deliberately short so the two cannot drift apart.
 
+**Starting a Cursor chat:** do not re-survey the whole repo. Use the pattern in
+`docs/NEXT_SESSION.md` §"How to start in Cursor" — one Gate item named in the first message, Fast
+tier only, claim table before touching shared files. Full rule: `ENGINEERING_RULES.md` §60
+"Cursor session start".
 
 ## The rules that get broken most often
+
 
 Full text in `docs/ENGINEERING_RULES.md`; these are the ones worth having in front of you.
 

@@ -5,12 +5,67 @@ repository; this file only tells it where to look and what not to re-derive.
 
 ---
 
+## How to start in Cursor (do this, not a full re-survey)
+
+**The efficient pattern is a narrow prompt + one Gate item.** Do not open with "look through this
+and start working" — that burns a turn re-reading the whole handoff/roadmap before any code moves.
+
+**Best opening for a new chat**
+
+1. `@docs/NEXT_SESSION.md` and `@docs/ROADMAP.md` (or paste this file's body).
+2. Name one concrete ask from Part 2, e.g. `Gate 4 item 4: DecoyHumanAbility.TargetIndicatorClassString`
+   or `fix the ClassDefaults mid-stream gap on BerserkRageAbility`.
+3. Optionally `@` the research note for that area (`docs/research/interaction.md`, `audio.md`, …).
+
+**What the agent should do then**
+
+- Check `docs/HANDOFF.md`'s Active work claim table, add a row, then work **only** that item.
+- Baseline: `dotnet build` + `dotnet test --filter Tier=Fast`. Not the full suite.
+- Read `ROADMAP.md` Part 2 only far enough to confirm the named item and its open sub-parts; do not
+  re-summarise every gate.
+- Keep one track per chat until it lands; ask for small logical commits when a slice is done.
+
+**Context handoff** — if a long session is running (especially unattended / "carry on while I nap")
+and context is getting tight, the agent should **stop mid-track cleanly**: update this section's
+"Resume here" block below, update the HANDOFF claim row, leave the tree buildable, and tell the
+user the paste-ready opening for a **new** chat. Cursor has no tool that opens a Composer tab
+from the agent — handoff is write-the-prompt, not auto-spawn.
+
+### Resume here (keep current; wipe when the named item lands)
+
+```
+@docs/NEXT_SESSION.md @docs/ROADMAP.md
+Continue Gate 4 item 4 closeout (Composer nap run).
+Done this session: ClassDefaults prefers longest clean walk (BerserkRageAbility→EnrageProjectile);
+Cursor-start docs in NEXT_SESSION/CLAUDE/ENGINEERING_RULES §60.
+In flight / next: DecoyHumanAbility.TargetIndicatorClassString (WeaponEffects.ResolveEffectClassString
+may already be in the tree — check git status); then Attachments/ScriptedSequence if still open;
+then Gate 5 next undone item in docs/UE5_FULL_PORT_PLAN.md.
+Claim table: Composer owns Gate 4.4. Fast tier was 257/257 after ClassDefaults.
+Do not re-survey. Commit logical slices as you go.
+```
+
+**What wastes time here**
+
+- Full-repo "have a look / orient yourself" with no Gate ask.
+- Full `dotnet test` on session start (~20+ min) — use Fast + named sweep classes; see Test-run
+  economy in `docs/ENGINEERING_RULES.md` §60.
+- Two agents on the same files without updating the claim table.
+
+Standing rule copy: `docs/ENGINEERING_RULES.md` §60 "Cursor session start".
+
+---
+
 ## Read first, in this order
+
+*Only when the user did not already name a Gate item* — otherwise skip straight to that item's
+research note and the claim table, and use this list as a lookup rather than a full read-through.
 
 1. `CLAUDE.md`, then `docs/ENGINEERING_RULES.md` — how to work here. Non-negotiable. §2 (user
    instructions are the task boundary), §14 (curiosity control), §55 (a worked example of getting
-   scope wrong), §60 (standing user instructions — UE5 and audio are **reopened**, UE5-as-a-runtime
-   is the project's actual end goal, and a second agent works this repo concurrently).
+   scope wrong), §60 (standing user instructions — Cursor session start, test-run economy, roadmap
+   discipline; UE5 and audio are **reopened**, UE5-as-a-runtime is the end goal, and a second agent
+   works this repo concurrently).
 2. **`docs/ROADMAP.md` — the current source of truth for project status and what's next.** Supersedes
    this file for anything about priorities: what's done (Part 1), what's left in gate order
    (Part 2), and a Part 0 on process (commit hygiene, the cross-agent claim table, why WIP stays
