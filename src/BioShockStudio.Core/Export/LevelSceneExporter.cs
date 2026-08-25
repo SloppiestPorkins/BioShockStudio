@@ -947,6 +947,9 @@ public static class LevelSceneExporter
         Masked = material.Masked,
         OutputBlending = material.OutputBlending,
         Animators = material.Animators.ToList(),
+        Sequences = material.Sequences.ToList(),
+        SwitchName = material.SwitchName,
+        SwitchCandidates = material.SwitchCandidates.ToList(),
     };
 }
 
@@ -1091,6 +1094,21 @@ public sealed record LevelMaterialDocument
     /// a <c>MaterialExpressionPanner</c> from these numbers.
     /// </summary>
     public List<MaterialAnimator> Animators { get; init; } = [];
+
+    /// <summary>
+    /// <c>MaterialSequence</c> timelines already on <see cref="SceneMaterial.Sequences"/>. Carried,
+    /// not interpreted — the action ordinal's unfamiliar values must be preserved, and the UE5
+    /// importer must not invent a timeline from these until that mapping is established.
+    /// </summary>
+    public List<MaterialSlotSequence> Sequences { get; init; } = [];
+
+    /// <summary>The <c>MaterialSwitch</c> this entry was reached through, when there was one.</summary>
+    public string? SwitchName { get; init; }
+
+    /// <summary>
+    /// Every material that switch could select. Which one a running game picks is <c>UNKNOWN</c>.
+    /// </summary>
+    public List<MaterialSwitchCandidate> SwitchCandidates { get; init; } = [];
 }
 
 public sealed record LevelInstanceDocument

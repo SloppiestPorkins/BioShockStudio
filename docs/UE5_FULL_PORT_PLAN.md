@@ -434,8 +434,9 @@ animations, matching this document's own previously-recorded figure for that rig
 **Still open for Phase 1 (assets):** cubemaps as reflection captures — probes place as
 `SphereReflectionCapture` and face PNGs import as tagged `Texture2D`s (25 Aug 2026), **not looked
 at in UE5.7**; no `TextureCube` assembly (face order UNKNOWN). A UE5 material *graph* for level
-geometry — animator values now copy onto the level manifest (25 Aug 2026) but must not drive a
-panner node until units are known; an app-facing "export to UE5" workflow — see the next entry.
+geometry — animator, sequence, and switch-candidate values now copy onto the level manifest
+(25 Aug 2026) but must not drive a panner node, timeline, or switch-selection rule until those
+mappings are known; an app-facing "export to UE5" workflow — see the next entry.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

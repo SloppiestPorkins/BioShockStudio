@@ -169,6 +169,59 @@ public sealed class MaterialAnimatorTests(GameFixture game)
     }
 
     /// <summary>
+    /// Sequence timelines and switch candidates already on <see cref="SceneMaterial"/> copy onto
+    /// the level document — including materials the lighthouse map does not place, so the mapping
+    /// is pinned even when this map's sections happen not to name one.
+    /// </summary>
+    [RequiresGameFact]
+    public void DecodedSequencesAndSwitchCandidatesCopyOntoTheLevelMaterialDocument()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+        using var medical = BioShockPackage.Open(game.MedicalPackage);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+        var sequenced = Materials(package).FirstOrDefault(m => m.Sequences.Count > 0);
+        Assert.True(sequenced is not null, "0-Lighthouse has no sequenced materials");
+
+        var switchExport = medical.Exports.Single(e =>
+            e.ObjectName == "Resurrection_Switch"
+            && medical.GetClassName(e) == MaterialSwitchReader.ClassName);
+        var switched = MaterialReader.Read(medical, switchExport);
+        Assert.True(switched is { SwitchCandidates.Count: > 0 });
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-seqdoc-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var seqMaterial = MaterialExporter.ResolveMaterial(
+                package, package.Exports[sequenced!.SourceExportIndex], directory);
+            var switchMaterial = MaterialExporter.ResolveMaterial(
+                medical, switchExport, directory);
+            Assert.NotNull(seqMaterial);
+            Assert.NotNull(switchMaterial);
+            Assert.NotEmpty(seqMaterial!.Sequences);
+            Assert.NotEmpty(switchMaterial!.SwitchCandidates);
+
+            var seqId = new SourceId(scene.PackageName, sequenced.SourceExportIndex, sequenced.ClassName, sequenced.Name);
+            var switchId = new SourceId(Path.GetFileNameWithoutExtension(medical.FilePath) ?? "1-Medical",
+                switched!.SourceExportIndex, switched.ClassName, switched.SwitchName ?? switched.Name);
+            var document = LevelSceneExporter.ToDocument(
+                scene, includeGeometry: false,
+                materials: [(seqId, seqMaterial), (switchId, switchMaterial)]);
+
+            var seqDoc = Assert.Single(document.Materials, m => m.Key == seqId.Key);
+            Assert.NotEmpty(seqDoc.Sequences);
+            Assert.Equal(seqMaterial.Sequences.Count, seqDoc.Sequences.Count);
+
+            var switchDoc = Assert.Single(document.Materials, m => m.Key == switchId.Key);
+            Assert.Equal(switchMaterial.SwitchCandidates.Count, switchDoc.SwitchCandidates.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// All four animator classes are recognised, and nothing else claims to be one.
     /// </summary>
     [RequiresGameFact]

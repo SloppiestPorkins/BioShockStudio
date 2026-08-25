@@ -549,3 +549,8 @@ This is the same shape as the skeletal-mesh section table, `m_extractedMotion` a
 roadmap entry saying "not decoded" when the decoder already existed and only the wiring was missing.
 Worth checking for directly before starting any item that claims something is undecoded.
 
+**Level manifest, 25 Aug 2026:** `LevelMaterialDocument` now copies `Sequences`, `SwitchName` and
+`SwitchCandidates` the same way it copies animators. The UE5 importer must not invent a timeline
+or a switch-selection rule from those — action ordinals stay raw, and which candidate a running
+game picks remains `UNKNOWN`.
+

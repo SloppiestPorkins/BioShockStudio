@@ -36,9 +36,9 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md @tools/ue5/import_level.py
 Continue after Composer nap run.
-Landed: ClassDefaults; DecoyHuman; door Attachments; CubemapProbe→SphereReflectionCapture; cubemap face PNGs (`df7a0b3`); animators on the level manifest (`2e20188`); ScriptedSequence nested Chance+Animation FName.
-NOT visually confirmed in UE5.7 — do that first. Do not invent +X/−X or panner units. KeyPos/KeyRot stay deferred.
-Fast 261/261; ScriptedSequenceActorSchemaTests 3/3. Branch feature/fbx-materials-gui.
+Landed: ... ScriptedSequence (`acdea57`); MaterialSequence/MaterialSwitch candidates on the level manifest.
+NOT visually confirmed in UE5.7. Do not invent +X/−X, panner units, or switch-selection. KeyPos/KeyRot stay deferred.
+Fast 262/262. Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 
