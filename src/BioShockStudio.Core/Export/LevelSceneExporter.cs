@@ -398,6 +398,15 @@ public static class LevelSceneExporter
                     CloseAnimationRate = actor.Door.CloseAnimationRate,
                     DelayBeforeOpening = actor.Door.DelayBeforeOpening,
                     StayOpenDuration = actor.Door.StayOpenDuration,
+                    Attachments = actor.Door.Attachments.Select(attachment => new LevelDoorAttachmentDocument
+                    {
+                        StaticMesh = Describe(attachment.StaticMesh),
+                        AttachSocket = attachment.AttachSocket,
+                        LocationOffset = attachment.LocationOffset is { } loc ? ToArray(loc) : null,
+                        RotationOffset = attachment.RotationOffset is { } rot
+                            ? [rot.Pitch, rot.Yaw, rot.Roll] : null,
+                        InteractWithPhysicalObjects = attachment.InteractWithPhysicalObjects,
+                    }).ToList(),
                     Complete = actor.Door.Complete,
                 },
                 DoorSwitch = actor.DoorSwitch is null ? null : new LevelDoorSwitchActorDocument
@@ -1212,7 +1221,17 @@ public sealed record LevelDoorActorDocument
     public float? CloseAnimationRate { get; init; }
     public float? DelayBeforeOpening { get; init; }
     public float? StayOpenDuration { get; init; }
+    public required List<LevelDoorAttachmentDocument> Attachments { get; init; }
     public required bool Complete { get; init; }
+}
+
+public sealed record LevelDoorAttachmentDocument
+{
+    public LevelReferenceDocument? StaticMesh { get; init; }
+    public string? AttachSocket { get; init; }
+    public float[]? LocationOffset { get; init; }
+    public int[]? RotationOffset { get; init; }
+    public required bool InteractWithPhysicalObjects { get; init; }
 }
 
 public sealed record LevelDoorSwitchActorDocument

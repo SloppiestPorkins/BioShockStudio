@@ -245,7 +245,20 @@ test run itself caught the contradiction. Fixed to print `property.BoolValue`/`f
 directly. Worth remembering when trusting any *older* raw `properties` output examined before this
 fix landed.
 
-**Still not decoded**: `Attachments`, `ScriptedSequence`. Worth a dedicated pass, not this one.
+**`Attachments` decoded, 25 Aug 2026.** Whole-game: **17 actors, all complete** — 13
+`MedicalDoor` in `2-Fisheries` (one element, socket `"Door"`, mesh `Gate01solidPreviewMesh`, zero
+offset) plus four in Challenge Room maps (`BlastdoorDoor` peephole, a two-element `MedicalDoors`
+on `"LeftDoor"`, `GathererDoorSingle` on `"BigDoor"` with location offset Z=128). Same
+`ReadStructArrayElements` shape as reactions. Each element: `StaticMesh`, `AttachSocket`,
+`AttachLocationOffset`/`AttachRotationOffset`, `InteractWithPhysicalObjects`.
+`DoorAttachmentData`; `DoorActorSchemaTests.FisheriesDoorsDecodeTheirSocketAttachments`.
+
+**`ScriptedSequence` is not a door field.** Whole-game: **109 actors, 0 doors, 0 `DoorSwitch`s**.
+It is an `Array` of structs (`ScriptedAnimations`, `LoopCount`, `RunNext`, `TotalChance`);
+`ScriptedAnimations` is a nested array. Recorded, not decoded this pass — a different actor family
+(animated props, fish schools, `Wel_BHDoorBuckle`).
+
+## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
 
 ## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
 
@@ -321,8 +334,8 @@ The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString
 
 ## 7. What this note does not claim
 
-- **`DoorSwitch`'s reaction arrays remain undecoded** — see §5's "Still not decoded" paragraph.
-  `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
+- **`ScriptedSequence` remains undecoded** — 109 actors, none of them doors; nested
+  `ScriptedAnimations` array. See §5.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
 - **A `ClassDefaults` earliest-vs-longest false positive was fixed 25 Aug 2026** — see §6. Prefer
@@ -331,4 +344,3 @@ The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString
   bytes remains `UNKNOWN`** — the Str path on `DecoyHumanAbility` is decoded; the named classes
   are not local exports of `ShockGame.U`. See §6's last paragraph.
 - **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3. Deliberately deferred pending a render check.
-- **`Attachments` / `ScriptedSequence` on doors** — still open; dedicated pass, not this one.

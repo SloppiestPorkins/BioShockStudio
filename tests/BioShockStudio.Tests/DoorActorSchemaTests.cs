@@ -32,6 +32,7 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         Assert.Null(solidDoor.Door.InitiallyOpen);
         Assert.Null(solidDoor.Door.CloseAnimationRate);
         Assert.Null(solidDoor.Door.StayOpenDuration);
+        Assert.Empty(solidDoor.Door.Attachments);
 
         var openDoor = context.Actors.Single(actor => actor.Source.ExportIndex == 3447);
         Assert.Equal("MedicalDoors", openDoor.Source.ClassName);
@@ -127,5 +128,52 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         var reactive = Assert.Single(context.Actors, actor => actor.Source.ExportIndex == 7145);
         Assert.Equal("NonPhysicalReactiveActor", reactive.Source.ClassName);
         Assert.Null(reactive.DoorSwitch);
+    }
+
+    [RequiresGameFact]
+    public void FisheriesDoorsDecodeTheirSocketAttachments()
+    {
+        using var package = BioShockPackage.Open(game.FisheriesPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        var attached = context.Actors.Where(actor => actor.Door is { Attachments.Count: > 0 }).ToList();
+
+        Assert.Equal(13, attached.Count);
+        Assert.All(attached, actor =>
+        {
+            Assert.Equal("MedicalDoor", actor.Source.ClassName);
+            Assert.True(actor.Door is { Complete: true });
+            var attachment = Assert.Single(actor.Door!.Attachments);
+            Assert.Equal("Door", attachment.AttachSocket);
+            Assert.Equal("Gate01solidPreviewMesh", attachment.StaticMesh?.ObjectName);
+            Assert.True(attachment.InteractWithPhysicalObjects);
+            Assert.Equal(System.Numerics.Vector3.Zero, attachment.LocationOffset);
+        });
+
+        var exported = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false)
+            .Actors.Single(actor => actor.ExportIndex == 3645).Door;
+        Assert.Equal("Door", Assert.Single(exported!.Attachments).AttachSocket);
+        Assert.Equal("Gate01solidPreviewMesh", exported.Attachments[0].StaticMesh?.ObjectName);
+    }
+
+    [RequiresGameFact]
+    public void ChallengeRoomDoorsCarryTheSameAttachmentShapeWithNonDefaultSocketsAndOffsets()
+    {
+        var decoyPath = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "ChallengeRoomDecoy.bsm");
+        using var decoy = BioShockPackage.Open(decoyPath);
+        var decoyContext = LevelAnalyzer.Analyze(decoy);
+        var twoSlot = decoyContext.Actors.Single(actor => actor.Source.ExportIndex == 2947);
+        Assert.Equal("MedicalDoors", twoSlot.Source.ClassName);
+        Assert.Equal(2, twoSlot.Door!.Attachments.Count);
+        Assert.Equal("LeftDoor", twoSlot.Door.Attachments[0].AttachSocket);
+        Assert.Equal("DLC_Dec_Door", twoSlot.Door.Attachments[0].StaticMesh?.ObjectName);
+
+        var electricPath = Path.Combine(GameLocator.MapsDirectory(game.RequireRoot), "ChallengeRoomElectric.bsm");
+        using var electric = BioShockPackage.Open(electricPath);
+        var electricContext = LevelAnalyzer.Analyze(electric);
+        var gatherer = electricContext.Actors.Single(actor => actor.Source.ExportIndex == 3071);
+        Assert.Equal("GathererDoorSingle", gatherer.Source.ClassName);
+        var attachment = Assert.Single(gatherer.Door!.Attachments);
+        Assert.Equal("BigDoor", attachment.AttachSocket);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 128), attachment.LocationOffset);
     }
 }

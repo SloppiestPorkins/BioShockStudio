@@ -498,7 +498,27 @@ public sealed record DoorActorData
     public float? DelayBeforeOpening { get; init; }
     public float? StayOpenDuration { get; init; }
 
+    /// <summary>
+    /// <c>Attachments</c> — a struct array of meshes hung off a named door socket. Whole-game: 17
+    /// actors across three packages (13 <c>MedicalDoor</c> in <c>2-Fisheries</c>, plus four in the
+    /// two Challenge Room maps). Empty when the property is absent, never null.
+    /// </summary>
+    public required IReadOnlyList<DoorAttachmentData> Attachments { get; init; }
+
     public required bool Complete { get; init; }
+}
+
+/// <summary>
+/// One <c>Attachments</c> element on a door: a <c>StaticMesh</c> at <c>AttachSocket</c>, plus
+/// location/rotation offsets (often zero) and whether it collides with physical objects.
+/// </summary>
+public sealed record DoorAttachmentData
+{
+    public AssetReference? StaticMesh { get; init; }
+    public string? AttachSocket { get; init; }
+    public Vector3? LocationOffset { get; init; }
+    public UnrealRotator? RotationOffset { get; init; }
+    public bool InteractWithPhysicalObjects { get; init; }
 }
 
 /// <summary>
