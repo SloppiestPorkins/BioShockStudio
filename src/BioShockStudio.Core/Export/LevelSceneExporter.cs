@@ -419,6 +419,21 @@ public static class LevelSceneExporter
                     OverlayMaterial = Describe(actor.DoorSwitch.OverlayMaterial),
                     Complete = actor.DoorSwitch.Complete,
                 },
+                ScriptedSequence = actor.ScriptedSequence is null ? null : new LevelScriptedSequenceDocument
+                {
+                    Entries = actor.ScriptedSequence.Entries.Select(entry => new LevelScriptedSequenceEntryDocument
+                    {
+                        Animations = entry.Animations.Select(choice => new LevelScriptedAnimationChoiceDocument
+                        {
+                            Animation = choice.Animation,
+                            Chance = choice.Chance,
+                        }).ToList(),
+                        LoopCount = entry.LoopCount is { } loop ? ToArray(loop) : null,
+                        RunNext = entry.RunNext,
+                        TotalChance = entry.TotalChance,
+                    }).ToList(),
+                    Complete = actor.ScriptedSequence.Complete,
+                },
                 StaticMesh = actor.StaticMesh?.ObjectName,
                 SkeletalMesh = actor.SkeletalMesh?.ObjectName,
                 Brush = actor.Brush?.ObjectName,
@@ -1123,6 +1138,7 @@ public sealed record LevelActorDocument
     public LevelMoverActorDocument? Mover { get; init; }
     public LevelDoorActorDocument? Door { get; init; }
     public LevelDoorSwitchActorDocument? DoorSwitch { get; init; }
+    public LevelScriptedSequenceDocument? ScriptedSequence { get; init; }
     public LevelRegionActorDocument? RegionActor { get; init; }
     public string? StaticMesh { get; init; }
     public string? SkeletalMesh { get; init; }
@@ -1324,6 +1340,26 @@ public sealed record LevelDoorSwitchActorDocument
     public string? UseVerbText { get; init; }
     public LevelReferenceDocument? OverlayMaterial { get; init; }
     public required bool Complete { get; init; }
+}
+
+public sealed record LevelScriptedSequenceDocument
+{
+    public required List<LevelScriptedSequenceEntryDocument> Entries { get; init; }
+    public required bool Complete { get; init; }
+}
+
+public sealed record LevelScriptedSequenceEntryDocument
+{
+    public required List<LevelScriptedAnimationChoiceDocument> Animations { get; init; }
+    public float[]? LoopCount { get; init; }
+    public int? RunNext { get; init; }
+    public int? TotalChance { get; init; }
+}
+
+public sealed record LevelScriptedAnimationChoiceDocument
+{
+    public string? Animation { get; init; }
+    public int? Chance { get; init; }
 }
 
 public sealed record LevelPressureRegionDocument(string Name, byte Pressure, float EffectsDuration);

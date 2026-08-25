@@ -253,10 +253,13 @@ on `"LeftDoor"`, `GathererDoorSingle` on `"BigDoor"` with location offset Z=128)
 `AttachLocationOffset`/`AttachRotationOffset`, `InteractWithPhysicalObjects`.
 `DoorAttachmentData`; `DoorActorSchemaTests.FisheriesDoorsDecodeTheirSocketAttachments`.
 
-**`ScriptedSequence` is not a door field.** Whole-game: **109 actors, 0 doors, 0 `DoorSwitch`s**.
+**`ScriptedSequence` decoded, 25 Aug 2026.** Whole-game: **109 actors, 0 doors, 0 `DoorSwitch`s**.
 It is an `Array` of structs (`ScriptedAnimations`, `LoopCount`, `RunNext`, `TotalChance`);
-`ScriptedAnimations` is a nested array. Recorded, not decoded this pass — a different actor family
-(animated props, fish schools, `Wel_BHDoorBuckle`).
+`ScriptedAnimations` is a nested struct array of `Chance` (int) + `Animation` (FName on the mesh,
+not an object reference). `LoopCount` is the tagged `Min`/`Max` `Range` already used elsewhere.
+`RunNext` is carried raw (`PLAUSIBLE` a next-entry index). Gated on field presence.
+`ScriptedSequenceActorData`; `ScriptedSequenceActorSchemaTests`. Sample: `Wel_BHDoorBuckle0` in
+`1-Medical` plays `BHBuckle_Bent` with `LoopCount` 3/3.
 
 ## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
 
@@ -334,8 +337,9 @@ The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString
 
 ## 7. What this note does not claim
 
-- **`ScriptedSequence` remains undecoded** — 109 actors, none of them doors; nested
-  `ScriptedAnimations` array. See §5.
+- **`ScriptedSequence` decoded 25 Aug 2026** — 109 actors, none of them doors; nested
+  `ScriptedAnimations` is `Chance`+`Animation` (FName). See §5. `RunNext` meaning remains
+  `PLAUSIBLE` only.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
 - **A `ClassDefaults` earliest-vs-longest false positive was fixed 25 Aug 2026** — see §6. Prefer

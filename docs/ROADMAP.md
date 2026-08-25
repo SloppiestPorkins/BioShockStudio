@@ -1274,7 +1274,7 @@ material.
      **A real, separate display bug caught in the process**: the `properties` CLI command's `Bool`
      case always printed the literal `"true"`, regardless of the actual value — fixed.
      `Attachments` on doors decoded 25 Aug 2026 (see the item closeout below). `ScriptedSequence`
-     is not a door field.
+     decoded the same day — nested `ScriptedAnimations` is `Chance`+`Animation` (FName).
    - **Weapon effects landed, 25 Aug 2026 — `OnFiredEffects`/`TracerEffects` decoded from class
      defaults, not placed-actor payloads.** A weapon (`MachineGun`, `Pistol`, `Shotgun`, ...) is
      never placed in a level, so this is the one interaction-metadata source that reads a `Class`
@@ -1306,10 +1306,10 @@ material.
      `"FXClass.DecoyHumanTarget"` via `WeaponEffects.ResolveEffectClassString` (`CONFIRMED_BYTES`);
      the named class is not a local `ShockGame.U` export (`Resolved` null — where those class
      bytes live is `UNKNOWN`). **Door `Attachments` landed, 25 Aug 2026** — 17 doors across
-     `2-Fisheries` and two Challenge Room maps; mesh-on-socket structs. **`ScriptedSequence` is not
-     a door field** (109 actors, 0 doors); nested animation array left undecoded. **Still open
-     within this item:** `KeyPos`/`KeyRot` deliberately deferred pending a render check.
-     `docs/research/interaction.md` §5–§7.
+     `2-Fisheries` and two Challenge Room maps; mesh-on-socket structs. **`ScriptedSequence`
+     landed, 25 Aug 2026** — 109 actors, 0 doors; nested `ScriptedAnimations` is `Chance` +
+     animation FName. **Still open within this item:** `KeyPos`/`KeyRot` deliberately deferred
+     pending a render check. `docs/research/interaction.md` §5–§7.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 

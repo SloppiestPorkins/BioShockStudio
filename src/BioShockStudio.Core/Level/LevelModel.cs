@@ -580,6 +580,36 @@ public sealed record DoorSwitchReactionData
     public bool HasMaterials { get; init; }
 }
 
+/// <summary>
+/// A placed actor's <c>ScriptedSequence</c> array. Gated on field presence, not class name — 109
+/// actors in the game, none of them doors. Each entry names animation clips (as FNames on the
+/// mesh, not object references) plus a <c>LoopCount</c> range and a raw <c>RunNext</c> integer.
+/// </summary>
+public sealed record ScriptedSequenceActorData
+{
+    public required IReadOnlyList<ScriptedSequenceEntry> Entries { get; init; }
+    public required bool Complete { get; init; }
+}
+
+/// <summary>One <c>ScriptedSequence</c> element.</summary>
+public sealed record ScriptedSequenceEntry
+{
+    public required IReadOnlyList<ScriptedAnimationChoice> Animations { get; init; }
+    public FloatRange? LoopCount { get; init; }
+
+    /// <summary>Carried raw. That this indexes the next entry is <c>PLAUSIBLE</c> only.</summary>
+    public int? RunNext { get; init; }
+
+    public int? TotalChance { get; init; }
+}
+
+/// <summary>One <c>ScriptedAnimations</c> choice: a clip name and an integer chance.</summary>
+public sealed record ScriptedAnimationChoice
+{
+    public string? Animation { get; init; }
+    public int? Chance { get; init; }
+}
+
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
 public sealed record MapUiRegionData(string MapUiRegion, string HudRegion, bool? Revealed, float LastVisited);
 public sealed record MapHudRegionData(string HudRegion, string Description);
@@ -640,6 +670,12 @@ public sealed record LevelActor
 
     /// <summary>Typed interaction-verb fields for a <c>DoorSwitch</c>; null off that family.</summary>
     public DoorSwitchActorData? DoorSwitch { get; init; }
+
+    /// <summary>
+    /// Typed <c>ScriptedSequence</c> clip list; null when the actor does not serialise that array.
+    /// Not a door field — animated props, fish, <c>Wel_BHDoorBuckle</c>.
+    /// </summary>
+    public ScriptedSequenceActorData? ScriptedSequence { get; init; }
 
     public required ActorTransform Transform { get; init; }
 

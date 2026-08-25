@@ -471,6 +471,34 @@ static int Properties(string root, string[] args)
                             _ => Convert.ToHexString(field.Value.Take(24).ToArray()),
                         };
                         Console.WriteLine($"      {field.Name,-26} {field.Type,-8} {field.StructName,-16} {fieldValue}");
+                        if (field.Type != UnrealPropertyType.Array) continue;
+                        if (TryReadStructArray(package, field, out var nested))
+                        {
+                            for (int n = 0; n < nested.Count; n++)
+                            {
+                                Console.WriteLine($"        [{n}]");
+                                foreach (var inner in nested[n])
+                                {
+                                    string innerValue = inner.Type switch
+                                    {
+                                        UnrealPropertyType.Object or UnrealPropertyType.Class =>
+                                            DescribeReference(package, ReadCompact(inner.Value)),
+                                        UnrealPropertyType.Int => inner.AsInt().ToString(),
+                                        UnrealPropertyType.Float => inner.AsFloat().ToString(),
+                                        UnrealPropertyType.Byte => inner.AsByte().ToString(),
+                                        UnrealPropertyType.Bool => inner.BoolValue.ToString(),
+                                        UnrealPropertyType.Name => NameOf(package, inner.Value),
+                                        _ => Convert.ToHexString(inner.Value.Take(24).ToArray()),
+                                    };
+                                    Console.WriteLine($"          {inner.Name,-24} {inner.Type,-8} {inner.StructName,-16} {innerValue}");
+                                }
+                            }
+                        }
+                        else if (PropertyValues.TryAsReferenceArrayExact(field, out var references))
+                        {
+                            foreach (var reference in references)
+                                Console.WriteLine($"        {DescribeReference(package, reference.Value)}");
+                        }
                     }
                 }
             }
