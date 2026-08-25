@@ -42,7 +42,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | Audio — streamed FSB5 | Working — x86 FMOD bridge decodes any subsound to WAV; app has a Streamed Audio tab (65 banks, 10,882 subsounds). |
 | Application (GUI) | Asset browser (14,378 assets), 3D preview + animation playback, walkable level viewport (GPU + tested software fallback), Problems panel, audio tabs, profile editor. |
 | Export — Blender / FBX | Complete — skinned mesh, armature, actions, sockets, materials; FBX validated by round-trip through Blender. |
-| UE5 import | **Rigs working, verified for real in UE5.7** across every rig category the game ships — first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets and creatures (cat, crab, whale, giant squid, jellyfish, shark) — via a Blender-normalization bridge + editor plugin. **Levels: proof of concept on `1-Medical`, 24 Aug 2026** — 13,411 actors created, geometry and lights placed correctly at scale, confirmed by direct visual inspection (Gate 5 item 3). **Instance rotation/position was wrong despite that check — found by the user exploring the imported level, fixed 24 Aug 2026.** `import_level.py` never reversed `GameBasis.Convert`, the reflection `LevelSceneExporter` applies to every instance transform and light location so this project's own pipeline (Blender/FBX/glTF) reads them correctly — Unreal's own basis is left-handed +Y-right, the *opposite* of GameBasis's right-handed +Y-left, so feeding the manifest's numbers straight into `unreal.Vector`/`unreal.Quat` placed every instance mirrored in Y with an inverted rotation sense. Numerically plausible, scale looked right, and a quick look at the level would still show a hospital-shaped hospital — which is exactly why the earlier "confirmed by visual inspection" note above didn't catch it. Fixed by reversing the same reflection (`GameBasis.Convert` is an involution) before every `set_actor_location`/`set_actor_rotation` call; verified in a live UE5.7 editor by re-checking the exact geometric invariant `LevelSceneTests.TheMedicalPavilionCeilingArchFormsOneContinuousSurface` already established on the raw decode — the four `window_512_corner_4up` instances' combined world-space bounding diagonal is **2422 units** (the reference value for "assembled correctly"; a twisted, wrong-handed assembly measures ~4295) — a real UE5 run, not a repeat of the same static analysis. **Level materials, verified in the same live UE5.7 run, 24 Aug 2026.** `LevelSceneExporter` resolves every distinct material a level's placed sections use and writes their textures beside the scene (455 materials, 1,179 texture bindings, 958 PNGs on `1-Medical`); a `MaterialSwitch` key-mismatch found by a regression test that checks the section-to-material connection itself, not just that both sides are non-empty, is fixed and pinned (`docs/HANDOFF.md` §4). `import_level.py` reuses `import_bioshock.py`'s texture/material-instance pipeline. **Multi-material meshes and UV mapping, 24 Aug 2026, also verified live.** Two more gaps found and closed the same day: `BuildAssetObj` wrote positions and faces only, with no `vt` (UV) line at all, so every mesh imported through this path had no texture mapping regardless of which material was assigned — fixed with the same V-flip convention the proven FBX rig path already uses. It also wrote every face as one ungrouped run, so a mesh with several materials always collapsed to one UE5 slot; it now writes one `usemtl BioShock_{n}` group per section, and `_assign_asset_material` builds one slot per section in order rather than skipping multi-material meshes. Verified in the same live UE5.7 run as the placement fix: of 792 assets needing more than one slot, a 20-asset sample all show the imported slot count matching the manifest's own declared section count exactly; 1,357 static meshes total (up from 619 single-material-only) got at least one real material assigned. Also found and disabled a third headless-only crash the same way as the PNG one: `Interchange.FeatureFlags.Import.OBJ` started asserting under `-unattended` only once the OBJ writer began emitting UV/group data, located by grepping the engine source for the translator's own registered CVar rather than guessing. **The `unsupported` count itself was wrong the whole time, 24 Aug 2026: `import_level.py` marked an actor "handled" by its geometry instance's own composite key, never its bare actor key, so `_import_actors` didn't recognise it and spawned a second, overlapping `TargetPoint` for every actor that already had real geometry — miscounted as unsupported.** On `1-Medical` this inflated the reported figure from a true 2,018 to 7,337: 5,321 actors with working geometry were being double-counted as if they had none. Fixed by also marking the bare actor key handled once a real mesh actor is placed, not on lookup/spawn failure, so that fallback path still gets a placeholder. See Gate 2 item 4 for the rig list. No app-facing UI yet. |
+| UE5 import | **Full status moved to `docs/UE5_FULL_PORT_PLAN.md`, 25 Aug 2026** (§3, §3a, §9) — that document is now the canonical UE5 record. In brief: rigs verified for real in UE5.7 across every rig category the game ships; levels import with correct placement, materials, UV mapping and multi-material slots, verified live on `1-Medical`; level-placed characters now import as real animated `SkeletalMeshActor`s (25 Aug 2026). No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
 | Tests | Full suite **550/550 passing** (measured 23 Aug 2026 at `9cb53b2`). See "Test health" below for the stamp and what has been run since. |
@@ -241,28 +241,13 @@ and hotkey support; an in-app update check.
 
 ### 8. UE5 import pipeline
 
-The single largest investigation of the last work cycle. UE5.7's legacy FBX importer rejected every
-file this project's exporter produced with `File is corrupted` / `No mesh is found or animation
-track`. An exhaustive byte-level audit — header, `GlobalSettings`, `Definitions` object counts vs.
-actual, the `Connections` graph, transform properties, polygon winding and end-markers, skinning
-cluster data, zlib stream validity, the trailing magic footer, and a full object-schema diff against
-a known-good reference file — found the exported files were **not** malformed (independently
-confirmed: Blender's own FBX importer opens them cleanly). The actual fix ended up being pragmatic
-rather than a root-cause fix for the SDK's rejection:
-
-- `tools/blender/normalize_fbx_for_ue5.py` re-exports every FBX through headless Blender before
-  handing it to UE5 — Blender's re-export is byte-different in ways not yet fully characterized, but
-  UE5.7 accepts it.
-- A `BioShockImportTools` UE5 editor plugin (`tools/ue5/BioShockImportTools/`) restores the
-  `SOCKET_*` markers that round-trip drops.
-- `tools/ue5/verify_bioshock_import.py` checks an imported asset set against its manifest.
-
-**Verified for real, not just documented**: a fresh pistol export run through
-`import_bioshock.main` → `verify_bioshock_import.main` in a live UE5.7 editor session imported both
-rigs and all 12 animations cleanly (`Success - 0 error(s), 7 warning(s)`, warnings cosmetic — missing
-smoothing groups, sockets outside the bind pose). The TommyGun slice is verified the same way per
-`tools/ue5/README.md`. No app-facing "export to UE5" button exists yet — this is still a
-command-line/editor-script bridge, deliberately, per Gate 5 below.
+**Full detail moved to `docs/UE5_FULL_PORT_PLAN.md` §3a, 25 Aug 2026** — that document is now the
+canonical UE5 status record (see Gate 5's note below). In brief: UE5.7's legacy FBX importer
+initially rejected every exported file (`File is corrupted`); an exhaustive byte-level audit found
+the files were not malformed, and the working fix is pragmatic — a Blender re-export normalization
+pass plus a C++ editor plugin restoring socket markers the round-trip drops. Verified live: a pistol
+rig imports both meshes and all 12 animations cleanly in UE5.7. No app-facing "export to UE5" button
+exists — a command-line/editor-script bridge, deliberately (Gate 5 below).
 
 ### 9. Public site / CI
 
@@ -1318,78 +1303,20 @@ material.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 
-1. ~~Version every exported manifest; make imports idempotent (a second run updates existing UE5
-   assets rather than duplicating them).~~ **Done, 23 Aug 2026, both halves verified in UE5.7.**
-   - **Versioned:** `ue5_manifest.json` now carries `version` (`FbxExporter.ManifestVersion`); the
-     level manifest already had `formatVersion`. `import_bioshock.py` **refuses** an unversioned
-     manifest outright, because one predating texture intent would otherwise import rigs with no
-     textures — which looks like a working import and is not one.
-   - **Idempotent:** rig import measured first run 8 created / 0 updated, second run **0 created /
-     8 updated**, asset count unchanged at 22. Level import 1,877 created then **0 created / 1,877
-     updated**. Both report created/updated/skipped/unsupported per run.
-2. Keep source exports immutable — Blender-normalized and UE5-generated files already live under
-   `_ue5_normalized/`, separate from the source export, which is the right shape to keep.
-3. ~~Build one UE5 validation map containing an instance of every supported asset class, then a
-   per-level import report.~~ **Done, 23 Aug 2026 — `tools/ue5/build_validation_map.py`, built and
-   verified in UE5.7 with `missing: []`.** Holds a skeletal mesh, a point light, the level
-   importer's placeholder class, and the textures with their intent read back from the assets.
-   The per-level import report is what `import_level.py` returns and logs.
-   - **It states what is *not* supported too** — level geometry (OBJ, not imported as UE5 meshes),
-     UE5 material graphs (bindings exported, no graph generated), cubemaps (decoded and
-     probe-located, not imported as reflection captures) — so the map cannot imply broader coverage
-     than exists. The report's `missing` field is the one that matters: a class claimed as
-     supported but not instanced is a failure, reported rather than skipped.
-   - **First proof of concept on `1-Medical`, 24 Aug 2026 — `import_level.py` run for real, at
-     scale, and looked at.** Previously verified only on `0-Lighthouse` (1,877 actors). Exported
-     and validated cleanly (`validate_level_manifest.py`, exit 0): 8,089 actors, 1,551 unique mesh
-     assets, 5,322 geometry instances, 692 lights. Imported into the `BioShockUE5` project's
-     `Untitled` transient level: **13,411 created, 0 updated, 0 skipped, 7,337 unsupported**
-     (typed placeholders — scripts, markers, spawners; correctly reported rather than silently
-     dropped). **The 7,337 figure itself was wrong — see the duplicate-`TargetPoint` bug fixed
-     24 Aug 2026, above; the true figure is 2,018.** The user then looked at it directly in the editor — walls, floor and a room's worth
-     of geometry render at the correct scale and position, no materials (checkerboard, as
-     expected — bindings exist, no graph generated yet). **Confirmed against this session's own
-     work**: searching the Outliner for `MeatLocker` surfaces `MeatLockerDoor` as a real
-     `StaticMeshActor` with `MeatLockerDoorScript`/`MeatLockerOn` — its two `ResolvedTriggers`
-     targets from the same day's mover-resolution commit — placed nearby as the `TargetPoint`
-     placeholders their `Script` class predicts. Not saved as a persistent level asset yet — this
-     was a live, unsaved verification pass, not a checked-in result.
-   - **Level-placed characters now import as real animated `SkeletalMeshActor`s, 25 Aug 2026 —
-     verified in a live UE5.7 run, not just a clean report.** Until now every `SkeletalMesh`-kind
-     level instance (splicers, Big Daddies, but also animated non-character props like doors) landed
-     as a bind-pose `StaticMeshActor`, same as any other static geometry. `export-level`
-     (`Program.cs`) now also writes an FBX rig — mesh, skeleton, animations — to
-     `Rigs/<meshName>/ue5_manifest.json` for every distinct mesh a level places, once per mesh
-     variant rather than per character group (a group can own several: thirteen splicer variants off
-     one `AggressorBabyJane`, each needing its own separate UE5 `SkeletalMesh`). `import_level.py`
-     imports each rig into a shared `/Game/BioShockCharacters` root — deliberately not per-level, so
-     a character appearing in many maps is one reused asset — and places a `SkeletalMeshActor`
-     instead of the old placeholder wherever a rig resolved, falling back to the bind-pose static
-     mesh (not losing the actor entirely) when one didn't.
-     **A real bug caught before it shipped**: the first working draft passed the mesh's own name as
-     `AnimationSceneExporter.Build`'s `owner` filter, believing it namespaced the export — it
-     actually filters to animations whose own recorded `OwnerName` field matches (the mechanism
-     `export-firstperson` uses to pick one weapon's animations out of a shared hands package). No
-     mesh name is ever a valid `OwnerName`, so every exported rig silently carried **zero**
-     animations — no exception, a clean-looking manifest, wrong content. Caught by reading the
-     exported rig's own animation count rather than trusting the exit code, fixed by passing no
-     filter (a character's own wrapper already carries only that character's animations).
-     **1-Medical, live UE5.7 import**: 8,092 created / 958 updated / 0 skipped / 2,018 unsupported
-     (matches the figure already recorded above exactly — nothing else regressed) / 1,357 materials
-     assigned, and **130 `SkeletalMeshActor`s placed**, a sample of 15 checked directly all carrying
-     a real mesh with a non-zero bone count (3–21 bones). `AggressorBabyJane`'s own rig export
-     independently carries 457 animations, matching this document's own previously-recorded figure
-     for that rig exactly.
-4. Only add an app-facing "export to UE5" workflow once the command-line import reproduces cleanly
-   on a fresh UE5 project — deliberately not sooner.
-   **Precondition tested 23 Aug 2026 and it is *nearly* met, with one documented caveat.** A rig
-   import into a genuinely fresh project succeeds for meshes, skeletons, animations and textures,
-   but **fails at socket restoration**: `BioShockImportTools` is a **C++** plugin, so copying the
-   folder in (as `tools/ue5/README.md` step 1 said) does not make
-   `unreal.BioShockSocketLibrary` exist. The project must either be a C++ project, or receive
-   prebuilt binaries. README corrected.
-   - **The item itself is a product decision, not a decode**, and stays unstarted pending a call on
-     whether the app should carry this workflow at all.
+**Moved to `docs/UE5_FULL_PORT_PLAN.md`, 25 Aug 2026** — that document is the actual UE5 strategy
+(phases, risks, decisions) and had grown a parallel, overlapping status record of its own (§9); this
+gate's item-by-item detail duplicated it rather than adding anything. It's kept there now, as dated
+entries in §9, not here.
+
+Current shape, in brief — see the linked doc for the full evidence behind each:
+
+1. Manifest versioning + idempotent imports — **done**, 23 Aug 2026.
+2. Keep source exports immutable under `_ue5_normalized/` — already the shape in place.
+3. A UE5 validation map + per-level import report — **done**, 23 Aug 2026; `1-Medical` proof of
+   concept — **done**, 24 Aug 2026; level-placed characters as real `SkeletalMeshActor`s — **done**,
+   25 Aug 2026.
+4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
+   decode, pending a call on whether the app should carry this at all.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

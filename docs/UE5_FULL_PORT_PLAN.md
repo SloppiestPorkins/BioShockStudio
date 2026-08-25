@@ -58,7 +58,10 @@ actually use, so the work is prioritised by evidence rather than by guessing.
 **Assets:** 8,668 static meshes, 967 skeletal meshes (99.9% resolving section tables), 16,031
 animations (0 decode failures), 30,831 textures plus 287 cubemaps, 14,328 materials. UE5 import
 works end to end: meshes, skeletons, animations, textures with correct sRGB and compression,
-idempotent re-runs.
+idempotent re-runs. **Rigs verified for real in UE5.7 across every rig category the game ships**:
+first-person weapons (pistol, TommyGun, Crossbow, ChemicalThrower, GrenadeLauncher), humanoid
+characters (splicer, both Big Daddy variants, Little Sister), mechanical doors/props/turrets, and
+creatures (cat, crab, whale, giant squid, jellyfish, shark).
 
 **Levels:** 21 map packages. BSP world, 118,919 placed actors across 764 classes, 1,042 zones with
 connectivity, 2,386 portals with their zone pairs, 465+ lights per map, 281 cubemap probes.
@@ -74,6 +77,33 @@ UELib version-gating bug) but is mostly stock engine classes. `ShockAI.U` alone 
 
 **Audio:** the chain is decoded down to sound names, but **where the sound data lives is still
 UNKNOWN** and is the standing blocker (`docs/research/audio.md` section 4).
+
+---
+
+## 3a. Why UE5.7 initially rejected every exported file — and the fix
+
+The single largest investigation before this plan was written. UE5.7's legacy FBX importer rejected
+every file this project's exporter produced, with `File is corrupted` / `No mesh is found or
+animation track`. An exhaustive byte-level audit — header, `GlobalSettings`, `Definitions` object
+counts vs. actual, the `Connections` graph, transform properties, polygon winding and end-markers,
+skinning cluster data, zlib stream validity, the trailing magic footer, and a full object-schema diff
+against a known-good reference file — found the exported files were **not** malformed (independently
+confirmed: Blender's own FBX importer opens them cleanly). The actual fix ended up being pragmatic
+rather than a root-cause fix for the SDK's rejection:
+
+- `tools/blender/normalize_fbx_for_ue5.py` re-exports every FBX through headless Blender before
+  handing it to UE5 — Blender's re-export is byte-different in ways not yet fully characterized, but
+  UE5.7 accepts it.
+- A `BioShockImportTools` UE5 editor plugin (`tools/ue5/BioShockImportTools/`) restores the
+  `SOCKET_*` markers that round-trip drops.
+- `tools/ue5/verify_bioshock_import.py` checks an imported asset set against its manifest.
+
+**Verified for real, not just documented**: a fresh pistol export run through
+`import_bioshock.main` → `verify_bioshock_import.main` in a live UE5.7 editor session imported both
+rigs and all 12 animations cleanly (`Success - 0 error(s), 7 warning(s)`, warnings cosmetic — missing
+smoothing groups, sockets outside the bind pose). The TommyGun slice is verified the same way per
+`tools/ue5/README.md`. No app-facing "export to UE5" button exists — this is still a command-line/
+editor-script bridge, deliberately; see §9's "app-facing export workflow" entry for why.
 
 ---
 
@@ -326,13 +356,91 @@ overlapping `TargetPoint` placeholder, miscounted as unsupported. On `1-Medical`
 true figure 2,018. This means every `unsupported` figure quoted earlier in this document and in
 `docs/ROADMAP.md` predates the fix and overstates the gap — not a new regression, a standing one.
 
-**Net effect on this plan:** Phase 1 (assets) for levels is now materially closer to done than §5/§9
-above describe — geometry, UV mapping, single- and multi-material texturing, correct placement, and
-accurate reporting are all verified live. What Phase 1 still does not cover for levels: animated
-`SkeletalMesh`-kind instances (currently imported as bind-pose-only static geometry through the same
-path as everything else — no skeleton, no animation, no link to the character's actual rig), and
-cubemaps as reflection captures (§5 Phase 1.3, untouched). Scoped but not yet started: the skeletal
-case needs the manifest to record each such asset's source package + character group (via the
-already-existing `AssetContextResolver.TopLevelGroup`, not a new resolver), an orchestration step to
-export/import the rig ahead of the level, and an `import_level.py` change to spawn
-`SkeletalMeshActor`s referencing it instead of a bind-pose `StaticMeshActor`.
+**Net effect on this plan, as of 24 Aug 2026:** Phase 1 (assets) for levels is now materially closer
+to done than §5/§9 above describe — geometry, UV mapping, single- and multi-material texturing,
+correct placement, and accurate reporting are all verified live. What Phase 1 still did not cover for
+levels at this point: animated `SkeletalMesh`-kind instances (imported as bind-pose-only static
+geometry through the same path as everything else — no skeleton, no animation, no link to the
+character's actual rig), and cubemaps as reflection captures (§5 Phase 1.3, still untouched). See the
+next entry for the skeletal case landing the following day.
+
+### Manifest versioning, idempotency, and a per-level validation map — done, 23 Aug 2026
+
+Both verified in UE5.7, closing out most of Gate 5's original item list (this section absorbs what
+was previously tracked as `docs/ROADMAP.md`'s Gate 5 — kept here now instead of duplicated there).
+
+- **Versioned manifests.** `ue5_manifest.json` carries `version` (`FbxExporter.ManifestVersion`); the
+  level manifest already had `formatVersion`. `import_bioshock.py` **refuses** an unversioned
+  manifest outright, because one predating texture intent would otherwise import rigs with no
+  textures — which looks like a working import and is not one.
+- **Idempotent imports.** Rig import measured first run 8 created / 0 updated, second run **0
+  created / 8 updated**, asset count unchanged at 22. Level import 1,877 created then **0 created /
+  1,877 updated**. Both report created/updated/skipped/unsupported per run.
+- **A UE5 validation map**, `tools/ue5/build_validation_map.py`, built and verified in UE5.7 with
+  `missing: []` — one instance of every supported asset class (a skeletal mesh, a point light, the
+  level importer's placeholder class, textures with their intent read back from the assets). It
+  states what is *not* supported too — level geometry as UE5 meshes (fixed the next day, see the
+  24 Aug entries above), UE5 material graphs, cubemaps as reflection captures — so the map can't
+  imply broader coverage than exists. The `missing` field is the one that matters: a class claimed
+  supported but not instanced is a failure, reported rather than skipped.
+- **First proof of concept on `1-Medical`, 24 Aug 2026.** Previously verified only on `0-Lighthouse`
+  (1,877 actors). Exported and validated cleanly (`validate_level_manifest.py`, exit 0): 8,089
+  actors, 1,551 unique mesh assets, 5,322 geometry instances, 692 lights. Imported into the
+  `BioShockUE5` project's `Untitled` transient level: **13,411 created, 0 updated, 0 skipped, 7,337
+  unsupported** (typed placeholders — scripts, markers, spawners; correctly reported rather than
+  silently dropped) — **the 7,337 figure itself was wrong, see the duplicate-`TargetPoint` bug
+  above; the true figure is 2,018.** The user then looked at it directly in the editor — walls,
+  floor and a room's worth of geometry render at the correct scale and position, no materials
+  (checkerboard, as expected — bindings exist, no graph generated yet). Confirmed against that
+  session's own work: searching the Outliner for `MeatLocker` surfaces `MeatLockerDoor` as a real
+  `StaticMeshActor` with `MeatLockerDoorScript`/`MeatLockerOn` — its two `ResolvedTriggers` targets
+  from the same day's mover-resolution commit — placed nearby as the `TargetPoint` placeholders
+  their `Script` class predicts. Not saved as a persistent level asset — a live, unsaved
+  verification pass, not a checked-in result.
+
+### Level-placed characters as real animated `SkeletalMeshActor`s — done, 25 Aug 2026
+
+Closes the skeletal-case gap the previous entry left open. Verified in a live UE5.7 run, not just a
+clean report.
+
+Until this, every `SkeletalMesh`-kind level instance (splicers, Big Daddies, but also animated
+non-character props like doors) landed as a bind-pose `StaticMeshActor`, same as any other static
+geometry. `export-level` (`Program.cs`) now also writes an FBX rig — mesh, skeleton, animations — to
+`Rigs/<meshName>/ue5_manifest.json` for every distinct mesh a level places, once per mesh variant
+rather than per character group (a group can own several: thirteen splicer variants off one
+`AggressorBabyJane`, each needing its own separate UE5 `SkeletalMesh`). `import_level.py` imports
+each rig into a shared `/Game/BioShockCharacters` root — deliberately not per-level, so a character
+appearing in many maps is one reused asset — and places a `SkeletalMeshActor` instead of the old
+placeholder wherever a rig resolved, falling back to the bind-pose static mesh (not losing the actor
+entirely) when one didn't.
+
+**A real bug caught before it shipped**: the first working draft passed the mesh's own name as
+`AnimationSceneExporter.Build`'s `owner` filter, believing it namespaced the export — it actually
+filters to animations whose own recorded `OwnerName` field matches (the mechanism
+`export-firstperson` uses to pick one weapon's animations out of a shared hands package). No mesh
+name is ever a valid `OwnerName`, so every exported rig silently carried **zero** animations — no
+exception, a clean-looking manifest, wrong content. Caught by reading the exported rig's own
+animation count rather than trusting the exit code, fixed by passing no filter (a character's own
+wrapper already carries only that character's animations).
+
+**1-Medical, live UE5.7 import**: 8,092 created / 958 updated / 0 skipped / 2,018 unsupported
+(matches the figure above exactly — nothing else regressed) / 1,357 materials assigned, and **130
+`SkeletalMeshActor`s placed**, a sample of 15 checked directly all carrying a real mesh with a
+non-zero bone count (3–21 bones). `AggressorBabyJane`'s own rig export independently carries 457
+animations, matching this document's own previously-recorded figure for that rig exactly.
+
+**Still open for Phase 1 (assets):** cubemaps as reflection captures (§5 Phase 1.3, untouched); a
+UE5 material *graph* for level geometry (bindings exported, no graph generated); an app-facing
+"export to UE5" workflow — see the next entry for why that one is deliberately not started.
+
+### App-facing "export to UE5" workflow — deliberately not started
+
+Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
+project, not sooner. **Precondition tested 23 Aug 2026 and it is *nearly* met, with one documented
+caveat.** A rig import into a genuinely fresh project succeeds for meshes, skeletons, animations and
+textures, but **fails at socket restoration**: `BioShockImportTools` is a **C++** plugin, so copying
+the folder in (as `tools/ue5/README.md` step 1 said) does not make `unreal.BioShockSocketLibrary`
+exist. The project must either be a C++ project, or receive prebuilt binaries. README corrected.
+
+**This item is a product decision, not a decode**, and stays unstarted pending a call on whether the
+app should carry this workflow at all.
