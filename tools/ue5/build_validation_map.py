@@ -86,6 +86,21 @@ def _place_placeholder(location, report):
     report["placed"].append({"class": "TargetPoint"})
 
 
+def _place_reflection_capture(location, report):
+    """The class the level importer uses for a CubemapProbe."""
+    capture_class = getattr(unreal, "SphereReflectionCapture", None)
+    if capture_class is None:
+        report["missing"].append({"class": "SphereReflectionCapture", "reason": "class missing"})
+        return
+    actor = _actors().spawn_actor_from_class(capture_class, unreal.Vector(*location))
+    if actor is None:
+        report["missing"].append({"class": "SphereReflectionCapture", "reason": "spawn failed"})
+        return
+    actor.set_actor_label("Validation_SphereReflectionCapture")
+    actor.tags = [unreal.Name("BioShockValidation=SphereReflectionCapture")]
+    report["placed"].append({"class": "SphereReflectionCapture"})
+
+
 def main(content_root, out_path, map_path="/Game/BioShockValidation/ValidationMap"):
     """Build the validation map from assets already imported under `content_root`."""
     report = {
@@ -94,11 +109,12 @@ def main(content_root, out_path, map_path="/Game/BioShockValidation/ValidationMa
         "missing": [],
         # Stated explicitly so the map documents the pipeline's own boundary rather than implying
         # that whatever happens to be in it is everything.
-        "supported": ["SkeletalMesh", "Skeleton", "AnimSequence", "Texture2D", "PointLight"],
+        "supported": ["SkeletalMesh", "Skeleton", "AnimSequence", "Texture2D", "PointLight",
+                      "SphereReflectionCapture"],
         "unsupported": [
             "StaticMesh (level geometry exports as OBJ, not imported as UE5 meshes)",
             "Material (bindings are exported; no UE5 material graph is generated)",
-            "Cubemap (decoded and probe-located, but not imported as a UE5 reflection capture)",
+            "TextureCube (face PNGs import as Texture2D; face-to-axis mapping is UNKNOWN)",
         ],
     }
 
@@ -108,6 +124,7 @@ def main(content_root, out_path, map_path="/Game/BioShockValidation/ValidationMa
     _place_skeletal_mesh(f"{content_root}/NEWPlayerHands/NEWPlayerHands", [0, 0, 0], report)
     _place_light([200, 0, 200], report)
     _place_placeholder([400, 0, 0], report)
+    _place_reflection_capture([600, 0, 200], report)
     _place_textures([
         f"{content_root}/NEWPlayerHands/Textures/Hand_DIFF",
         f"{content_root}/NEWPlayerHands/Textures/Hand_NORM",

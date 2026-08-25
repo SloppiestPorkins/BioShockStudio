@@ -72,16 +72,14 @@ public static class LevelSceneExporter
 
     private static readonly JsonSerializerOptions ReadableOptions = new(Options) { WriteIndented = true };
 
-    /// <summary>Writes the requested formats into <paramref name="directory"/> and returns the paths.</summary>
     /// <summary>
     /// Writes the requested formats into <paramref name="directory"/> and returns the paths.
     /// </summary>
     /// <param name="package">
-    /// The package <paramref name="scene"/> was built from, still open. Optional, and materials-only
-    /// — everything else <see cref="LevelScene"/> already carries in memory. Omit it and the export
-    /// proceeds exactly as before, with no materials resolved, rather than failing; the caller must
-    /// keep the package open across this call if it wants them, since resolving a material means
-    /// reading its export's own bytes.
+    /// The package <paramref name="scene"/> was built from, still open. Optional — materials and
+    /// cubemap faces only. Everything else <see cref="LevelScene"/> already carries in memory. Omit
+    /// it and the export proceeds with neither resolved, rather than failing; the caller must keep
+    /// the package open across this call if it wants them, since resolving means reading export bytes.
     /// </param>
     public static IReadOnlyList<string> Write(
         LevelScene scene, string directory, LevelExportFormats formats = LevelExportFormats.All,
@@ -93,17 +91,19 @@ public static class LevelSceneExporter
         // Written before either JSON, because both manifests record each material's texture paths.
         List<(Level.SourceId Id, SceneMaterial Material)> materials = [];
         List<FbxTextureEntry> textures = [];
+        List<LevelCubemapDocument> cubemaps = [];
         if (package is not null
             && (formats.HasFlag(LevelExportFormats.SceneJson) || formats.HasFlag(LevelExportFormats.Ue5Manifest)))
         {
             (materials, textures) = WriteMaterials(package, scene, directory, written, bulk);
+            cubemaps = WriteCubemaps(package, scene, directory, written, bulk);
         }
 
         if (formats.HasFlag(LevelExportFormats.SceneJson))
         {
             string path = Path.Combine(directory, scene.PackageName + ".level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, materials: materials, textures: textures, package: package),
+                ToDocument(scene, materials: materials, textures: textures, cubemaps: cubemaps, package: package),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -119,7 +119,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures, package: package),
+                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures, cubemaps, package: package),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -141,6 +141,7 @@ public static class LevelSceneExporter
         IReadOnlyDictionary<string, string>? assetFiles = null,
         IReadOnlyList<(Level.SourceId Id, SceneMaterial Material)>? materials = null,
         IReadOnlyList<FbxTextureEntry>? textures = null,
+        IReadOnlyList<LevelCubemapDocument>? cubemaps = null,
         BioShockPackage? package = null) => new()
     {
         FormatVersion = LevelManifestVersion,
@@ -152,6 +153,7 @@ public static class LevelSceneExporter
         GeometryEmbedded = includeGeometry,
         Materials = materials?.Select(pair => MaterialDocument(pair.Id, pair.Material)).ToList() ?? [],
         Textures = textures?.ToList() ?? [],
+        Cubemaps = cubemaps?.ToList() ?? [],
         Assets = scene.Instances
             .GroupBy(i => i.Asset)
             .Select(g => new LevelAssetDocument
@@ -690,6 +692,54 @@ public static class LevelSceneExporter
         return (materials, textures);
     }
 
+    /// <summary>
+    /// Writes the six face PNGs for every <c>Cubemap</c> a <c>CubemapProbe</c> names, in the
+    /// array's declaration order. Face-to-axis mapping stays <c>UNKNOWN</c>
+    /// (<c>docs/research/textures.md</c>) — this does not assemble a TextureCube.
+    /// </summary>
+    private static List<LevelCubemapDocument> WriteCubemaps(
+        BioShockPackage package, LevelScene scene, string directory, List<string> written,
+        BulkTextureCatalog? bulk)
+    {
+        var result = new List<LevelCubemapDocument>();
+        var seen = new HashSet<int>();
+
+        foreach (var actor in scene.Actors)
+        {
+            if (actor.Cubemap is not { Status: ResolutionStatus.Resolved, Source: { } source }) continue;
+            if (!seen.Add(source.ExportIndex)) continue;
+            if (source.ExportIndex < 0 || source.ExportIndex >= package.Exports.Count) continue;
+
+            var decoded = CubemapReader.Read(package, package.Exports[source.ExportIndex], bulk);
+            if (decoded is null) continue;
+
+            var faces = new List<LevelCubemapFaceDocument>(decoded.Faces.Count);
+            for (int i = 0; i < decoded.Faces.Count; i++)
+            {
+                var face = decoded.Faces[i];
+                string? file = MaterialExporter.WritePng(face, directory);
+                if (file is not null) written.Add(Path.Combine(directory, file.Replace('/', Path.DirectorySeparatorChar)));
+                faces.Add(new LevelCubemapFaceDocument
+                {
+                    Index = i,
+                    ObjectName = face.Name,
+                    File = file,
+                });
+            }
+
+            result.Add(new LevelCubemapDocument
+            {
+                Name = decoded.Name,
+                ExportIndex = source.ExportIndex,
+                Complete = decoded.IsComplete,
+                UnreadableFaces = decoded.UnreadableFaces.ToList(),
+                Faces = faces,
+            });
+        }
+
+        return result;
+    }
+
     /// <summary>One asset's geometry, untransformed.</summary>
     private static string BuildAssetObj(string name, Mesh.MeshGeometry geometry)
     {
@@ -905,6 +955,13 @@ public sealed record LevelDocument
 
     public required List<FbxTextureEntry> Textures { get; init; }
 
+    /// <summary>
+    /// Cubemaps named by this level's <c>CubemapProbe</c> actors, with face PNGs in declaration
+    /// order. Empty when no package was open, or the map has no probes. Face-to-axis mapping is
+    /// not recorded — it is <c>UNKNOWN</c>.
+    /// </summary>
+    public List<LevelCubemapDocument> Cubemaps { get; init; } = [];
+
     public required List<LevelAssetDocument> Assets { get; init; }
     public required List<LevelInstanceDocument> Instances { get; init; }
     public required List<LevelActorDocument> Actors { get; init; }
@@ -915,6 +972,24 @@ public sealed record LevelDocument
 
     /// <summary>Actors whose geometry did not decode. Written even when empty, so the file states it.</summary>
     public required List<string> Skipped { get; init; }
+}
+
+/// <summary>One shipped <c>Cubemap</c> named by a probe, faces in declaration order.</summary>
+public sealed record LevelCubemapDocument
+{
+    public required string Name { get; init; }
+    public required int ExportIndex { get; init; }
+    public required bool Complete { get; init; }
+    public required List<string> UnreadableFaces { get; init; }
+    public required List<LevelCubemapFaceDocument> Faces { get; init; }
+}
+
+public sealed record LevelCubemapFaceDocument
+{
+    /// <summary>Index in the serialised <c>Faces</c> array, not a cube axis.</summary>
+    public required int Index { get; init; }
+    public required string ObjectName { get; init; }
+    public string? File { get; init; }
 }
 
 public sealed record LevelAssetDocument

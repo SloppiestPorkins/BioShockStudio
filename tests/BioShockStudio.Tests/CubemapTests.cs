@@ -1,4 +1,7 @@
+using System.Text.Json;
+using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
 using Xunit;
@@ -93,5 +96,49 @@ public sealed class CubemapTests(GameFixture game)
         var intent = TextureIntent.For(cubemap!.Faces[0], "ReflectionCubemap");
         Assert.Equal(TextureUsage.Cubemap, intent.Usage);
         Assert.Equal(TextureColourSpace.Srgb, intent.ColourSpace);
+    }
+
+    /// <summary>
+    /// Level export writes each probe-named cubemap's six faces as PNGs in declaration order, and
+    /// does not invent a cube-axis mapping.
+    /// </summary>
+    [RequiresGameFact]
+    public void LighthouseProbeCubemapsWriteSixFacePngsInDeclarationOrder()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+        int probes = scene.Actors.Count(a => a.Source.ClassName == "CubemapProbe");
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-cubemap-faces-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest, readable: false, package);
+            string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".ue5-level.json"));
+            var document = JsonSerializer.Deserialize<LevelDocument>(
+                json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+            if (probes == 0)
+            {
+                Assert.Empty(document.Cubemaps);
+                return;
+            }
+
+            Assert.NotEmpty(document.Cubemaps);
+            Assert.All(document.Cubemaps, cubemap =>
+            {
+                Assert.True(cubemap.Complete);
+                Assert.Equal(6, cubemap.Faces.Count);
+                for (int i = 0; i < cubemap.Faces.Count; i++)
+                {
+                    Assert.Equal(i, cubemap.Faces[i].Index);
+                    Assert.Equal($"{cubemap.Name}_Face_{i}", cubemap.Faces[i].ObjectName);
+                    Assert.True(File.Exists(Path.Combine(directory, cubemap.Faces[i].File!.Replace('/', Path.DirectorySeparatorChar))));
+                }
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 }

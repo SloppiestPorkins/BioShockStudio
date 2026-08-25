@@ -13,10 +13,9 @@ level safe.
 **What is and is not reproduced.** Lights become real `PointLight` actors. Geometry instances
 become `StaticMeshActor`/`SkeletalMeshActor`. `CubemapProbe` actors become
 `SphereReflectionCapture` at the probe position (influence radius left at the engine default —
-no shipped radius is decoded; UNKNOWN rather than guessed). The named `Cubemap` is tagged on the
-actor (`BioShockCubemap=<objectName>`) but not bound as a TextureCube this pass: UE5 captures
-rebuild from the scene, and mapping six authored faces onto that is a separate import. Other
-decoded-but-unplaced classes still become tagged `TargetPoint`s and count as `unsupported`.
+no shipped radius is decoded; UNKNOWN rather than guessed). Face PNGs import as `Texture2D`s
+tagged with declaration index; they are **not** packed into a `TextureCube` (face order UNKNOWN).
+Other decoded-but-unplaced classes still become tagged `TargetPoint`s and count as `unsupported`.
 
 Run headless:
 
@@ -166,7 +165,62 @@ def _import_lights(manifest, existing, report, handled):
             component.set_editor_property("intensity", float(light["brightness"]) * 1000.0)
 
 
-def _import_cubemap_probes(manifest, existing, report, handled):
+def _import_cubemap_faces(manifest, export_directory, destination, report):
+    """Import each cubemap face PNG as a Texture2D. Does not assemble a TextureCube.
+
+    Face-to-axis mapping is UNKNOWN; packing six faces into a cube here would bake a guessed
+    rotation into every reflection. Returns cubemap object name -> list of (index, texture).
+    """
+    by_name = {}
+    seen_files = {}
+    for cube in manifest.get("cubemaps") or []:
+        name = cube.get("name")
+        faces = []
+        for face in cube.get("faces") or []:
+            relative = face.get("file")
+            if not relative:
+                continue
+            source = os.path.join(export_directory, relative.replace("/", os.sep))
+            if not os.path.exists(source):
+                _log("  cubemap face missing on disk, skipped: %s" % relative)
+                continue
+            if source in seen_files:
+                faces.append((face.get("index", len(faces)), seen_files[source]))
+                continue
+
+            stem = os.path.splitext(os.path.basename(source))[0]
+            existed = import_bioshock._existed("%s/CubemapFaces/%s" % (destination, stem))
+            task = unreal.AssetImportTask()
+            task.set_editor_property("filename", source)
+            task.set_editor_property("destination_path", "%s/CubemapFaces" % destination)
+            task.set_editor_property("automated", True)
+            task.set_editor_property("replace_existing", True)
+            task.set_editor_property("save", True)
+            import_bioshock._asset_tools().import_asset_tasks([task])
+            texture = next((o for o in task.get_objects() if isinstance(o, unreal.Texture2D)), None)
+            if texture is None:
+                _log("  FAILED to import cubemap face %s" % relative)
+                continue
+            texture.set_editor_property("srgb", True)
+            texture.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+            texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+            import_bioshock._tag(texture, {
+                "BioShockCubemap": name or "",
+                "BioShockFaceIndex": str(face.get("index", "")),
+                "BioShockFaceName": face.get("objectName") or "",
+            })
+            unreal.EditorAssetLibrary.save_loaded_asset(texture)
+            seen_files[source] = texture
+            faces.append((face.get("index", len(faces)), texture))
+            report["updated" if existed else "created"] += 1
+        if name:
+            by_name[name] = faces
+    if by_name:
+        _log("%d cubemap(s), faces imported as Texture2D (no TextureCube assembly)" % len(by_name))
+    return by_name
+
+
+def _import_cubemap_probes(manifest, existing, report, handled, face_textures=None):
     """Place each CubemapProbe as a SphereReflectionCapture.
 
     Positions only this pass: the game names a Cubemap export, but UE5's capture actor rebuilds from
@@ -178,6 +232,7 @@ def _import_cubemap_probes(manifest, existing, report, handled):
     if capture_class is None:
         raise RuntimeError(
             "unreal.SphereReflectionCapture is missing; this editor cannot place cubemap probes")
+    face_textures = face_textures or {}
 
     for entry in manifest.get("actors") or []:
         if entry.get("className") != "CubemapProbe":
@@ -205,6 +260,9 @@ def _import_cubemap_probes(manifest, existing, report, handled):
         if cubemap:
             tags = list(actor.tags)
             tags.append(unreal.Name("BioShockCubemap=" + cubemap))
+            for index, texture in face_textures.get(cubemap, []):
+                path = texture.get_path_name() if hasattr(texture, "get_path_name") else str(texture)
+                tags.append(unreal.Name("BioShockCubemapFace%d=%s" % (index, path)))
             actor.tags = tags
 
 
@@ -541,9 +599,11 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     if materials_by_key:
         _log("%d material instance(s) resolved for this level" % len(materials_by_key))
 
+    cubemap_faces = _import_cubemap_faces(manifest, manifest_dir, destination, report)
+
     handled = set()
     _import_lights(manifest, existing, report, handled)
-    _import_cubemap_probes(manifest, existing, report, handled)
+    _import_cubemap_probes(manifest, existing, report, handled, cubemap_faces)
 
     skeletal_meshes = _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root)
 

@@ -72,7 +72,9 @@ the census did exactly this and produced a clean, plausible, entirely wrong tabl
   - **Face *ordering* is `UNKNOWN`.** The game names them only `_Face_0` to `_Face_5` and nothing
     read so far states which is +X, -X, +Y and so on. `BioShockCubemap.Faces` preserves declaration
     order exactly rather than guessing a convention, which would bake a wrong rotation into every
-    reflection.
+    reflection. **Level export (25 Aug 2026)** writes those six PNGs onto the UE5 manifest as
+    `cubemaps[].faces[]` and the importer loads them as `Texture2D`s tagged with declaration
+    index — still not a `TextureCube`, for this same reason.
 - **No representative UE5 import has been validated.** The metadata is exported and unit-tested;
   it has not been round-tripped through UE5 and looked at, which is the other half of the item.
 - **A few diffuse slots resolve to something that is not a base colour** — `GraniteColor_NOR` and

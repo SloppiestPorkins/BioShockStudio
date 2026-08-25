@@ -103,10 +103,10 @@ visible rather than folded into "created" — the coverage ledger already separa
 "decoded" and this keeps the same distinction in the engine.
 
 **`CubemapProbe` actors become `SphereReflectionCapture`, 25 Aug 2026 — code landed, not yet
-looked at in the editor.** Same replace-stale-placeholder pattern as lights. Influence radius stays
-the engine default (no shipped radius decoded). The named cubemap is a `BioShockCubemap=` tag, not
-a bound TextureCube: UE5 captures rebuild from the scene. Do not call this verified until a live
-UE5.7 look confirms the probes sit where Medical's 29 captures should.
+looked at in the editor.** Face PNGs now export on the level manifest (`cubemaps[]`, declaration
+order) and import as `Texture2D` under `CubemapFaces/`. Influence radius stays the engine default.
+Do **not** assemble a `TextureCube`: face-to-axis mapping is `UNKNOWN`. Do not call probes verified
+until a live UE5.7 look.
 
 Run `validate_level_manifest.py <map>.ue5-level.json` first.
 
@@ -126,10 +126,9 @@ lose their colour, or skeletal meshes stop instancing, opening this map shows it
 instance is a failure, and is reported rather than skipped silently.
 
 Supported today: `SkeletalMesh`, `Skeleton`, `AnimSequence`, `Texture2D`, rig `MaterialInstance`,
-`PointLight`.
-Explicitly **not** supported, and stated in the report so the map cannot imply otherwise: level
-material assignment/graphs and cubemaps (decoded and probe-located, but not imported as reflection
-captures).
+`PointLight`, `SphereReflectionCapture` (probe actor class; not looked at live this session).
+Explicitly **not** supported, and stated in the report so the map cannot imply otherwise: a UE5
+material *expression graph* for level geometry, and `TextureCube` assembly (face order UNKNOWN).
 
 ## Headless gotchas
 

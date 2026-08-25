@@ -36,10 +36,11 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md @tools/ue5/import_level.py
 Continue after Composer nap run.
-Landed: ClassDefaults longest-walk; DecoyHuman Str path; door Attachments; CubemapProbe→SphereReflectionCapture in import_level.py (NOT visually confirmed in UE5.7 — do that first, "render it").
-Fast 259/259; DoorActorSchemaTests 7/7. Branch feature/fbx-materials-gui ahead of origin.
-Next after the look: TextureCube bind for named cubemaps, or level material graphs, or Gate 4.2 listen to audio in UE5.
-KeyPos/KeyRot stay deferred. Do not re-survey. Commit logical slices.
+Landed: ClassDefaults longest-walk; DecoyHuman Str path; door Attachments; CubemapProbe→SphereReflectionCapture; cubemap face PNGs as tagged Texture2D (no TextureCube — face order UNKNOWN).
+NOT visually confirmed in UE5.7 (Unreal not on the machine this session) — do that first, "render it". Do not invent +X/−X mapping.
+Fast 260/260. Branch feature/fbx-materials-gui.
+Next after the look: level material graphs, or Gate 4.2 listen to audio in UE5. KeyPos/KeyRot stay deferred.
+No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 
 **What wastes time here**

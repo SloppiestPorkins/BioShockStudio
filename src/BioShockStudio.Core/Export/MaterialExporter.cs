@@ -234,7 +234,7 @@ public static class MaterialExporter
     }
 
     /// <summary>Writes a decoded texture beside the scene and returns its relative path.</summary>
-    private static string? WritePng(BioShockTexture decoded, string outputDirectory)
+    public static string? WritePng(BioShockTexture decoded, string outputDirectory)
     {
         string directory = Path.Combine(outputDirectory, TextureDirectory);
         Directory.CreateDirectory(directory);
