@@ -429,9 +429,11 @@ wrapper already carries only that character's animations).
 non-zero bone count (3–21 bones). `AggressorBabyJane`'s own rig export independently carries 457
 animations, matching this document's own previously-recorded figure for that rig exactly.
 
-**Still open for Phase 1 (assets):** cubemaps as reflection captures (§5 Phase 1.3, untouched); a
-UE5 material *graph* for level geometry (bindings exported, no graph generated); an app-facing
-"export to UE5" workflow — see the next entry for why that one is deliberately not started.
+**Still open for Phase 1 (assets):** cubemaps as reflection captures — **importer places
+`SphereReflectionCapture` at each `CubemapProbe`, 25 Aug 2026, not yet looked at in UE5.7**; TextureCube
+bind and influence radius remain UNKNOWN. A UE5 material *graph* for level geometry (bindings
+exported, no graph generated); an app-facing "export to UE5" workflow — see the next entry for why
+that one is deliberately not started.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

@@ -102,6 +102,12 @@ Actors with no geometry to attach become positioned, tagged `TargetPoint`s count
 visible rather than folded into "created" — the coverage ledger already separates "placed" from
 "decoded" and this keeps the same distinction in the engine.
 
+**`CubemapProbe` actors become `SphereReflectionCapture`, 25 Aug 2026 — code landed, not yet
+looked at in the editor.** Same replace-stale-placeholder pattern as lights. Influence radius stays
+the engine default (no shipped radius decoded). The named cubemap is a `BioShockCubemap=` tag, not
+a bound TextureCube: UE5 captures rebuild from the scene. Do not call this verified until a live
+UE5.7 look confirms the probes sit where Medical's 29 captures should.
+
 Run `validate_level_manifest.py <map>.ue5-level.json` first.
 
 ## Validation map

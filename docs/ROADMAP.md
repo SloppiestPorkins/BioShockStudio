@@ -1324,7 +1324,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
 2. Keep source exports immutable under `_ue5_normalized/` — already the shape in place.
 3. A UE5 validation map + per-level import report — **done**, 23 Aug 2026; `1-Medical` proof of
    concept — **done**, 24 Aug 2026; level-placed characters as real `SkeletalMeshActor`s — **done**,
-   25 Aug 2026.
+   25 Aug 2026; `CubemapProbe` → `SphereReflectionCapture` in `import_level.py` — **code 25 Aug
+   2026, not visually confirmed**.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

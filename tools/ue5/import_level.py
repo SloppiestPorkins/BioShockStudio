@@ -10,12 +10,13 @@ tag. A second run finds the existing actor by that tag and updates it in place r
 a duplicate, which is the property Gate 5 item 1 asks for and the one that makes re-importing a
 level safe.
 
-**What is and is not reproduced.** Lights become real `PointLight` actors carrying the manifest's
-colour and brightness. Everything else becomes a positioned, tagged placeholder: the manifest
-identifies each actor's class and transform, but the geometry it references is exported as OBJ and
-is not yet imported as UE5 meshes, so there is nothing to attach. That is reported as `unsupported`
-rather than quietly counted as success -- the coverage ledger already distinguishes "placed" from
-"decoded", and this keeps the same distinction visible in the engine.
+**What is and is not reproduced.** Lights become real `PointLight` actors. Geometry instances
+become `StaticMeshActor`/`SkeletalMeshActor`. `CubemapProbe` actors become
+`SphereReflectionCapture` at the probe position (influence radius left at the engine default —
+no shipped radius is decoded; UNKNOWN rather than guessed). The named `Cubemap` is tagged on the
+actor (`BioShockCubemap=<objectName>`) but not bound as a TextureCube this pass: UE5 captures
+rebuild from the scene, and mapping six authored faces onto that is a separate import. Other
+decoded-but-unplaced classes still become tagged `TargetPoint`s and count as `unsupported`.
 
 Run headless:
 
@@ -163,6 +164,48 @@ def _import_lights(manifest, existing, report, handled):
             # The game's brightness is not candelas; carried across proportionally rather than
             # converted, since no photometric mapping has been established. UNKNOWN, not guessed.
             component.set_editor_property("intensity", float(light["brightness"]) * 1000.0)
+
+
+def _import_cubemap_probes(manifest, existing, report, handled):
+    """Place each CubemapProbe as a SphereReflectionCapture.
+
+    Positions only this pass: the game names a Cubemap export, but UE5's capture actor rebuilds from
+    the scene at lighting build, and no shipped influence radius is decoded (UNKNOWN — the engine
+    default stands rather than a guessed number). The cubemap object name rides in a tag so a later
+    TextureCube bind has a stable key.
+    """
+    capture_class = getattr(unreal, "SphereReflectionCapture", None)
+    if capture_class is None:
+        raise RuntimeError(
+            "unreal.SphereReflectionCapture is missing; this editor cannot place cubemap probes")
+
+    for entry in manifest.get("actors") or []:
+        if entry.get("className") != "CubemapProbe":
+            continue
+        key = entry["key"]
+        handled.add(key)
+        actor = existing.get(key)
+        if actor is not None and not isinstance(actor, capture_class):
+            _actor_subsystem().destroy_actor(actor)
+            actor = None
+
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(
+                capture_class, unreal.Vector(*(entry.get("location") or [0, 0, 0])))
+            if actor is None:
+                report["skipped"] += 1
+                continue
+            report["created"] += 1
+        else:
+            report["updated"] += 1
+
+        existing[key] = actor
+        _place(actor, entry, key)
+        cubemap = (entry.get("cubemap") or {}).get("objectName")
+        if cubemap:
+            tags = list(actor.tags)
+            tags.append(unreal.Name("BioShockCubemap=" + cubemap))
+            actor.tags = tags
 
 
 def _import_actors(manifest, existing, report, handled):
@@ -500,6 +543,7 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
 
     handled = set()
     _import_lights(manifest, existing, report, handled)
+    _import_cubemap_probes(manifest, existing, report, handled)
 
     skeletal_meshes = _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root)
 

@@ -34,14 +34,12 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ### Resume here (keep current; wipe when the named item lands)
 
 ```
-@docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after Composer nap run (Gate 4.4).
-HEAD should include: ClassDefaults longest-walk (abd3854), DecoyHuman Str path (2baf219),
-door Attachments (commit after those if present). Fast was 259/259; DoorActorSchemaTests 7/7.
-Gate 4.4 remaining by design: KeyPos/KeyRot (needs a render check — do not guess).
-ScriptedSequence is not a door field (109 other actors); leave unless starting that family.
-Next: Gate 5 Phase 1.3 cubemaps as reflection captures, or Gate 4.2 listen to audio in UE5.7.
-Claim table: Composer owns this track. Do not re-survey. Commit logical slices as you go.
+@docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md @tools/ue5/import_level.py
+Continue after Composer nap run.
+Landed: ClassDefaults longest-walk; DecoyHuman Str path; door Attachments; CubemapProbe→SphereReflectionCapture in import_level.py (NOT visually confirmed in UE5.7 — do that first, "render it").
+Fast 259/259; DoorActorSchemaTests 7/7. Branch feature/fbx-materials-gui ahead of origin.
+Next after the look: TextureCube bind for named cubemaps, or level material graphs, or Gate 4.2 listen to audio in UE5.
+KeyPos/KeyRot stay deferred. Do not re-survey. Commit logical slices.
 ```
 
 **What wastes time here**
