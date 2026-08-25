@@ -277,6 +277,56 @@ static int ExportLevel(string root, string[] args)
     var bulk = BulkTextureCatalog.Load(root);
     var files = new LevelService().Extract(package, args[2], LevelExportFormats.All, readable: true, progress, bulk);
     foreach (string file in files) Console.WriteLine(file);
+
+    // Also export the FBX rig (mesh + skeleton + animations) for every distinct SkeletalMesh
+    // variant the level places, so a later import can give them real animated meshes instead of
+    // bind-pose-only static geometry. Per mesh variant, not per group -- a group can own several
+    // mesh variants sharing one rig (thirteen splicer variants off one AggressorBabyJane, for
+    // example), and each variant needs its own separate UE5 SkeletalMesh. Assets are already
+    // deduplicated by mesh in the manifest LevelService.Extract just wrote, so read that back
+    // rather than recomputing it.
+    // LevelService.Extract puts every file for this level in its own subdirectory of args[2]
+    // (LevelService.cs: `directory = Path.Combine(outputDirectory, scene.PackageName)`), not in
+    // args[2] itself.
+    string levelDirectory = Path.Combine(args[2], Path.GetFileNameWithoutExtension(package));
+    string manifestFile = Path.Combine(levelDirectory, Path.GetFileNameWithoutExtension(package) + ".ue5-level.json");
+    var document = JsonSerializer.Deserialize<LevelDocument>(
+        File.ReadAllText(manifestFile), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+        ?? throw new InvalidOperationException($"Failed to deserialize {manifestFile}.");
+
+    foreach (var asset in document.Assets)
+    {
+        if (asset.Kind != "SkeletalMesh" || asset.Group is null) continue;
+
+        try
+        {
+            // The AnimationPackageWrapper that owns a rig's animations is always named
+            // "UAPW_" + Group in the level's own package (each map embeds its own copy of every
+            // character it uses). `asset.Name` picks the specific mesh variant explicitly, since
+            // one wrapper can host several.
+            string wrapperName = "UAPW_" + asset.Group;
+            string outputDirectory = Path.Combine(levelDirectory, "Rigs", asset.Name);
+            Directory.CreateDirectory(outputDirectory);
+
+            var animationPackage = LoadAnimationPackage(root, args[1], wrapperName);
+            var (sockets, geometry, material) = ResolveMesh(root, args[1], asset.Name, outputDirectory);
+            var events = ResolveEvents(root, args[1], animationPackage);
+            // `Build`'s owner parameter is an *animation* filter (BioShockAnimation.OwnerName,
+            // e.g. a weapon name for a shared hands rig's per-weapon animation subset) -- not a
+            // mesh/rig namespace. A character's own wrapper carries only that character's
+            // animations already, so no filter is wanted here; passing `asset.Name` filtered every
+            // rig's animations to zero (no animation's OwnerName ever equals a mesh export name).
+            var scene = AnimationSceneExporter.Build(animationPackage, null, sockets, geometry, events, material);
+            WriteFbx(scene, outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            // A missing/broken rig for one character should not stop the rest of the level's
+            // (already-exported) geometry and manifest from being usable.
+            Console.Error.WriteLine($"rig export failed for {asset.Name} (group {asset.Group}): {ex.Message}");
+        }
+    }
+
     return 0;
 }
 

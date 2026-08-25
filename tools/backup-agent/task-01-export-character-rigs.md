@@ -1,3 +1,34 @@
+**DONE, 25 Aug 2026 — see `ExportLevel` in `src/BioShockStudio.Cli/Program.cs`.** An earlier attempt
+the same day claimed this note without a working implementation ever landing (a live session's edit
+raced with a since-fixed backup-agent bug and was lost before commit — see `docs/HANDOFF.md` if that
+collision is still recorded there). This is the actual, verified implementation. Three corrections to
+what this brief originally said, kept here rather than silently edited away since a human might still
+read this file:
+
+1. It exports once per **distinct mesh** (`document.Assets` where `Kind=="SkeletalMesh"`, already
+   deduplicated), not once per Group — a group can own several mesh variants sharing one rig
+   (thirteen splicer variants off one `AggressorBabyJane`, for example), and each variant needs its
+   own separate UE5 `SkeletalMesh`; exporting only one per group would have left the other variants
+   bind-pose-only. Output landed at `Rigs/<meshName>/`, not `Rigs/<group>/`.
+2. `AnimationSceneExporter.Build`'s `owner` parameter (`ownerFilter` in its own source) is **not** a
+   mesh/rig namespace — it filters to animations whose own recorded `BioShockAnimation.OwnerName`
+   equals it (the mechanism `export-firstperson` uses to pick one weapon's animations out of a
+   shared hands package). The first working draft passed `asset.Name` there, silently filtering
+   every character's animation count to **zero** — no animation's `OwnerName` is ever a mesh export
+   name, so no exception, just an empty scene that still "succeeded". Caught by actually looking at
+   the exported rig's animation count instead of trusting a clean exit code, per this project's own
+   standing rule. Fixed to pass `null` — a character's own wrapper carries only that character's
+   animations already, no filter is wanted. Real `1-Medical` run, before/after: `AggressorBabyJane`
+   0 → 457 animations (457 matches this project's own previously-recorded figure for that rig),
+   `GathererGirl` 0 → 138, ten smaller prop rigs 0 → 1–6 each.
+3. No xUnit regression test — there is no existing precedent anywhere in this project for testing
+   CLI-layer (`Program.cs`) behavior via xUnit; every `export-fbx`/`export-firstperson`/`export-level`
+   feature has always been verified by actually running the CLI against real game data and inspecting
+   the output, and this followed that same convention instead of introducing a new one. See the commit
+   for the real `1-Medical` run's results.
+
+---
+
 Goal: when a level is exported, also export the FBX rig (mesh + skeleton + animations) for every
 distinct character group its placed SkeletalMesh instances reference, so a later import step can
 give those characters real animated meshes in UE5 instead of bind-pose-only static geometry.
