@@ -160,6 +160,28 @@ public static class WeaponEffects
     }
 
     /// <summary>
+    /// Resolves an arbitrary flat class-reference property directly on <paramref name="className"/>'s
+    /// own class defaults — the same mechanism <see cref="WeaponEffectsData.EmitterClass"/> uses,
+    /// generalized for classes that each name their effect under a different property. Several
+    /// plasmid ability classes do exactly this, one differently-named property per class
+    /// (<c>BerserkRageAbility.ProjectileClass</c>, <c>SpringBoardTrapAbility.TargetIndicatorClass</c>,
+    /// <c>TrapBoltProjectile.BeamEffectClass</c>, ...) — genuinely heterogeneous, so this takes the
+    /// property name rather than assuming one. Null when the named class export doesn't exist, the
+    /// property isn't present, or it doesn't resolve to a local export in this package.
+    /// </summary>
+    public static EmitterTemplateData? ResolveEffectProperty(BioShockPackage package, string className, string propertyName)
+    {
+        var export = package.Exports.FirstOrDefault(e =>
+            package.GetClassName(e) == "Class" && string.Equals(e.ObjectName, className, StringComparison.OrdinalIgnoreCase));
+        if (export is null) return null;
+
+        var defaults = new ClassDefaults(package).For(export);
+        var field = defaults.FirstOrDefault(f =>
+            f.Name == propertyName && f.Type is UnrealPropertyType.Object or UnrealPropertyType.Class);
+        return field is null ? null : ResolveEmitter(package, field);
+    }
+
+    /// <summary>
     /// Resolves a <c>Class</c>-typed reference field to the export it names, only when that export
     /// is local to <paramref name="package"/>. A reference into another package (the FX class lives
     /// somewhere other than the weapon's own package) is left unresolved rather than chased —

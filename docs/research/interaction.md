@@ -258,12 +258,35 @@ elements already use, exposed as `WeaponEffectsData.EmitterClass`/`.HighPressure
 array shape instead (`MachineGun`) correctly reports neither flat property —
 `WeaponEffectsTests.AnEmitterAmmoClassResolvesItsFlatEmitterClassPairInsteadOfTheArrayShape`.
 
-**Still not decoded: the same flat-property idea on plasmid ability classes.** Several
-(`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
-`SpringBoardTrapAbility.TargetIndicatorClass`, `TrapBoltProjectile.BeamEffectClass`) use the same
-resolution mechanism in principle but under yet more different property names, one per class rather
-than a shared `EmitterAmmo`-style base — genuinely heterogeneous, not one
-mechanism, and not attempted in this pass.
+**The same mechanism, generalized for an arbitrary property name, 25 Aug 2026 —
+`WeaponEffects.ResolveEffectProperty(package, className, propertyName)`.** Three of the plasmid
+ability classes resolve cleanly, `CONFIRMED_BYTES`, matching the UELib decompile exactly:
+`SecurityBeaconAbility.ProjectileClass` → `BeaconProjectile`, `SpringBoardTrapAbility.
+TargetIndicatorClass` → `SpringBoard_Cursor`, `TrapBoltProjectile.BeamEffectClass` → `TrapBoltBeam`.
+
+**A real, separate `ClassDefaults` limitation found along the way, not fixed here.**
+`BerserkRageAbility.ProjectileClass` and `ShockPlayer.SanctuaryModelClass` both resolve to null —
+correctly (no exception, no wrong data), but for a more interesting reason than "the property isn't
+there": `properties ShockGame.U BerserkRageAbility` shows `ClassDefaults` recovering a property list
+that starts mid-stream at `FriendlyName`, silently *skipping* the six properties that precede it in
+the real decompiled source — `ProjectileClass`, `bShouldHeatSeek`, `DamageStimuliSetName`,
+`ChanceToCrit`, `ModGroupName`, `BioAmmoCost`. Every property from `FriendlyName` onward reads
+correctly (`FriendlyName` itself decodes to the right UTF-16 `"Enrage"`), so this isn't a fully
+misaligned walk — `ClassDefaults.Read`'s offset search (documented as trying every start offset
+until one produces a "clean" walk) apparently finds the *true* start unable to walk cleanly to the
+payload's end, keeps searching, and lands on `FriendlyName`'s offset as the first one that does.
+`ShockPlayer` (32,464 bytes, the largest class in the game) shows the same shape of symptom —
+`GetNumberOfItems`, a *function* name, appearing as a bogus leading `Float` property. `PLAUSIBLE`
+that an `Object`/`Class`-typed property's size interacts with the walk the same way the already-fixed
+`MaskMaterial` struct-size bug did (`UnrealPropertyReader.CorrectedStructSize`'s own remarks), but
+unconfirmed — the byte-level cause hasn't been isolated, and fixing `ClassDefaults` itself is a
+separate, foundational-code investigation (it's used throughout this project) deliberately not
+opened inside this pass. Recorded rather than chased: two classes' first few properties being
+invisible to every caller of `ClassDefaults`, not just this one, is worth a dedicated look.
+
+**Still not decoded: the remaining plasmid classes' effect properties.** `DecoyHumanAbility.
+TargetIndicatorClassString` is a plain string naming a class by path (`"FXClass.DecoyHumanTarget"`),
+not a `Class`-typed reference property at all — a third, different shape not attempted here.
 
 ## 7. What this note does not claim
 
@@ -271,7 +294,10 @@ mechanism, and not attempted in this pass.
   `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
-- **Plasmid ability classes' own effect-class properties remain undecoded** (`ProjectileClass`,
-  `TargetIndicatorClass`, `BeamEffectClass`, ... — a different name per class) — see §6's last
-  paragraph. The `EmitterAmmo` ammo-class shape (`ChemicalThrower_*`) is decoded.
+- **A `ClassDefaults` limitation affecting at least two classes remains unfixed** —
+  `BerserkRageAbility` and `ShockPlayer` both recover a property list missing their true leading
+  properties. See §6's second-to-last paragraph; not specific to weapon/plasmid effects, worth its
+  own investigation.
+- **`DecoyHumanAbility.TargetIndicatorClassString` (a string, not a class reference) remains
+  undecoded** — see §6's last paragraph.
 - **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3.

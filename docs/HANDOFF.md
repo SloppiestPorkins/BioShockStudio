@@ -141,6 +141,22 @@ data, the service should tell it.
 
 Each of these produced a plausible, wrong result before it was understood.
 
+- **`ClassDefaults` can silently recover a property list that starts mid-stream, skipping real
+  leading properties, on at least two classes.** Found decoding weapon/plasmid effects, 25 Aug 2026:
+  `BerserkRageAbility`'s `ProjectileClass` (the first property in its real decompiled
+  defaultproperties) is invisible to `ClassDefaults(package).For(export)` — the reader recovers a
+  clean-looking list that starts six properties later, at `FriendlyName`, with no error or
+  indication anything was skipped. `ShockPlayer` (32,464 bytes, the largest class in the game) shows
+  the same shape of symptom: a bogus leading `GetNumberOfItems Float` property — that's a *function*
+  name, not a property. `ClassDefaults`' offset search is documented as trying every start position
+  until one walks cleanly to the payload's end; `PLAUSIBLE` that the true start fails that check for
+  a reason related to an `Object`/`Class`-typed property's size (the same shape of bug
+  `UnrealPropertyReader.CorrectedStructSize` already fixed for struct-typed properties), unconfirmed.
+  **Not fixed** — `docs/research/interaction.md` §6 has the full evidence;
+  `WeaponEffectsTests.BerserkRageAbilityDemonstratesAKnownClassDefaultsGap` pins the current
+  (wrong-for-an-understood-reason) behavior so a future fix has a test that flips rather than one
+  that silently stays green. Any other caller of `ClassDefaults`/`ClassDefaults.Lookup` should treat
+  a short-looking property list on a large or early-heavy class with suspicion, not certainty.
 - **A coverage-bucket total is not a per-class count, and seven tests asserted as if it were.**
   `LevelCoverage.Classify()` deliberately routes several unrelated actor classes to the same
   UE5-representation-pending status — that part is correct design. Four Sweep-tier tests summed the

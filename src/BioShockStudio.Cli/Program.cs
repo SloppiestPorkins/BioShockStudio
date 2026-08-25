@@ -61,6 +61,7 @@ try
         "diagnose" => Diagnose(root, args),
         "names" => Names(root, args),
         "weapon-effects" => WeaponEffectsCommand(root, args),
+        "effect-class" => EffectClassCommand(root, args),
         _ => Usage(),
     };
 }
@@ -93,6 +94,8 @@ static int Usage()
           characters <package>          List animated character assets in a package.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
+          effect-class <package> <class> <property>
+                                        Resolve one class's own flat effect-class property by name.
           textures <package> [pattern]  List textures with format and size.
           sounds <package> [pattern]    List native Sound exports and identified payload formats.
           export-sounds <package> <out-dir> [pattern]
@@ -1274,6 +1277,18 @@ static int WeaponEffectsCommand(string root, string[] args)
         Console.WriteLine($"\nEmitterClass (flat): {primary.Source.ObjectName}");
     if (data.HighPressureEmitterClass is { } highPressure)
         Console.WriteLine($"HighPressureEmitterClass (flat): {highPressure.Source.ObjectName}");
+    return 0;
+}
+
+static int EffectClassCommand(string root, string[] args)
+{
+    if (args.Length < 4) { Console.Error.WriteLine("usage: effect-class <package> <class> <property>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var result = WeaponEffects.ResolveEffectProperty(package, args[2], args[3]);
+    if (result is null) { Console.Error.WriteLine($"'{args[3]}' on '{args[2]}' did not resolve to a local emitter class."); return 1; }
+
+    Console.WriteLine($"{args[2]}.{args[3]} -> {result.Source.ObjectName} ({result.MaxParticles?.ToString() ?? "?"} max particles)");
     return 0;
 }
 

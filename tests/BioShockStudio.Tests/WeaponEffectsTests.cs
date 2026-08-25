@@ -105,4 +105,45 @@ public sealed class WeaponEffectsTests(GameFixture game)
         using var package = BioShockPackage.Open(game.WeaponPackage);
         Assert.Null(WeaponEffects.For(package, "ThisClassDoesNotExist"));
     }
+
+    [RequiresGameFact]
+    public void PlasmidAbilityClassesResolveTheirOwnDifferentlyNamedEffectProperty()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+
+        // Three ability classes, three different property names -- ResolveEffectProperty is the
+        // generalization of EmitterAmmo's fixed EmitterClass/HighPressureEmitterClass pair for
+        // exactly this heterogeneity (docs/research/interaction.md §6).
+        Assert.Equal("BeaconProjectile",
+            WeaponEffects.ResolveEffectProperty(package, "SecurityBeaconAbility", "ProjectileClass")?.Source.ObjectName);
+        Assert.Equal("SpringBoard_Cursor",
+            WeaponEffects.ResolveEffectProperty(package, "SpringBoardTrapAbility", "TargetIndicatorClass")?.Source.ObjectName);
+        Assert.Equal("TrapBoltBeam",
+            WeaponEffects.ResolveEffectProperty(package, "TrapBoltProjectile", "BeamEffectClass")?.Source.ObjectName);
+    }
+
+    [RequiresGameFact]
+    public void ANonexistentPropertyOrClassReturnsNullRatherThanThrowing()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        Assert.Null(WeaponEffects.ResolveEffectProperty(package, "Pistol", "NoSuchProperty"));
+        Assert.Null(WeaponEffects.ResolveEffectProperty(package, "ThisClassDoesNotExist", "EmitterClass"));
+    }
+
+    /// <summary>
+    /// Pins a currently-known-wrong answer, not a correct one — see
+    /// docs/research/interaction.md §6. <c>BerserkRageAbility.ProjectileClass</c> is real and present
+    /// in the decompiled source (the very first line of its defaultproperties), but
+    /// <c>ClassDefaults</c>' offset search recovers a property list that silently starts six
+    /// properties later, at <c>FriendlyName</c> -- so this currently, correctly-for-the-wrong-reason
+    /// returns null. If a future <c>ClassDefaults</c> fix recovers the true leading properties, this
+    /// assertion should flip to resolving <c>EnrageProjectile</c> -- that is the intended signal a
+    /// change here is meant to send, not a regression.
+    /// </summary>
+    [RequiresGameFact]
+    public void BerserkRageAbilityDemonstratesAKnownClassDefaultsGap()
+    {
+        using var package = BioShockPackage.Open(game.WeaponPackage);
+        Assert.Null(WeaponEffects.ResolveEffectProperty(package, "BerserkRageAbility", "ProjectileClass"));
+    }
 }
