@@ -1324,6 +1324,32 @@ material.
      targets from the same day's mover-resolution commit — placed nearby as the `TargetPoint`
      placeholders their `Script` class predicts. Not saved as a persistent level asset yet — this
      was a live, unsaved verification pass, not a checked-in result.
+   - **Level-placed characters now import as real animated `SkeletalMeshActor`s, 25 Aug 2026 —
+     verified in a live UE5.7 run, not just a clean report.** Until now every `SkeletalMesh`-kind
+     level instance (splicers, Big Daddies, but also animated non-character props like doors) landed
+     as a bind-pose `StaticMeshActor`, same as any other static geometry. `export-level`
+     (`Program.cs`) now also writes an FBX rig — mesh, skeleton, animations — to
+     `Rigs/<meshName>/ue5_manifest.json` for every distinct mesh a level places, once per mesh
+     variant rather than per character group (a group can own several: thirteen splicer variants off
+     one `AggressorBabyJane`, each needing its own separate UE5 `SkeletalMesh`). `import_level.py`
+     imports each rig into a shared `/Game/BioShockCharacters` root — deliberately not per-level, so
+     a character appearing in many maps is one reused asset — and places a `SkeletalMeshActor`
+     instead of the old placeholder wherever a rig resolved, falling back to the bind-pose static
+     mesh (not losing the actor entirely) when one didn't.
+     **A real bug caught before it shipped**: the first working draft passed the mesh's own name as
+     `AnimationSceneExporter.Build`'s `owner` filter, believing it namespaced the export — it
+     actually filters to animations whose own recorded `OwnerName` field matches (the mechanism
+     `export-firstperson` uses to pick one weapon's animations out of a shared hands package). No
+     mesh name is ever a valid `OwnerName`, so every exported rig silently carried **zero**
+     animations — no exception, a clean-looking manifest, wrong content. Caught by reading the
+     exported rig's own animation count rather than trusting the exit code, fixed by passing no
+     filter (a character's own wrapper already carries only that character's animations).
+     **1-Medical, live UE5.7 import**: 8,092 created / 958 updated / 0 skipped / 2,018 unsupported
+     (matches the figure already recorded above exactly — nothing else regressed) / 1,357 materials
+     assigned, and **130 `SkeletalMeshActor`s placed**, a sample of 15 checked directly all carrying
+     a real mesh with a non-zero bone count (3–21 bones). `AggressorBabyJane`'s own rig export
+     independently carries 457 animations, matching this document's own previously-recorded figure
+     for that rig exactly.
 4. Only add an app-facing "export to UE5" workflow once the command-line import reproduces cleanly
    on a fresh UE5 project — deliberately not sooner.
    **Precondition tested 23 Aug 2026 and it is *nearly* met, with one documented caveat.** A rig
