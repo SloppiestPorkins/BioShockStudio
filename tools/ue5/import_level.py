@@ -366,25 +366,77 @@ def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials
     return meshes
 
 
-def _import_instances(manifest, meshes, existing, report, handled):
-    """Place every geometry instance as a StaticMeshActor carrying the asset's mesh."""
+def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root):
+    """Imports the FBX rig export-level wrote for each SkeletalMesh-kind asset (one directory per
+    distinct mesh, `Rigs/<meshName>/ue5_manifest.json`, next to the level's own manifest), so
+    `_import_instances` can place these as real animated SkeletalMeshActors below.
+
+    Returns {assetKey: unreal.SkeletalMesh}, keyed the same way `_import_asset_meshes` keys its own
+    {assetKey: StaticMesh} dict, so a single instance's `"asset"` field looks either dict up the
+    same way. A missing or failed rig import is skipped rather than raised -- `_import_instances`
+    falls back to the bind-pose static mesh for that asset, so a broken rig loses animation, not
+    the actor's representation entirely.
+
+    `character_content_root` is deliberately separate from this level's own `content_root`: a
+    character (e.g. a common splicer variant) can appear in many different levels and should be
+    one shared, reused asset across all of them, not duplicated per level.
+    `import_bioshock.main` is itself idempotent, so re-importing an already-imported character from
+    a later level updates rather than duplicates it.
+    """
+    skeletal_meshes = {}
+    for asset in manifest.get("assets") or []:
+        if asset.get("kind") != "SkeletalMesh":
+            continue
+
+        rig_dir = os.path.join(manifest_dir, "Rigs", asset["name"])
+        if not os.path.exists(os.path.join(rig_dir, "ue5_manifest.json")):
+            continue
+
+        try:
+            imported = import_bioshock.main(rig_dir, content_root=character_content_root)
+        except Exception as error:
+            _log("rig import failed for %s: %s" % (asset["name"], error))
+            continue
+
+        if imported:
+            skeletal_meshes[asset["key"]] = next(iter(imported.values()))
+
+    if skeletal_meshes:
+        _log("%d character rig(s) imported" % len(skeletal_meshes))
+    return skeletal_meshes
+
+
+def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled):
+    """Place every geometry instance as a StaticMeshActor carrying the asset's mesh -- or, for an
+    instance whose asset has a successfully imported character rig, a SkeletalMeshActor instead."""
     for instance in manifest.get("instances") or []:
         key = "instance:" + instance["actorKey"] + ":" + instance["asset"]
         if key in handled:
             continue
         handled.add(key)
 
-        mesh = meshes.get(instance["asset"])
-        if mesh is None:
+        skeletal_mesh = skeletal_meshes.get(instance["asset"])
+        static_mesh = meshes.get(instance["asset"])
+        actor_class = unreal.SkeletalMeshActor if skeletal_mesh is not None else unreal.StaticMeshActor
+
+        if skeletal_mesh is None and static_mesh is None:
             report["unsupported"] += 1
             continue
 
         location, rotation, scale = _decompose(instance["transform"])
 
         actor = existing.get(key)
+        # An actor already owned by a previous run must still be the right class -- a run before
+        # this asset's rig existed (or after one was newly added) would have left a placeholder of
+        # the other class here. _import_lights already has this exact pattern for a light
+        # replacing a stale placeholder; recreate rather than try to reuse the wrong actor type.
+        if actor is not None and not isinstance(actor, actor_class):
+            _actor_subsystem().destroy_actor(actor)
+            actor = None
+
         if actor is None:
             actor = _actor_subsystem().spawn_actor_from_class(
-                unreal.StaticMeshActor, location, rotation)
+                actor_class, location, rotation)
             if actor is None:
                 report["skipped"] += 1
                 continue
@@ -394,7 +446,10 @@ def _import_instances(manifest, meshes, existing, report, handled):
             actor.set_actor_location(location, False, False)
             actor.set_actor_rotation(rotation, False)
 
-        actor.static_mesh_component.set_static_mesh(mesh)
+        if skeletal_mesh is not None:
+            actor.skeletal_mesh_component.set_skeletal_mesh_asset(skeletal_mesh)
+        else:
+            actor.static_mesh_component.set_static_mesh(static_mesh)
         actor.set_actor_scale3d(scale)
         actor.set_actor_label(instance.get("label") or instance.get("actor") or key)
         actor.tags = [unreal.Name(KEY_TAG_PREFIX + key)]
@@ -410,7 +465,8 @@ def _import_instances(manifest, meshes, existing, report, handled):
         # had none.
         handled.add(instance["actorKey"])
 
-def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel"):
+def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
+         character_content_root="/Game/BioShockCharacters"):
     """Import one level manifest. Returns the created/updated/skipped/unsupported report."""
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -445,9 +501,11 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel"):
     handled = set()
     _import_lights(manifest, existing, report, handled)
 
+    skeletal_meshes = _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root)
+
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
-    _import_instances(manifest, meshes, existing, report, handled)
+    _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)
 
     if import_actors:
         _import_actors(manifest, existing, report, handled)

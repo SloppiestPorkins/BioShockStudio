@@ -1,3 +1,19 @@
+**DONE, 25 Aug 2026 — see `_import_skeletal_rigs`/`_import_instances`/`main` in
+`tools/ue5/import_level.py`.** One correction: task-01 landed exporting `Rigs/<meshName>/`, not
+`Rigs/<group>/` (a group can own several mesh variants sharing one rig), so step 1 below keys rig
+directories and the returned mapping by each asset's own `key`/`name`, not by `Group`.
+
+**Verified in a real, live UE5.7 headless run** (`UnrealEditor-Cmd.exe ... -run=pythonscript`,
+`C:\Users\Jack\Documents\BioShockUE5\run_import_level_task02_verify.py`, per point 4 below), not just
+a clean import log: `1-Medical`, 8,092 created / 958 updated / 0 skipped / 2,018 unsupported (matches
+this project's own previously-recorded figure for that map exactly) / 1,357 material(s) assigned, and
+**130 `SkeletalMeshActor`s spawned**, every one carrying a real mesh with a non-zero bone count (a
+sample of 15 checked directly: 3–21 bones each, `hasMesh: true`) rather than the old bind-pose
+`StaticMeshActor` placeholder. `staticMeshActorCount` 5,192 for everything else, confirming the
+branch only redirected SkeletalMesh-kind instances, nothing else.
+
+---
+
 Goal: a level-placed character (splicer, Big Daddy, etc.) should appear in UE5 as a real animated
 `SkeletalMeshActor`, not a bind-pose `StaticMeshActor` -- the current behavior for every SkeletalMesh
 instance today.
