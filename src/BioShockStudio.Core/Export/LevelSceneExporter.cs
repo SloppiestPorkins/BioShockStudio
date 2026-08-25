@@ -97,7 +97,7 @@ public static class LevelSceneExporter
             && (formats.HasFlag(LevelExportFormats.SceneJson) || formats.HasFlag(LevelExportFormats.Ue5Manifest)))
         {
             (materials, textures) = WriteMaterials(package, scene, directory, written, bulk);
-            cubemaps = WriteCubemaps(package, scene, directory, written, bulk);
+            cubemaps = WriteCubemaps(package, scene.Actors, directory, written, bulk);
         }
 
         if (formats.HasFlag(LevelExportFormats.SceneJson))
@@ -713,14 +713,26 @@ public static class LevelSceneExporter
     /// array's declaration order. Face-to-axis mapping stays <c>UNKNOWN</c>
     /// (<c>docs/research/textures.md</c>) — this does not assemble a TextureCube.
     /// </summary>
+    /// <remarks>
+    /// Takes the analysed actor list, not a built <see cref="LevelScene"/>: cubemap identity lives
+    /// on the probe actors, and assembling mesh instances is unrelated work.
+    /// </remarks>
+    public static List<LevelCubemapDocument> WriteCubemapFaces(
+        BioShockPackage package, IEnumerable<LevelActor> actors, string directory,
+        List<string>? written = null, BulkTextureCatalog? bulk = null)
+    {
+        written ??= [];
+        return WriteCubemaps(package, actors, directory, written, bulk);
+    }
+
     private static List<LevelCubemapDocument> WriteCubemaps(
-        BioShockPackage package, LevelScene scene, string directory, List<string> written,
+        BioShockPackage package, IEnumerable<LevelActor> actors, string directory, List<string> written,
         BulkTextureCatalog? bulk)
     {
         var result = new List<LevelCubemapDocument>();
         var seen = new HashSet<int>();
 
-        foreach (var actor in scene.Actors)
+        foreach (var actor in actors)
         {
             if (actor.Cubemap is not { Status: ResolutionStatus.Resolved, Source: { } source }) continue;
             if (!seen.Add(source.ExportIndex)) continue;

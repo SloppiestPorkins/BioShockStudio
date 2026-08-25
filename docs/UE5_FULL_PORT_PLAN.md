@@ -362,7 +362,8 @@ correct placement, and accurate reporting are all verified live. What Phase 1 st
 levels at this point: animated `SkeletalMesh`-kind instances (imported as bind-pose-only static
 geometry through the same path as everything else — no skeleton, no animation, no link to the
 character's actual rig), and cubemaps as reflection captures (§5 Phase 1.3, probe actors and face
-PNGs landed 25 Aug 2026, not visually confirmed). See the
+PNGs landed 25 Aug 2026; live UE5.7 probe/face import the same day, see the still-open paragraph
+below). See the
 next entry for the skeletal case landing the following day.
 
 ### Manifest versioning, idempotency, and a per-level validation map — done, 23 Aug 2026
@@ -382,8 +383,9 @@ was previously tracked as `docs/ROADMAP.md`'s Gate 5 — kept here now instead o
   level importer's placeholder class, textures with their intent read back from the assets). It
   states what is *not* supported too — at the time: level geometry as UE5 meshes (fixed the next
   day, see the 24 Aug entries above), UE5 material graphs, cubemaps as reflection captures. **25 Aug
-  2026:** `SphereReflectionCapture` is now in `supported` (code; this map has not been re-run live);
-  `TextureCube` assembly stays unsupported (face order UNKNOWN). The `missing` field is the one that
+  2026:** `SphereReflectionCapture` is now in `supported`. The validation map itself has not been
+  re-run live; a dedicated Medical cubemap import the same day placed 29 captures (see still-open
+  paragraph below). `TextureCube` assembly stays unsupported (face order UNKNOWN). The `missing` field is the one that
   matters: a class claimed supported but not instanced is a failure, reported rather than skipped.
 - **First proof of concept on `1-Medical`, 24 Aug 2026.** Previously verified only on `0-Lighthouse`
   (1,877 actors). Exported and validated cleanly (`validate_level_manifest.py`, exit 0): 8,089
@@ -431,12 +433,14 @@ wrapper already carries only that character's animations).
 non-zero bone count (3–21 bones). `AggressorBabyJane`'s own rig export independently carries 457
 animations, matching this document's own previously-recorded figure for that rig exactly.
 
-**Still open for Phase 1 (assets):** cubemaps as reflection captures — probes place as
-`SphereReflectionCapture` and face PNGs import as tagged `Texture2D`s (25 Aug 2026), **not looked
-at in UE5.7**; no `TextureCube` assembly (face order UNKNOWN). A UE5 material *graph* for level
-geometry — animator, sequence, and switch-candidate values now copy onto the level manifest
-(25 Aug 2026) but must not drive a panner node, timeline, or switch-selection rule until those
-mappings are known; an app-facing "export to UE5" workflow — see the next entry.
+**Still open for Phase 1 (assets):** no `TextureCube` assembly (face order UNKNOWN). Cubemap
+probes as `SphereReflectionCapture` plus face `Texture2D`s **looked at in a live UE5.7 run,
+25 Aug 2026** — `1-Medical`, 29 captures at manifest locations, 174 64×64 faces, 0 cubes,
+`Success - 0 error(s), 0 warning(s)`. Influence radius still the engine default. A UE5 material
+*graph* for level geometry — animator, sequence, and switch-candidate values now copy onto the
+level manifest (25 Aug 2026) but must not drive a panner node, timeline, or switch-selection rule
+until those mappings are known; lighting photometric mapping (§5 Phase 1.4); an app-facing
+"export to UE5" workflow — see the next entry.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

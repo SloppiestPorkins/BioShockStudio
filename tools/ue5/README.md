@@ -102,11 +102,13 @@ Actors with no geometry to attach become positioned, tagged `TargetPoint`s count
 visible rather than folded into "created" — the coverage ledger already separates "placed" from
 "decoded" and this keeps the same distinction in the engine.
 
-**`CubemapProbe` actors become `SphereReflectionCapture`, 25 Aug 2026 — code landed, not yet
-looked at in the editor.** Face PNGs now export on the level manifest (`cubemaps[]`, declaration
-order) and import as `Texture2D` under `CubemapFaces/`. Influence radius stays the engine default.
-Do **not** assemble a `TextureCube`: face-to-axis mapping is `UNKNOWN`. Do not call probes verified
-until a live UE5.7 look.
+**`CubemapProbe` actors become `SphereReflectionCapture`, live UE5.7 25 Aug 2026.**
+`export-cubemaps 1-Medical` wrote 29 probes / 29 complete cubemaps (six 64×64 face PNGs each).
+`tools/ue5/run_cubemap_look.py` in a headless UE5.7 session imported them:
+**29 `SphereReflectionCapture` at the manifest locations, 174 face `Texture2D`s (64×64, sRGB),
+0 skipped, 0 `TextureCube`.** `Success - 0 error(s), 0 warning(s)`. Influence radius stays the
+engine default (no shipped radius decoded). Face-to-axis mapping is still `UNKNOWN` — do not
+pack a cube. This is a probe-only import, not a look at reflections on Medical geometry.
 
 Run `validate_level_manifest.py <map>.ue5-level.json` first.
 
@@ -126,7 +128,7 @@ lose their colour, or skeletal meshes stop instancing, opening this map shows it
 instance is a failure, and is reported rather than skipped silently.
 
 Supported today: `SkeletalMesh`, `Skeleton`, `AnimSequence`, `Texture2D`, rig `MaterialInstance`,
-`PointLight`, `SphereReflectionCapture` (probe actor class; not looked at live this session).
+`PointLight`, `SphereReflectionCapture` (29 Medical probes placed live, 25 Aug 2026).
 Explicitly **not** supported, and stated in the report so the map cannot imply otherwise: a UE5
 material *expression graph* for level geometry, and `TextureCube` assembly (face order UNKNOWN).
 

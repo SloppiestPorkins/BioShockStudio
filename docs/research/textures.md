@@ -74,9 +74,14 @@ the census did exactly this and produced a clean, plausible, entirely wrong tabl
     order exactly rather than guessing a convention, which would bake a wrong rotation into every
     reflection. **Level export (25 Aug 2026)** writes those six PNGs onto the UE5 manifest as
     `cubemaps[].faces[]` and the importer loads them as `Texture2D`s tagged with declaration
-    index — still not a `TextureCube`, for this same reason.
-- **No representative UE5 import has been validated.** The metadata is exported and unit-tested;
-  it has not been round-tripped through UE5 and looked at, which is the other half of the item.
+    index — still not a `TextureCube`, for this same reason. **Live UE5.7, 25 Aug 2026:**
+    `export-cubemaps 1-Medical` then `run_cubemap_look.py` placed 29 `SphereReflectionCapture`
+    actors and imported all 174 faces as 64×64 `Texture2D`s, 0 `TextureCube`. Face PNGs are real
+    (sampled luminance max 13–255 across the first six cubemaps); they are dark 64×64 captures,
+    not empty files. Reflections on level geometry and a packed cube remain unattempted.
+- ~~**No representative UE5 import has been validated.**~~ **Probe actors and face PNGs
+  round-tripped through UE5.7, 25 Aug 2026** (see above). A `TextureCube` still is not, because
+  face order is `UNKNOWN`.
 - **A few diffuse slots resolve to something that is not a base colour** — `GraniteColor_NOR` and
   `facade_side_normal` are normal maps, `BulletConcDecal_Heightmap` is a heightmap. Whether that is
   the game's own authoring or this project's slot walk is `UNKNOWN`. See `materials.md`.

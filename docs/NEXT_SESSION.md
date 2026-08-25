@@ -34,11 +34,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ### Resume here (keep current; wipe when the named item lands)
 
 ```
-@docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md @tools/ue5/import_level.py
-Continue after Composer nap run.
-Landed: ... ScriptedSequence (`acdea57`); MaterialSequence/MaterialSwitch candidates on the level manifest.
-NOT visually confirmed in UE5.7. Do not invent +X/−X, panner units, or switch-selection. KeyPos/KeyRot stay deferred.
-Fast 262/262. Branch feature/fbx-materials-gui.
+@docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
+Continue after cubemap look.
+Landed: ScriptedSequence (`acdea57`); MaterialSequence/MaterialSwitch on the level manifest;
+CubemapProbe -> SphereReflectionCapture live in UE5.7 (1-Medical: 29 captures, 174 face Texture2Ds,
+0 TextureCube, Success 0 errors). Face order still UNKNOWN. KeyPos/KeyRot stay deferred.
+Next: Phase 1.4 lighting photometric mapping. Do not invent +X/−X, panner units, or switch-selection.
+Fast 263/263. Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

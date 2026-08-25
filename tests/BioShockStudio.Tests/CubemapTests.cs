@@ -103,6 +103,38 @@ public sealed class CubemapTests(GameFixture game)
     /// does not invent a cube-axis mapping.
     /// </summary>
     [RequiresGameFact]
+    public void MedicalProbeCubemapsWriteSixFacePngsWithoutAssemblingACube()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var context = LevelAnalyzer.Analyze(package);
+        int probes = context.Actors.Count(a => a.Source.ClassName == "CubemapProbe");
+        Assert.Equal(29, probes);
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-medical-cubemaps-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var cubemaps = LevelSceneExporter.WriteCubemapFaces(
+                package, context.Actors, directory, bulk: BulkTextureCatalog.Load(game.RequireRoot));
+            Assert.NotEmpty(cubemaps);
+            Assert.All(cubemaps, cubemap =>
+            {
+                Assert.True(cubemap.Complete);
+                Assert.Equal(6, cubemap.Faces.Count);
+                for (int i = 0; i < cubemap.Faces.Count; i++)
+                {
+                    Assert.Equal(i, cubemap.Faces[i].Index);
+                    Assert.Equal($"{cubemap.Name}_Face_{i}", cubemap.Faces[i].ObjectName);
+                    Assert.True(File.Exists(Path.Combine(directory, cubemap.Faces[i].File!.Replace('/', Path.DirectorySeparatorChar))));
+                }
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [RequiresGameFact]
     public void LighthouseProbeCubemapsWriteSixFacePngsInDeclarationOrder()
     {
         using var package = BioShockPackage.Open(game.LighthousePackage);

@@ -12,7 +12,9 @@ using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
 using System.Diagnostics;
+using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 if (args.Length == 0)
 {
@@ -46,6 +48,7 @@ try
         "context" => Context(root, args),
         "level-audit" => LevelAudit(root, args),
         "export-level" => ExportLevel(root, args),
+        "export-cubemaps" => ExportCubemaps(root, args),
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
         "textures" => Textures(root, args),
@@ -90,6 +93,9 @@ static int Usage()
           context <package> <group>     Show an asset group and everything it owns.
           level-audit <map>              Account for every placed UE2 actor and its UE5 decode status.
           export-level <map> <out-dir>   Write a versioned level JSON plus OBJ for the UE5 pipeline.
+          export-cubemaps <map> <out-dir>
+                                        Face PNGs + a probe-only UE5 manifest. Does not assemble
+                                        a TextureCube (face order UNKNOWN).
           ue5-audit [out.json]            Decode-check asset containers required by the UE5 pipeline.
           characters <package>          List animated character assets in a package.
           weapon-effects <package> <class>
@@ -333,6 +339,48 @@ static int ExportLevel(string root, string[] args)
         }
     }
 
+    return 0;
+}
+
+static int ExportCubemaps(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: export-cubemaps <map> <out-dir>"); return 1; }
+
+    string packageFile = ResolvePackage(root, args[1]);
+    using var package = BioShockPackage.Open(packageFile);
+    var bulk = BulkTextureCatalog.Load(root);
+    var context = LevelAnalyzer.Analyze(package);
+
+    string directory = Path.Combine(args[2], context.PackageName);
+    Directory.CreateDirectory(directory);
+
+    var cubemaps = LevelSceneExporter.WriteCubemapFaces(package, context.Actors, directory, bulk: bulk);
+    var probes = context.Actors.Where(actor => actor.Source.ClassName == "CubemapProbe").ToList();
+    var scene = new LevelScene
+    {
+        PackageName = context.PackageName,
+        Instances = [],
+        Lights = [],
+        Actors = probes,
+        Skipped = [],
+        Bounds = (Vector3.Zero, Vector3.Zero),
+    };
+    var document = LevelSceneExporter.ToDocument(scene, includeGeometry: false, cubemaps: cubemaps, package: package);
+    string path = Path.Combine(directory, context.PackageName + ".ue5-level.json");
+    File.WriteAllText(path, JsonSerializer.Serialize(document, new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    }));
+
+    Console.WriteLine(path);
+    Console.WriteLine($"{probes.Count} CubemapProbe actor(s), {cubemaps.Count} cubemap(s)");
+    foreach (var cubemap in cubemaps)
+        Console.WriteLine($"  {cubemap.Name}: {cubemap.Faces.Count} faces complete={cubemap.Complete}");
+
+    if (probes.Count == 0) { Console.Error.WriteLine("no CubemapProbe actors in this map"); return 1; }
+    if (cubemaps.Count == 0 || cubemaps.Any(c => !c.Complete)) { Console.Error.WriteLine("incomplete cubemap export"); return 1; }
     return 0;
 }
 
