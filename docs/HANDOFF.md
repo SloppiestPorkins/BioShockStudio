@@ -157,6 +157,14 @@ Each of these produced a plausible, wrong result before it was understood.
   (wrong-for-an-understood-reason) behavior so a future fix has a test that flips rather than one
   that silently stays green. Any other caller of `ClassDefaults`/`ClassDefaults.Lookup` should treat
   a short-looking property list on a large or early-heavy class with suspicion, not certainty.
+- **The `properties` CLI command's own `Bool` display always printed `"true"`, regardless of the
+  actual value.** Found 25 Aug 2026 decoding `DoorSwitch`'s `DamagedReactions`/`UsedReactions`: the
+  tool's own output showed `OnceOnly` as `true`, a real decoded test assertion was written against
+  that, and the test itself immediately failed — the true value is `false`. `UnrealProperty.BoolValue`
+  itself was always read correctly; only this one reconnaissance command's display line
+  (`UnrealPropertyType.Bool => "true"`, both the top-level and the struct-array-unpacking copy of it)
+  was wrong. Fixed to print the real value. Any conclusion drawn from a `properties` command's Bool
+  output examined *before* this fix landed should be re-checked, not trusted.
 - **A coverage-bucket total is not a per-class count, and seven tests asserted as if it were.**
   `LevelCoverage.Classify()` deliberately routes several unrelated actor classes to the same
   UE5-representation-pending status — that part is correct design. Four Sweep-tier tests summed the

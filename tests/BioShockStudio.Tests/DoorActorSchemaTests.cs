@@ -94,6 +94,18 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         Assert.Equal(string.Empty, breaker.DoorSwitch.UseVerbText);
         Assert.Null(breaker.DoorSwitch.OverlayMaterial);
 
+        // DamagedReactions/UsedReactions: a generic engine reaction-framework struct array, not
+        // door-specific -- Reaction names the handler class that actually fires.
+        var damaged = Assert.Single(breaker.DoorSwitch.DamagedReactions);
+        Assert.Equal("ReactionNotifyScriptingSystem", damaged.Reaction?.ObjectName);
+        Assert.False(damaged.OnceOnly);
+        Assert.False(damaged.HasStaticMeshes);
+        Assert.False(damaged.HasMaterials);
+
+        Assert.Equal(2, breaker.DoorSwitch.UsedReactions.Count);
+        Assert.Equal("ReactionNotifyScriptingSystem", breaker.DoorSwitch.UsedReactions[0].Reaction?.ObjectName);
+        Assert.Equal("ReactionTriggerEffectEvent", breaker.DoorSwitch.UsedReactions[1].Reaction?.ObjectName);
+
         var supplyCloset = switches.Single(actor => actor.Source.ExportIndex == 13821);
         Assert.Null(supplyCloset.DoorSwitch!.DamageResistanceSetName);
         Assert.Equal("LogShimmer_Shader", supplyCloset.DoorSwitch.OverlayMaterial?.ObjectName);

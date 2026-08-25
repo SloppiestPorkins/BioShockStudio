@@ -965,8 +965,71 @@ public static class LevelAnalyzer
             DamageResistanceSetName = damageResistanceSetName,
             UseVerbText = useVerbText,
             OverlayMaterial = overlayMaterial,
+            DamagedReactions = ReadReactions(package, payload, "DamagedReactions"),
+            UsedReactions = ReadReactions(package, payload, "UsedReactions"),
             Complete = true,
         };
+    }
+
+    /// <summary>
+    /// A <c>DoorSwitch</c>'s <c>DamagedReactions</c>/<c>UsedReactions</c> array — a generic
+    /// engine reaction-framework struct array (see <see cref="DoorSwitchReactionData"/>), the same
+    /// <c>ReadStructArrayElements</c> shape <c>Emitters</c>/<c>OnFiredEffects</c> already use
+    /// elsewhere in this project. Empty, never null, when the property is absent or malformed —
+    /// same "counted, not silently dropped" convention this file follows throughout.
+    /// </summary>
+    private static IReadOnlyList<DoorSwitchReactionData> ReadReactions(
+        BioShockPackage package, ActorPayload payload, string propertyName)
+    {
+        if (payload.Find(propertyName) is not { Type: UnrealPropertyType.Array } property) return [];
+        if (ReadStructArrayElements(package, property) is not { } elements) return [];
+
+        var result = new List<DoorSwitchReactionData>(elements.Count);
+        foreach (var fields in elements)
+        {
+            UnrealProperty? Find(string name) => fields.FirstOrDefault(f => f.Name == name);
+
+            AssetReference? ResolveRef(string name)
+            {
+                if (Find(name) is not { Type: UnrealPropertyType.Object or UnrealPropertyType.Class } field) return null;
+                if (PropertyValues.AsReference(field) is not { IsNull: false } index) return null;
+                return Describe(package, index, "door switch reaction", null);
+            }
+
+            bool GetBool(string name) => Find(name) is { Type: UnrealPropertyType.Bool } field && field.BoolValue;
+            string? GetName(string name) =>
+                Find(name) is { Type: UnrealPropertyType.Name } field ? PropertyValues.AsName(field, package) : null;
+            float GetFloat(string name) => Find(name) is { Type: UnrealPropertyType.Float } field ? field.AsFloat() : 0f;
+            int GetInt(string name) => Find(name) is { Type: UnrealPropertyType.Int } field ? field.AsInt() : 0;
+            byte GetByte(string name) => Find(name) is { Type: UnrealPropertyType.Byte } field ? field.AsByte() : (byte)0;
+            bool HasArrayContent(string name) =>
+                Find(name) is { Type: UnrealPropertyType.Array } field && field.Value.Length > 1;
+
+            result.Add(new DoorSwitchReactionData
+            {
+                Reaction = ResolveRef("Reaction"),
+                OnceOnly = GetBool("OnceOnly"),
+                SkipSubsequentReactions = GetBool("SkipSubsequentReactions"),
+                Bool1 = GetBool("Bool1"),
+                Bool2 = GetBool("Bool2"),
+                Bool3 = GetBool("Bool3"),
+                Bool4 = GetBool("Bool4"),
+                Done = GetBool("Done"),
+                Name1 = GetName("Name1"),
+                Name2 = GetName("Name2"),
+                Float1 = GetFloat("Float1"),
+                Float2 = GetFloat("Float2"),
+                Int1 = GetInt("Int1"),
+                Int2 = GetInt("Int2"),
+                OtherActor = ResolveRef("OtherActor"),
+                DamageType = GetByte("DamageType"),
+                Mode = GetByte("Mode"),
+                HasStaticMeshes = HasArrayContent("StaticMeshes"),
+                HasMaterials = HasArrayContent("Materials"),
+            });
+        }
+
+        return result;
     }
 
     private static ScriptActorData? ScriptActions(BioShockPackage package, ActorPayload payload)

@@ -6,11 +6,11 @@ triggers them, their start pose), the game's ~50 door classes plus `DoorSwitch` 
 animation and interaction-verb state), triggers' own trigger-wiring field, and one of the two
 weapon/plasmid-effect shapes (§6).
 
-**Status.** Movers' and doors' state fields are `CONFIRMED_BYTES`, and a mover's `TriggeredBy` is
-resolved against `Label` in code (§2). Triggers' own `TriggeredBy` turned out to be a class filter,
-not an object reference, and is closed rather than open (§4). A mover's keyframe motion path
-(`KeyPos`/`KeyRot`) and `DoorSwitch`'s reaction arrays are both deliberately not decoded — see §3
-and §5. Weapon classes' `OnFiredEffects`/`TracerEffects`, and `EmitterAmmo`'s own flat `EmitterClass`/
+**Status.** Movers' and doors' state fields, and `DoorSwitch`'s reaction arrays, are all
+`CONFIRMED_BYTES`, and a mover's `TriggeredBy` is resolved against `Label` in code (§2). Triggers'
+own `TriggeredBy` turned out to be a class filter, not an object reference, and is closed rather
+than open (§4). A mover's keyframe motion path (`KeyPos`/`KeyRot`) is deliberately not decoded —
+see §3. Weapon classes' `OnFiredEffects`/`TracerEffects`, and `EmitterAmmo`'s own flat `EmitterClass`/
 `HighPressureEmitterClass` pair, are both `CONFIRMED_BYTES` — see §6; the same flat-property idea on
 plasmid ability classes (different property name per class) remains untouched, same section.
 
@@ -214,9 +214,36 @@ is gated on the exact class name instead. **37 `DoorSwitch` actors across 8 pack
 useful: it's the on-screen interaction prompt (`"Look"`, `"TURN LATCH"`), and empty string is a real
 shipped value on most switches, not an absent one.
 
-**Still not decoded**: `DamagedReactions`/`UsedReactions` (large, complex nested arrays — not
-simple scalars, the same shape of risk that deferred `KeyPos`/`KeyRot` in §3), `Attachments`,
-`ScriptedSequence`. Left for the same reason as those: worth a dedicated pass, not this one.
+**`DamagedReactions`/`UsedReactions` decoded, 25 Aug 2026 — turned out to be the same
+`ReadStructArrayElements` shape `OnFiredEffects`/`TracerEffects` already use (§6), not the
+`KeyPos`/`KeyRot`-style `FixedArray` risk this note originally worried about.** Both are plain
+dynamic `Array` properties whose elements are tagged property lists — found by adding a
+struct-array-unpacking mode to the `properties` CLI command itself (now a permanent reconnaissance
+feature, not a one-off), which showed the real field shape directly rather than guessing from raw
+hex. Every element carries the same 17 fields, a generic engine reaction-framework record, not
+door-specific: `Reaction` (the handler class that actually fires — `ReactionNotifyScriptingSystem`,
+`ReactionTriggerEffectEvent`, ... — resolved the identical way any other class reference in this
+project is), `OnceOnly`, `SkipSubsequentReactions`, `Bool1`–`Bool4`, `Done`, `Name1`/`Name2`,
+`Float1`/`Float2`, `Int1`/`Int2`, `OtherActor`, `DamageType`, `Mode`, and two nested
+`StaticMeshes`/`Materials` arrays (empty in every observed sample, presence recorded, contents not
+decoded). `DoorSwitchReactionData` in `LevelModel.cs`; `LevelAnalyzer.ReadReactions`;
+`DoorActorSchemaTests.MedicalDoorSwitchesDecodeTheirInteractionVerbFields`, `CONFIRMED_BYTES` against
+`DoorSwitch3` (1 `DamagedReactions`, 2 `UsedReactions`).
+
+**The generic `Bool1`–`Bool4`/`Name1`/`Name2`/`Float1`/`Float2`/`Int1`/`Int2` slots' meaning is
+UNKNOWN** — it depends on which `Reaction` class is referenced, and is carried raw rather than
+guessed, the same convention `UpgradeType`/`EmitterAction` already use in §6.
+
+**A real, separate display bug caught along the way.** The `properties` CLI command's own `Bool`
+case had always printed the literal string `"true"` for every boolean property, regardless of its
+actual value — not a decode bug (`UnrealProperty.BoolValue` itself was always read correctly), a
+display bug in this one reconnaissance command. It produced a specific wrong test assertion here
+(`OnceOnly` looked `true` in the tool's own output; the real, decoded value is `false`) before the
+test run itself caught the contradiction. Fixed to print `property.BoolValue`/`field.BoolValue`
+directly. Worth remembering when trusting any *older* raw `properties` output examined before this
+fix landed.
+
+**Still not decoded**: `Attachments`, `ScriptedSequence`. Worth a dedicated pass, not this one.
 
 ## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
 

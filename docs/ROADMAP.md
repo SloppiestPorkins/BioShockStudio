@@ -1280,8 +1280,14 @@ material.
      before landing: gated on the exact class name instead. **37 `DoorSwitch` actors across 8
      packages, 0 incomplete.** `UseVerbText` is the on-screen interaction prompt (`"Look"`,
      `"TURN LATCH"`) — genuinely useful, and empty string is a real shipped value, not absence.
-     Not decoded: `DamagedReactions`/`UsedReactions` (complex nested arrays, the same shape of risk
-     that deferred `KeyPos`/`KeyRot`), `Attachments`, `ScriptedSequence`.
+     **`DamagedReactions`/`UsedReactions` decoded too, 25 Aug 2026** — turned out to be the same
+     `ReadStructArrayElements` shape `OnFiredEffects`/`TracerEffects` below already use, not the
+     `KeyPos`/`KeyRot`-style risk this line originally worried about. A generic engine
+     reaction-framework record (`Reaction` names the handler class that fires; several other slots'
+     meaning is UNKNOWN, carried raw). `DoorSwitchReactionData`; `docs/research/interaction.md` §5.
+     **A real, separate display bug caught in the process**: the `properties` CLI command's `Bool`
+     case always printed the literal `"true"`, regardless of the actual value — fixed. Not decoded:
+     `Attachments`, `ScriptedSequence`.
    - **Weapon effects landed, 25 Aug 2026 — `OnFiredEffects`/`TracerEffects` decoded from class
      defaults, not placed-actor payloads.** A weapon (`MachineGun`, `Pistol`, `Shotgun`, ...) is
      never placed in a level, so this is the one interaction-metadata source that reads a `Class`

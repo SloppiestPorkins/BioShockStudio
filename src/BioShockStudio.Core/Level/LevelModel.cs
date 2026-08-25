@@ -509,8 +509,6 @@ public sealed record DoorActorData
 /// generic interaction/combat properties dozens of unrelated classes also carry (pickups,
 /// furniture, other switches), found only after checking the whole game rather than assumed from
 /// a door-scoped census.
-/// <c>UsedReactions</c>/<c>DamagedReactions</c> (complex nested arrays, not simple scalars) remain
-/// undecoded — see docs/research/interaction.md §5.
 /// </summary>
 public sealed record DoorSwitchActorData
 {
@@ -522,7 +520,44 @@ public sealed record DoorSwitchActorData
 
     public AssetReference? OverlayMaterial { get; init; }
 
+    public required IReadOnlyList<DoorSwitchReactionData> DamagedReactions { get; init; }
+    public required IReadOnlyList<DoorSwitchReactionData> UsedReactions { get; init; }
+
     public required bool Complete { get; init; }
+}
+
+/// <summary>
+/// One entry of a <c>DoorSwitch</c>'s <c>DamagedReactions</c>/<c>UsedReactions</c> array — a
+/// generic engine reaction-framework record, not door-specific (<c>Reaction</c> names the handler
+/// class that actually fires, e.g. <c>ReactionNotifyScriptingSystem</c>,
+/// <c>ReactionTriggerEffectEvent</c>). <c>Bool1</c>–<c>Bool4</c>/<c>Name1</c>/<c>Name2</c>/
+/// <c>Float1</c>/<c>Float2</c>/<c>Int1</c>/<c>Int2</c> are generic slots whose meaning depends on
+/// which <c>Reaction</c> class is referenced — UNKNOWN, carried raw rather than guessed.
+/// </summary>
+public sealed record DoorSwitchReactionData
+{
+    public AssetReference? Reaction { get; init; }
+    public bool OnceOnly { get; init; }
+    public bool SkipSubsequentReactions { get; init; }
+    public bool Bool1 { get; init; }
+    public bool Bool2 { get; init; }
+    public bool Bool3 { get; init; }
+    public bool Bool4 { get; init; }
+    public bool Done { get; init; }
+    public string? Name1 { get; init; }
+    public string? Name2 { get; init; }
+    public float Float1 { get; init; }
+    public float Float2 { get; init; }
+    public int Int1 { get; init; }
+    public int Int2 { get; init; }
+    public AssetReference? OtherActor { get; init; }
+    public byte DamageType { get; init; }
+    public byte Mode { get; init; }
+
+    /// <summary>Whether the nested <c>StaticMeshes</c>/<c>Materials</c> arrays carry any content —
+    /// empty in every observed sample so far. Their own contents are not decoded.</summary>
+    public bool HasStaticMeshes { get; init; }
+    public bool HasMaterials { get; init; }
 }
 
 public sealed record PressureRegionData(string Name, byte Pressure, float EffectsDuration);
