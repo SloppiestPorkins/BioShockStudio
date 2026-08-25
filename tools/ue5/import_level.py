@@ -10,8 +10,10 @@ tag. A second run finds the existing actor by that tag and updates it in place r
 a duplicate, which is the property Gate 5 item 1 asks for and the one that makes re-importing a
 level safe.
 
-**What is and is not reproduced.** Lights become real `PointLight` actors. Geometry instances
-become `StaticMeshActor`/`SkeletalMeshActor`. `CubemapProbe` actors become
+**What is and is not reproduced.** Lights become real `PointLight` actors: colour, authored
+`LightBrightness` as intensity (no candela conversion), `LightRadius` as attenuation radius,
+inverse-square falloff off so intensity stays a brightness scale. A light with no radius is not
+spawned — its reach is UNKNOWN. Geometry instances become `StaticMeshActor`/`SkeletalMeshActor`. `CubemapProbe` actors become
 `SphereReflectionCapture` at the probe position (influence radius left at the engine default —
 no shipped radius is decoded; UNKNOWN rather than guessed). Face PNGs import as `Texture2D`s
 tagged with declaration index; they are **not** packed into a `TextureCube` (face order UNKNOWN).
@@ -131,8 +133,18 @@ def _import_lights(manifest, existing, report, handled):
     """Lights are the one class reproduced as a real, functioning UE5 actor."""
     for light in manifest.get("lights") or []:
         key = light["key"]
-        handled.add(key)
         actor = existing.get(key)
+        radius = light.get("radius")
+
+        # Reach is UNKNOWN when the package wrote no radius (or zero). The studio drops those
+        # rather than inventing one. Do not spawn a PointLight with UE5's 1000 cm default.
+        if radius is None or float(radius) <= 0:
+            if actor is not None and isinstance(actor, unreal.PointLight):
+                _actor_subsystem().destroy_actor(actor)
+                existing.pop(key, None)
+            continue
+
+        handled.add(key)
 
         # A light already owned by a previous run must still BE a light. If an earlier, buggier run
         # left a placeholder under this key, replace it rather than trying to set light properties
@@ -155,14 +167,31 @@ def _import_lights(manifest, existing, report, handled):
         _place(actor, light, key, convert_location=True)
 
         component = actor.get_editor_property("light_component")
+        # Movable so they illuminate in the editor without a Lightmass build. BioShock never
+        # serialises bStatic (class default applies; UNKNOWN), so this is an import-time choice,
+        # not a decoded mobility.
+        component.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
         colour = light.get("color")
         if colour:
             component.set_editor_property(
                 "light_color", unreal.Color(r=colour[0], g=colour[1], b=colour[2], a=255))
-        if light.get("brightness") is not None:
-            # The game's brightness is not candelas; carried across proportionally rather than
-            # converted, since no photometric mapping has been established. UNKNOWN, not guessed.
-            component.set_editor_property("intensity", float(light["brightness"]) * 1000.0)
+
+        # Radius is world centimetres, same unit as UE5 AttenuationRadius — carry it, do not scale.
+        component.set_editor_property("attenuation_radius", float(radius))
+
+        # Inverse-square treats AttenuationRadius as a clip on 1/r^2. BioShock authored a finite
+        # radius as the light's reach (float world units, median hundreds of cm). This project's
+        # own viewer found inverse-square "almost black" at those scales (SoftwareRenderer). UE5's
+        # PointLightComponent: when inverse-square is off, Intensity is a brightness scale. The
+        # authored LightBrightness is that scale (0–4, median ~1) — carry it, do not multiply.
+        # The previous `* 1000` was the uncalibrated guess Phase 1.4 exists to remove.
+        component.set_editor_property("use_inverse_squared_falloff", False)
+        units = getattr(unreal.LightUnits, "UNITLESS", None)
+        if units is not None:
+            component.set_editor_property("intensity_units", units)
+        brightness = light.get("brightness")
+        component.set_editor_property(
+            "intensity", float(brightness) if brightness is not None else 1.0)
 
 
 def _import_cubemap_faces(manifest, export_directory, destination, report):

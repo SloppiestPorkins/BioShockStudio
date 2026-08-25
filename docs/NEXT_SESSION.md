@@ -35,12 +35,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after cubemap look.
-Landed: ScriptedSequence (`acdea57`); MaterialSequence/MaterialSwitch on the level manifest;
-CubemapProbe -> SphereReflectionCapture live in UE5.7 (1-Medical: 29 captures, 174 face Texture2Ds,
-0 TextureCube, Success 0 errors). Face order still UNKNOWN. KeyPos/KeyRot stay deferred.
-Next: Phase 1.4 lighting photometric mapping. Do not invent +X/−X, panner units, or switch-selection.
-Fast 263/263. Branch feature/fbx-materials-gui.
+Continue after lighting mapping.
+Landed: cubemap probes live in UE5.7; Medical lights mapped as brightness scale + authored radius
+(664 PointLights, inverse-square off, 28 dropped, Success 0 errors). Face order still UNKNOWN.
+KeyPos/KeyRot stay deferred. Do not invent +X/−X, panner units, or switch-selection.
+Next: Phase 1 leftovers are UNKNOWN (TextureCube, material graphs) — do not invent. Plan §8's
+next startable item is the vertical slice.
+Fast 264/264. Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

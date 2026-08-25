@@ -154,8 +154,9 @@ before a working slice multiplies that class of problem by 21 maps.
    geometry; this is not evidence that BSP/static-mesh materials are finished.
 3. **Cubemaps as reflection captures**, using the `CubemapProbe` actors' positions (281 of them,
    each naming its `Cubemap`).
-4. **Lighting.** 465+ lights per map already export with colour and brightness. Brightness has no
-   established photometric mapping; calibrate once against the game, then apply uniformly.
+4. **Lighting.** 465+ lights per map already export with colour and brightness. **Mapped 25 Aug
+   2026:** authored brightness as a scale (inverse-square off), authored radius as attenuation
+   radius, missing radius dropped. Not candelas, not `* 1000`. Falloff exponent still `UNKNOWN`.
 
 ### Phase 2 — Build Layer B, the data layer (highest-value unbuilt work)
 
@@ -439,8 +440,18 @@ probes as `SphereReflectionCapture` plus face `Texture2D`s **looked at in a live
 `Success - 0 error(s), 0 warning(s)`. Influence radius still the engine default. A UE5 material
 *graph* for level geometry — animator, sequence, and switch-candidate values now copy onto the
 level manifest (25 Aug 2026) but must not drive a panner node, timeline, or switch-selection rule
-until those mappings are known; lighting photometric mapping (§5 Phase 1.4); an app-facing
+until those mappings are known; an app-facing
 "export to UE5" workflow — see the next entry.
+
+**Lighting photometric mapping, live UE5.7 25 Aug 2026.** The previous `brightness * 1000` under
+inverse-square was the uncalibrated guess. BioShock's `LightBrightness` is a 0–4 scale (Medical
+median 0.8) and `LightRadius` is world centimetres. UE5's own `PointLightComponent`: when
+inverse-square is off, intensity *is* a brightness scale. Mapping: intensity = authored
+brightness (missing → 1.0, the measured median), attenuation radius = authored radius, inverse
+square off, unitless. Lights with no radius are not spawned. Verified on `1-Medical`: **664
+PointLights, 28 dropped, 0 errors.** `LightFalloffExponent` remains UE5's default 8 (`UNKNOWN`
+vs the game). This is not a claim that the level looks like BioShock — static look is still
+lightmaps.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

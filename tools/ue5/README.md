@@ -53,7 +53,9 @@ run finds and updates those rather than spawning duplicates. Verified on `0-Ligh
 first run 1,877 created, second run 0 created / 1,877 updated, actor count unchanged.
 
 It reports `created / updated / skipped / unsupported` in one pass. **Lights become real
-`PointLight` actors** carrying the manifest's colour and brightness, and **geometry instances
+`PointLight` actors** carrying colour, authored brightness as intensity (no `* 1000`), and
+authored radius as attenuation radius, with inverse-square falloff off. A light with no radius
+is not spawned. **Geometry instances
 become real `StaticMeshActor`s**: each unique asset is imported once from its local-space mesh
 (manifest v4's per-asset `file`) and placed by the manifest's per-instance transforms. Measured on
 `0-Lighthouse`: 422 meshes, 1,274 instances, 0 skipped.
@@ -111,6 +113,13 @@ engine default (no shipped radius decoded). Face-to-axis mapping is still `UNKNO
 pack a cube. This is a probe-only import, not a look at reflections on Medical geometry.
 
 Run `validate_level_manifest.py <map>.ue5-level.json` first.
+
+**Lights, live UE5.7 25 Aug 2026.** `run_light_look.py` against the existing `1-Medical` manifest:
+**664 `PointLight`s** (every light that stated a radius), 28 dropped (no/zero radius, UNKNOWN
+reach), intensity = authored `LightBrightness` (or 1.0), attenuation radius = authored
+`LightRadius`, inverse-square off. `Success - 0 error(s), 0 warning(s)`. This is a property
+check, not a look at reflections on Medical geometry. `LightFalloffExponent` stays UE5's
+default 8 — the game's own falloff curve is `UNKNOWN`.
 
 ## Validation map
 
