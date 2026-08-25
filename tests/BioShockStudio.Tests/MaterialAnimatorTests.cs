@@ -1,4 +1,7 @@
+using System.Text.Json;
+using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
 using Xunit;
@@ -132,6 +135,37 @@ public sealed class MaterialAnimatorTests(GameFixture game)
 
         // At least one carries real timeline items rather than an empty shell.
         Assert.Contains(withSequences.SelectMany(m => m.Sequences), b => b.Sequence.Items.Count > 0);
+    }
+
+    /// <summary>
+    /// Placed level materials keep the animators already on <see cref="SceneMaterial"/>, so a UE5
+    /// importer can see that a surface moved without inventing panner units.
+    /// </summary>
+    [RequiresGameFact]
+    public void LighthouseLevelManifestCarriesPlacedMaterialAnimators()
+    {
+        using var package = BioShockPackage.Open(game.LighthousePackage);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+
+        string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-animators-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest, readable: false, package);
+            string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".ue5-level.json"));
+            var document = JsonSerializer.Deserialize<LevelDocument>(
+                json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+            Assert.NotEmpty(document.Materials);
+            var withAnimators = document.Materials.Where(m => m.Animators.Count > 0).ToList();
+            Assert.True(withAnimators.Count > 0,
+                "0-Lighthouse placed materials carried no animators; the package itself has panners, so the copy onto LevelMaterialDocument dropped them");
+            Assert.Contains(withAnimators.SelectMany(m => m.Animators),
+                a => a.Kind == MaterialAnimatorKind.Panner && (a.PanU is not null || a.PanV is not null));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     /// <summary>

@@ -36,10 +36,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md @tools/ue5/import_level.py
 Continue after Composer nap run.
-Landed: ClassDefaults longest-walk; DecoyHuman Str path; door Attachments; CubemapProbe→SphereReflectionCapture; cubemap face PNGs as tagged Texture2D (no TextureCube — face order UNKNOWN).
+Landed: ClassDefaults longest-walk; DecoyHuman Str path; door Attachments; CubemapProbe→SphereReflectionCapture; cubemap face PNGs as tagged Texture2D (`df7a0b3`, no TextureCube). Level manifest now carries decoded material animators (units UNKNOWN — do not invent a UE5 panner node).
 NOT visually confirmed in UE5.7 (Unreal not on the machine this session) — do that first, "render it". Do not invent +X/−X mapping.
-Fast 260/260. Branch feature/fbx-materials-gui.
-Next after the look: level material graphs, or Gate 4.2 listen to audio in UE5. KeyPos/KeyRot stay deferred.
+Fast 261/261. Branch feature/fbx-materials-gui.
+Next after the look: UE5 panner/rotator nodes stay blocked on UNKNOWN units; Gate 4.2 listen to audio in UE5. KeyPos/KeyRot stay deferred.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

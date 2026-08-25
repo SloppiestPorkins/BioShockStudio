@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Level;
+using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Textures;
 
@@ -930,6 +931,7 @@ public static class LevelSceneExporter
         TwoSided = material.TwoSided,
         Masked = material.Masked,
         OutputBlending = material.OutputBlending,
+        Animators = material.Animators.ToList(),
     };
 }
 
@@ -1067,6 +1069,13 @@ public sealed record LevelMaterialDocument
     public bool TwoSided { get; init; }
     public bool Masked { get; init; }
     public byte? OutputBlending { get; init; }
+
+    /// <summary>
+    /// UV/colour animators already decoded on <see cref="SceneMaterial.Animators"/>. Carried, not
+    /// interpreted — panner/rotator units are <c>UNKNOWN</c>, so the UE5 importer must not invent
+    /// a <c>MaterialExpressionPanner</c> from these numbers.
+    /// </summary>
+    public List<MaterialAnimator> Animators { get; init; } = [];
 }
 
 public sealed record LevelInstanceDocument

@@ -503,7 +503,9 @@ says *what* is being animated and the object says *how*.
 class `Texture`", which is correct and deliberately strict — an animator is not a texture. But it
 meant every animator binding fell through into `UnhandledProperties`, where it was
 indistinguishable from a property the reader does not understand. `MaterialReader` now decodes them
-into `BioShockMaterial.Animators`, and they are exported.
+into `BioShockMaterial.Animators`, and they are exported on `SceneMaterial` (rigs). **Level
+manifest, 25 Aug 2026:** the same list now copies onto `LevelMaterialDocument.Animators`. The UE5
+importer still must not invent a panner/rotator node from those numbers — units remain `UNKNOWN`.
 
 **Everything here is carried, not interpreted.** `UNKNOWN`: the units of `PanTime` and `Duration`,
 whether those two are even the same quantity (so the source property name is kept alongside rather
