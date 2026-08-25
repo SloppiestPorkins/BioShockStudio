@@ -58,6 +58,18 @@ public sealed record WeaponEffectsData
 }
 
 /// <summary>
+/// A flat <c>Str</c> default that names a class by Unreal path (<c>"FXClass.DecoyHumanTarget"</c>),
+/// not a <c>Class</c>/<c>Object</c>-typed reference. <see cref="Resolved"/> is set only when a
+/// <c>Class</c> export in this package has <see cref="BioShockPackage.GetFullPath"/> equal to
+/// <see cref="ClassPath"/>.
+/// </summary>
+public sealed record EffectClassString
+{
+    public required string ClassPath { get; init; }
+    public AssetReference? Resolved { get; init; }
+}
+
+/// <summary>
 /// Decodes a weapon class's own "on fired" and "tracer" visual effects from its <b>class
 /// defaults</b> — weapons are never placed level actors, so this reads a <c>Class</c> export
 /// directly rather than an <see cref="Level.ActorPayload"/>.
@@ -179,6 +191,51 @@ public static class WeaponEffects
         var field = defaults.FirstOrDefault(f =>
             f.Name == propertyName && f.Type is UnrealPropertyType.Object or UnrealPropertyType.Class);
         return field is null ? null : ResolveEmitter(package, field);
+    }
+
+    /// <summary>
+    /// Reads an arbitrary flat string-path class property on <paramref name="className"/>'s own
+    /// defaults — the third plasmid-effect shape, beside the array form and
+    /// <see cref="ResolveEffectProperty"/>'s Object/Class references.
+    /// <c>DecoyHumanAbility.TargetIndicatorClassString</c> is the shipped example
+    /// (<c>"FXClass.DecoyHumanTarget"</c>). Null when the class export or named Str property is
+    /// absent; a present string whose named class is not a local export still returns a result with
+    /// <see cref="EffectClassString.Resolved"/> null.
+    /// </summary>
+    public static EffectClassString? ResolveEffectClassString(
+        BioShockPackage package, string className, string propertyName)
+    {
+        var export = package.Exports.FirstOrDefault(e =>
+            package.GetClassName(e) == "Class" && string.Equals(e.ObjectName, className, StringComparison.OrdinalIgnoreCase));
+        if (export is null) return null;
+
+        var defaults = new ClassDefaults(package).For(export);
+        var field = defaults.FirstOrDefault(f => f.Name == propertyName && f.Type == UnrealPropertyType.Str);
+        if (field is null || PropertyValues.AsString(field) is not { Length: > 0 } classPath) return null;
+
+        return new EffectClassString
+        {
+            ClassPath = classPath,
+            Resolved = ResolveClassByPath(package, classPath),
+        };
+    }
+
+    /// <summary>
+    /// Finds a local <c>Class</c> export whose <see cref="BioShockPackage.GetFullPath"/> matches
+    /// <paramref name="classPath"/> (e.g. <c>FXClass.SpringBoard_Cursor</c>). Null when no such
+    /// export exists in this package — does not open other packages.
+    /// </summary>
+    private static AssetReference? ResolveClassByPath(BioShockPackage package, string classPath)
+    {
+        for (int i = 0; i < package.Exports.Count; i++)
+        {
+            var candidate = package.Exports[i];
+            if (package.GetClassName(candidate) != "Class") continue;
+            if (!string.Equals(package.GetFullPath(candidate), classPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return LevelAnalyzer.Describe(package, new PackageIndex(i + 1), "effect class string", null);
+        }
+        return null;
     }
 
     /// <summary>
