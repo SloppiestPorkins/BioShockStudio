@@ -869,11 +869,12 @@ material.
      says which one and where. It is UE5's reflection-capture model, so it bridges directly.
      `CubemapProbeActorTests`. Still `UNKNOWN`: which probe covers which surface — the probe's
      `Region` struct is undecoded and is the obvious next place to look.
-3. Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
-   ledger on `1-Medical`). `level-audit` still correctly reports 696 `LightPending` — that label is
-   accurate, it means "not yet placed as a real UE5 actor," not "undecoded." **The data schema
-   itself is already done**: `LevelSceneExporter`'s `LevelLightDocument` exports location, colour,
-   brightness and radius per light, tested end-to-end
+3. ~~Gameplay/world actor schemas in descending shipped-count order (per the existing coverage
+   ledger on `1-Medical`).~~ **Done, 23 Aug 2026 — Medical `Unclassified` reached zero; see the
+   item's own closing paragraph below for the final tally.** `level-audit` still correctly reports
+   696 `LightPending` — that label is accurate, it means "not yet placed as a real UE5 actor," not
+   "undecoded." **The data schema itself is already done**: `LevelSceneExporter`'s
+   `LevelLightDocument` exports location, colour, brightness and radius per light, tested end-to-end
    (`LevelSceneTests.TheLightsDecodeWithTheTypesTheSdkDocuments` asserts
    `scene.Lights.Count == document.Lights.Count` plus per-field validation). What remains for
    lights is turning that data into placed UE5 actors (Gate 3 item 4 / Gate 5) and rendering them
