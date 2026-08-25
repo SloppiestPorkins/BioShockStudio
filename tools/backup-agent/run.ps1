@@ -66,7 +66,11 @@ try {
         $logFile = Join-Path $logDir "$($task.BaseName)-$stamp.log"
         Write-Host "=== Running $($task.Name) -- log: $logFile ==="
 
-        & $aider --no-pretty --no-stream --message-file $task.FullName *>&1 | Tee-Object -FilePath $logFile
+        # --no-restore-chat-history: a bare smoke-test invocation of aider (2026-08-24, verifying
+        # the --no-pretty fix below) picked up files from a PRIOR crashed run's session state and
+        # silently re-applied part of an old edit despite not being told about that file. Each
+        # queued task must only see its own task file's content, not leftover chat state.
+        & $aider --no-pretty --no-stream --no-restore-chat-history --message-file $task.FullName *>&1 | Tee-Object -FilePath $logFile
 
         $status = git status --short
         if ([string]::IsNullOrWhiteSpace($status)) {
