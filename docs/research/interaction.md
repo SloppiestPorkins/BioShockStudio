@@ -1,16 +1,18 @@
 # Movers, doors, and trigger wiring
 
 Gate 4 item 4 asks for "interaction metadata (movers, doors, triggers, plasmid/weapon effects) once
-the source object graph backing them is known." This note covers three of those four: `Mover`/
-`ScriptableMover` (what triggers them, their start pose), the game's ~50 door classes plus
-`DoorSwitch` (portal, lock, animation and interaction-verb state), and triggers' own trigger-wiring
-field.
+the source object graph backing them is known." This note covers `Mover`/`ScriptableMover` (what
+triggers them, their start pose), the game's ~50 door classes plus `DoorSwitch` (portal, lock,
+animation and interaction-verb state), triggers' own trigger-wiring field, and one of the two
+weapon/plasmid-effect shapes (§6).
 
 **Status.** Movers' and doors' state fields are `CONFIRMED_BYTES`, and a mover's `TriggeredBy` is
 resolved against `Label` in code (§2). Triggers' own `TriggeredBy` turned out to be a class filter,
 not an object reference, and is closed rather than open (§4). A mover's keyframe motion path
 (`KeyPos`/`KeyRot`) and `DoorSwitch`'s reaction arrays are both deliberately not decoded — see §3
-and §5. Plasmid/weapon effects are untouched — see §6.
+and §5. Weapon classes' `OnFiredEffects`/`TracerEffects` are `CONFIRMED_BYTES` — see §6; the flat
+`EmitterClass` shape some ammo and plasmid ability classes use instead remains untouched, same
+section.
 
 ## 1. The shape
 
@@ -216,14 +218,52 @@ shipped value on most switches, not an absent one.
 simple scalars, the same shape of risk that deferred `KeyPos`/`KeyRot` in §3), `Attachments`,
 `ScriptedSequence`. Left for the same reason as those: worth a dedicated pass, not this one.
 
-## 6. What this note does not claim
+## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
+
+A weapon class (`MachineGun`, `Pistol`, `Shotgun`, ...) is never a placed level actor, so this is
+the one interaction-metadata source in this note that isn't `ActorPayload` at all — it's a `Class`
+export's own defaults, read via the existing `ClassDefaults` reader. Each weapon declares two
+array-of-struct properties: `OnFiredEffects` (muzzle flash, shell eject) and `TracerEffects` (a
+strict subset of the same shape). Each element names an `EmitterClass` — another class,
+`Emitter`-derived, decoded with the *identical* `LevelAnalyzer.ReadEmitterTemplate` reader a placed
+actor's own `Emitters` array already uses (they are the same shape of export either way) — and,
+`OnFiredEffects` only, an optional `LightClass` (`DynamicLightEffect`-derived, a different shape:
+`LightBrightness`/`LightColor`/`LightRadius`/`LifeSpan` read directly, not through the emitter
+reader). `WeaponEffects.For(package, className)` in `src/BioShockStudio.Core/Assets/WeaponEffects.cs`;
+CLI: `weapon-effects <package> <class>`. `WeaponEffectsTests`, `CONFIRMED_BYTES` against
+`MachineGun` (4 `OnFiredEffects`, 3 `TracerEffects`), `Pistol` (1), `Shotgun` (12) — every count
+matches the independently-derived UELib decompile of the same classes exactly.
+
+**A real bug caught before landing.** The first working draft only accepted `EmitterClass`/
+`LightClass` fields typed `UnrealPropertyType.Class`, and every emitter/light silently resolved to
+null — no exception, a clean build, wrong answer. `Class'...'` is only how the UELib decompiler
+*renders* the reference; the wire property tag is `UnrealPropertyType.Object`, the same as any other
+object reference, confirmed by reading the actual field rather than trusting the decompiled
+UnrealScript syntax. `PropertyValues.AsReference`'s own doc comment already said "an `Object` *or*
+`Class` property's reference" — the bug was narrowing that, not the shared helper being wrong.
+
+**Not decoded: `UpgradeType`/`EmitterAction`'s meanings.** Both are small integers (0–4 observed),
+carried raw. `UpgradeType` plausibly correlates with the weapon upgrade tiers `WeaponUpgrades.cs`
+already resolves by mesh name, and `EmitterAction` plausibly distinguishes "spawn" (0, the common
+case) from "shell eject" (1, seen once on `MachineGun`'s fourth `OnFiredEffects` entry) — both
+`PLAUSIBLE`, neither cross-referenced against independent evidence yet.
+
+**Not decoded: the flat `EmitterClass`/`HighPressureEmitterClass` shape on ammo/ability classes.**
+`ChemicalThrower_LiquidNitrogen` and its siblings (`_IonicGel`, `_Kerosene`) declare `EmitterClass`
+directly on the ammo class's own defaults, not inside an `OnFiredEffects`-shaped array — a real
+class, correctly returning empty lists rather than being confused with a nonexistent one
+(`WeaponEffectsTests.AClassWithNeitherArrayReturnsEmptyListsNotNull`). Several plasmid ability
+classes (`BerserkRageAbility.ProjectileClass`, `SecurityBeaconAbility.ProjectileClass`,
+`SpringBoardTrapAbility.TargetIndicatorClass`, `TrapBoltProjectile.BeamEffectClass`) use the same
+flat-property shape under yet more different property names — genuinely heterogeneous, not one
+mechanism, and not attempted in this pass.
+
+## 7. What this note does not claim
 
 - **`DoorSwitch`'s reaction arrays remain undecoded** — see §5's "Still not decoded" paragraph.
   `DamagedReactions`/`UsedReactions` are complex nested arrays, not simple scalars.
 - **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
   `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
-- **Plasmid/weapon effects weren't investigated in this pass.** A first grep of `ShockGame.U`'s
-  decompiled output shows classes like `LiquidNitrogen_Player` and `MachineGun_MuzzleFX` that read
-  as script-side class defaults — a different decode mechanism from everything else in this note,
-  since `ActorPayload` reads *placed* actors and these are unplaced class templates.
+- **The flat `EmitterClass`/`HighPressureEmitterClass` ammo/ability shape remains undecoded** —
+  see §6's last paragraph.
 - **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3.

@@ -60,6 +60,7 @@ try
         "audit-animations" => AuditAnimations(root, args),
         "diagnose" => Diagnose(root, args),
         "names" => Names(root, args),
+        "weapon-effects" => WeaponEffectsCommand(root, args),
         _ => Usage(),
     };
 }
@@ -90,6 +91,8 @@ static int Usage()
           export-level <map> <out-dir>   Write a versioned level JSON plus OBJ for the UE5 pipeline.
           ue5-audit [out.json]            Decode-check asset containers required by the UE5 pipeline.
           characters <package>          List animated character assets in a package.
+          weapon-effects <package> <class>
+                                        Decode a weapon class's own OnFiredEffects/TracerEffects.
           textures <package> [pattern]  List textures with format and size.
           sounds <package> [pattern]    List native Sound exports and identified payload formats.
           export-sounds <package> <out-dir> [pattern]
@@ -1234,6 +1237,39 @@ static int AnimationInspect(string root, string[] args)
     Console.WriteLine($"      meshes:   {string.Join(", ", context.OfClass(package, AssetClasses.SkeletalMesh).Select(e => e.ObjectName))}");
     Console.WriteLine($"      textures: {string.Join(", ", context.OfClass(package, "Texture").Select(e => e.ObjectName).Take(6))}");
     Console.WriteLine($"      attachments: {string.Join(", ", context.OfClass(package, AssetClasses.StaticMesh).Select(e => e.ObjectName))}");
+    return 0;
+}
+
+static int WeaponEffectsCommand(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: weapon-effects <package> <class>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var data = WeaponEffects.For(package, args[2]);
+    if (data is null) { Console.Error.WriteLine($"no Class export named '{args[2]}' in {args[1]}."); return 1; }
+
+    void PrintEffects(string label, IReadOnlyList<WeaponFiredEffect> effects)
+    {
+        Console.WriteLine($"\n{label}: {effects.Count}");
+        foreach (var effect in effects)
+        {
+            string emitter = effect.Emitter is { } e
+                ? $"{e.Source.ObjectName} ({e.MaxParticles?.ToString() ?? "?"} max particles)"
+                : "<unresolved>";
+            string light = effect.Light is { } l
+                ? $"{l.Source.ObjectName} (brightness {l.LightBrightness?.ToString("0.##") ?? "?"}, " +
+                  $"radius {l.LightRadius?.ToString("0.##") ?? "?"})"
+                : "none";
+            Console.WriteLine($"  bone={effect.AttachmentBone,-14} ammo={effect.AmmoType,-30} " +
+                              $"upgrade={effect.UpgradeType,-4} action={effect.EmitterAction,-4} " +
+                              $"emitter={emitter}");
+            if (effect.Light is not null) Console.WriteLine($"    light: {light}");
+        }
+    }
+
+    Console.WriteLine($"{data.ClassName}:");
+    PrintEffects("OnFiredEffects", data.OnFiredEffects);
+    PrintEffects("TracerEffects", data.TracerEffects);
     return 0;
 }
 

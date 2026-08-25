@@ -1282,9 +1282,26 @@ material.
      `"TURN LATCH"`) — genuinely useful, and empty string is a real shipped value, not absence.
      Not decoded: `DamagedReactions`/`UsedReactions` (complex nested arrays, the same shape of risk
      that deferred `KeyPos`/`KeyRot`), `Attachments`, `ScriptedSequence`.
-   - **Plasmid/weapon effects remain unstarted.** They read as script-side class defaults
-     (`ShockGame.FXClass.LiquidNitrogen_Player`, ...) rather than placed-actor payloads — a
-     different decode mechanism from everything else in this item, not investigated yet.
+   - **Weapon effects landed, 25 Aug 2026 — `OnFiredEffects`/`TracerEffects` decoded from class
+     defaults, not placed-actor payloads.** A weapon (`MachineGun`, `Pistol`, `Shotgun`, ...) is
+     never placed in a level, so this is the one interaction-metadata source that reads a `Class`
+     export's own defaults rather than `ActorPayload`. Each array element names an `EmitterClass`,
+     decoded with the exact same `LevelAnalyzer.ReadEmitterTemplate` reader a placed actor's
+     `Emitters` array already uses, and `OnFiredEffects` elements carry an optional `LightClass`
+     (a different shape, read directly: brightness/colour/radius/lifespan). `WeaponEffects.For` in
+     `src/BioShockStudio.Core/Assets/WeaponEffects.cs`; CLI `weapon-effects <package> <class>`;
+     `WeaponEffectsTests`. Verified against real bytes: `MachineGun` 4 `OnFiredEffects` / 3
+     `TracerEffects`, `Pistol` 1, `Shotgun` 12 — every count matches an independent UELib
+     decompile of the same classes exactly. **A real bug caught first**: the initial draft only
+     accepted `Class`-typed reference fields; every one of these actually wire-encodes as `Object`
+     (`Class'...'` is only how the decompiler renders it), so every emitter/light silently resolved
+     to null with a clean build until this was caught by running the CLI against real data and
+     reading the output, not by trusting the exit code. `docs/research/interaction.md` §6.
+     **Still unstarted**: plasmid/weapon effects that use a flat `EmitterClass` property directly on
+     an ammo or ability class (`ChemicalThrower_LiquidNitrogen`, `BerserkRageAbility`, ...) rather
+     than through `OnFiredEffects`/`TracerEffects` — a genuinely different, heterogeneous shape
+     (inconsistent property names across classes), not one mechanism. `docs/research/interaction.md`
+     §6's last paragraph and §7.
 
 ### Gate 5 — deterministic UE5 importer (the actual end goal)
 

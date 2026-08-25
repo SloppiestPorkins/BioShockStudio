@@ -1003,7 +1003,13 @@ public static class LevelAnalyzer
         return new EmitterActorData { Templates = templates, Complete = true };
     }
 
-    private static EmitterTemplateData ReadEmitterTemplate(BioShockPackage package, AssetReference source)
+    /// <summary>
+    /// Reads a particle-emitter template off any export's own raw property list — a placed level
+    /// actor's <c>Emitters</c> array entry (its original use here) or a weapon FX class's own
+    /// <c>Emitters</c> array entry (<see cref="Assets.WeaponEffects"/>): both are the exact same
+    /// shape, an <c>Emitter</c>-derived export's property list, so this reader doesn't care which.
+    /// </summary>
+    internal static EmitterTemplateData ReadEmitterTemplate(BioShockPackage package, AssetReference source)
     {
         if (source.Source is not { } local)
             return new EmitterTemplateData { Source = source, PropertiesComplete = false };
@@ -1103,7 +1109,11 @@ public static class LevelAnalyzer
     /// the array's complete value, so a curve whose shape doesn't match what's expected here yields
     /// nothing rather than a partial or misaligned read.
     /// </summary>
-    private static IReadOnlyList<List<UnrealProperty>>? ReadStructArrayElements(
+    /// <summary>Reads an <c>Array</c>-of-struct property's elements as their own field lists.
+    /// Shared beyond this class by <see cref="Assets.WeaponEffects"/> for the same reason the
+    /// curve readers below need it: a struct array is a struct array regardless of what property
+    /// holds it.</summary>
+    internal static IReadOnlyList<List<UnrealProperty>>? ReadStructArrayElements(
         BioShockPackage package, UnrealProperty property)
     {
         int offset = 0;
@@ -1250,7 +1260,11 @@ public static class LevelAnalyzer
         return Describe(package, index.Value, origin, expectedClass);
     }
 
-    private static AssetReference? Describe(
+    /// <summary>Resolves a package reference (export or import) to what it names, without reading
+    /// its payload. Shared beyond this class by <see cref="Assets.WeaponEffects"/>, which resolves
+    /// a weapon class's own <c>Class</c>-typed properties (<c>EmitterClass</c>, <c>LightClass</c>)
+    /// the identical way an actor's <c>Object</c>-typed properties resolve here.</summary>
+    internal static AssetReference? Describe(
         BioShockPackage package, PackageIndex index, string origin, string? expectedClass)
     {
         string objectName;
