@@ -643,6 +643,12 @@ No ScriptedAttackTarget / label foreach. Next: `ActionGiveItemsToPlayer`.
 `RequestGive` records the grant. Live `run_action_give_items.py`, `Success - 0 error(s)`.
 No inventory / ItemStack. Next: `ActionChangeCollision`.
 
+### Phase 4 ActionChangeCollision first slice — done, 26 Aug 2026
+
+`UShockActionChangeCollision`: CollisionChangeType defaults DoNotChange (2);
+`CollideActors` → `SetActorEnableCollision`. Live `run_action_change_collision.py`,
+`Success - 0 error(s)`. Other flags held; label foreach open. Next: `ActionTweakAIVision`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

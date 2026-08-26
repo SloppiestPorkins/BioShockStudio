@@ -2,6 +2,7 @@
 
 #include "ShockAction.h"
 #include "ShockActionAttackTarget.h"
+#include "ShockActionChangeCollision.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionGiveItemsToPlayer.h"
@@ -482,6 +483,66 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 					LexFromString(Stack, *Text);
 					Inv->StackSize = Stack;
 					Applied.Add(TEXT("StackSize"));
+				}
+			}
+			if (UShockActionChangeCollision* Coll = Cast<UShockActionChangeCollision>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Coll->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				auto ParseChange = [](const FString& Text, EShockCollisionChange& Out) -> bool
+				{
+					if (Text.StartsWith(TEXT("<")))
+					{
+						return false;
+					}
+					int32 V = 0;
+					LexFromString(V, *Text);
+					if (V < 0 || V > 2)
+					{
+						return false;
+					}
+					Out = static_cast<EShockCollisionChange>(V);
+					return true;
+				};
+				EShockCollisionChange Change = EShockCollisionChange::DoNotChange;
+				if (Lookup(Classes, ClassName, TEXT("CollideActors"), Text) && ParseChange(Text, Change))
+				{
+					Coll->CollideActors = Change;
+					Applied.Add(TEXT("CollideActors"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("CollideWorld"), Text) && ParseChange(Text, Change))
+				{
+					Coll->CollideWorld = Change;
+					Applied.Add(TEXT("CollideWorld"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BlockActors"), Text) && ParseChange(Text, Change))
+				{
+					Coll->BlockActors = Change;
+					Applied.Add(TEXT("BlockActors"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BlockPlayers"), Text) && ParseChange(Text, Change))
+				{
+					Coll->BlockPlayers = Change;
+					Applied.Add(TEXT("BlockPlayers"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BlockNonZeroExtentTraces"), Text) && ParseChange(Text, Change))
+				{
+					Coll->BlockNonZeroExtentTraces = Change;
+					Applied.Add(TEXT("BlockNonZeroExtentTraces"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("WorldGeometry"), Text) && ParseChange(Text, Change))
+				{
+					Coll->WorldGeometry = Change;
+					Applied.Add(TEXT("WorldGeometry"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("blockHavok"), Text) && ParseChange(Text, Change))
+				{
+					Coll->BlockHavok = Change;
+					Applied.Add(TEXT("blockHavok"));
 				}
 			}
 			Ok = true;
