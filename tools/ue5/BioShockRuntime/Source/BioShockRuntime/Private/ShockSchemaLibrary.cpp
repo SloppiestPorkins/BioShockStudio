@@ -2,11 +2,15 @@
 
 #include "ShockAction.h"
 #include "ShockActionAttackTarget.h"
+#include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
+#include "ShockActionExitScript.h"
+#include "ShockActionFreezeHavokActor.h"
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
+#include "ShockActionLog.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
@@ -18,7 +22,9 @@
 #include "ShockActionStopEffect.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
+#include "ShockActionUnlockDoor.h"
 #include "ShockActionVariableAssign.h"
+#include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
@@ -598,6 +604,61 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Hearing->bTurnHearingOn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bTurnHearingOn"));
+				}
+			}
+			if (UShockActionVariableIncrement* Incr = Cast<UShockActionVariableIncrement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Incr->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+			}
+			if (UShockActionLog* LogAction = Cast<UShockActionLog>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Text"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LogAction->Text = Unquote(Text);
+					Applied.Add(TEXT("Text"));
+				}
+			}
+			if (UShockActionExitScript* Exit = Cast<UShockActionExitScript>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("targetScript"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Exit->TargetScript = FName(*Unquote(Text));
+					Applied.Add(TEXT("targetScript"));
+				}
+			}
+			if (UShockActionFreezeHavokActor* Freeze = Cast<UShockActionFreezeHavokActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Freeze->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Freeze"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Freeze->bFreeze = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Freeze"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActivateWhenUnfreezing"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Freeze->bActivateWhenUnfreezing = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ActivateWhenUnfreezing"));
+				}
+			}
+			if (UShockActionUnlockDoor* Unlock = Cast<UShockActionUnlockDoor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Unlock->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
 				}
 			}
 			Ok = true;

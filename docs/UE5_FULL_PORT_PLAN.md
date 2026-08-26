@@ -655,6 +655,13 @@ No inventory / ItemStack. Next: `ActionChangeCollision`.
 `RequestTweak` records. Live verifies `Success - 0 error(s)`. No sense wiring. Next:
 `ActionBlockingExecuteScript`.
 
+### Phase 4 census #20–batch (Blocking / Increment / Log / Exit / Freeze / Unlock) — done, 26 Aug 2026
+
+One-build batch, live `run_action_batch_census.py`, `Success - 0 error(s)`:
+`ActionBlockingExecuteScript` (block=true), `ActionVariableIncrement`, `ActionLog`,
+`ActionExitScript`, `ActionFreezeHavokActor` (SetSimulatePhysics), `ActionUnlockDoor`.
+Next: `ActionPostMovementGoal`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

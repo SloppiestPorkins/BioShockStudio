@@ -1352,7 +1352,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    attack-order record. **ActionGiveItemsToPlayer first slice — done**: grant record;
    StackSize default 1. **ActionChangeCollision first slice — done**: CollideActors →
    SetActorEnableCollision. **ActionTweakAIVision + ActionTweakAIHearing first slices —
-   done**: RequestTweak records. Next: ActionBlockingExecuteScript.
+   done**: RequestTweak records. **Census batch #20+ — done**: BlockingExecuteScript,
+   VariableIncrement, Log, ExitScript, FreezeHavokActor, UnlockDoor. Next:
+   ActionPostMovementGoal.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 
