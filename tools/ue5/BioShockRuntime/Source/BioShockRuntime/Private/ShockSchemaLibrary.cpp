@@ -22,6 +22,7 @@
 #include "ShockActionDisableOrEnableConcept.h"
 #include "ShockActionDisplayOnScreenDebugMessage.h"
 #include "ShockActionEnableOrDisableLevelSaving.h"
+#include "ShockActionEnableOrDisableLevelSwitching.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFadeVolumeOverride.h"
@@ -42,6 +43,7 @@
 #include "ShockActionPlayScriptedHandAnimation.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionRemoveGoal.h"
+#include "ShockActionRemoveItemsFromPlayer.h"
 #include "ShockActionRetractFact.h"
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
@@ -50,6 +52,7 @@
 #include "ShockActionSetAINormalLODOverrideTime.h"
 #include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetAIVulnerability.h"
+#include "ShockActionSetCollisionAvoidance.h"
 #include "ShockActionSetHUDDisplayState.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMaterialSwitchIndex.h"
@@ -67,6 +70,7 @@
 #include "ShockActionSpawnReactiveActor.h"
 #include "ShockActionSpawnSecurityBot.h"
 #include "ShockActionSpawnTurret.h"
+#include "ShockActionStartAIHeadTracking.h"
 #include "ShockActionStartScriptedHandAnimationSequence.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionStopScriptedHandAnimationSequence.h"
@@ -1703,6 +1707,54 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Bath->BathysphereSystem = FName(*Unquote(Text));
 					Applied.Add(TEXT("BathysphereSystem"));
+				}
+			}
+			if (UShockActionStartAIHeadTracking* Head = Cast<UShockActionStartAIHeadTracking>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Head->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("HeadTrackTargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Head->HeadTrackTargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("HeadTrackTargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bIsQuickLook"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Head->bIsQuickLook = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bIsQuickLook"));
+				}
+				float Duration = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("Duration"), Text) && ParseFloat(Text, Duration))
+				{
+					Head->Duration = Duration;
+					Applied.Add(TEXT("Duration"));
+				}
+			}
+			if (UShockActionSetCollisionAvoidance* Avoid = Cast<UShockActionSetCollisionAvoidance>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Avoid->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldUseCollisionAvoidance"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Avoid->bShouldUseCollisionAvoidance = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldUseCollisionAvoidance"));
+				}
+			}
+			if (UShockActionEnableOrDisableLevelSwitching* Switch = Cast<UShockActionEnableOrDisableLevelSwitching>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DisableLevelSwitching"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Switch->bDisableLevelSwitching = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("DisableLevelSwitching"));
 				}
 			}
 			Ok = true;

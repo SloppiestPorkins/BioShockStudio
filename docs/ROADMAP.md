@@ -1374,7 +1374,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    CompleteQuestObjective. **Batch15 — done**: SetHUDDisplayState, AssassinTeleport,
    Start/StopScriptedHandAnimationSequence, actionSetQuestHint. **Batch16 — done**:
    SpawnTurret, SpawnSecurityBot, ToggleAIWeaponVisibility,
-   UnlockBathysphereDestination. Next: StartAIHeadTracking / SetCollisionAvoidance.
+   UnlockBathysphereDestination. **Batch17 — done**: StartAIHeadTracking,
+   SetCollisionAvoidance, RemoveItemsFromPlayer, EnableOrDisableLevelSwitching.
+   Next: DisablePlayerMovement / StopSecurityAlarm.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
