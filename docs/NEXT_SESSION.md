@@ -35,12 +35,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionHideOrShowActor first slice, landed 26 Aug 2026:
-SetActorHiddenInGame; label foreach open.
+Continue after ActionSpawnAI first slice, landed 26 Aug 2026: RequestSpawn
+records type/location; no SpawningManager.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionSpawnAI (census #10, 521 refs). Do not invent
+Next startable: ActionStopEffect (census #11, 484 refs). Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
+Portable ImHex at C:\Users\Jack\Tools\ImHex\imhex.exe (byte inspection).
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

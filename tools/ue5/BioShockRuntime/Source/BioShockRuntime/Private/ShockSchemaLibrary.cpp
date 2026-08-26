@@ -7,6 +7,7 @@
 #include "ShockActionPlayEffect.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionSpawnAI.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
@@ -353,6 +354,30 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Hide->bHideActor = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("HideActor"));
+				}
+			}
+			if (UShockActionSpawnAI* Spawn = Cast<UShockActionSpawnAI>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpawnLocationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawn->SpawnLocationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnLocationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpawnedAILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawn->SpawnedAILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnedAILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCorpseCanBeRemoved"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawn->bCorpseCanBeRemoved = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCorpseCanBeRemoved"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bForceSpawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawn->bForceSpawn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bForceSpawn"));
 				}
 			}
 			Ok = true;

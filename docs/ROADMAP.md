@@ -1344,7 +1344,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    on ULightComponent; type/period/phase/shadow open. **ActionVariableAssignIfNotExist first
    slice — done**: create-only string scope; no typed Variables. **ActionVariableAssign first
    slice — done**: overwrite twin. **ActionHideOrShowActor first slice — done**: SetHidden
-   stand-in; label foreach open. Next: ActionSpawnAI.
+   stand-in; label foreach open. **ActionSpawnAI first slice — done**: RequestSpawn record;
+   no SpawningManager. Next: ActionStopEffect.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

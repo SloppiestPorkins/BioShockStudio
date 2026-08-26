@@ -339,6 +339,21 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema HideActor=true; hide then
 show toggles actor hidden state.
 
+## ActionSpawnAI (Phase 4 census #10)
+
+ShockAI.U native: `SpawningManager.SpawnScriptedAI(...)`. This slice holds type / location /
+spawned label / radii / force flags and records `RequestSpawn`. Schema default
+`bCorpseCanBeRemoved=true`. No real AI spawn yet. Schema file:
+`BioShockUE5/Exports/slice/ShockAI.schema.json` (not committed).
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_spawn_ai.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Empty type refused; configured
+type+location recorded.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

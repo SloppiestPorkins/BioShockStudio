@@ -602,6 +602,12 @@ Next census: `ActionVariableAssign`.
 `ApplyToActor` → `SetActorHiddenInGame` (+ editor temp hide). Live `run_action_hide_show.py`,
 `Success - 0 error(s)`. Label foreach still open. Next census: `ActionSpawnAI`.
 
+### Phase 4 ActionSpawnAI first slice — done, 26 Aug 2026
+
+`UShockActionSpawnAI` (ShockAI.U): params + `RequestSpawn` records AI type / location label.
+Schema applies `bCorpseCanBeRemoved=true`. Live `run_action_spawn_ai.py`,
+`Success - 0 error(s)`. No SpawningManager / pawn spawn yet. Next census: `ActionStopEffect`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
