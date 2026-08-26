@@ -121,6 +121,42 @@ reach), intensity = authored `LightBrightness` (or 1.0), attenuation radius = au
 check, not a look at reflections on Medical geometry. `LightFalloffExponent` stays UE5's
 default 8 — the game's own falloff curve is `UNKNOWN`.
 
+## Vertical slice (Phase 0)
+
+`run_vertical_slice.py` drives `verify_vertical_slice.py`, which imports one level manifest and one
+weapon rig into a **persistent** level, saves it, switches away, loads it back off disk, and checks
+the actors in the *reloaded* level:
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_vertical_slice.py -unattended -nopause -nosplash
+```
+
+Paths and the rig filter come from `BIOSHOCK_SLICE_MANIFEST` / `_WEAPON` / `_OUT` / `_RIGS`; the
+report is written even when the run raises.
+
+**Measured live in UE5.7, 26 Aug 2026 — `1-Medical`, 22m03s, `Success - 0 error(s)`, exit 0.** A
+real `Content/BioShockSlice/1-Medical.umap`, 14 MB, exists on disk afterwards; every previous UE5
+verification here was a live, unsaved editor session. The census is **identical before the save and
+after the reload**: 5,312 `StaticMeshActor`, 664 `PointLight`, 29 `SphereReflectionCapture`, 12
+`SkeletalMeshActor` (10 level characters + the 2 weapon rigs), 2,075 `TargetPoint` — 8,090 of them
+carrying a `BioShockKey` tag. The ceiling-arch handedness canary measures **2422.0** units *read
+back off disk*, matching `LevelSceneTests`'s own reference for a correctly assembled arch (a
+mirrored one is ~4295).
+
+**What it deliberately does not cover.** `BIOSHOCK_SLICE_RIGS` defaults to one enemy archetype
+(`Agg_BabyJane`), which is what Phase 0 asks for; the level's other 31 skeletal assets fall back to
+bind-pose static meshes, exactly as they do for a rig that fails to import, and the report records
+which rigs were asked for so a filtered run cannot be misread as a whole-level one. Set it empty for
+every rig — and budget hours, because **`import_bioshock` has no skip-on-exists**: each rig's
+animations are re-normalized through Blender and re-imported on every run, and one splicer variant
+carries 457 (20 minutes of the 22 above). This is an asset round trip, not a playable slice: there
+is no gameplay layer, and the level's look is still unbuilt lighting.
+
+The run leaves a small `_Scratch.umap` beside the level. That is the mechanism, not a stray: the
+editor has to actually leave the slice level before loading it, or the "reload" would hand back the
+same in-memory actors the run just spawned. Leaving is asserted too.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

@@ -35,13 +35,19 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after lighting mapping.
-Landed: cubemap probes live in UE5.7; Medical lights mapped as brightness scale + authored radius
-(664 PointLights, inverse-square off, 28 dropped, Success 0 errors). Face order still UNKNOWN.
-KeyPos/KeyRot stay deferred. Do not invent +X/−X, panner units, or switch-selection.
-Next: Phase 1 leftovers are UNKNOWN (TextureCube, material graphs) — do not invent. Plan §8's
-next startable item is the vertical slice.
-Fast 264/264. Branch feature/fbx-materials-gui.
+Continue after the Phase 0 vertical slice's ASSET half, which landed 26 Aug 2026:
+1-Medical + Agg_BabyJane + TommyGun imported in one pass into a saved 14 MB .umap and verified
+from the level reloaded off disk (22m03s, Success 0 errors, census identical across the round
+trip, arch canary 2422.0). tools/ue5/{verify,run}_vertical_slice.py; plan §9 has the full entry.
+Do not re-run it to re-confirm those numbers.
+Next, pick ONE and finish it:
+(a) skip-on-exists for the rig importer — import_bioshock re-normalizes and re-imports every
+    animation on every run (457 for one splicer = 20 of those 22 minutes). Needs its own
+    verification: a skip that keeps a stale asset is the failure mode.
+(b) the playable half of Phase 0 = plan Phase 3, a UE5 C++ runtime skeleton. Large; scope it first.
+Still UNKNOWN, do not invent: cubemap face order, level material graphs, panner units,
+switch-selection, light falloff exponent. KeyPos/KeyRot stay deferred.
+Fast 264/264 (measured 25 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

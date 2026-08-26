@@ -1325,7 +1325,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
 3. A UE5 validation map + per-level import report — **done**, 23 Aug 2026; `1-Medical` proof of
    concept — **done**, 24 Aug 2026; level-placed characters as real `SkeletalMeshActor`s — **done**,
    25 Aug 2026; `CubemapProbe` → `SphereReflectionCapture` in `import_level.py` — **code 25 Aug
-   2026, not visually confirmed**.
+   2026, not visually confirmed**. **The Phase 0 vertical slice's asset half — done, 26 Aug 2026**:
+   `1-Medical` + one enemy archetype + one weapon imported in one pass into a saved 14 MB `.umap`
+   and checked from the level *reloaded off disk*, identical census across the round trip, arch
+   canary 2422.0. Not playable — that needs Phase 3.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

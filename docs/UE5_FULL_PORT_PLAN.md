@@ -138,6 +138,10 @@ archetype has such a block, and they extract cleanly.
 *thinnest* one that exercises every layer. The point is to find the integration problems while they
 are cheap.
 
+**The asset half is done, 26 Aug 2026** — `1-Medical` + `Agg_BabyJane` + the TommyGun, imported in
+one pass into a saved `.umap` and verified from the reloaded level; see §9's entry. *Playable* is
+untouched: it needs Phase 3's runtime, and nothing here is a claim about behaviour.
+
 This project's own history is the argument. Every UE5 item worked on so far had a defect that only
 appeared when the pipeline was actually run: a manifest that did not carry texture intent, an
 importer with textures switched off, a level importer that spawned 465 duplicate lights. Breadth
@@ -226,7 +230,8 @@ In order, smallest first:
    and everything downstream gets cheaper once it exists.
 2. **The action-usage census** (Phase 2.2). Cheap, and it turns "port the AI" into an ordered list.
 3. **Level geometry as real meshes** (Phase 1.1). The biggest visible gap in what already imports.
-4. **Then the vertical slice**, using the three above.
+4. **Then the vertical slice**, using the three above. **Asset half done, 26 Aug 2026** (§9); the
+   playable half waits on Phase 3.
 
 Items 1 and 2 are the ones to start with: small, pure data, and they convert the open-ended part of
 this project into something countable.
@@ -452,6 +457,49 @@ square off, unitless. Lights with no radius are not spawned. Verified on `1-Medi
 PointLights, 28 dropped, 0 errors.** `LightFalloffExponent` remains UE5's default 8 (`UNKNOWN`
 vs the game). This is not a claim that the level looks like BioShock — static look is still
 lightmaps.
+
+### Phase 0 vertical slice, asset half — done and saved to disk, 26 Aug 2026
+
+**One level, one enemy archetype, one weapon, in one pass, into a level that still exists when the
+editor closes.** `tools/ue5/verify_vertical_slice.py` (+ `run_vertical_slice.py`); recipe and full
+figures in `tools/ue5/README.md`.
+
+**The gap this closes is smaller than it sounds and worth naming exactly.** Every UE5 verification
+before this — geometry, materials, characters, cubemaps, lights — ran in a live editor session and
+was measured from actors held in memory by the same script that had just spawned them. Nothing had
+ever been written to a `.umap` and read back, so "the pipeline produces a UE5 level" was an
+inference from an import report. It now isn't: `Content/BioShockSlice/1-Medical.umap` is 14 MB on
+disk, and the checks run against the level *reloaded from it*, after the editor has demonstrably
+left it (asserted, not assumed — a `new_level` that quietly failed would otherwise make the reload
+prove itself).
+
+**`1-Medical`, live UE5.7, 22m03s, `Success - 0 error(s)`, commandlet exit 0.** The census is
+identical before the save and after the reload — 5,312 `StaticMeshActor`, 664 `PointLight`, 29
+`SphereReflectionCapture`, 12 `SkeletalMeshActor`, 2,075 `TargetPoint`, of which 8,090 carry a
+`BioShockKey` tag — and the ceiling-arch handedness canary, measured off the reloaded actors,
+returns **2422.0** units against `LevelSceneTests`'s own reference for an assembled arch (mirrored
+is ~4295). Sampled characters reload carrying a real 97-bone mesh, so a surviving actor with a
+dangling mesh reference could not pass as a placed one.
+
+**Two real findings, both from running it rather than reading it.**
+
+- **The rig path has no skip-on-exists.** `import_bioshock.main` re-normalizes every animation
+  through Blender and re-imports it on each run — it reports "updated", but does the whole job.
+  `AggressorBabyJane`'s 457 animations are 20 of the 22 minutes above, and `1-Medical` places 32
+  distinct rigs, which is why the first (unfiltered) attempt was still importing characters two
+  hours in. `import_level.main` now takes `rig_names`; the slice defaults to the one archetype
+  Phase 0 actually asks for, and the report records which rigs were requested so a narrowed run
+  cannot be misread as a whole-level one. Every other skeletal asset falls back to a bind-pose
+  static mesh — the existing behaviour for a rig that fails to import, not a new compromise.
+  Making the rig import skip work already done is a real improvement and is **not** done here: a
+  skip that silently keeps a stale asset is its own failure mode and needs its own verification.
+- **Cheap preconditions must run before expensive work.** The first narrowed run spent 24 minutes
+  importing the level and then died on the weapon, because `Exports\TommyGun` predated manifest
+  texture intent and `import_bioshock` refused it — correctly. The weapon is now imported first.
+
+**What this is not.** Not playable, and not a look: there is no gameplay layer, lighting is unbuilt,
+level material *graphs* and `TextureCube` assembly remain `UNKNOWN`, and 31 of 32 rigs were
+deliberately not imported. It is an asset round trip that now survives the editor closing.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 
