@@ -1377,8 +1377,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    UnlockBathysphereDestination. **Batch17 — done**: StartAIHeadTracking,
    SetCollisionAvoidance, RemoveItemsFromPlayer, EnableOrDisableLevelSwitching.
    **Batch18 — done**: DisablePlayerMovement, StopSecurityAlarm, FailQuest,
-   ToggleCeilingCrawlerRangedAttack. Next: DisableOrEnableResurrectionStation /
-   RemoveAvailableHoldable.
+   ToggleCeilingCrawlerRangedAttack. **Batch19 — done**:
+   DisableOrEnableResurrectionStation, RemoveAvailableHoldable, AwardAchievement,
+   TellAIToSendWeaponFireMessage. Next: SetSpawnerRepopulationState /
+   SpawnPlayerEscortedGatherer.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

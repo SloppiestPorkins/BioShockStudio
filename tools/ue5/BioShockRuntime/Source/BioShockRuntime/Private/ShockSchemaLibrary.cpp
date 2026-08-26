@@ -6,6 +6,7 @@
 #include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
 #include "ShockActionAttackTarget.h"
+#include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
 #include "ShockActionChangePawnPhysics.h"
@@ -20,6 +21,7 @@
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionDisableOrEnableConcept.h"
+#include "ShockActionDisableOrEnableResurrectionStation.h"
 #include "ShockActionDisablePlayerMovement.h"
 #include "ShockActionDisplayOnScreenDebugMessage.h"
 #include "ShockActionEnableOrDisableLevelSaving.h"
@@ -45,6 +47,7 @@
 #include "ShockActionPlayScriptedHandAnimation.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionRemoveGoal.h"
+#include "ShockActionRemoveAvailableHoldable.h"
 #include "ShockActionRemoveItemsFromPlayer.h"
 #include "ShockActionRetractFact.h"
 #include "ShockActionRunConsoleCommand.h"
@@ -78,6 +81,7 @@
 #include "ShockActionStopScriptedHandAnimationSequence.h"
 #include "ShockActionStopSecurityAlarm.h"
 #include "ShockActionTeleportPawnToLocation.h"
+#include "ShockActionTellAIToSendWeaponFireMessage.h"
 #include "ShockActionToggleAIAttachmentVisibility.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
@@ -1805,6 +1809,57 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Crawler->bEnableRangedAttack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bEnableRangedAttack"));
+				}
+			}
+			if (UShockActionDisableOrEnableResurrectionStation* Station = Cast<UShockActionDisableOrEnableResurrectionStation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("StationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Station->StationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("StationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Enable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Station->bEnable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Enable"));
+				}
+			}
+			if (UShockActionRemoveAvailableHoldable* Holdable = Cast<UShockActionRemoveAvailableHoldable>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("HoldableClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Holdable->HoldableClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("HoldableClass"));
+				}
+			}
+			if (UShockActionAwardAchievement* Award = Cast<UShockActionAwardAchievement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Achievement"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Award->Achievement = FName(*Unquote(Text));
+					Applied.Add(TEXT("Achievement"));
+				}
+			}
+			if (UShockActionTellAIToSendWeaponFireMessage* Fire = Cast<UShockActionTellAIToSendWeaponFireMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fire->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("WeaponLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fire->WeaponLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("WeaponLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("weaponClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fire->WeaponClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("weaponClass"));
 				}
 			}
 			Ok = true;

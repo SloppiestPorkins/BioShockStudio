@@ -480,7 +480,9 @@ ToggleAIWeaponVisibility / UnlockBathysphereDestination (`run_action_batch16.py`
 then StartAIHeadTracking / SetCollisionAvoidance / RemoveItemsFromPlayer /
 EnableOrDisableLevelSwitching (`run_action_batch17.py`), then
 DisablePlayerMovement / StopSecurityAlarm / FailQuest /
-ToggleCeilingCrawlerRangedAttack (`run_action_batch18.py`).
+ToggleCeilingCrawlerRangedAttack (`run_action_batch18.py`), then
+DisableOrEnableResurrectionStation / RemoveAvailableHoldable /
+AwardAchievement / TellAIToSendWeaponFireMessage (`run_action_batch19.py`).
 All `Success - 0 error(s)`. These are parameter + request-record slices — no script
 VM, FX, combat, door mechanics, or Tyrion goal stack.
 
