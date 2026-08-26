@@ -12,6 +12,7 @@
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionCloseDoor.h"
+#include "ShockActionCompleteQuest.h"
 #include "ShockActionControlScriptedSequence.h"
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
@@ -23,6 +24,7 @@
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionInitiateQuest.h"
+#include "ShockActionLockDoor.h"
 #include "ShockActionLog.h"
 #include "ShockActionLoop.h"
 #include "ShockActionManipulateSpawnZoneRepopulation.h"
@@ -32,9 +34,11 @@
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionPostMovementGoal.h"
+#include "ShockActionRemoveGoal.h"
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
+#include "ShockActionSetActorLabel.h"
 #include "ShockActionSetAINormalLODOverrideTime.h"
 #include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetLightProperties.h"
@@ -46,9 +50,12 @@
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
+#include "ShockActionShowTrainingMessage.h"
 #include "ShockActionSpawnAI.h"
+#include "ShockActionSpawnReactiveActor.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionTeleportPawnToLocation.h"
+#include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
@@ -1234,6 +1241,118 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Lod->LODOverrideTime = V;
 					Applied.Add(TEXT("LODOverrideTime"));
+				}
+			}
+			if (UShockActionSpawnReactiveActor* Reactive = Cast<UShockActionSpawnReactiveActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Reactive->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Reactive->TargetActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ReactiveActorClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Reactive->ReactiveActorClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("ReactiveActorClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("StartsPhysical"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Reactive->bStartsPhysical = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("StartsPhysical"));
+				}
+			}
+			if (UShockActionActivateResurrectionStation* Station = Cast<UShockActionActivateResurrectionStation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ResurrectionStationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Station->ResurrectionStationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ResurrectionStationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActivateStation"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Station->bActivateStation = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ActivateStation"));
+				}
+			}
+			if (UShockActionLockDoor* Lock = Cast<UShockActionLockDoor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Lock->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
+				}
+			}
+			if (UShockActionShowTrainingMessage* Train = Cast<UShockActionShowTrainingMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MessageName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Train->MessageName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MessageName"));
+				}
+			}
+			if (UShockActionCompleteQuest* Complete = Cast<UShockActionCompleteQuest>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Complete->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ShowHUDFeedBack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Complete->bShowHUDFeedBack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ShowHUDFeedBack"));
+				}
+			}
+			if (UShockActionRemoveGoal* Remove = Cast<UShockActionRemoveGoal>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Remove->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("goalName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Remove->GoalName = Unquote(Text);
+					Applied.Add(TEXT("goalName"));
+				}
+			}
+			if (UShockActionToggleAIAttacking* Attack = Cast<UShockActionToggleAIAttacking>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attack->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCanAttack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attack->bCanAttack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCanAttack"));
+				}
+			}
+			if (UShockActionSetActorLabel* Relabel = Cast<UShockActionSetActorLabel>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Relabel->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("NewLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Relabel->NewLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("NewLabel"));
 				}
 			}
 			Ok = true;

@@ -705,6 +705,17 @@ Next: keep walking the census head.
 Live `run_action_batch9.py`, `Success - 0 error(s)`. Patrol / Physics /
 pawn invincibility / LOD override still open. Next: keep walking the census head.
 
+### Phase 4 census batch10 (Reactive / VitaChamber / LockDoor / Training) — done, 26 Aug 2026
+
+Live `run_action_batch10.py`, `Success - 0 error(s)`. Spawn / station / lock /
+training UI still open. Next: keep walking the census head.
+
+### Phase 4 census batch11 (CompleteQuest / RemoveGoal / ToggleAttack / SetLabel) — done, 26 Aug 2026
+
+Live `run_action_batch11.py`, `Success - 0 error(s)`. Quests / goals / attack
+toggle still open; SetActorLabel applies editor SetActorLabel. Next: keep walking
+the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
