@@ -608,6 +608,12 @@ Next census: `ActionVariableAssign`.
 Schema applies `bCorpseCanBeRemoved=true`. Live `run_action_spawn_ai.py`,
 `Success - 0 error(s)`. No SpawningManager / pawn spawn yet. Next census: `ActionStopEffect`.
 
+### Phase 4 ActionStopEffect first slice — done, 26 Aug 2026
+
+`UShockActionStopEffect`: EffectEvent default ScriptTrigger; `StopOnActor` records UnTrigger
+intent. Live `run_action_stop_effect.py`, `Success - 0 error(s)`. No FX tear-down. Next census:
+`ActionPlayAnimation`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

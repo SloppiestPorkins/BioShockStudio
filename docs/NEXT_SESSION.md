@@ -35,13 +35,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionSpawnAI first slice, landed 26 Aug 2026: RequestSpawn
-records type/location; no SpawningManager.
+Continue after ActionStopEffect first slice, landed 26 Aug 2026: UnTrigger
+record; no FX tear-down. Top-10 census first slices are done through #11.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionStopEffect (census #11, 484 refs). Do not invent
+Next startable: ActionPlayAnimation (census #12, 469 refs). Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
-Portable ImHex at C:\Users\Jack\Tools\ImHex\imhex.exe (byte inspection).
+Portable ImHex: C:\Users\Jack\Tools\ImHex\imhex.exe. Blender 5.1 on user PATH.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
 

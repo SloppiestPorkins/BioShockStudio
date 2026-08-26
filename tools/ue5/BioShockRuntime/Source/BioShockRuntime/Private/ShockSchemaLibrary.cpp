@@ -8,6 +8,7 @@
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSpawnAI.h"
+#include "ShockActionStopEffect.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
@@ -302,6 +303,25 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
 				{
 					Play->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+			}
+			if (UShockActionStopEffect* Stop = Cast<UShockActionStopEffect>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EffectEvent"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Stop->EffectEvent = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectEvent"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EffectTag"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Stop->EffectTag = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectTag"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Stop->ActorLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("ActorLabel"));
 				}
 			}

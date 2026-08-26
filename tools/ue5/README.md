@@ -354,6 +354,19 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Empty type refused; configured
 type+location recorded.
 
+## ActionStopEffect (Phase 4 census #11)
+
+Twin of PlayEffect: `UnTriggerEffectEvent(EffectEvent, EffectTag)`. Default EffectEvent
+**ScriptTrigger**. `StopOnActor` records the stop; no FX tear-down.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_stop_effect.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema EffectEvent ScriptTrigger;
+StopOnActor records event+tag.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline
