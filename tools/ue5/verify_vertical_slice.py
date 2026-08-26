@@ -221,9 +221,8 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
     """Build and check the slice. `rig_names` is Phase 0's "one enemy archetype": the mesh names to
     import character rigs for, or None for every rig the level places.
 
-    Narrowing it is a cost decision, not a coverage claim — a rig's animations are re-normalized and
-    re-imported on every run (`import_bioshock` has no skip-on-exists), one splicer variant carries
-    457 of them, and `1-Medical` places 32 rigs. The names asked for are recorded in the report so a
+    Narrowing it is a coverage decision, not a skip workaround — a first import of an unstamped
+    splicer still carries 457 animations. The names asked for are recorded in the report so a
     filtered run cannot later be read as a whole-level one.
     """
     with open(manifest_path, "r", encoding="utf-8") as handle:

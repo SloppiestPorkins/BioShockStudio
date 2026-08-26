@@ -28,6 +28,7 @@ Animation notifies (the reload beats and equip points the game fires), the socke
 off, and which weapon animation plays with which hand animation. FBX has no place for any of it.
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -462,18 +463,133 @@ def _assign_materials(mesh, materials):
 
 SUPPORTED_MANIFEST_VERSION = 2
 
+# Stamped on a SkeletalMesh after a complete import. A later run skips Blender + FBX only when this
+# matches the current export and the animation/texture inventory is still complete. Missing or
+# mismatched is a re-import — inventory-only matching is deliberately not used, because that is how
+# a stale mesh with the same bone count and animation names would be kept silently.
+FINGERPRINT_TAG = "BioShockImportFingerprint"
+
 
 def _existed(path):
     """Whether an asset is already present, for created-vs-updated reporting."""
     return unreal.EditorAssetLibrary.does_asset_exist(path)
 
 
-def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None):
+def _file_stamp(path):
+    if not os.path.isfile(path):
+        return None
+    stat = os.stat(path)
+    return {"size": stat.st_size, "mtimeNs": stat.st_mtime_ns}
+
+
+def _rig_fingerprint(manifest, rig, export_directory):
+    """Identity of this export on disk, not of whatever happens to sit in the content browser.
+
+    Source file size+mtime are in the hash so a re-export of the same names is a new fingerprint.
+    """
+    animations = []
+    for animation in rig.get("animations") or []:
+        source = os.path.join(export_directory, animation["file"].replace("/", os.sep))
+        animations.append({
+            "name": animation["name"],
+            "file": animation["file"],
+            "frameCount": animation.get("frameCount"),
+            "frameRate": animation.get("frameRate"),
+            "stamp": _file_stamp(source),
+        })
+    payload = {
+        "version": manifest.get("version"),
+        "sourcePackage": manifest.get("sourcePackage"),
+        "name": rig["name"],
+        "sourceObject": rig.get("sourceObject"),
+        "boneCount": rig["boneCount"],
+        "vertexCount": rig["vertexCount"],
+        "sockets": [(item["name"], item["bone"]) for item in (rig.get("sockets") or [])],
+        "mesh": _file_stamp(os.path.join(export_directory, rig["mesh"].replace("/", os.sep))),
+        "animations": animations,
+        "textures": [
+            {
+                "file": entry["file"],
+                "usage": entry.get("usage"),
+                "colourSpace": entry.get("colourSpace"),
+            }
+            for entry in (rig.get("textures") or [])
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _animation_names_on_disk(destination):
+    folder = "%s/Animations" % destination
+    if not unreal.EditorAssetLibrary.does_directory_exist(folder):
+        return set()
+    names = set()
+    for path in unreal.EditorAssetLibrary.list_assets(folder, recursive=False) or []:
+        asset = unreal.EditorAssetLibrary.load_asset(path)
+        if isinstance(asset, unreal.AnimSequence):
+            names.add(asset.get_name())
+    return names
+
+
+def _try_reuse_rig(destination, rig, fingerprint):
+    """The existing skeletal mesh if it was imported from this exact export, else None."""
+    mesh_path = "%s/%s" % (destination, rig["name"])
+    if not _existed(mesh_path):
+        return None
+    mesh = unreal.EditorAssetLibrary.load_asset(mesh_path)
+    if mesh is None or not isinstance(mesh, unreal.SkeletalMesh):
+        return None
+    stored = unreal.EditorAssetLibrary.get_metadata_tag(mesh, FINGERPRINT_TAG)
+    if stored != fingerprint:
+        _log("  existing %s is stale or unstamped (fingerprint %s); re-importing"
+             % (rig["name"], "missing" if not stored else "mismatch"))
+        return None
+    skeleton = mesh.get_editor_property("skeleton")
+    if skeleton is None:
+        _log("  existing %s has no Skeleton; re-importing" % rig["name"])
+        return None
+    bones = len(skeleton.get_editor_property("bone_tree"))
+    if bones < rig["boneCount"]:
+        _log("  existing %s skeleton has %d bones, export declares %d; re-importing"
+             % (rig["name"], bones, rig["boneCount"]))
+        return None
+    expected = {animation["name"] for animation in (rig.get("animations") or [])}
+    missing = sorted(expected - _animation_names_on_disk(destination))
+    if missing:
+        _log("  existing %s is missing %d animation(s) (%s); re-importing"
+             % (rig["name"], len(missing), ", ".join(missing[:8])))
+        return None
+    for entry in rig.get("textures") or []:
+        stem = os.path.splitext(os.path.basename(entry["file"]))[0]
+        if not _existed("%s/Textures/%s" % (destination, stem)):
+            _log("  existing %s is missing texture %s; re-importing" % (rig["name"], stem))
+            return None
+    return mesh
+
+
+def _stamp_fingerprint(mesh, rig, destination, fingerprint):
+    expected = {animation["name"] for animation in (rig.get("animations") or [])}
+    missing = expected - _animation_names_on_disk(destination)
+    if missing:
+        _log("  not stamping fingerprint for %s: %d animation(s) still missing"
+             % (rig["name"], len(missing)))
+        return False
+    _tag(mesh, {FINGERPRINT_TAG: fingerprint})
+    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    return True
+
+
+def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None,
+         reuse_existing=True):
     """Import every rig in an export directory. Returns the imported skeletal meshes by rig name.
 
     `normalize_fbx` defaults to true because UE5.7's legacy FBX reader rejects the project's
     otherwise valid binary FBX dialect. Blender's independent reader accepts the files and its
     re-export has been verified to import correctly in UE5. Set it false only for diagnostics.
+
+    `reuse_existing` skips Blender normalization and FBX import when a previous complete import of
+    this exact export is already in the content browser. `BIOSHOCK_FORCE_IMPORT=1` turns that off.
     """
     manifest_path = os.path.join(export_directory, "ue5_manifest.json")
     with open(manifest_path, "r", encoding="utf-8") as handle:
@@ -496,13 +612,27 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
          f"manifest v{version}, {len(manifest['rigs'])} rig(s), units in {manifest['unit']}, "
          f"{manifest['upAxis']} up")
 
+    if os.environ.get("BIOSHOCK_FORCE_IMPORT", "").strip().lower() in ("1", "true", "yes"):
+        reuse_existing = False
+
     # Gate 5 item 1's other half: a second run must update rather than duplicate, and must say
-    # which it did. Counted per asset kind so a re-run reads as "updated", not "created".
-    report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0}
+    # which it did. `reused` is a complete previous import of this exact export, not an in-place
+    # update — `skipped` stays "failed to import".
+    report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0, "reused": 0}
     imported = {}
     for rig in manifest["rigs"]:
         destination = f"{content_root}/{rig['name']}"
+        fingerprint = _rig_fingerprint(manifest, rig, export_directory)
         _log(f"importing {rig['name']}: {rig['boneCount']} bones, {rig['vertexCount']} vertices")
+
+        if reuse_existing:
+            reused = _try_reuse_rig(destination, rig, fingerprint)
+            if reused is not None:
+                imported[rig["name"]] = reused
+                report["reused"] += 1
+                _log("  reusing existing %s (fingerprint match, %d animations)"
+                     % (rig["name"], len(rig.get("animations") or [])))
+                continue
 
         mesh_existed = _existed(f"{destination}/{rig['name']}")
 
@@ -583,8 +713,9 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         _log(f"  {len(rig['animations'])} animations, {notifies} notifies")
         if rig["undecoded"]:
             _log(f"  {rig['undecoded']} animations did not decode and are not present")
+        _stamp_fingerprint(mesh, rig, destination, fingerprint)
 
     _log(f"import report: {report['created']} created, {report['updated']} updated, "
-         f"{report['skipped']} skipped, {report['unsupported']} unsupported")
+         f"{report['reused']} reused, {report['skipped']} skipped, {report['unsupported']} unsupported")
     main.last_report = report
     return imported

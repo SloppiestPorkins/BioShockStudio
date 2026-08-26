@@ -26,8 +26,8 @@ OUT = os.environ.get(
 
 # Phase 0's "one enemy archetype": the splicer `1-Medical` places most of. Every other skeletal
 # asset falls back to its bind-pose static mesh. Set to an empty string for every rig the level
-# places -- that is the honest whole-level run, and it costs hours, because each rig's animations
-# are re-normalized and re-imported every time (`import_bioshock` has no skip-on-exists).
+# places -- that is the honest whole-level run. A first import of an unstamped rig still pays
+# the animation cost; a second import of the same export reuses (`import_bioshock`).
 RIGS = os.environ.get("BIOSHOCK_SLICE_RIGS", "Agg_BabyJane")
 rig_names = {name.strip() for name in RIGS.split(",") if name.strip()} or None
 

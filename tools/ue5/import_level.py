@@ -510,11 +510,8 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
     `character_content_root` is deliberately separate from this level's own `content_root`: a
     character (e.g. a common splicer variant) can appear in many different levels and should be
     one shared, reused asset across all of them, not duplicated per level.
-    `import_bioshock.main` is itself idempotent, so re-importing an already-imported character from
-    a later level updates rather than duplicates it. Note that "updates" means it does the work
-    again -- there is no skip-on-exists on the rig path, and a rig's animations dominate the cost
-    (one splicer variant carries 457), which is what `rig_names` exists for.
-
+    `import_bioshock.main` reuses a previous complete import of the same export (fingerprint +
+    inventory), so a later level that shares a character does not re-normalize every animation.
     `rig_names`, when given, is the set of mesh names to import rigs for; every other SkeletalMesh
     asset falls back to the bind-pose static mesh exactly as it does for a rig that failed to
     import. That is a deliberate narrowing for a thin slice, not a coverage claim -- the caller
