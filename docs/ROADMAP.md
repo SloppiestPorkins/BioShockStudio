@@ -1396,7 +1396,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Batch31–32 — done**: SetEffectsSystemContext, ResetProtectorAttackTargets,
    EnableOrDisableDamageVolume, ClearAIDamageStates, SetCorpseCanBeRemoved,
    UnEquipAllPlasmids, StartTimer, IncrementNumRosesPlayerPickedUp.
-   Next: PlayEffectAndWaitForStart / GrenadierUseLiveGrenadeWeapon.
+   **Batch33–34 — done**: PlayEffectAndWaitForStart, GrenadierUseLiveGrenadeWeapon,
+   WaitForCriticalMessageStart, StopHUD, PlayHUD, ActivateSecurityBot, EndDLCLevel.
+   Next: EnableBathysphereModeForPlayer / WaitUntilActorHasLanded (2-ref tail).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

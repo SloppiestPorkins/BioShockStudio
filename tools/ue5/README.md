@@ -494,7 +494,9 @@ PlayMovie / TelekinesisDrop / RangedAccuracy / TrainingMessages / HackTurret /
 ControlPlant), then
 `run_action_batch31.py` / `run_action_batch32.py` (EffectsContext / ResetProtector /
 DamageVolume / ClearAIDamageStates / CorpseCanBeRemoved / UnEquipAllPlasmids /
-StartTimer / IncrementNumRoses).
+StartTimer / IncrementNumRoses), then
+`run_action_batch33.py` / `run_action_batch34.py` (FxWait / Grenadier / CritWait /
+StopHUD / PlayHUD / ActivateSecurityBot / EndDLCLevel).
 All `Success - 0 error(s)`. These are parameter + request-record slices — no script
 VM, FX, combat, door mechanics, or Tyrion goal stack. Playable stand-ins are not
 PIE possess / TommyGun.

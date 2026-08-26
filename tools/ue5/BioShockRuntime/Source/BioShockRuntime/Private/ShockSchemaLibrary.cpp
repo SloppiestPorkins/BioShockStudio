@@ -39,6 +39,13 @@
 #include "ShockActionUnEquipAllPlasmids.h"
 #include "ShockActionStartTimer.h"
 #include "ShockActionIncrementNumRosesPlayerPickedUp.h"
+#include "ShockActionPlayEffectAndWaitForStart.h"
+#include "ShockActionGrenadierUseLiveGrenadeWeapon.h"
+#include "ShockActionWaitForCriticalMessageStart.h"
+#include "ShockActionStopHUD.h"
+#include "ShockActionPlayHUD.h"
+#include "ShockActionActivateSecurityBot.h"
+#include "ShockActionEndDLCLevel.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2728,6 +2735,93 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					StartTimer->Seconds = Sec;
 					Applied.Add(TEXT("Seconds"));
+				}
+			}
+			if (UShockActionPlayEffectAndWaitForStart* FxWait = Cast<UShockActionPlayEffectAndWaitForStart>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EffectEventToPlay"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxWait->EffectEventToPlay = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectEventToPlay"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EffectTag"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxWait->EffectTag = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectTag"));
+				}
+				float Timeout = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TimeoutSeconds"), Text) && ParseFloat(Text, Timeout))
+				{
+					FxWait->TimeoutSeconds = Timeout;
+					Applied.Add(TEXT("TimeoutSeconds"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxWait->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SlowAlsoTriggerOnStaticActors"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxWait->bSlowAlsoTriggerOnStaticActors = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("SlowAlsoTriggerOnStaticActors"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("LogTriggerInfo"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxWait->bLogTriggerInfo = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("LogTriggerInfo"));
+				}
+			}
+			if (UShockActionGrenadierUseLiveGrenadeWeapon* Gren = Cast<UShockActionGrenadierUseLiveGrenadeWeapon>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("GrenadierLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gren->GrenadierLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GrenadierLabel"));
+				}
+			}
+			if (UShockActionWaitForCriticalMessageStart* CritWait = Cast<UShockActionWaitForCriticalMessageStart>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EffectEventToWaitFor"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CritWait->EffectEventToWaitFor = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectEventToWaitFor"));
+				}
+				float Timeout = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TimeoutSeconds"), Text) && ParseFloat(Text, Timeout))
+				{
+					CritWait->TimeoutSeconds = Timeout;
+					Applied.Add(TEXT("TimeoutSeconds"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CritWait->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+			}
+			if (UShockActionActivateSecurityBot* SecBot = Cast<UShockActionActivateSecurityBot>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("PawnLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SecBot->PawnLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("PawnLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BotLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SecBot->BotLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("BotLabel"));
+				}
+			}
+			if (UShockActionEndDLCLevel* Dlc = Cast<UShockActionEndDLCLevel>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("FailedLevel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Dlc->bFailedLevel = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("FailedLevel"));
 				}
 			}
 			Ok = true;

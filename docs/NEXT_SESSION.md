@@ -35,10 +35,9 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue Phase 4 census. Landed through batch32 (verified live): EffectsContext,
-ResetProtector, DamageVolume, ClearAIDamageStates, CorpseCanBeRemoved,
-UnEquipAllPlasmids, StartTimer, IncrementNumRoses.
-Next: PlayEffectAndWaitForStart / GrenadierUseLiveGrenadeWeapon.
+Continue Phase 4 census. Landed through batch34 (verified live): FxWait, Grenadier,
+CritMessageWait, StopHUD, PlayHUD, ActivateSecurityBot, EndDLCLevel.
+Next: EnableBathysphereModeForPlayer / WaitUntilActorHasLanded.
 Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
 ```
 
