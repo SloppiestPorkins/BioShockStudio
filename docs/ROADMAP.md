@@ -1339,7 +1339,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    wake check; not on a script graph yet. **ActionSetProperty first slice — done**: Label write
    only; full SetPropertyText open. **ActionIf first slice — done**: OR + true/else branch choice.
    Next census: ActionPlayEffect. **ActionPlayEffect first slice — done**: ScriptTrigger record
-   fire; no FX yet. Next: ActionNonBlockingExecuteScript.
+   fire; no FX yet. **ActionNonBlockingExecuteScript first slice — done**: records targetScript,
+   block=false; no Script VM. Next: ActionSetLightProperties.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

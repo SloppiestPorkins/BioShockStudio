@@ -1,6 +1,8 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionExecuteScript.h"
+#include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionWait.h"
@@ -297,6 +299,20 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Play->ActorLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("ActorLabel"));
+				}
+			}
+			if (UShockActionExecuteScript* Exec = Cast<UShockActionExecuteScript>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("targetScript"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Exec->TargetScript = FName(*Unquote(Text));
+					Applied.Add(TEXT("targetScript"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("block"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Exec->bBlock = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("block"));
 				}
 			}
 			Ok = true;

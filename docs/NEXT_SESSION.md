@@ -35,11 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionPlayEffect first slice, landed 26 Aug 2026: EffectEvent
-ScriptTrigger from schema; FireOnActor records trigger (no FX).
+Continue after ActionNonBlockingExecuteScript first slice, landed 26 Aug 2026:
+records targetScript / block=false; no Script VM.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionNonBlockingExecuteScript (census #5), OR a minimal
-script runner wiring Wait/If/SetProperty/PlayEffect. Pick one. Do not invent
+Next startable: ActionSetLightProperties (census #6, 968 refs). Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.

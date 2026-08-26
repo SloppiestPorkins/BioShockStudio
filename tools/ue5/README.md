@@ -271,6 +271,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema EffectEvent ScriptTrigger;
 FireOnActor records event+tag.
 
+## ActionNonBlockingExecuteScript (Phase 4 census #5)
+
+UnrealScript `ActionExecuteScript` looks up a `Script` by `targetScript` label and starts it;
+`ActionNonBlockingExecuteScript` is that with `block=false`. This slice records
+`RequestExecute` only — no Script VM, no `findByLabel`.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_nonblocking_script.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Default non-blocking; empty
+target refused; configured target recorded.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

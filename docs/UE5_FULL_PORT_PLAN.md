@@ -568,6 +568,13 @@ census item: `ActionPlayEffect`.
 TriggerEffectEvent call. Live `run_action_play_effect.py`, `Success - 0 error(s)`. No FX
 configurator yet. Next census: `ActionNonBlockingExecuteScript`.
 
+### Phase 4 ActionNonBlockingExecuteScript first slice — done, 26 Aug 2026
+
+`UShockActionExecuteScript` + `UShockActionNonBlockingExecuteScript`: `targetScript` / `block`
+(default false); `RequestExecute` records the script that would start. Live
+`run_action_nonblocking_script.py`, `Success - 0 error(s)`. No Script VM / label lookup yet. Next
+census: `ActionSetLightProperties`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
