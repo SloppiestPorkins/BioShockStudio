@@ -464,8 +464,10 @@ InitiateQuest / SetMovableSpotlightTarget / ChangePressure (`run_action_batch6.p
 then WaitForQuestLogToFinish / SetMovableSpotlightState / CloseDoor /
 ToggleAIReactions (`run_action_batch7.py`), then SendTriggerMessage /
 DisplayOnScreenDebugMessage / SetPlayerInvincibility / RunConsoleCommand
-(`run_action_batch8.py`). All `Success - 0 error(s)`. These are parameter +
-request-record slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
+(`run_action_batch8.py`), then SetAIPatrol / ChangePawnPhysics /
+SetPawnInvincibility / SetAINormalLODOverrideTime (`run_action_batch9.py`). All
+`Success - 0 error(s)`. These are parameter + request-record slices — no script VM,
+FX, combat, door mechanics, or Tyrion goal stack.
 
 ## Validation map
 

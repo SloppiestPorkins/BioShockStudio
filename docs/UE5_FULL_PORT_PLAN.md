@@ -700,6 +700,11 @@ Live `run_action_batch8.py`, `Success - 0 error(s)`. MessageTrigger / ClientMess
 god mode / ConsoleCommand still open (console command is recorded, not executed).
 Next: keep walking the census head.
 
+### Phase 4 census batch9 (Patrol / PawnPhysics / PawnInvinc / LOD) — done, 26 Aug 2026
+
+Live `run_action_batch9.py`, `Success - 0 error(s)`. Patrol / Physics /
+pawn invincibility / LOD override still open. Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

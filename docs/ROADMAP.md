@@ -1362,8 +1362,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    InitiateQuest, SetMovableSpotlightTarget, ChangePressure. **Batch7 — done**:
    WaitForQuestLogToFinish, SetMovableSpotlightState, CloseDoor, ToggleAIReactions.
    **Batch8 — done**: SendTriggerMessage, DisplayOnScreenDebugMessage,
-   SetPlayerInvincibility, RunConsoleCommand. Next: SetAIPatrol /
-   ChangePawnPhysics / SetPawnInvincibility.
+   SetPlayerInvincibility, RunConsoleCommand. **Batch9 — done**: SetAIPatrol,
+   ChangePawnPhysics, SetPawnInvincibility, SetAINormalLODOverrideTime. Next:
+   SpawnReactiveActor / ActivateResurrectionStation / LockDoor.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

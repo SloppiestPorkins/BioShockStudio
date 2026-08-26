@@ -1,11 +1,13 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionActivateResurrectionStation.h"
 #include "ShockActionAISpeech.h"
 #include "ShockActionAssertFact.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
+#include "ShockActionChangePawnPhysics.h"
 #include "ShockActionChangePressure.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
@@ -33,10 +35,13 @@
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
+#include "ShockActionSetAINormalLODOverrideTime.h"
+#include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMovableSpotlightState.h"
 #include "ShockActionSetMovableSpotlightTarget.h"
 #include "ShockActionSetOrUnsetInputContext.h"
+#include "ShockActionSetPawnInvincibility.h"
 #include "ShockActionSetPlayerInvincibility.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetTipPriority.h"
@@ -1167,6 +1172,68 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Cmd->Command = Unquote(Text);
 					Applied.Add(TEXT("Command"));
+				}
+			}
+			if (UShockActionSetAIPatrol* Patrol = Cast<UShockActionSetAIPatrol>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AggressorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Patrol->AggressorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AggressorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("PatrolName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Patrol->PatrolName = FName(*Unquote(Text));
+					Applied.Add(TEXT("PatrolName"));
+				}
+			}
+			if (UShockActionChangePawnPhysics* Phys = Cast<UShockActionChangePawnPhysics>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Phys->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("DisablePhysics"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Phys->bDisablePhysics = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("DisablePhysics"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EnableRootMotionWhenPhysicsDisabled"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Phys->bEnableRootMotionWhenPhysicsDisabled = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableRootMotionWhenPhysicsDisabled"));
+				}
+			}
+			if (UShockActionSetPawnInvincibility* PawnInv = Cast<UShockActionSetPawnInvincibility>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("PawnLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PawnInv->PawnLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("PawnLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bInvincible"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PawnInv->bInvincible = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bInvincible"));
+				}
+			}
+			if (UShockActionSetAINormalLODOverrideTime* Lod = Cast<UShockActionSetAINormalLODOverrideTime>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Lod->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("LODOverrideTime"), Text) && ParseFloat(Text, V))
+				{
+					Lod->LODOverrideTime = V;
+					Applied.Add(TEXT("LODOverrideTime"));
 				}
 			}
 			Ok = true;
