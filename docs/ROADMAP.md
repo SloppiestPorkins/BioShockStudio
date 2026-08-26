@@ -1355,8 +1355,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    done**: RequestTweak records. **Census batch #20+ — done**: BlockingExecuteScript,
    VariableIncrement, Log, ExitScript, FreezeHavokActor, UnlockDoor. Next:
    ActionPostMovementGoal. **Batch2 — done**: MuteAI, SetTipPriority, PostMovementGoal.
-4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
-   decode, pending a call on whether the app should carry this at all.
+   **Batch3 — done**: CinematicFadeView, DisableOrEnableConcept, ControlScriptedSequence,
+   DealDamage (request-record slices). Next: WaitForGoal / ChangeSkinAtIndex / OpenDoor.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

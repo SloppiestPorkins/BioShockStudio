@@ -452,6 +452,14 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
 
+## Phase 4 census batches (through batch3)
+
+Later census head landed in batches to cut editor launches: BlockingExecuteScript through
+UnlockDoor, then MuteAI / SetTipPriority / PostMovementGoal (`run_action_batch2.py`), then
+CinematicFadeView / DisableOrEnableConcept / ControlScriptedSequence / DealDamage
+(`run_action_batch3.py`). All `Success - 0 error(s)`. These are parameter + request-record
+slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

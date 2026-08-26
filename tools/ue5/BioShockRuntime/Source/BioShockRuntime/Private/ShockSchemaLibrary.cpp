@@ -4,7 +4,11 @@
 #include "ShockActionAttackTarget.h"
 #include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
+#include "ShockActionCinematicFadeView.h"
+#include "ShockActionControlScriptedSequence.h"
+#include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
+#include "ShockActionDisableOrEnableConcept.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFreezeHavokActor.h"
@@ -723,6 +727,81 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Move->bShouldRun = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bShouldRun"));
+				}
+			}
+			if (UShockActionCinematicFadeView* Fade = Cast<UShockActionCinematicFadeView>(Action))
+			{
+				FString Text;
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("fadeAlphaStart"), Text) && ParseFloat(Text, V))
+				{
+					Fade->FadeAlphaStart = V;
+					Applied.Add(TEXT("fadeAlphaStart"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("fadeAlphaEnd"), Text) && ParseFloat(Text, V))
+				{
+					Fade->FadeAlphaEnd = V;
+					Applied.Add(TEXT("fadeAlphaEnd"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Duration"), Text) && ParseFloat(Text, V))
+				{
+					Fade->Duration = V;
+					Applied.Add(TEXT("Duration"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("holdDuration"), Text) && ParseFloat(Text, V))
+				{
+					Fade->HoldDuration = V;
+					Applied.Add(TEXT("holdDuration"));
+				}
+			}
+			if (UShockActionDisableOrEnableConcept* Concept = Cast<UShockActionDisableOrEnableConcept>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ConceptName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Concept->ConceptName = FName(*Unquote(Text));
+					Applied.Add(TEXT("ConceptName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Enable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Concept->bEnable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Enable"));
+				}
+			}
+			if (UShockActionControlScriptedSequence* Seq = Cast<UShockActionControlScriptedSequence>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Seq->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				int32 Run = 0;
+				if (Lookup(Classes, ClassName, TEXT("RunNow"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Run, *Text);
+					Seq->RunNow = Run;
+					Applied.Add(TEXT("RunNow"));
+				}
+			}
+			if (UShockActionDealDamage* Dmg = Cast<UShockActionDealDamage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Dmg->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("DamageAmount"), Text) && ParseFloat(Text, V))
+				{
+					Dmg->DamageAmount = V;
+					Applied.Add(TEXT("DamageAmount"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("DamageChance"), Text) && ParseFloat(Text, V))
+				{
+					Dmg->DamageChance = V;
+					Applied.Add(TEXT("DamageChance"));
 				}
 			}
 			Ok = true;
