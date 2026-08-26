@@ -314,6 +314,18 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Creates once; second write
 refused; value stays `true`.
 
+## ActionVariableAssign (Phase 4 census #8)
+
+Same lhs/rhs scope write as AssignIfNotExist, but overwrites. C++ class is
+`ShockActionVariableAssignOverwrite` (`ActionClassName` still `ActionVariableAssign`).
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_var_assign.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Value becomes `2` after overwrite.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

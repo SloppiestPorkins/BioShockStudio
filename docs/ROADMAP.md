@@ -1342,7 +1342,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    fire; no FX yet. **ActionNonBlockingExecuteScript first slice — done**: records targetScript,
    block=false; no Script VM. **ActionSetLightProperties first slice — done**: brightness+colour
    on ULightComponent; type/period/phase/shadow open. **ActionVariableAssignIfNotExist first
-   slice — done**: create-only string scope; no typed Variables. Next: ActionVariableAssign.
+   slice — done**: create-only string scope; no typed Variables. **ActionVariableAssign first
+   slice — done**: overwrite twin. Next: ActionHideOrShowActor.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

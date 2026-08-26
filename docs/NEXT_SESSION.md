@@ -35,11 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionVariableAssignIfNotExist first slice, landed 26 Aug 2026:
-create-only string scope assign. ActionVariableAssign next (overwrite twin).
+Continue after ActionVariableAssign first slice, landed 26 Aug 2026: overwrite
+scope assign. ActionHideOrShowActor in progress or next (census #9, 541 refs).
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionVariableAssign (census #8, 549 refs). Do not invent
-cubemap face order, material graphs, panner units, switch-selection.
+Do not invent cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```

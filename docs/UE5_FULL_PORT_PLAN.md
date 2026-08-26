@@ -590,6 +590,12 @@ in-memory string map (`bOnlyIfMissing`). Live `run_action_var_assign_if.py`,
 `Success - 0 error(s)`. No typed VariableFloat/Bool classes, no dotted lhs, no bestVariableClass.
 Next census: `ActionVariableAssign`.
 
+### Phase 4 ActionVariableAssign first slice — done, 26 Aug 2026
+
+`UShockActionVariableAssignOverwrite` (`ActionClassName` ActionVariableAssign): overwrite lhs in
+`UShockVariableScope`. Live `run_action_var_assign.py`, `Success - 0 error(s)`. Next census:
+`ActionHideOrShowActor`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
