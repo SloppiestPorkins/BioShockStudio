@@ -482,9 +482,12 @@ EnableOrDisableLevelSwitching (`run_action_batch17.py`), then
 DisablePlayerMovement / StopSecurityAlarm / FailQuest /
 ToggleCeilingCrawlerRangedAttack (`run_action_batch18.py`), then
 DisableOrEnableResurrectionStation / RemoveAvailableHoldable /
-AwardAchievement / TellAIToSendWeaponFireMessage (`run_action_batch19.py`).
+AwardAchievement / TellAIToSendWeaponFireMessage (`run_action_batch19.py`), then
+batches 20–24 (`run_action_batch20.py` … `run_action_batch24.py`) and
+`run_playable_standin.py` (HP / hitscan / SpawnAtLocation).
 All `Success - 0 error(s)`. These are parameter + request-record slices — no script
-VM, FX, combat, door mechanics, or Tyrion goal stack.
+VM, FX, combat, door mechanics, or Tyrion goal stack. Playable stand-ins are not
+PIE possess / TommyGun.
 
 ## Validation map
 

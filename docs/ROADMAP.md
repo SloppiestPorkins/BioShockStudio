@@ -1379,8 +1379,12 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Batch18 — done**: DisablePlayerMovement, StopSecurityAlarm, FailQuest,
    ToggleCeilingCrawlerRangedAttack. **Batch19 — done**:
    DisableOrEnableResurrectionStation, RemoveAvailableHoldable, AwardAchievement,
-   TellAIToSendWeaponFireMessage. Next: SetSpawnerRepopulationState /
-   SpawnPlayerEscortedGatherer.
+   TellAIToSendWeaponFireMessage. **Batch20–24 — done** (verified live): SpawnerRepop /
+   EscortedGatherer / HandAttachment / Impulse; GathererVent / TellAIToWait /
+   ClearContainer / LocomotionKeyword; LinkedGatherer / AnimRate / ReplaceQuest /
+   ClearTraining; CraftingFormula / StartAlarm / RemoveHand / FilterItem;
+   MakeBotsAttack / PlaceItem / GathererBooty. Playable stand-ins verified
+   (HP / hitscan / SpawnAtLocation). Next: ActionFor / security-bot spawn labels.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

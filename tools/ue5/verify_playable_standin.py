@@ -1,7 +1,6 @@
 """Playable-slice stand-ins: health damage, hitscan fire, SpawnAI world spawn.
 
 Does not claim PIE possess, TommyGun mesh, or real SpawningManager.
-Parked for a later UnrealEditor-Cmd run — do not require while user games.
 """
 
 import json
@@ -14,18 +13,19 @@ def _log(m):
     unreal.log("[bioshock-playable-standin] %s" % m)
 
 
+def _spawn(cls, loc):
+    return unreal.EditorLevelLibrary.spawn_actor_from_class(cls, loc, unreal.Rotator(0.0, 0.0, 0.0))
+
+
 def main(out):
     report = {"failures": []}
     f = report["failures"]
 
-    world = unreal.EditorLevelLibrary.get_editor_world()
-
     ai_cls = unreal.load_class(None, "/Script/BioShockRuntime.BaseShockAI")
-    ai = world.spawn_actor(ai_cls, unreal.Vector(200.0, 0.0, 100.0), unreal.Rotator(0.0, 0.0, 0.0))
+    ai = _spawn(ai_cls, unreal.Vector(200.0, 0.0, 100.0))
     if not ai:
         f.append("spawn AI")
     else:
-        ai.authored_max_health = 100.0
         ai.ensure_health_initialized()
         if float(ai.get_current_health()) != 100.0:
             f.append("AI health init")
@@ -35,15 +35,20 @@ def main(out):
         report["ai_health"] = remaining
 
     weapon_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWeapon")
-    weapon = world.spawn_actor(weapon_cls, unreal.Vector(0.0, 0.0, 100.0), unreal.Rotator(0.0, 0.0, 0.0))
-    weapon.configure_hitscan(25.0, 5000.0)
+    weapon = _spawn(weapon_cls, unreal.Vector(0.0, 0.0, 100.0))
+    if not weapon:
+        f.append("spawn weapon")
+    else:
+        weapon.configure_hitscan(25.0, 5000.0)
 
     player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
-    player = world.spawn_actor(player_cls, unreal.Vector(0.0, 0.0, 100.0), unreal.Rotator(0.0, 0.0, 0.0))
-    player.equip_weapon(weapon)
+    player = _spawn(player_cls, unreal.Vector(0.0, 0.0, 100.0))
+    if not player:
+        f.append("spawn player")
+    elif weapon:
+        player.equip_weapon(weapon)
 
-    # Point player at AI and fire
-    if ai and player:
+    if ai and player and weapon:
         direction = ai.get_actor_location() - player.get_actor_location()
         hit = bool(weapon.fire_at(player, player.get_actor_location(), direction))
         if not hit:
@@ -51,6 +56,7 @@ def main(out):
         report["hitscan"] = "ok" if hit else "miss"
         report["fire_count"] = int(weapon.get_fire_count())
 
+    world = unreal.EditorLevelLibrary.get_editor_world()
     spawn_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionSpawnAI")
     spawn = unreal.new_object(spawn_cls)
     spawn.configure("Agg_BabyJane", "SpawnMarker", "BabyJane_A", 0.0, 0.0, True)

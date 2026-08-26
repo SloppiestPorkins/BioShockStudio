@@ -48,6 +48,11 @@ bool AShockPlayer::TryFireEquippedWeapon()
 	return EquippedWeapon->FireAt(this, Start, Aim.Vector());
 }
 
+void AShockPlayer::HandleFireInput()
+{
+	TryFireEquippedWeapon();
+}
+
 void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -55,5 +60,5 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		return;
 	}
-	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::TryFireEquippedWeapon);
+	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
 }

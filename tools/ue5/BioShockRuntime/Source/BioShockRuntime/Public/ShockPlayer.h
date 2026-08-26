@@ -39,4 +39,8 @@ public:
 	bool TryFireEquippedWeapon();
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+private:
+	/** Input bind target — BindAction requires void(void), not bool. */
+	void HandleFireInput();
 };
