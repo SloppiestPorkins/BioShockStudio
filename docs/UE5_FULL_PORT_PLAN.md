@@ -733,6 +733,12 @@ Live `run_action_batch14.py`, `Success - 0 error(s)`. MaterialSwitch / attachmen
 hand anim / quest objectives still open. Next: keep walking the census head
 (SetHUDDisplayState and below).
 
+### Phase 4 census batch15 (HUD / Assassin / HandSeq / QuestHint) — done, 26 Aug 2026
+
+Live `run_action_batch15.py`, `Success - 0 error(s)`. HUD / Assassin teleport /
+hand sequences / quest hints still open. Shipped class name `actionSetQuestHint`
+(lowercase) preserved. Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

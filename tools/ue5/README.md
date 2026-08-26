@@ -473,9 +473,10 @@ TriggerHavokForceActor / ChangeQuestArrowActor (`run_action_batch12.py`), then
 EnableOrDisableLevelSaving / RetractFact / SetAIVulnerability / VariableDecrement
 (`run_action_batch13.py`), then SetMaterialSwitchIndex /
 ToggleAIAttachmentVisibility / PlayScriptedHandAnimation /
-CompleteQuestObjective (`run_action_batch14.py`). All `Success - 0 error(s)`. These
-are parameter + request-record slices — no script VM, FX, combat, door mechanics, or
-Tyrion goal stack.
+CompleteQuestObjective (`run_action_batch14.py`), then SetHUDDisplayState /
+AssassinTeleport / Start+StopScriptedHandAnimationSequence / actionSetQuestHint
+(`run_action_batch15.py`). All `Success - 0 error(s)`. These are parameter +
+request-record slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
 
 ## Validation map
 
