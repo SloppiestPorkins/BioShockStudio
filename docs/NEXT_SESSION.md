@@ -35,9 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Playable stand-in + batch20–24 verified live UE5.7 (Success).
-Next census: ActionFor / AssignNextSecurityBotSpawnLocation.
-Or deepen playable slice (PIE possess still unclaimed).
+Continue Phase 4 census. Landed through batch26 (verified live): ActionFor,
+SecurityBotSpawnLocation, ChangeStaticMesh, TellAIToContinue, SetAIState,
+DealDamageInRadius, ShowBathysphereUI, DoorKeypadUsed.
+Next: GathererCrawlThroughDoor / StopAIHeadTracking.
 Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
 ```
 

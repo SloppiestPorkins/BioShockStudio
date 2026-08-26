@@ -8,6 +8,14 @@
 #include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
 #include "ShockActionAssignNextGathererBooty.h"
+#include "ShockActionTellAIToContinue.h"
+#include "ShockActionShowBathysphereUI.h"
+#include "ShockActionSetAIState.h"
+#include "ShockActionFor.h"
+#include "ShockActionDoorKeypadUsed.h"
+#include "ShockActionDealDamageInRadius.h"
+#include "ShockActionChangeStaticMesh.h"
+#include "ShockActionAssignNextSecurityBotSpawnLocation.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2236,6 +2244,141 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Booty->GathererLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("GathererLabel"));
+				}
+			}
+			if (UShockActionFor* ForLoop = Cast<UShockActionFor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("counterName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ForLoop->CounterName = FName(*Unquote(Text));
+					Applied.Add(TEXT("counterName"));
+				}
+				float Begin = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("beginValue"), Text) && ParseFloat(Text, Begin))
+				{
+					ForLoop->BeginValue = Begin;
+					Applied.Add(TEXT("beginValue"));
+				}
+				float End = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("EndValue"), Text) && ParseFloat(Text, End))
+				{
+					ForLoop->EndValue = End;
+					Applied.Add(TEXT("EndValue"));
+				}
+				int32 Index = 0;
+				if (Lookup(Classes, ClassName, TEXT("CurrentIndex"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Index, *Text);
+					ForLoop->CurrentIndex = Index;
+					Applied.Add(TEXT("CurrentIndex"));
+				}
+			}
+			if (UShockActionAssignNextSecurityBotSpawnLocation* BotSpawn = Cast<UShockActionAssignNextSecurityBotSpawnLocation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpawnLocationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					BotSpawn->SpawnLocationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnLocationLabel"));
+				}
+			}
+			if (UShockActionChangeStaticMesh* Mesh = Cast<UShockActionChangeStaticMesh>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Mesh->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("StaticMesh"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Mesh->StaticMeshName = FName(*Unquote(Text));
+					Applied.Add(TEXT("StaticMesh"));
+				}
+			}
+			if (UShockActionTellAIToContinue* Cont = Cast<UShockActionTellAIToContinue>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Cont->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+			}
+			if (UShockActionSetAIState* State = Cast<UShockActionSetAIState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					State->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				int32 AIState = 0;
+				if (Lookup(Classes, ClassName, TEXT("AIState"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(AIState, *Text);
+					State->AIState = AIState;
+					Applied.Add(TEXT("AIState"));
+				}
+			}
+			if (UShockActionDealDamageInRadius* Radius = Cast<UShockActionDealDamageInRadius>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SourceActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Radius->SourceActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SourceActorLabel"));
+				}
+				float Dmg = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("DamageAmount"), Text) && ParseFloat(Text, Dmg))
+				{
+					Radius->DamageAmount = Dmg;
+					Applied.Add(TEXT("DamageAmount"));
+				}
+				int32 DType = 0;
+				if (Lookup(Classes, ClassName, TEXT("DamageType"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(DType, *Text);
+					Radius->DamageType = DType;
+					Applied.Add(TEXT("DamageType"));
+				}
+				int32 Inner = 0;
+				if (Lookup(Classes, ClassName, TEXT("InnerRadius"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Inner, *Text);
+					Radius->InnerRadius = Inner;
+					Applied.Add(TEXT("InnerRadius"));
+				}
+				int32 Outer = 0;
+				if (Lookup(Classes, ClassName, TEXT("OuterRadius"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Outer, *Text);
+					Radius->OuterRadius = Outer;
+					Applied.Add(TEXT("OuterRadius"));
+				}
+			}
+			if (UShockActionShowBathysphereUI* BathUI = Cast<UShockActionShowBathysphereUI>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("BathysphereSystem"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					BathUI->BathysphereSystem = FName(*Unquote(Text));
+					Applied.Add(TEXT("BathysphereSystem"));
+				}
+			}
+			if (UShockActionDoorKeypadUsed* Keypad = Cast<UShockActionDoorKeypadUsed>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorKeypadControlLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Keypad->DoorKeypadControlLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorKeypadControlLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Success"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Keypad->bSuccess = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Success"));
 				}
 			}
 			Ok = true;

@@ -1384,7 +1384,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    ClearContainer / LocomotionKeyword; LinkedGatherer / AnimRate / ReplaceQuest /
    ClearTraining; CraftingFormula / StartAlarm / RemoveHand / FilterItem;
    MakeBotsAttack / PlaceItem / GathererBooty. Playable stand-ins verified
-   (HP / hitscan / SpawnAtLocation). Next: ActionFor / security-bot spawn labels.
+   (HP / hitscan / SpawnAtLocation). **Batch25–26 — done**: ActionFor,
+   AssignNextSecurityBotSpawnLocation, ChangeStaticMesh, TellAIToContinue,
+   SetAIState, DealDamageInRadius, ShowBathysphereUI, DoorKeypadUsed.
+   Next: GathererCrawlThroughDoor / StopAIHeadTracking.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

@@ -27,7 +27,7 @@ means no row is currently claimed, not that no one is working ? always check the
 | Claude (prior session) | Gate 4 item 4 movers/doors/weapon/plasmid effects ? **landed through** `ResolveEffectProperty` + DoorSwitch reactions. Row kept for history; no longer owning the track. | (released) | 23?25 Aug 2026 |
 | Claude (third session) | **TASK-000 / TASK-009 closeout** ? the four bucket-sum tests, the last un-filtered one, and the stale verification stamp | `tests/BioShockStudio.Tests/InteractionActorSchemaTests.cs`; `docs/ROADMAP.md` "Test health" **only** (the ROADMAP touch was cleared with the user first, since the row above claims that file for Gate 4 audio edits at a different part of it) | 23 Aug 2026 |
 | Composer (this session) | **Gate 5 Phase 1** ? sequences/switch candidates on the level manifest **landed**. Cubemap live look taken over by the Cursor row below. | (released) | 25 Aug 2026 |
-| Cursor (this session) | **Verified** playable stand-in + batch20–24 (live UE). Next: ActionFor / census continue or PIE. | `tools/ue5/BioShockRuntime/` | 26 Aug 2026 |
+| Cursor (this session) | **Phase 4 census continue**. Batch25–26 verified. Next: GathererCrawl / StopAIHeadTracking. | `tools/ue5/BioShockRuntime/` Action* | 26 Aug 2026 |
 
 > **Collision, 23 Aug 2026 ? for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,

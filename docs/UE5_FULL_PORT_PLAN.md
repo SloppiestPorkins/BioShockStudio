@@ -771,6 +771,11 @@ Live UE5.7 after BuildPlugin (Fire bind void-handler fix):
 Still not PIE possess, TommyGun mesh fire, or SpawningManager archetypes.
 `EnablePlayableInput` needs a project Input ActionMapping named `Fire`.
 
+### Phase 4 census batch25–26 (For / BotSpawn / Mesh / Continue / State / Radius / BathUI / Keypad) — done, 26 Aug 2026
+
+Live `run_action_batch25.py` + `run_action_batch26.py`, `Success - 0 error(s)`.
+ActionFor is enter-loop record only (no nested VM). Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5
