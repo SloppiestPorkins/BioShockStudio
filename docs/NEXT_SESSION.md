@@ -35,12 +35,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after Medical possess setup, landed 26 Aug 2026: ShockGameMode +
-MedicalStart PlayerStart on saved 1-Medical.umap; editor pilot of ShockPlayer
-with schema (34/68/450). PIE possess not claimed (PC.Possess AVs headless).
-Do not re-run skip, slice, CollisionHeight, or possess to re-confirm.
-Next startable: ActionWait (Phase 4 head of the census). Do not invent cubemap
-face order, material graphs, panner units, switch-selection.
+Continue after ActionWait first slice, landed 26 Aug 2026: UShockActionWait
+Seconds=1 from Scripting.U; PrepareWait/IsReady match latentExecute shape.
+Not on a script graph. Do not re-run skip/slice/CollisionHeight/possess/ActionWait
+to re-confirm.
+Next startable: ActionSetProperty (census #2), OR wire ActionWait into a minimal
+script runner. Pick one. Do not invent cubemap face order, material graphs,
+panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```

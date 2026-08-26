@@ -1335,7 +1335,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **68** (`VPawn` in `VengeanceShared.U`; Engine.U `Pawn`'s 78 is not the player value).
    **Possess setup on Medical umap — done same day**: ShockGameMode + MedicalStart PlayerStart
    survive reload; editor pilot of schema-applied ShockPlayer. PIE possess not claimed (headless
-   PC.Possess AVs). Not Action*.
+   PC.Possess AVs). **ActionWait first slice — done same day**: Seconds from Scripting.U schema +
+   wake check; not on a script graph yet.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

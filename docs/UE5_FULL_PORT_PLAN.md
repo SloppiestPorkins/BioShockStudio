@@ -532,16 +532,23 @@ Numbers come from Phase 2.1 schema JSON, not from this header file. Live verify
 same-package walk cannot see. Live UE5.7 re-verify the same day: capsule half-height **68**,
 `Success - 0 error(s)`. Walk speed is the canary: UE's Character default is 600.
 
-**What this is not.** Not a weapon that fires, not a single `Action*` implemented. Phase 4 starts
-at `ActionWait`. The plugin is built with `RunUAT BuildPlugin` and its Binaries live in the UE
-project, not this repo.
+**What this is not.** Not a weapon that fires. Phase 4 starts at `ActionWait` (first slice done
+same day — see below). The plugin is built with `RunUAT BuildPlugin` and its Binaries live in the
+UE project, not this repo.
 
 ### Phase 0 Medical possess setup — done, 26 Aug 2026
 
 Saved `1-Medical.umap` now carries `ShockGameMode` and a `PlayerStart` at MedicalStart
 (`run_possess.py`, `Success - 0 error(s)`). Schema-applied `ShockPlayer` piloted in the editor
 world (radius 34, half-height 68, walk 450). Editor `PlayerController.Possess` AVs headless —
-not claimed; PIE possess is still a human Play check. Not Action*, not firing.
+not claimed; PIE possess is still a human Play check.
+
+### Phase 4 ActionWait first slice — done, 26 Aug 2026
+
+`UShockActionWait` mirrors Scripting.U: `Seconds` from schema (default **1**), wake check matching
+decompiled `latentExecute` (`TimeSeconds + Seconds`). Live verify `run_action_wait.py`,
+`Success - 0 error(s)`. Not wired into a script graph; no `Sleep` on a ticking world. Next census
+item is `ActionSetProperty`.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

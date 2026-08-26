@@ -212,6 +212,22 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **68**, walk **450**. Editor `PlayerController.Possess` access-violates under `-unattended` — not
 claimed. Python does not run inside PIE, so pressing Play is still a human check.
 
+## ActionWait (Phase 4 head)
+
+`ActionWait` lives in **Scripting.U**, not ShockGame/ShockAI. One float `Seconds` (default 1).
+Decompiled `latentExecute`: wake at `Level.TimeSeconds + Seconds`. `UShockActionWait` holds that
+parameter and the wake check; it is not a script VM.
+
+```bash
+dotnet run --project tools/uelib-bridge -- --schema <out>/Scripting.schema.json Scripting.U
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_wait.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema apply sets Seconds **1**;
+`PrepareWait(10)` → wake **11**; `IsReady` false before / true at-or-after. No latent Sleep on a
+script graph yet.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

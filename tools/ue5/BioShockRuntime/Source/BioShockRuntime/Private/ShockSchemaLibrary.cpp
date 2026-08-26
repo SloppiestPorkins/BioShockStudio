@@ -1,5 +1,7 @@
 #include "ShockSchemaLibrary.h"
 
+#include "ShockAction.h"
+#include "ShockActionWait.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
@@ -187,6 +189,65 @@ FString UShockSchemaLibrary::ApplyClassDefaults(AActor* Actor, const FString& Sc
 			{
 				ApplyFloat(TEXT("Health"), [&](float Value) { Pawn->AuthoredHealth = Value; });
 				ApplyFloat(TEXT("MaxHealth"), [&](float Value) { Pawn->AuthoredMaxHealth = Value; });
+			}
+			Ok = true;
+		}
+	}
+
+	TSharedRef<FJsonObject> Report = MakeShared<FJsonObject>();
+	Report->SetBoolField(TEXT("ok"), Ok);
+	Report->SetStringField(TEXT("error"), Error);
+	TArray<TSharedPtr<FJsonValue>> AppliedJson;
+	for (const FString& Name : Applied)
+	{
+		AppliedJson.Add(MakeShared<FJsonValueString>(Name));
+	}
+	Report->SetArrayField(TEXT("applied"), AppliedJson);
+	FString Output;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	FJsonSerializer::Serialize(Report, Writer);
+	return Output;
+}
+
+FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FString& SchemaJsonPath, const FString& ClassName)
+{
+	TArray<FString> Applied;
+	FString Error;
+	bool Ok = false;
+
+	if (!Action)
+	{
+		Error = TEXT("action is null");
+	}
+	else
+	{
+		TMap<FString, FSchemaClass> Classes;
+		if (!LoadSchema(SchemaJsonPath, Classes, Error))
+		{
+			Ok = false;
+		}
+		else if (!Classes.Contains(ClassName))
+		{
+			Error = FString::Printf(TEXT("class %s is not in %s"), *ClassName, *SchemaJsonPath);
+		}
+		else
+		{
+			Action->ActionClassName = ClassName;
+
+			auto ApplyFloat = [&](const TCHAR* Property, const TFunctionRef<void(float)>& Sink)
+			{
+				FString Text;
+				float Value = 0.0f;
+				if (Lookup(Classes, ClassName, Property, Text) && ParseFloat(Text, Value))
+				{
+					Sink(Value);
+					Applied.Add(Property);
+				}
+			};
+
+			if (UShockActionWait* Wait = Cast<UShockActionWait>(Action))
+			{
+				ApplyFloat(TEXT("Seconds"), [&](float Value) { Wait->Seconds = Value; });
 			}
 			Ok = true;
 		}
