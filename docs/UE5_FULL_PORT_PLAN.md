@@ -631,6 +631,18 @@ bOnlyPlayOnAlivePawns=true from schema; `PlayOnActor` records intent. Live
 `UShockActionDestroyActor`: `DestroyTarget` calls `Destroy()` on a passed actor. Label foreach /
 NotifyKilled open. Live `run_action_destroy.py`. Next census: `ActionAttackTarget`.
 
+### Phase 4 ActionAttackTarget first slice — done, 26 Aug 2026
+
+`UShockActionAttackTarget` (ShockAI.U): AILabel / TargetLabel / bAttackOnSight;
+`RequestAttack` records the order. Live `run_action_attack.py`, `Success - 0 error(s)`.
+No ScriptedAttackTarget / label foreach. Next: `ActionGiveItemsToPlayer`.
+
+### Phase 4 ActionGiveItemsToPlayer first slice — done, 26 Aug 2026
+
+`UShockActionShockInventory` + `UShockActionGiveItemsToPlayer`: ItemClass / StackSize (default 1);
+`RequestGive` records the grant. Live `run_action_give_items.py`, `Success - 0 error(s)`.
+No inventory / ItemStack. Next: `ActionChangeCollision`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

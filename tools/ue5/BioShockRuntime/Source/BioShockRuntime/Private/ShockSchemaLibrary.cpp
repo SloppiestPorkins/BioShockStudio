@@ -1,8 +1,10 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionAttackTarget.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
+#include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayAnimation.h"
@@ -10,6 +12,7 @@
 #include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionShockInventory.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionVariableAssign.h"
@@ -444,6 +447,41 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Destroy->TargetLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("Target"));
+				}
+			}
+			if (UShockActionAttackTarget* Attack = Cast<UShockActionAttackTarget>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attack->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attack->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bAttackOnSight"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attack->bAttackOnSight = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bAttackOnSight"));
+				}
+			}
+			if (UShockActionShockInventory* Inv = Cast<UShockActionShockInventory>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ItemClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Inv->ItemClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("ItemClass"));
+				}
+				int32 Stack = 0;
+				if (Lookup(Classes, ClassName, TEXT("StackSize"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Stack, *Text);
+					Inv->StackSize = Stack;
+					Applied.Add(TEXT("StackSize"));
 				}
 			}
 			Ok = true;

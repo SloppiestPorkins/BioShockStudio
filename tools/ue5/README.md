@@ -399,6 +399,33 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
     -script=tools\ue5\run_action_destroy.py -unattended -nopause -nosplash
 ```
 
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
+
+## ActionAttackTarget (Phase 4 census #15)
+
+ShockAI.U: AILabel / TargetLabel / bAttackOnSight. `RequestAttack` records the order; no
+`ScriptedAttackTarget` / combat yet.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_attack.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
+
+## ActionGiveItemsToPlayer (Phase 4 census #16)
+
+ShockGame.U via `ActionShockInventory`: ItemClass + StackSize (default **1**). `RequestGive`
+records the grant; no `AddStackToInventory` yet.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_give_items.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** StackSize=1 from schema; grant
+PistolAmmo×12 recorded.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline
