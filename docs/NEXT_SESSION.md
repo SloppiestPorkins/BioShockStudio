@@ -35,11 +35,11 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionIf first slice, landed 26 Aug 2026: OR of TruthStatement,
-true/else branch choice. Nested Execute on a script graph still open.
+Continue after ActionPlayEffect first slice, landed 26 Aug 2026: EffectEvent
+ScriptTrigger from schema; FireOnActor records trigger (no FX).
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionPlayEffect (census #4), OR deepen SetPropertyText, OR
-wire ActionWait/If into a minimal script runner. Pick one. Do not invent
+Next startable: ActionNonBlockingExecuteScript (census #5), OR a minimal
+script runner wiring Wait/If/SetProperty/PlayEffect. Pick one. Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.

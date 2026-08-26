@@ -257,6 +257,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** empty→else; True→true;
 False→else; False OR True→true.
 
+## ActionPlayEffect (Phase 4 census #4)
+
+`TriggerEffectEvent(EffectEvent,,,,,,,, EffectTag)` on actors labeled `ActorLabel`. Default
+EffectEvent is **ScriptTrigger**. `UShockActionPlayEffect` holds params and records the intended
+fire; the effect configurator / FX spawn is not ported.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_play_effect.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema EffectEvent ScriptTrigger;
+FireOnActor records event+tag.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

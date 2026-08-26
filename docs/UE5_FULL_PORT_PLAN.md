@@ -562,6 +562,12 @@ Not a full `SetPropertyText` port; no actor-label lookup loop yet.
 `run_action_if.py`, `Success - 0 error(s)`. Does not yet run nested actions on a script VM. Next
 census item: `ActionPlayEffect`.
 
+### Phase 4 ActionPlayEffect first slice — done, 26 Aug 2026
+
+`UShockActionPlayEffect`: EffectEvent default ScriptTrigger from schema; `FireOnActor` records the
+TriggerEffectEvent call. Live `run_action_play_effect.py`, `Success - 0 error(s)`. No FX
+configurator yet. Next census: `ActionNonBlockingExecuteScript`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

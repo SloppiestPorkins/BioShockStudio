@@ -1,6 +1,7 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionPlayEffect.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
@@ -277,6 +278,25 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					SetProp->NewValue = Unquote(Text);
 					Applied.Add(TEXT("NewValue"));
+				}
+			}
+			if (UShockActionPlayEffect* Play = Cast<UShockActionPlayEffect>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EffectEvent"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Play->EffectEvent = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectEvent"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EffectTag"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Play->EffectTag = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectTag"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Play->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
 				}
 			}
 			Ok = true;
