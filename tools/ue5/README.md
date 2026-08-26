@@ -168,6 +168,30 @@ The run leaves a small `_Scratch.umap` beside the level. That is the mechanism, 
 editor has to actually leave the slice level before loading it, or the "reload" would hand back the
 same in-memory actors the run just spawned. Leaving is asserted too.
 
+## Runtime skeleton (Phase 3)
+
+`BioShockRuntime/` is a **runtime** plugin (not editor-only). Copy it into the UE project's
+`Plugins/` folder and enable `BioShockRuntime` in the `.uproject`, same deploy as ImportTools.
+
+It is the class tree, not the behaviour: `AShockPawn` / `AShockPlayer` / `ABaseShockAI` /
+`AShockWeapon` / `UShockAction` / `AShockGameMode`. `UShockSchemaLibrary.apply_class_defaults`
+reads Phase 2.1 schema JSON and applies floats that class actually ships. Standing
+`CollisionHeight` is **not** applied — it is not in `ShockGame.U`.
+
+```bash
+dotnet run --project tools/uelib-bridge -- --schema <out.json> ShockGame.U
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_runtime_skeleton.py -unattended -nopause -nosplash
+```
+
+Do not commit the schema JSON (game-derived).
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** `ShockPlayer` spawned; schema apply reported
+CollisionRadius, GroundSpeed, JumpZ, BaseEyeHeight, CrouchHeight, Health, MaxHealth.
+Read back off the actor: radius **34**, walk **450**, jump **525**, eye **60**, health **200** — matching
+`ShockGame.U` independently. Capsule half-height left at UE's **88** (`CollisionHeight` UNKNOWN).
+The canary is walk speed: UE's Character default is 600, so a no-op apply cannot pass.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

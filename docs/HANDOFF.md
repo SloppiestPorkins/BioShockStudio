@@ -27,7 +27,7 @@ means no row is currently claimed, not that no one is working — always check t
 | Claude (prior session) | Gate 4 item 4 movers/doors/weapon/plasmid effects — **landed through** `ResolveEffectProperty` + DoorSwitch reactions. Row kept for history; no longer owning the track. | (released) | 23–25 Aug 2026 |
 | Claude (third session) | **TASK-000 / TASK-009 closeout** — the four bucket-sum tests, the last un-filtered one, and the stale verification stamp | `tests/BioShockStudio.Tests/InteractionActorSchemaTests.cs`; `docs/ROADMAP.md` "Test health" **only** (the ROADMAP touch was cleared with the user first, since the row above claims that file for Gate 4 audio edits at a different part of it) | 23 Aug 2026 |
 | Composer (this session) | **Gate 5 Phase 1** — sequences/switch candidates on the level manifest **landed**. Cubemap live look taken over by the Cursor row below. | (released) | 25 Aug 2026 |
-| Cursor (this session) | **Rig importer skip-on-exists — landed 26 Aug 2026.** Fingerprint of the export on disk; skip refused a broken stamp and a deleted animation (TommyGun, 37s then 0.16s reuse). Next is Phase 3 (playable slice) — not started. No Task/backup-agent. | `tools/ue5/import_bioshock.py`, `tools/ue5/{verify,run}_import_skip.py` | 26 Aug 2026 |
+| Cursor (this session) | **Phase 3 runtime skeleton, first slice — landed 26 Aug 2026.** Plugin classes load in UE5.7; ShockPlayer walk 450 / jump 525 / health 200 from schema. CollisionHeight UNKNOWN. Not possessed, no actions. | `tools/ue5/BioShockRuntime/`, `tools/ue5/{verify,run}_runtime_skeleton.py` | 26 Aug 2026 |
 
 > **Collision, 23 Aug 2026 — for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,

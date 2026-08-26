@@ -35,14 +35,13 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after rig-importer skip-on-exists, landed 26 Aug 2026:
-fingerprint + inventory; TommyGun skip test 37s then 0.16s reuse; stamp break and
-deleted animation both refused skip (Success 0 errors). Do not re-run the slice
-or the skip test to re-confirm those numbers. Unstamped pre-change rigs still
-pay once, then stamp.
-Next startable: the playable half of Phase 0 = plan Phase 3, a UE5 C++ runtime
-skeleton. Large; scope it first. Do not invent cubemap face order, level material
-graphs, panner units, switch-selection, light falloff. KeyPos/KeyRot stay deferred.
+Continue after Phase 3 runtime skeleton FIRST SLICE, landed 26 Aug 2026:
+BioShockRuntime plugin; ShockPlayer numbers from ShockGame.U schema (radius 34,
+walk 450, jump 525, health 200). CollisionHeight UNKNOWN. Not possessed, no
+Action* yet. Do not re-run skip or slice to re-confirm those numbers.
+Next startable: possess AShockPlayer in the saved Medical umap, OR ActionWait
+(Phase 4 head of the census). Pick one. Do not invent cubemap face order,
+material graphs, panner units, switch-selection, CollisionHeight.
 Fast 264/264 (measured 25 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```

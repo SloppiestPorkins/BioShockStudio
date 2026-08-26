@@ -231,7 +231,8 @@ In order, smallest first:
 2. **The action-usage census** (Phase 2.2). Cheap, and it turns "port the AI" into an ordered list.
 3. **Level geometry as real meshes** (Phase 1.1). The biggest visible gap in what already imports.
 4. **Then the vertical slice**, using the three above. **Asset half done, 26 Aug 2026** (§9); the
-   playable half waits on Phase 3.
+   playable half has a **class skeleton** (Phase 3 first slice, same day) but is not possessed and
+   has no actions.
 
 Items 1 and 2 are the ones to start with: small, pure data, and they convert the open-ended part of
 this project into something countable.
@@ -515,6 +516,23 @@ First import 37s / 0 reused; second **0.16s / 2 reused**; breaking the stamp on 
 that rig only (1 reused, 26s); deleting `EmptyFidgetTommygun` did the same and the animation was
 restored. Unstamped assets from before this change still pay once, then stamp. `BIOSHOCK_FORCE_IMPORT=1`
 turns skip off.
+
+### Phase 3 runtime skeleton, first slice — done, 26 Aug 2026
+
+The class tree now exists as a **runtime** plugin (`tools/ue5/BioShockRuntime`), compiled and loaded
+in UE5.7: `AShockPawn`, `AShockPlayer`, `ABaseShockAI` (the UnrealScript name; the plan's "ShockAI"
+is this class), `AShockWeapon` (`Weapon` in script), `UShockAction` (parameter block, no Execute),
+`AShockGameMode` (default pawn is `AShockPlayer`).
+
+Numbers come from Phase 2.1 schema JSON, not from this header file. Live verify
+(`run_runtime_skeleton.py`, `Success - 0 error(s)`): `ShockPlayer` radius **34**, `GroundSpeed`
+**450**, `JumpZ` **525**, `BaseEyeHeight` **60**, `Health`/`MaxHealth` **200**, matching
+`ShockGame.U`. Capsule half-height left at UE's 88 — standing `CollisionHeight` is not in that
+package (`VPawn` is Engine.U). Walk speed is the canary: UE's Character default is 600.
+
+**What this is not.** Not possessed in the Medical umap, not a weapon that fires, not a single
+`Action*` implemented. Phase 4 starts at `ActionWait`. The plugin is built with `RunUAT BuildPlugin`
+and its Binaries live in the UE project, not this repo.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 
