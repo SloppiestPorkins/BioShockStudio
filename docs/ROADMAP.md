@@ -1366,8 +1366,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    ChangePawnPhysics, SetPawnInvincibility, SetAINormalLODOverrideTime. **Batch10 —
    done**: SpawnReactiveActor, ActivateResurrectionStation, LockDoor,
    ShowTrainingMessage. **Batch11 — done**: CompleteQuest, RemoveGoal,
-   ToggleAIAttacking, SetActorLabel. Next: FadeVolumeOverride / InitiateDamage /
-   TriggerHavokForceActor.
+   ToggleAIAttacking, SetActorLabel. **Batch12 — done**: FadeVolumeOverride,
+   InitiateDamage, TriggerHavokForceActor, ChangeQuestArrowActor. Next:
+   EnableOrDisableLevelSaving / RetractFact / SetAIVulnerability.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

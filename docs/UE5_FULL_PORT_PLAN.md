@@ -716,6 +716,11 @@ Live `run_action_batch11.py`, `Success - 0 error(s)`. Quests / goals / attack
 toggle still open; SetActorLabel applies editor SetActorLabel. Next: keep walking
 the census head.
 
+### Phase 4 census batch12 (FadeVolume / InitiateDamage / HavokForce / QuestArrow) — done, 26 Aug 2026
+
+Live `run_action_batch12.py`, `Success - 0 error(s)`. Audio fade / damage /
+Havok force / quest arrow still open. Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

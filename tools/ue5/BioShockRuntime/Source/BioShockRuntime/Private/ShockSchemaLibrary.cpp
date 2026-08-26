@@ -9,6 +9,7 @@
 #include "ShockActionChangeCollision.h"
 #include "ShockActionChangePawnPhysics.h"
 #include "ShockActionChangePressure.h"
+#include "ShockActionChangeQuestArrowActor.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionCloseDoor.h"
@@ -20,9 +21,11 @@
 #include "ShockActionDisplayOnScreenDebugMessage.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
+#include "ShockActionFadeVolumeOverride.h"
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
+#include "ShockActionInitiateDamage.h"
 #include "ShockActionInitiateQuest.h"
 #include "ShockActionLockDoor.h"
 #include "ShockActionLog.h"
@@ -57,6 +60,7 @@
 #include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
+#include "ShockActionTriggerHavokForceActor.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
 #include "ShockActionUnlockDoor.h"
@@ -1353,6 +1357,79 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Relabel->NewLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("NewLabel"));
+				}
+			}
+			if (UShockActionFadeVolumeOverride* FadeVol = Cast<UShockActionFadeVolumeOverride>(Action))
+			{
+				FString Text;
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("Volume"), Text) && ParseFloat(Text, V))
+				{
+					FadeVol->Volume = V;
+					Applied.Add(TEXT("Volume"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Duration"), Text) && ParseFloat(Text, V))
+				{
+					FadeVol->Duration = V;
+					Applied.Add(TEXT("Duration"));
+				}
+			}
+			if (UShockActionInitiateDamage* InitDmg = Cast<UShockActionInitiateDamage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DamagerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					InitDmg->DamagerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DamagerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SourceLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					InitDmg->SourceLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SourceLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					InitDmg->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("DamageClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					InitDmg->DamageClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("DamageClass"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("OverrideInitialVelocity"), Text) && ParseFloat(Text, V))
+				{
+					InitDmg->OverrideInitialVelocity = V;
+					Applied.Add(TEXT("OverrideInitialVelocity"));
+				}
+			}
+			if (UShockActionTriggerHavokForceActor* Force = Cast<UShockActionTriggerHavokForceActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Force->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+			}
+			if (UShockActionChangeQuestArrowActor* Arrow = Cast<UShockActionChangeQuestArrowActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Arrow->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ArrowActor"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Arrow->ArrowActor = FName(*Unquote(Text));
+					Applied.Add(TEXT("ArrowActor"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ArrowActorLevelLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Arrow->ArrowActorLevelLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ArrowActorLevelLabel"));
 				}
 			}
 			Ok = true;
