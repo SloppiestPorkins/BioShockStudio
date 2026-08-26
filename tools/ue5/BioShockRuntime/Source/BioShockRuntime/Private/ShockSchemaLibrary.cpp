@@ -11,12 +11,15 @@
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionLog.h"
+#include "ShockActionMuteAI.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
+#include "ShockActionPostMovementGoal.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
@@ -659,6 +662,67 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Unlock->DoorLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("DoorLabel"));
+				}
+			}
+			if (UShockActionMuteAI* Mute = Cast<UShockActionMuteAI>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Mute->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldMuteAI"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Mute->bShouldMuteAI = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldMuteAI"));
+				}
+			}
+			if (UShockActionSetTipPriority* Tip = Cast<UShockActionSetTipPriority>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TipName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Tip->TipName = FName(*Unquote(Text));
+					Applied.Add(TEXT("TipName"));
+				}
+				int32 Prio = 0;
+				if (Lookup(Classes, ClassName, TEXT("Priority"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Prio, *Text);
+					Tip->Priority = Prio;
+					Applied.Add(TEXT("Priority"));
+				}
+			}
+			if (UShockActionPostMovementGoal* Move = Cast<UShockActionPostMovementGoal>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Move->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("DestinationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Move->DestinationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DestinationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("goalName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Move->GoalName = Unquote(Text);
+					Applied.Add(TEXT("goalName"));
+				}
+				int32 Prio = 0;
+				if (Lookup(Classes, ClassName, TEXT("Priority"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Prio, *Text);
+					Move->Priority = Prio;
+					Applied.Add(TEXT("Priority"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldRun"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Move->bShouldRun = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldRun"));
 				}
 			}
 			Ok = true;

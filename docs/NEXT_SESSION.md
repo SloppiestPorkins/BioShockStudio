@@ -35,11 +35,12 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after census batch landed 26 Aug 2026: BlockingExecuteScript,
-VariableIncrement, Log, ExitScript, FreezeHavokActor, UnlockDoor (one UAT
-build + run_action_batch_census.py). Prefer batching cheap actions.
-Do not re-run prior UE verifies. Next: ActionPostMovementGoal (230).
-No Task/backup-agent. Branch feature/fbx-materials-gui. Commit logical slices.
+Continue Phase 4 census in batches (one UAT + one headless verify per batch).
+Landed through batch2: MuteAI, SetTipPriority, PostMovementGoal.
+Do not re-run prior verifies. Prefer batching. No Task/backup-agent.
+Branch feature/fbx-materials-gui. Standing: auto-approve UE BuildPlugin /
+UnrealEditor-Cmd for BioShockUE5 when possible — user asked not to stop for
+permission prompts.
 ```
 
 **What wastes time here**
