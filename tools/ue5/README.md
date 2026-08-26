@@ -195,6 +195,23 @@ standing capsule half-height **68** — matching `ShockGame.U` plus `VPawn` in `
 Walk speed is the canary that apply cannot fake (UE Character default 600); half-height is the
 other (UE default 88). Engine.U `Pawn`'s CollisionHeight is 78 and is **not** the player value.
 
+## Possess setup on the Medical slice (Phase 0 playable half)
+
+`run_possess.py` loads the saved `/Game/BioShockSlice/1-Medical` umap (does **not** re-import),
+sets WorldSettings `DefaultGameMode` to `ShockGameMode`, places a real `PlayerStart` at the
+exported MedicalStart (`PlayerStart0`, label MedicalStart), pilots a schema-applied
+`AShockPlayer`, then save → scratch → reload.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_possess.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Reloaded DefaultGameMode is
+`ShockGameMode`; tagged PlayerStart still at MedicalStart; piloted pawn radius **34**, half-height
+**68**, walk **450**. Editor `PlayerController.Possess` access-violates under `-unattended` — not
+claimed. Python does not run inside PIE, so pressing Play is still a human check.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

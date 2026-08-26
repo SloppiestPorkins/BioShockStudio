@@ -231,8 +231,8 @@ In order, smallest first:
 2. **The action-usage census** (Phase 2.2). Cheap, and it turns "port the AI" into an ordered list.
 3. **Level geometry as real meshes** (Phase 1.1). The biggest visible gap in what already imports.
 4. **Then the vertical slice**, using the three above. **Asset half done, 26 Aug 2026** (§9); the
-   playable half has a **class skeleton** (Phase 3 first slice, same day) but is not possessed and
-   has no actions.
+   playable half has a **class skeleton** plus Medical **GameMode/PlayerStart/editor-pilot**
+   (same day). PIE possess not claimed; no `Action*` yet.
 
 Items 1 and 2 are the ones to start with: small, pure data, and they convert the open-ended part of
 this project into something countable.
@@ -532,9 +532,16 @@ Numbers come from Phase 2.1 schema JSON, not from this header file. Live verify
 same-package walk cannot see. Live UE5.7 re-verify the same day: capsule half-height **68**,
 `Success - 0 error(s)`. Walk speed is the canary: UE's Character default is 600.
 
-**What this is not.** Not possessed in the Medical umap, not a weapon that fires, not a single
-`Action*` implemented. Phase 4 starts at `ActionWait`. The plugin is built with `RunUAT BuildPlugin`
-and its Binaries live in the UE project, not this repo.
+**What this is not.** Not a weapon that fires, not a single `Action*` implemented. Phase 4 starts
+at `ActionWait`. The plugin is built with `RunUAT BuildPlugin` and its Binaries live in the UE
+project, not this repo.
+
+### Phase 0 Medical possess setup — done, 26 Aug 2026
+
+Saved `1-Medical.umap` now carries `ShockGameMode` and a `PlayerStart` at MedicalStart
+(`run_possess.py`, `Success - 0 error(s)`). Schema-applied `ShockPlayer` piloted in the editor
+world (radius 34, half-height 68, walk 450). Editor `PlayerController.Possess` AVs headless —
+not claimed; PIE possess is still a human Play check. Not Action*, not firing.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

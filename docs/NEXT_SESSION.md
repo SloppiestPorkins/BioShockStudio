@@ -35,13 +35,12 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after CollisionHeight decode, landed 26 Aug 2026: ShockPlayer standing
-height is 68, declared on VPawn in VengeanceShared.U (Engine.U Pawn's 78 is not
-the player value). ClassDefaults walks script-package imports. Not possessed,
-no Action* yet. Do not re-run skip, slice, or CollisionHeight to re-confirm.
-Next startable: possess AShockPlayer in the saved Medical umap, OR ActionWait
-(Phase 4 head of the census). Pick one. Do not invent cubemap face order,
-material graphs, panner units, switch-selection.
+Continue after Medical possess setup, landed 26 Aug 2026: ShockGameMode +
+MedicalStart PlayerStart on saved 1-Medical.umap; editor pilot of ShockPlayer
+with schema (34/68/450). PIE possess not claimed (PC.Possess AVs headless).
+Do not re-run skip, slice, CollisionHeight, or possess to re-confirm.
+Next startable: ActionWait (Phase 4 head of the census). Do not invent cubemap
+face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
