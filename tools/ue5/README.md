@@ -243,6 +243,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Label write round-trips; unknown
 property names return false.
 
+## ActionIf (Phase 4 census #3)
+
+Native Scripting.U if: OR over `testsOr` (`ActionBool`), then `trueActions` vs `elseActions`.
+`UShockActionIf` chooses the branch; `UShockTruthStatement` evaluates `Value` via `FCString::ToBool`.
+Nested latent Execute on a script graph is still open.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_if.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** empty→else; True→true;
+False→else; False OR True→true.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

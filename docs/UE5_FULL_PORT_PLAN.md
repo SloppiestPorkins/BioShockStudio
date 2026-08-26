@@ -554,7 +554,13 @@ item is `ActionSetProperty`.
 
 `UShockActionSetProperty`: Object/Property/NewValue params; `ApplyToActor` writes **Label** only
 (editor). Unknown properties refused. Live `run_action_set_property.py`, `Success - 0 error(s)`.
-Not a full `SetPropertyText` port; no actor-label lookup loop yet. Next census item: `ActionIf`.
+Not a full `SetPropertyText` port; no actor-label lookup loop yet.
+
+### Phase 4 ActionIf first slice — done, 26 Aug 2026
+
+`UShockActionIf` + `UShockTruthStatement`: OR of bool tests, choose true/else branch. Live
+`run_action_if.py`, `Success - 0 error(s)`. Does not yet run nested actions on a script VM. Next
+census item: `ActionPlayEffect`.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

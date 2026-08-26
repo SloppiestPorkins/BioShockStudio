@@ -35,12 +35,12 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionSetProperty first slice, landed 26 Aug 2026: Label write
-via ApplyToActor; full SetPropertyText and actor-label foreach still open.
+Continue after ActionIf first slice, landed 26 Aug 2026: OR of TruthStatement,
+true/else branch choice. Nested Execute on a script graph still open.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionIf (census #3), OR deepen SetPropertyText, OR wire
-ActionWait into a minimal script runner. Pick one. Do not invent cubemap face
-order, material graphs, panner units, switch-selection.
+Next startable: ActionPlayEffect (census #4), OR deepen SetPropertyText, OR
+wire ActionWait/If into a minimal script runner. Pick one. Do not invent
+cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
