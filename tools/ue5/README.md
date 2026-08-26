@@ -326,6 +326,19 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Value becomes `2` after overwrite.
 
+## ActionHideOrShowActor (Phase 4 census #9)
+
+`ActorLabel` + `HideActor` (default true). `ApplyToActor` calls `SetActorHiddenInGame` and, in
+editor, temporary editor hide. Label `allActorLabel` foreach is not wired.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_hide_show.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema HideActor=true; hide then
+show toggles actor hidden state.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

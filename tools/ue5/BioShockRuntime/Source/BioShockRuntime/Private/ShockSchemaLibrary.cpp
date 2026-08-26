@@ -2,6 +2,7 @@
 
 #include "ShockAction.h"
 #include "ShockActionExecuteScript.h"
+#include "ShockActionHideOrShowActor.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionSetLightProperties.h"
@@ -338,6 +339,20 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Assign->Rhs = Unquote(Text);
 					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockActionHideOrShowActor* Hide = Cast<UShockActionHideOrShowActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hide->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("HideActor"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hide->bHideActor = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("HideActor"));
 				}
 			}
 			Ok = true;

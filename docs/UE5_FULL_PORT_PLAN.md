@@ -596,6 +596,12 @@ Next census: `ActionVariableAssign`.
 `UShockVariableScope`. Live `run_action_var_assign.py`, `Success - 0 error(s)`. Next census:
 `ActionHideOrShowActor`.
 
+### Phase 4 ActionHideOrShowActor first slice — done, 26 Aug 2026
+
+`UShockActionHideOrShowActor`: ActorLabel + HideActor (schema default true);
+`ApplyToActor` → `SetActorHiddenInGame` (+ editor temp hide). Live `run_action_hide_show.py`,
+`Success - 0 error(s)`. Label foreach still open. Next census: `ActionSpawnAI`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

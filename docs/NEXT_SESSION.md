@@ -35,10 +35,11 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionVariableAssign first slice, landed 26 Aug 2026: overwrite
-scope assign. ActionHideOrShowActor in progress or next (census #9, 541 refs).
+Continue after ActionHideOrShowActor first slice, landed 26 Aug 2026:
+SetActorHiddenInGame; label foreach open.
 Do not re-run prior UE verifies to re-confirm.
-Do not invent cubemap face order, material graphs, panner units, switch-selection.
+Next startable: ActionSpawnAI (census #10, 521 refs). Do not invent
+cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```
