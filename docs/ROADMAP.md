@@ -1346,7 +1346,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    slice — done**: overwrite twin. **ActionHideOrShowActor first slice — done**: SetHidden
    stand-in; label foreach open. **ActionSpawnAI first slice — done**: RequestSpawn record;
    no SpawningManager. **ActionStopEffect first slice — done**: UnTrigger record fire. Next:
-   ActionPlayAnimation.
+   ActionPlayAnimation. **ActionPlayAnimation first slice — done**: play-request record
+   (ShockGame.U); no mesh playback. Next: ActionScriptNote.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

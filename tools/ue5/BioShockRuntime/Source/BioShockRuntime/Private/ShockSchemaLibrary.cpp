@@ -1,10 +1,13 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionNonBlockingExecuteScript.h"
+#include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
+#include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSpawnAI.h"
@@ -398,6 +401,49 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Spawn->bForceSpawn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bForceSpawn"));
+				}
+			}
+			if (UShockActionPlayAnimation* Anim = Cast<UShockActionPlayAnimation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Anim->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Animation"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Anim->Animation = FName(*Unquote(Text));
+					Applied.Add(TEXT("Animation"));
+				}
+				float Rate = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("AnimationRate"), Text) && ParseFloat(Text, Rate))
+				{
+					Anim->AnimationRate = Rate;
+					Applied.Add(TEXT("AnimationRate"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bOnlyPlayOnAlivePawns"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Anim->bOnlyPlayOnAlivePawns = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bOnlyPlayOnAlivePawns"));
+				}
+			}
+			if (UShockActionScriptNote* Note = Cast<UShockActionScriptNote>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Note"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Note->Note = Unquote(Text);
+					Applied.Add(TEXT("Note"));
+				}
+			}
+			if (UShockActionDestroyActor* Destroy = Cast<UShockActionDestroyActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Destroy->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
 				}
 			}
 			Ok = true;

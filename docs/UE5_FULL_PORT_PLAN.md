@@ -614,6 +614,13 @@ Schema applies `bCorpseCanBeRemoved=true`. Live `run_action_spawn_ai.py`,
 intent. Live `run_action_stop_effect.py`, `Success - 0 error(s)`. No FX tear-down. Next census:
 `ActionPlayAnimation`.
 
+### Phase 4 ActionPlayAnimation first slice — done, 26 Aug 2026
+
+`UShockActionPlayAnimation` (ShockGame.U): TargetLabel / Animation / AnimationRate=1 /
+bOnlyPlayOnAlivePawns=true from schema; `PlayOnActor` records intent. Live
+`run_action_play_anim.py`, `Success - 0 error(s)`. No mesh channel playback / wait. Next:
+`ActionScriptNote`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

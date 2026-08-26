@@ -35,10 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionStopEffect first slice, landed 26 Aug 2026: UnTrigger
-record; no FX tear-down. Top-10 census first slices are done through #11.
+Continue after ActionPlayAnimation first slice, landed 26 Aug 2026: ShockGame.U
+params + PlayOnActor record; no mesh playback.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionPlayAnimation (census #12, 469 refs). Do not invent
+Next: ActionScriptNote (455) then ActionDestroyActor (373). Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 Portable ImHex: C:\Users\Jack\Tools\ImHex\imhex.exe. Blender 5.1 on user PATH.

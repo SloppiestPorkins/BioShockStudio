@@ -367,6 +367,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Schema EffectEvent ScriptTrigger;
 StopOnActor records event+tag.
 
+## ActionPlayAnimation (Phase 4 census #12)
+
+ShockGame.U: play DT_Mesh animation via `PlayAnimationOnChannel`. Schema defaults TargetLabel
+UNSPECIFIED, AnimationRate **1**, bOnlyPlayOnAlivePawns **true**. This slice records
+`PlayOnActor`; no skeletal/mesh playback yet. Schema:
+`BioShockUE5/Exports/slice/ShockGame.schema.json` (not committed).
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_play_anim.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Rate=1; alive-only; Idle recorded.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline
