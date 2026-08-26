@@ -228,6 +228,21 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 `PrepareWait(10)` → wake **11**; `IsReady` false before / true at-or-after. No latent Sleep on a
 script graph yet.
 
+## ActionSetProperty (Phase 4 census #2)
+
+Native Scripting.U action: find actors by label (`Object`), `SetPropertyText(Property, NewValue)`.
+`UShockActionSetProperty` holds the three params; `ApplyToActor` only implements **Label**
+(editor `SetActorLabel`). Other properties refused rather than guessed. `bHidden` special-case
+and full `SetPropertyText` are still open.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_set_property.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Label write round-trips; unknown
+property names return false.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

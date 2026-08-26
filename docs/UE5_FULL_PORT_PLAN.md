@@ -550,6 +550,12 @@ decompiled `latentExecute` (`TimeSeconds + Seconds`). Live verify `run_action_wa
 `Success - 0 error(s)`. Not wired into a script graph; no `Sleep` on a ticking world. Next census
 item is `ActionSetProperty`.
 
+### Phase 4 ActionSetProperty first slice — done, 26 Aug 2026
+
+`UShockActionSetProperty`: Object/Property/NewValue params; `ApplyToActor` writes **Label** only
+(editor). Unknown properties refused. Live `run_action_set_property.py`, `Success - 0 error(s)`.
+Not a full `SetPropertyText` port; no actor-label lookup loop yet. Next census item: `ActionIf`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

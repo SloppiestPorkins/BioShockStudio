@@ -1,6 +1,7 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionSetProperty.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
@@ -31,6 +32,16 @@ namespace
 		}
 		Out = FCString::Atof(*Text);
 		return FMath::IsFinite(Out);
+	}
+
+	FString Unquote(const FString& Text)
+	{
+		FString Out = Text.TrimStartAndEnd();
+		if (Out.Len() >= 2 && Out.StartsWith(TEXT("\"")) && Out.EndsWith(TEXT("\"")))
+		{
+			Out = Out.Mid(1, Out.Len() - 2);
+		}
+		return Out;
 	}
 
 	bool LoadSchema(const FString& Path, TMap<FString, FSchemaClass>& Out, FString& Error)
@@ -248,6 +259,25 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 			if (UShockActionWait* Wait = Cast<UShockActionWait>(Action))
 			{
 				ApplyFloat(TEXT("Seconds"), [&](float Value) { Wait->Seconds = Value; });
+			}
+			if (UShockActionSetProperty* SetProp = Cast<UShockActionSetProperty>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Object"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SetProp->ObjectLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Object"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Property"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SetProp->PropertyName = FName(*Unquote(Text));
+					Applied.Add(TEXT("Property"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("NewValue"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SetProp->NewValue = Unquote(Text);
+					Applied.Add(TEXT("NewValue"));
+				}
 			}
 			Ok = true;
 		}
