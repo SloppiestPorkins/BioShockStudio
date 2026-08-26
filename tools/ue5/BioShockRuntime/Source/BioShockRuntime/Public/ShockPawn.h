@@ -4,11 +4,10 @@
 #include "ShockPawn.generated.h"
 
 /**
- * UnrealScript `ShockPawn` (super `VPawn`). Capsule radius, walk speed and jump come from the
- * Phase 2 schema JSON at apply-time — they are not authored in this header.
- *
- * Standing `CollisionHeight` is not in ShockGame.U; it lives on the Engine.U parent we cannot
- * decompile. It is left at the UE5 Character default and reported as UNKNOWN.
+ * UnrealScript `ShockPawn` (super `VPawn`). Capsule radius, walk speed, jump and standing
+ * collision height come from the Phase 2 schema JSON at apply-time — they are not authored in
+ * this header. `CollisionHeight` is VPawn's override in VengeanceShared.U (68), not Engine.U
+ * Pawn's 78.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockPawn : public ACharacter

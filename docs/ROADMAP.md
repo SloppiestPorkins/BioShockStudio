@@ -1331,7 +1331,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    canary 2422.0. Not playable — that needs Phase 3. **Rig skip-on-exists — done the same day**:
    fingerprint of the export, proven to refuse a stale stamp and a missing animation.
    **Phase 3 runtime skeleton, first slice — done, 26 Aug 2026**: plugin classes compile and load;
-   ShockPlayer capsule/walk/jump/health match ShockGame.U schema; CollisionHeight UNKNOWN. Not
+   ShockPlayer capsule/walk/jump/health match ShockGame.U schema. Standing CollisionHeight is
+   **68** (`VPawn` in `VengeanceShared.U`; Engine.U `Pawn`'s 78 is not the player value). Not
    playable — no possession, no actions.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.

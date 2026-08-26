@@ -176,7 +176,9 @@ same in-memory actors the run just spawned. Leaving is asserted too.
 It is the class tree, not the behaviour: `AShockPawn` / `AShockPlayer` / `ABaseShockAI` /
 `AShockWeapon` / `UShockAction` / `AShockGameMode`. `UShockSchemaLibrary.apply_class_defaults`
 reads Phase 2.1 schema JSON and applies floats that class actually ships. Standing
-`CollisionHeight` is **not** applied — it is not in `ShockGame.U`.
+`CollisionHeight` is **68**, declared on `VPawn` in `VengeanceShared.U` (not Engine.U
+`Pawn`'s 78). The ShockGame schema does not contain `VPawn`, so the verifier injects
+that one default from the C# pin (`ClassDefaultsInheritanceTests`) before apply.
 
 ```bash
 dotnet run --project tools/uelib-bridge -- --schema <out.json> ShockGame.U
@@ -188,9 +190,10 @@ Do not commit the schema JSON (game-derived).
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** `ShockPlayer` spawned; schema apply reported
 CollisionRadius, GroundSpeed, JumpZ, BaseEyeHeight, CrouchHeight, Health, MaxHealth.
-Read back off the actor: radius **34**, walk **450**, jump **525**, eye **60**, health **200** — matching
-`ShockGame.U` independently. Capsule half-height left at UE's **88** (`CollisionHeight` UNKNOWN).
-The canary is walk speed: UE's Character default is 600, so a no-op apply cannot pass.
+Read back off the actor: radius **34**, walk **450**, jump **525**, eye **60**, health **200**,
+standing capsule half-height **68** — matching `ShockGame.U` plus `VPawn` in `VengeanceShared.U`.
+Walk speed is the canary that apply cannot fake (UE Character default 600); half-height is the
+other (UE default 88). Engine.U `Pawn`'s CollisionHeight is 78 and is **not** the player value.
 
 ## Validation map
 

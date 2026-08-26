@@ -527,8 +527,10 @@ is this class), `AShockWeapon` (`Weapon` in script), `UShockAction` (parameter b
 Numbers come from Phase 2.1 schema JSON, not from this header file. Live verify
 (`run_runtime_skeleton.py`, `Success - 0 error(s)`): `ShockPlayer` radius **34**, `GroundSpeed`
 **450**, `JumpZ` **525**, `BaseEyeHeight` **60**, `Health`/`MaxHealth` **200**, matching
-`ShockGame.U`. Capsule half-height left at UE's 88 — standing `CollisionHeight` is not in that
-package (`VPawn` is Engine.U). Walk speed is the canary: UE's Character default is 600.
+`ShockGame.U`. Standing `CollisionHeight` is **68**, declared on `VPawn` in
+`VengeanceShared.U` (`ClassDefaultsInheritanceTests`) — not Engine.U `Pawn`'s 78, which the
+same-package walk cannot see. Live UE5.7 re-verify the same day: capsule half-height **68**,
+`Success - 0 error(s)`. Walk speed is the canary: UE's Character default is 600.
 
 **What this is not.** Not possessed in the Medical umap, not a weapon that fires, not a single
 `Action*` implemented. Phase 4 starts at `ActionWait`. The plugin is built with `RunUAT BuildPlugin`

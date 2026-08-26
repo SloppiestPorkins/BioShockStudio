@@ -25,6 +25,32 @@ namespace BioShockStudio.Core.Level;
 /// is strictly longer on every one of them.
 /// </para>
 /// </summary>
+/// <summary>One class-default property, plus the class and package that declared it.</summary>
+public sealed record ClassDefaultHit(UnrealProperty Property, string ClassName, string PackageName);
+
+/// <summary>
+/// The default property list at the end of a <c>Class</c> export.
+/// <para>
+/// This matters because most of a level's props do not name their own mesh. <c>dyn_gurney9</c> is a
+/// placed actor of class <c>dyn_gurney</c>, and it stores a location and nothing about geometry; the
+/// mesh — <c>Gurney</c> — is a default on the class. Without reading class defaults a third of the
+/// world has no mesh at all.
+/// </para>
+/// <para>
+/// CONFIRMED_BYTES that the list is there and decodes; the offset it starts at is found by search,
+/// because a <c>Class</c> payload begins with script bytecode of unknown length. The search is
+/// constrained: the walk must terminate on a clean <c>None</c> exactly at the end of the payload and
+/// must not contain a property of type <c>None</c>, which is what a misaligned walk produces.
+/// </para>
+/// <para>
+/// When several offsets satisfy that constraint, the <b>longest</b> list wins. An earlier mid-stream
+/// start can invent a shorter garbage prefix (often a numbered <c>Text…</c> name) that still lands
+/// on the same terminator — returning the first hit silently drops real leading defaults
+/// (<c>BerserkRageAbility.ProjectileClass</c>, <c>ShockPlayer.SanctuaryModelClass</c>). Across all
+/// 654 <c>Class</c> exports in <c>ShockGame.U</c>, 17 differ between earliest and longest; longest
+/// is strictly longer on every one of them.
+/// </para>
+/// </summary>
 public sealed class ClassDefaults
 {
     private readonly Dictionary<int, IReadOnlyList<UnrealProperty>> _cache = [];
@@ -63,6 +89,98 @@ public sealed class ClassDefaults
             index = classExport.SuperIndex;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Walks the super chain across script packages. An import is opened from
+    /// <paramref name="openScriptPackage"/> rather than treated as unresolvable.
+    /// <c>ShockPlayer.CollisionHeight</c> is the example: it is not in <c>ShockGame.U</c>;
+    /// <c>VPawn</c> in <c>VengeanceShared.U</c> declares it.
+    /// </summary>
+    public ClassDefaultHit? Lookup(
+        PackageIndex classIndex,
+        string propertyName,
+        Func<string, BioShockPackage?> openScriptPackage)
+    {
+        BioShockPackage package = _package;
+        var defaults = this;
+        var index = classIndex;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int depth = 0; depth < 32; depth++)
+        {
+            if (index.IsExport)
+            {
+                var classExport = package.Exports[index.ExportIndex];
+                var property = defaults.For(classExport).FirstOrDefault(p => p.Name == propertyName);
+                if (property is not null)
+                    return new ClassDefaultHit(property, classExport.ObjectName, Path.GetFileName(package.FilePath));
+                index = classExport.SuperIndex;
+                continue;
+            }
+
+            if (!index.IsImport) return null;
+            if (index.ImportIndex < 0 || index.ImportIndex >= package.Imports.Count) return null;
+
+            var import = package.Imports[index.ImportIndex];
+            string? packageName = ImportPackageName(package, import);
+            if (packageName is null || !seen.Add(packageName + ":" + import.ObjectName)) return null;
+
+            var next = openScriptPackage(packageName);
+            if (next is null) return null;
+
+            var nextExport = next.Exports.FirstOrDefault(e =>
+                e.ClassIndex.IsNull && string.Equals(e.ObjectName, import.ObjectName, StringComparison.OrdinalIgnoreCase));
+            if (nextExport is null) return null;
+
+            package = next;
+            defaults = new ClassDefaults(next);
+            index = new PackageIndex(nextExport.Index + 1);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The Unreal package that owns an imported class: walk outers until a <c>Package</c> import.
+    /// </summary>
+    public static string? ImportPackageName(BioShockPackage package, ObjectImport import)
+    {
+        var outer = import.Outer;
+        for (int guard = 0; guard < 8 && outer.IsImport; guard++)
+        {
+            if (outer.ImportIndex < 0 || outer.ImportIndex >= package.Imports.Count) return null;
+            var parent = package.Imports[outer.ImportIndex];
+            if (parent.ClassName.Equals("Package", StringComparison.OrdinalIgnoreCase))
+                return parent.ObjectName;
+            outer = parent.Outer;
+        }
+
+        return null;
+    }
+
+    public static string DescribeImport(BioShockPackage package, ObjectImport import)
+    {
+        var parts = new List<string>
+        {
+            $"{import.ClassPackage}.{import.ClassName} '{import.ObjectName}'"
+        };
+        var outer = import.Outer;
+        for (int guard = 0; guard < 8 && !outer.IsNull; guard++)
+        {
+            if (outer.IsImport && outer.ImportIndex >= 0 && outer.ImportIndex < package.Imports.Count)
+            {
+                var parent = package.Imports[outer.ImportIndex];
+                parts.Add($"outer import {parent.ClassPackage}.{parent.ClassName} '{parent.ObjectName}'");
+                outer = parent.Outer;
+                continue;
+            }
+
+            parts.Add($"outer {package.ResolveName(outer)}");
+            break;
+        }
+
+        return string.Join(" -> ", parts);
     }
 
     private IReadOnlyList<UnrealProperty> Read(ObjectExport classExport)

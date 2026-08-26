@@ -5,6 +5,10 @@ import os
 
 import unreal
 
+# Pinned by ClassDefaultsInheritanceTests against VengeanceShared.U class defaults.
+# Engine.U Pawn ships 78; that is not ShockPlayer's standing height.
+_VP_COLLISION_HEIGHT = 68.0
+
 
 def _log(message):
     unreal.log("[bioshock-runtime] %s" % message)
@@ -34,6 +38,22 @@ def _inherited_float(classes, class_name, prop):
     return None
 
 
+def _merge_vpawn_collision_height(rows):
+    """ShockGame.U schema stops at the VPawn import. Inject the C#-pinned default."""
+    classes = {row["name"]: row for row in rows}
+    if _inherited_float(classes, "ShockPlayer", "CollisionHeight") is not None:
+        return rows, False
+    entry = {"name": "CollisionHeight", "value": str(_VP_COLLISION_HEIGHT)}
+    vpawn = classes.get("VPawn")
+    if vpawn is None:
+        rows = list(rows) + [{"name": "VPawn", "super": "Pawn", "defaults": [entry]}]
+    else:
+        defaults = list(vpawn.get("defaults") or [])
+        defaults.append(entry)
+        vpawn["defaults"] = defaults
+    return rows, True
+
+
 def _require_class(name):
     path = "/Script/BioShockRuntime.%s" % name
     loaded = unreal.load_class(None, path)
@@ -45,10 +65,19 @@ def _require_class(name):
 def main(schema_path, report_path):
     with open(schema_path, encoding="utf-8") as handle:
         rows = json.load(handle)
+    rows, injected = _merge_vpawn_collision_height(rows)
+    apply_schema_path = schema_path
+    if injected:
+        apply_schema_path = os.path.join(
+            os.path.dirname(os.path.abspath(report_path)), "ShockGame.schema.with_vpawn.json")
+        os.makedirs(os.path.dirname(apply_schema_path), exist_ok=True)
+        with open(apply_schema_path, "w", encoding="utf-8") as handle:
+            json.dump(rows, handle)
     classes = {row["name"]: row for row in rows}
 
     report = {
         "schema": schema_path,
+        "applySchema": apply_schema_path,
         "schemaClasses": len(classes),
         "error": None,
     }
@@ -73,7 +102,7 @@ def main(schema_path, report_path):
     if player is None or ai is None or weapon is None:
         raise RuntimeError("spawn failed")
 
-    raw = unreal.ShockSchemaLibrary.apply_class_defaults(player, schema_path, "ShockPlayer")
+    raw = unreal.ShockSchemaLibrary.apply_class_defaults(player, apply_schema_path, "ShockPlayer")
     apply = json.loads(raw) if isinstance(raw, str) else {"ok": False, "error": str(raw), "applied": []}
     report["applyOk"] = bool(apply.get("ok"))
     report["applyError"] = apply.get("error")
@@ -99,13 +128,15 @@ def main(schema_path, report_path):
         "baseEyeHeight": _inherited_float(classes, "ShockPlayer", "BaseEyeHeight"),
         "authoredHealth": _inherited_float(classes, "ShockPlayer", "Health"),
         "authoredMaxHealth": _inherited_float(classes, "ShockPlayer", "MaxHealth"),
+        "capsuleHalfHeight": _inherited_float(classes, "ShockPlayer", "CollisionHeight"),
     }
     report["measured"] = measured
     report["expected"] = expected
     report["collisionHeight"] = {
-        "status": "UNKNOWN",
-        "reason": "standing CollisionHeight is not in ShockGame.U; VPawn lives in Engine.U",
-        "capsuleHalfHeightLeftAt": measured["capsuleHalfHeight"],
+        "status": "CONFIRMED_BYTES",
+        "declaredOn": "VPawn",
+        "package": "VengeanceShared.U",
+        "injectedVPawn": injected,
     }
 
     for key, want in expected.items():
@@ -120,6 +151,8 @@ def main(schema_path, report_path):
     # this is the check that fails, not CollisionRadius (which happens to also be 34).
     if abs(measured["maxWalkSpeed"] - 600.0) < 0.05:
         failures.append("MaxWalkSpeed is still UE's 600 default; schema GroundSpeed was not applied")
+    if abs(measured["capsuleHalfHeight"] - 88.0) < 0.05:
+        failures.append("capsuleHalfHeight is still UE's 88 default; CollisionHeight was not applied")
 
     report["failures"] = failures
     os.makedirs(os.path.dirname(os.path.abspath(report_path)), exist_ok=True)
@@ -127,7 +160,7 @@ def main(schema_path, report_path):
         json.dump(report, handle, indent=2)
     if failures:
         raise RuntimeError("runtime skeleton failed:\n- " + "\n- ".join(failures))
-    _log("PASS: runtime classes spawned; ShockPlayer numbers match ShockGame.U schema")
+    _log("PASS: runtime classes spawned; ShockPlayer numbers match ShockGame.U + VPawn CollisionHeight")
     return report
 
 

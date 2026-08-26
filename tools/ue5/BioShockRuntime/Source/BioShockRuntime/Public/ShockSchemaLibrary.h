@@ -8,8 +8,9 @@ class AActor;
 /**
  * Applies Phase 2.1 class-schema JSON onto a spawned actor.
  *
- * Inheritance is walked inside the JSON (leaf overrides parent). Properties that are not in
- * ShockGame.U — standing CollisionHeight lives on Engine.U's VPawn — are not invented.
+ * Inheritance is walked inside the JSON (leaf overrides parent). Standing CollisionHeight is
+ * declared on VPawn in VengeanceShared.U, so the schema JSON must include that class (or the
+ * inherited float on a ShockGame parent) — it is not invented here.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API UShockSchemaLibrary : public UBlueprintFunctionLibrary

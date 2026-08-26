@@ -161,6 +161,10 @@ FString UShockSchemaLibrary::ApplyClassDefaults(AActor* Actor, const FString& Sc
 				{
 					Character->GetCapsuleComponent()->SetCapsuleRadius(Value, false);
 				});
+				ApplyFloat(TEXT("CollisionHeight"), [&](float Value)
+				{
+					Character->GetCapsuleComponent()->SetCapsuleHalfHeight(Value, false);
+				});
 				ApplyFloat(TEXT("GroundSpeed"), [&](float Value)
 				{
 					Character->GetCharacterMovement()->MaxWalkSpeed = Value;
