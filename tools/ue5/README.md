@@ -475,8 +475,10 @@ EnableOrDisableLevelSaving / RetractFact / SetAIVulnerability / VariableDecremen
 ToggleAIAttachmentVisibility / PlayScriptedHandAnimation /
 CompleteQuestObjective (`run_action_batch14.py`), then SetHUDDisplayState /
 AssassinTeleport / Start+StopScriptedHandAnimationSequence / actionSetQuestHint
-(`run_action_batch15.py`). All `Success - 0 error(s)`. These are parameter +
-request-record slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
+(`run_action_batch15.py`), then SpawnTurret / SpawnSecurityBot /
+ToggleAIWeaponVisibility / UnlockBathysphereDestination (`run_action_batch16.py`).
+All `Success - 0 error(s)`. These are parameter + request-record slices — no script
+VM, FX, combat, door mechanics, or Tyrion goal stack.
 
 ## Validation map
 

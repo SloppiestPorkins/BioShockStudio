@@ -3,6 +3,7 @@
 #include "ShockAction.h"
 #include "ShockActionActivateResurrectionStation.h"
 #include "ShockActionAISpeech.h"
+#include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -49,6 +50,7 @@
 #include "ShockActionSetAINormalLODOverrideTime.h"
 #include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetAIVulnerability.h"
+#include "ShockActionSetHUDDisplayState.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMaterialSwitchIndex.h"
 #include "ShockActionSetMovableSpotlightState.h"
@@ -57,19 +59,26 @@
 #include "ShockActionSetPawnInvincibility.h"
 #include "ShockActionSetPlayerInvincibility.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionSetQuestHint.h"
 #include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
 #include "ShockActionShowTrainingMessage.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionSpawnReactiveActor.h"
+#include "ShockActionSpawnSecurityBot.h"
+#include "ShockActionSpawnTurret.h"
+#include "ShockActionStartScriptedHandAnimationSequence.h"
 #include "ShockActionStopEffect.h"
+#include "ShockActionStopScriptedHandAnimationSequence.h"
 #include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionToggleAIAttachmentVisibility.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
+#include "ShockActionToggleAIWeaponVisibility.h"
 #include "ShockActionTriggerHavokForceActor.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
+#include "ShockActionUnlockBathysphereDestination.h"
 #include "ShockActionUnlockDoor.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
@@ -1586,6 +1595,114 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 					LexFromString(Count, *Text);
 					Obj->NumberOfObjectivesCompleted = Count;
 					Applied.Add(TEXT("NumberOfObjectivesCompleted"));
+				}
+			}
+			if (UShockActionSetHUDDisplayState* Hud = Cast<UShockActionSetHUDDisplayState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EnableHUD"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hud->bEnableHUD = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableHUD"));
+				}
+			}
+			if (UShockActionAssassinTeleport* Assassin = Cast<UShockActionAssassinTeleport>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AssassinLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assassin->AssassinLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AssassinLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TeleportLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assassin->TeleportLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TeleportLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TeleportRotationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assassin->TeleportRotationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TeleportRotationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bUseTeleportOutEffects"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assassin->bUseTeleportOutEffects = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bUseTeleportOutEffects"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bSkipEtherTime"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assassin->bSkipEtherTime = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bSkipEtherTime"));
+				}
+			}
+			if (UShockActionSetQuestHint* Hint = Cast<UShockActionSetQuestHint>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hint->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("HintName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hint->HintName = FName(*Unquote(Text));
+					Applied.Add(TEXT("HintName"));
+				}
+			}
+			if (UShockActionSpawnTurret* Turret = Cast<UShockActionSpawnTurret>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Spawner"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Turret->SpawnerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Spawner"));
+				}
+			}
+			if (UShockActionSpawnSecurityBot* Bot = Cast<UShockActionSpawnSecurityBot>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Spawner"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bot->SpawnerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Spawner"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ImmediatelyGiveBotToPawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bot->bImmediatelyGiveBotToPawn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ImmediatelyGiveBotToPawn"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ReceivingPawnLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bot->ReceivingPawnLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ReceivingPawnLabel"));
+				}
+			}
+			if (UShockActionToggleAIWeaponVisibility* Weapon = Cast<UShockActionToggleAIWeaponVisibility>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Weapon->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShowWeapon"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Weapon->bShowWeapon = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShowWeapon"));
+				}
+			}
+			if (UShockActionUnlockBathysphereDestination* Bath = Cast<UShockActionUnlockBathysphereDestination>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MapName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bath->MapName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MapName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BathysphereSystem"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bath->BathysphereSystem = FName(*Unquote(Text));
+					Applied.Add(TEXT("BathysphereSystem"));
 				}
 			}
 			Ok = true;

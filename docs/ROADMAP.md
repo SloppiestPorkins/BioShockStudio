@@ -1372,8 +1372,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    VariableDecrement. **Batch14 — done**: SetMaterialSwitchIndex,
    ToggleAIAttachmentVisibility, PlayScriptedHandAnimation,
    CompleteQuestObjective. **Batch15 — done**: SetHUDDisplayState, AssassinTeleport,
-   Start/StopScriptedHandAnimationSequence, actionSetQuestHint. Next: SpawnTurret /
-   SpawnSecurityBot / ToggleAIWeaponVisibility.
+   Start/StopScriptedHandAnimationSequence, actionSetQuestHint. **Batch16 — done**:
+   SpawnTurret, SpawnSecurityBot, ToggleAIWeaponVisibility,
+   UnlockBathysphereDestination. Next: StartAIHeadTracking / SetCollisionAvoidance.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
