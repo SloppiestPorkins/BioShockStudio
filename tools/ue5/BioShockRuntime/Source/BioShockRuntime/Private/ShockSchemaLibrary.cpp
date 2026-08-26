@@ -1,9 +1,12 @@
 #include "ShockSchemaLibrary.h"
 
 #include "ShockAction.h"
+#include "ShockActionAISpeech.h"
+#include "ShockActionAssertFact.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
+#include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionControlScriptedSequence.h"
 #include "ShockActionDealDamage.h"
@@ -15,24 +18,29 @@
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionLog.h"
+#include "ShockActionLoop.h"
 #include "ShockActionMuteAI.h"
 #include "ShockActionNonBlockingExecuteScript.h"
+#include "ShockActionOpenDoor.h"
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
+#include "ShockActionSetOrUnsetInputContext.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
+#include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
 #include "ShockActionUnlockDoor.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
+#include "ShockActionWaitForGoal.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
@@ -802,6 +810,138 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Dmg->DamageChance = V;
 					Applied.Add(TEXT("DamageChance"));
+				}
+			}
+			if (UShockActionWaitForGoal* WaitGoal = Cast<UShockActionWaitForGoal>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					WaitGoal->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("goalName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					WaitGoal->GoalName = Unquote(Text);
+					Applied.Add(TEXT("goalName"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TimeOut"), Text) && ParseFloat(Text, V))
+				{
+					WaitGoal->TimeOut = V;
+					Applied.Add(TEXT("TimeOut"));
+				}
+			}
+			if (UShockActionChangeSkinAtIndex* Skin = Cast<UShockActionChangeSkinAtIndex>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Skin->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Material"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Skin->MaterialName = FName(*Unquote(Text));
+					Applied.Add(TEXT("Material"));
+				}
+				int32 Idx = 0;
+				if (Lookup(Classes, ClassName, TEXT("Index"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Idx, *Text);
+					Skin->Index = Idx;
+					Applied.Add(TEXT("Index"));
+				}
+			}
+			if (UShockActionOpenDoor* Open = Cast<UShockActionOpenDoor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Open->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("StayOpen"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Open->bStayOpen = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("StayOpen"));
+				}
+			}
+			if (UShockActionAISpeech* Speech = Cast<UShockActionAISpeech>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Speech->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpeechEventLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Speech->SpeechEventLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpeechEventLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bStopSpeech"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Speech->bStopSpeech = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bStopSpeech"));
+				}
+			}
+			if (UShockActionAssertFact* Fact = Cast<UShockActionAssertFact>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Slot_1"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fact->Slot1 = FName(*Unquote(Text));
+					Applied.Add(TEXT("Slot_1"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_2"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fact->Slot2 = Unquote(Text);
+					Applied.Add(TEXT("Slot_2"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_3"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fact->Slot3 = Unquote(Text);
+					Applied.Add(TEXT("Slot_3"));
+				}
+			}
+			if (UShockActionLoop* Loop = Cast<UShockActionLoop>(Action))
+			{
+				FString Text;
+				int32 Idx = 0;
+				if (Lookup(Classes, ClassName, TEXT("CurrentIndex"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Idx, *Text);
+					Loop->CurrentIndex = Idx;
+					Applied.Add(TEXT("CurrentIndex"));
+				}
+			}
+			if (UShockActionTeleportPawnToLocation* Tele = Cast<UShockActionTeleportPawnToLocation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("PawnLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Tele->PawnLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("PawnLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("MarkerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Tele->MarkerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("MarkerLabel"));
+				}
+			}
+			if (UShockActionSetOrUnsetInputContext* Ctx = Cast<UShockActionSetOrUnsetInputContext>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Context"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Ctx->Context = FName(*Unquote(Text));
+					Applied.Add(TEXT("Context"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Unset"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Ctx->bUnset = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Unset"));
 				}
 			}
 			Ok = true;

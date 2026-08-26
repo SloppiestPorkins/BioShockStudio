@@ -458,8 +458,10 @@ Later census head landed in batches to cut editor launches: BlockingExecuteScrip
 UnlockDoor, then MuteAI / SetTipPriority / PostMovementGoal (`run_action_batch2.py`), then
 CinematicFadeView / DisableOrEnableConcept / ControlScriptedSequence / DealDamage
 (`run_action_batch3.py`), then WaitForGoal / ChangeSkinAtIndex / OpenDoor / AISpeech
-(`run_action_batch4.py`). All `Success - 0 error(s)`. These are parameter + request-record
-slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
+(`run_action_batch4.py`), then AssertFact / Loop / TeleportPawnToLocation /
+SetOrUnsetInputContext (`run_action_batch5.py`). All `Success - 0 error(s)`. These are
+parameter + request-record slices — no script VM, FX, combat, door mechanics, or Tyrion
+goal stack.
 
 ## Validation map
 

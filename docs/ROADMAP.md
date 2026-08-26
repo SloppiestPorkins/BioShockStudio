@@ -1357,7 +1357,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    ActionPostMovementGoal. **Batch2 — done**: MuteAI, SetTipPriority, PostMovementGoal.
    **Batch3 — done**: CinematicFadeView, DisableOrEnableConcept, ControlScriptedSequence,
    DealDamage (request-record slices). **Batch4 — done**: WaitForGoal, ChangeSkinAtIndex,
-   OpenDoor, AISpeech. Next: AssertFact / Loop / TeleportPawnToLocation.
+   OpenDoor, AISpeech. **Batch5 — done**: AssertFact, Loop, TeleportPawnToLocation,
+   SetOrUnsetInputContext. Next: ManipulateSpawnZoneRepopulation / InitiateQuest.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
