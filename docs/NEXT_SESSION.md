@@ -35,11 +35,11 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionChangeCollision first slice, landed 26 Aug 2026:
-CollideActors → SetActorEnableCollision; other flags held. Census through #17.
+Continue after ActionTweakAIVision + ActionTweakAIHearing first slices, landed
+26 Aug 2026: RequestTweak records; no sense wiring. Census through #19.
 Do not re-run prior UE verifies to re-confirm.
-Next: ActionTweakAIVision (302 refs). Do not invent cubemap face order,
-material graphs, panner units, switch-selection.
+Next: ActionBlockingExecuteScript (256 refs) — twin of NonBlocking with block=true.
+Do not invent cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
 ```

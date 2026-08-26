@@ -1351,7 +1351,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    done**: note string; Destroy() stand-in. **ActionAttackTarget first slice — done**:
    attack-order record. **ActionGiveItemsToPlayer first slice — done**: grant record;
    StackSize default 1. **ActionChangeCollision first slice — done**: CollideActors →
-   SetActorEnableCollision. Next: ActionTweakAIVision.
+   SetActorEnableCollision. **ActionTweakAIVision + ActionTweakAIHearing first slices —
+   done**: RequestTweak records. Next: ActionBlockingExecuteScript.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

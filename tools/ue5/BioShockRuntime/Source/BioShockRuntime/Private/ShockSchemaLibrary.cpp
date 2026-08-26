@@ -16,6 +16,8 @@
 #include "ShockActionShockInventory.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
+#include "ShockActionTweakAIHearing.h"
+#include "ShockActionTweakAIVision.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
@@ -543,6 +545,59 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Coll->BlockHavok = Change;
 					Applied.Add(TEXT("blockHavok"));
+				}
+			}
+			if (UShockActionTweakAIVision* Vision = Cast<UShockActionTweakAIVision>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vision->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AIClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					// Class'ShockAI.ShockAI' → ShockAI
+					FString ClassText = Unquote(Text);
+					ClassText.ReplaceInline(TEXT("Class'"), TEXT(""));
+					ClassText.ReplaceInline(TEXT("'"), TEXT(""));
+					if (ClassText.Contains(TEXT(".")))
+					{
+						ClassText = ClassText.RightChop(ClassText.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1);
+					}
+					Vision->AIClass = FName(*ClassText);
+					Applied.Add(TEXT("AIClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bTurnVisionOn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vision->bTurnVisionOn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bTurnVisionOn"));
+				}
+			}
+			if (UShockActionTweakAIHearing* Hearing = Cast<UShockActionTweakAIHearing>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hearing->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AIClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FString ClassText = Unquote(Text);
+					ClassText.ReplaceInline(TEXT("Class'"), TEXT(""));
+					ClassText.ReplaceInline(TEXT("'"), TEXT(""));
+					if (ClassText.Contains(TEXT(".")))
+					{
+						ClassText = ClassText.RightChop(ClassText.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd) + 1);
+					}
+					Hearing->AIClass = FName(*ClassText);
+					Applied.Add(TEXT("AIClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bTurnHearingOn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hearing->bTurnHearingOn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bTurnHearingOn"));
 				}
 			}
 			Ok = true;

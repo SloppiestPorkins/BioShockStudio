@@ -649,6 +649,12 @@ No inventory / ItemStack. Next: `ActionChangeCollision`.
 `CollideActors` → `SetActorEnableCollision`. Live `run_action_change_collision.py`,
 `Success - 0 error(s)`. Other flags held; label foreach open. Next: `ActionTweakAIVision`.
 
+### Phase 4 ActionTweakAIVision / ActionTweakAIHearing first slices — done, 26 Aug 2026
+
+`UShockActionTweakAIVision` / `UShockActionTweakAIHearing`: label + on/off flags;
+`RequestTweak` records. Live verifies `Success - 0 error(s)`. No sense wiring. Next:
+`ActionBlockingExecuteScript`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

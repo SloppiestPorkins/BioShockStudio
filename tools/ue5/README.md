@@ -438,6 +438,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
 
+## ActionTweakAIVision / ActionTweakAIHearing (Phase 4 census #18–19)
+
+ShockAI.U sense toggles by AILabel. `RequestTweak` records on/off; no SetVisionState /
+SetHearingState yet.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_tweak_vision.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_tweak_hearing.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline
