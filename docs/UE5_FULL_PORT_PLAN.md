@@ -673,6 +673,11 @@ Live `run_action_batch3.py`, `Success - 0 error(s)`. Fade / concept / sequence /
 are request-record slices (no real camera fade, tip concepts, sequence runner, or combat).
 Next: keep walking the census head.
 
+### Phase 4 census batch4 (WaitForGoal / ChangeSkin / OpenDoor / AISpeech) — done, 26 Aug 2026
+
+Live `run_action_batch4.py`, `Success - 0 error(s)`. Goal wait / SetSkin / door open /
+speech are request-record slices. Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

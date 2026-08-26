@@ -1356,7 +1356,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    VariableIncrement, Log, ExitScript, FreezeHavokActor, UnlockDoor. Next:
    ActionPostMovementGoal. **Batch2 — done**: MuteAI, SetTipPriority, PostMovementGoal.
    **Batch3 — done**: CinematicFadeView, DisableOrEnableConcept, ControlScriptedSequence,
-   DealDamage (request-record slices). Next: WaitForGoal / ChangeSkinAtIndex / OpenDoor.
+   DealDamage (request-record slices). **Batch4 — done**: WaitForGoal, ChangeSkinAtIndex,
+   OpenDoor, AISpeech. Next: AssertFact / Loop / TeleportPawnToLocation.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
