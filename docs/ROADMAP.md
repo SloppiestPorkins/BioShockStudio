@@ -1367,8 +1367,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    done**: SpawnReactiveActor, ActivateResurrectionStation, LockDoor,
    ShowTrainingMessage. **Batch11 — done**: CompleteQuest, RemoveGoal,
    ToggleAIAttacking, SetActorLabel. **Batch12 — done**: FadeVolumeOverride,
-   InitiateDamage, TriggerHavokForceActor, ChangeQuestArrowActor. Next:
-   EnableOrDisableLevelSaving / RetractFact / SetAIVulnerability.
+   InitiateDamage, TriggerHavokForceActor, ChangeQuestArrowActor. **Batch13 —
+   done**: EnableOrDisableLevelSaving, RetractFact, SetAIVulnerability,
+   VariableDecrement. Next: SetMaterialSwitchIndex / ToggleAIAttachmentVisibility.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

@@ -469,9 +469,10 @@ SetPawnInvincibility / SetAINormalLODOverrideTime (`run_action_batch9.py`), then
 SpawnReactiveActor / ActivateResurrectionStation / LockDoor / ShowTrainingMessage
 (`run_action_batch10.py`), then CompleteQuest / RemoveGoal / ToggleAIAttacking /
 SetActorLabel (`run_action_batch11.py`), then FadeVolumeOverride / InitiateDamage /
-TriggerHavokForceActor / ChangeQuestArrowActor (`run_action_batch12.py`). All
-`Success - 0 error(s)`. These are parameter + request-record slices — no script VM,
-FX, combat, door mechanics, or Tyrion goal stack.
+TriggerHavokForceActor / ChangeQuestArrowActor (`run_action_batch12.py`), then
+EnableOrDisableLevelSaving / RetractFact / SetAIVulnerability / VariableDecrement
+(`run_action_batch13.py`). All `Success - 0 error(s)`. These are parameter +
+request-record slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
 
 ## Validation map
 

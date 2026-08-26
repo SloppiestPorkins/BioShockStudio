@@ -19,6 +19,7 @@
 #include "ShockActionDestroyActor.h"
 #include "ShockActionDisableOrEnableConcept.h"
 #include "ShockActionDisplayOnScreenDebugMessage.h"
+#include "ShockActionEnableOrDisableLevelSaving.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFadeVolumeOverride.h"
@@ -38,12 +39,14 @@
 #include "ShockActionPlayEffect.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionRemoveGoal.h"
+#include "ShockActionRetractFact.h"
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
 #include "ShockActionSetActorLabel.h"
 #include "ShockActionSetAINormalLODOverrideTime.h"
 #include "ShockActionSetAIPatrol.h"
+#include "ShockActionSetAIVulnerability.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMovableSpotlightState.h"
 #include "ShockActionSetMovableSpotlightTarget.h"
@@ -65,6 +68,7 @@
 #include "ShockActionTweakAIVision.h"
 #include "ShockActionUnlockDoor.h"
 #include "ShockActionVariableAssign.h"
+#include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
 #include "ShockActionWaitForGoal.h"
@@ -1430,6 +1434,67 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Arrow->ArrowActorLevelLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("ArrowActorLevelLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableLevelSaving* Save = Cast<UShockActionEnableOrDisableLevelSaving>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DisableLevelSaving"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Save->bDisableLevelSaving = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("DisableLevelSaving"));
+				}
+			}
+			if (UShockActionRetractFact* Retract = Cast<UShockActionRetractFact>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Slot_1"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Retract->Slot1 = FName(*Unquote(Text));
+					Applied.Add(TEXT("Slot_1"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_2"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Retract->Slot2 = Unquote(Text);
+					Applied.Add(TEXT("Slot_2"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_3"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Retract->Slot3 = Unquote(Text);
+					Applied.Add(TEXT("Slot_3"));
+				}
+			}
+			if (UShockActionSetAIVulnerability* Vuln = Cast<UShockActionSetAIVulnerability>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vuln->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bVulnerable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vuln->bVulnerable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bVulnerable"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCannotDie"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vuln->bCannotDie = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCannotDie"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCannotBecomeUnconscious"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vuln->bCannotBecomeUnconscious = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCannotBecomeUnconscious"));
+				}
+			}
+			if (UShockActionVariableDecrement* Dec = Cast<UShockActionVariableDecrement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Dec->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
 				}
 			}
 			Ok = true;
