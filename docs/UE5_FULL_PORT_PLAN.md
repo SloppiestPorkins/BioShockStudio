@@ -776,6 +776,12 @@ Still not PIE possess, TommyGun mesh fire, or SpawningManager archetypes.
 Live `run_action_batch25.py` + `run_action_batch26.py`, `Success - 0 error(s)`.
 ActionFor is enter-loop record only (no nested VM). Next: keep walking the census head.
 
+### Phase 4 census batch27–28 (Crawl / StopHead / ForceMove / Pickup / Level / Resist / Spotlight / DestroyAIs) — done, 26 Aug 2026
+
+Live `run_action_batch27.py` + `run_action_batch28.py`, `Success - 0 error(s)`.
+ChangeLevel records ServerTravel options only; DestroyAIs records BaseClass filter only.
+Next: StopTimer / EnableOrDisableHudMessages / PlayMovie / TelekinesisDropObject.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

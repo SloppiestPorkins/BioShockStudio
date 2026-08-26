@@ -486,7 +486,9 @@ AwardAchievement / TellAIToSendWeaponFireMessage (`run_action_batch19.py`), then
 batches 20–24 (`run_action_batch20.py` … `run_action_batch24.py`) and
 `run_playable_standin.py` (HP / hitscan / SpawnAtLocation), then
 `run_action_batch25.py` / `run_action_batch26.py` (For / BotSpawn / Mesh /
-Continue / AIState / DamageRadius / BathUI / Keypad).
+Continue / AIState / DamageRadius / BathUI / Keypad), then
+`run_action_batch27.py` / `run_action_batch28.py` (GathererCrawl / StopHead /
+ForceMove / SpawnPickup / ChangeLevel / Resistance / Spotlight / DestroyAIs).
 All `Success - 0 error(s)`. These are parameter + request-record slices — no script
 VM, FX, combat, door mechanics, or Tyrion goal stack. Playable stand-ins are not
 PIE possess / TommyGun.

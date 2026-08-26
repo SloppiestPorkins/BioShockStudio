@@ -16,6 +16,14 @@
 #include "ShockActionDealDamageInRadius.h"
 #include "ShockActionChangeStaticMesh.h"
 #include "ShockActionAssignNextSecurityBotSpawnLocation.h"
+#include "ShockActionGathererCrawlThroughDoor.h"
+#include "ShockActionStopAIHeadTracking.h"
+#include "ShockActionForcePlayerMove.h"
+#include "ShockActionSpawnPickup.h"
+#include "ShockActionChangeLevel.h"
+#include "ShockActionChangeResistanceSet.h"
+#include "ShockActionToggleSecurityCameraSpotlight.h"
+#include "ShockActionDestroyAIs.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2379,6 +2387,176 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Keypad->bSuccess = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("Success"));
+				}
+			}
+			if (UShockActionGathererCrawlThroughDoor* Crawl = Cast<UShockActionGathererCrawlThroughDoor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawl->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawl->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldUnlock"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawl->bShouldUnlock = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldUnlock"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldRun"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawl->bShouldRun = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldRun"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldBeAggressive"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawl->bShouldBeAggressive = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldBeAggressive"));
+				}
+			}
+			if (UShockActionStopAIHeadTracking* StopHead = Cast<UShockActionStopAIHeadTracking>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					StopHead->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+			}
+			if (UShockActionForcePlayerMove* ForceMove = Cast<UShockActionForcePlayerMove>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MarkerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ForceMove->MarkerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("MarkerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("MarkerBoneName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ForceMove->MarkerBoneName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MarkerBoneName"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TimeOut"), Text) && ParseFloat(Text, V))
+				{
+					ForceMove->TimeOut = V;
+					Applied.Add(TEXT("TimeOut"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("LocationDeltaPerSecond"), Text) && ParseFloat(Text, V))
+				{
+					ForceMove->LocationDeltaPerSecond = V;
+					Applied.Add(TEXT("LocationDeltaPerSecond"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("RotationDeltaPerSecond"), Text) && ParseFloat(Text, V))
+				{
+					ForceMove->RotationDeltaPerSecond = V;
+					Applied.Add(TEXT("RotationDeltaPerSecond"));
+				}
+			}
+			if (UShockActionSpawnPickup* Pickup = Cast<UShockActionSpawnPickup>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Pickup->ActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Pickup->TargetActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("PickupClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Pickup->PickupClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("PickupClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ItemClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Pickup->ItemClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("ItemClass"));
+				}
+				int32 Stack = 0;
+				if (Lookup(Classes, ClassName, TEXT("StackSize"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Stack, *Text);
+					Pickup->StackSize = Stack;
+					Applied.Add(TEXT("StackSize"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("StartsPhysical"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Pickup->bStartsPhysical = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("StartsPhysical"));
+				}
+			}
+			if (UShockActionChangeLevel* Level = Cast<UShockActionChangeLevel>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MapName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Level->MapName = Unquote(Text);
+					Applied.Add(TEXT("MapName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("StartLocationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Level->StartLocationLabel = Unquote(Text);
+					Applied.Add(TEXT("StartLocationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShowLoadingMessage"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Level->bShowLoadingMessage = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShowLoadingMessage"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("persist"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Level->bPersist = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("persist"));
+				}
+			}
+			if (UShockActionChangeResistanceSet* Resist = Cast<UShockActionChangeResistanceSet>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Resist->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ResistanceSetName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Resist->ResistanceSetName = FName(*Unquote(Text));
+					Applied.Add(TEXT("ResistanceSetName"));
+				}
+			}
+			if (UShockActionToggleSecurityCameraSpotlight* Spot = Cast<UShockActionToggleSecurityCameraSpotlight>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("CameraLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spot->CameraLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("CameraLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpotlightOn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spot->bSpotlightOn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("SpotlightOn"));
+				}
+			}
+			if (UShockActionDestroyAIs* Destroy = Cast<UShockActionDestroyAIs>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("BaseClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Destroy->BaseClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("BaseClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bOnlyLowDetailAIs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Destroy->bOnlyLowDetailAIs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bOnlyLowDetailAIs"));
 				}
 			}
 			Ok = true;

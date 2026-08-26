@@ -1387,7 +1387,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    (HP / hitscan / SpawnAtLocation). **Batch25–26 — done**: ActionFor,
    AssignNextSecurityBotSpawnLocation, ChangeStaticMesh, TellAIToContinue,
    SetAIState, DealDamageInRadius, ShowBathysphereUI, DoorKeypadUsed.
-   Next: GathererCrawlThroughDoor / StopAIHeadTracking.
+   **Batch27–28 — done**: GathererCrawlThroughDoor, StopAIHeadTracking,
+   ForcePlayerMove, SpawnPickup, ChangeLevel, ChangeResistanceSet,
+   ToggleSecurityCameraSpotlight, DestroyAIs.
+   Next: StopTimer / EnableOrDisableHudMessages / PlayMovie / TelekinesisDropObject.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
