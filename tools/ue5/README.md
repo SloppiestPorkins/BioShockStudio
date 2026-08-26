@@ -488,7 +488,10 @@ batches 20–24 (`run_action_batch20.py` … `run_action_batch24.py`) and
 `run_action_batch25.py` / `run_action_batch26.py` (For / BotSpawn / Mesh /
 Continue / AIState / DamageRadius / BathUI / Keypad), then
 `run_action_batch27.py` / `run_action_batch28.py` (GathererCrawl / StopHead /
-ForceMove / SpawnPickup / ChangeLevel / Resistance / Spotlight / DestroyAIs).
+ForceMove / SpawnPickup / ChangeLevel / Resistance / Spotlight / DestroyAIs), then
+`run_action_batch29.py` / `run_action_batch30.py` (StopTimer / HudMessages /
+PlayMovie / TelekinesisDrop / RangedAccuracy / TrainingMessages / HackTurret /
+ControlPlant).
 All `Success - 0 error(s)`. These are parameter + request-record slices — no script
 VM, FX, combat, door mechanics, or Tyrion goal stack. Playable stand-ins are not
 PIE possess / TommyGun.

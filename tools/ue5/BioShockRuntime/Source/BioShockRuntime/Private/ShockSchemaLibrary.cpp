@@ -24,6 +24,13 @@
 #include "ShockActionChangeResistanceSet.h"
 #include "ShockActionToggleSecurityCameraSpotlight.h"
 #include "ShockActionDestroyAIs.h"
+#include "ShockActionStopTimer.h"
+#include "ShockActionEnableOrDisableHudMessages.h"
+#include "ShockActionPlayMovie.h"
+#include "ShockActionSetAIRangedWeaponAccuracy.h"
+#include "ShockActionEnableOrDisableTrainingMessages.h"
+#include "ShockActionHackTurret.h"
+#include "ShockActionControlPlant.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2557,6 +2564,80 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Destroy->bOnlyLowDetailAIs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bOnlyLowDetailAIs"));
+				}
+			}
+			if (UShockActionStopTimer* StopTimer = Cast<UShockActionStopTimer>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("scriptLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					StopTimer->ScriptLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("scriptLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableHudMessages* Hud = Cast<UShockActionEnableOrDisableHudMessages>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DisableHudMessages"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hud->bDisableHudMessages = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("DisableHudMessages"));
+				}
+			}
+			if (UShockActionPlayMovie* Movie = Cast<UShockActionPlayMovie>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MovieName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Movie->MovieName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MovieName"));
+				}
+			}
+			if (UShockActionSetAIRangedWeaponAccuracy* Acc = Cast<UShockActionSetAIRangedWeaponAccuracy>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("RangedWeaponLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Acc->RangedWeaponLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("RangedWeaponLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableTrainingMessages* Train = Cast<UShockActionEnableOrDisableTrainingMessages>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EnableTrainingMessages"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Train->bEnableTrainingMessages = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableTrainingMessages"));
+				}
+			}
+			if (UShockActionHackTurret* Hack = Cast<UShockActionHackTurret>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TurretLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hack->TurretLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TurretLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SetHacked"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hack->bSetHacked = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("SetHacked"));
+				}
+			}
+			if (UShockActionControlPlant* Plant = Cast<UShockActionControlPlant>(Action))
+			{
+				FString Text;
+				float Dur = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("Duration"), Text) && ParseFloat(Text, Dur))
+				{
+					Plant->Duration = Dur;
+					Applied.Add(TEXT("Duration"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bRevive"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Plant->bRevive = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bRevive"));
 				}
 			}
 			Ok = true;

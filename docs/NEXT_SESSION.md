@@ -35,10 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue Phase 4 census. Landed through batch28 (verified live): GathererCrawl,
-StopAIHeadTracking, ForcePlayerMove, SpawnPickup, ChangeLevel,
-ChangeResistanceSet, ToggleSecurityCameraSpotlight, DestroyAIs.
-Next: StopTimer / EnableOrDisableHudMessages / PlayMovie / TelekinesisDropObject.
+Continue Phase 4 census. Landed through batch30 (verified live): StopTimer,
+HudMessages, PlayMovie, TelekinesisDrop, RangedAccuracy, TrainingMessages,
+HackTurret, ControlPlant.
+Next: SetEffectsSystemContext / ResetProtectorAttackTargets.
 Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
 ```
 

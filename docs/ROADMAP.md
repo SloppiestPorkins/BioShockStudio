@@ -1390,7 +1390,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Batch27–28 — done**: GathererCrawlThroughDoor, StopAIHeadTracking,
    ForcePlayerMove, SpawnPickup, ChangeLevel, ChangeResistanceSet,
    ToggleSecurityCameraSpotlight, DestroyAIs.
-   Next: StopTimer / EnableOrDisableHudMessages / PlayMovie / TelekinesisDropObject.
+   **Batch29–30 — done**: StopTimer, EnableOrDisableHudMessages, PlayMovie,
+   TelekinesisDropObject, SetAIRangedWeaponAccuracy,
+   EnableOrDisableTrainingMessages, HackTurret, ControlPlant.
+   Next: SetEffectsSystemContext / ResetProtectorAttackTargets.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
