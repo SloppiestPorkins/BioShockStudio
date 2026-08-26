@@ -583,6 +583,13 @@ writes intensity (LightBrightness scale) and light colour on the first `ULightCo
 open; decompiled `LightBrightnessProperty` lists no value field (float inferred from Engine.Light
 + level import). Next census: `ActionVariableAssignIfNotExist`.
 
+### Phase 4 ActionVariableAssignIfNotExist first slice — done, 26 Aug 2026
+
+`UShockVariableScope` + `UShockActionVariableAssignIfNotExist`: lhs/rhs; create-only write into an
+in-memory string map (`bOnlyIfMissing`). Live `run_action_var_assign_if.py`,
+`Success - 0 error(s)`. No typed VariableFloat/Bool classes, no dotted lhs, no bestVariableClass.
+Next census: `ActionVariableAssign`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

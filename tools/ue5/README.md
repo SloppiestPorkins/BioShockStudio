@@ -301,6 +301,19 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** intensity 2.5; colour channels
 match Configure (use `unreal.Color(r=,g=,b=,a=)`).
 
+## ActionVariableAssignIfNotExist (Phase 4 census #7)
+
+`lhs` / `rhs` create-only into `UShockVariableScope` (string map). Typed Variable* classes,
+dotted names, and `bestVariableClass` are not ported.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_var_assign_if.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Creates once; second write
+refused; value stays `true`.
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

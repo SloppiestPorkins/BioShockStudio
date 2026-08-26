@@ -6,6 +6,7 @@
 #include "ShockActionPlayEffect.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionVariableAssign.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
@@ -323,6 +324,20 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Light->ObjectLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("Object"));
+				}
+			}
+			if (UShockActionVariableAssign* Assign = Cast<UShockActionVariableAssign>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assign->Lhs = FName(*Unquote(Text));
+					Applied.Add(TEXT("lhs"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Assign->Rhs = Unquote(Text);
+					Applied.Add(TEXT("rhs"));
 				}
 			}
 			Ok = true;
