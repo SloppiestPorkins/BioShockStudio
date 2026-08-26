@@ -1358,7 +1358,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Batch3 — done**: CinematicFadeView, DisableOrEnableConcept, ControlScriptedSequence,
    DealDamage (request-record slices). **Batch4 — done**: WaitForGoal, ChangeSkinAtIndex,
    OpenDoor, AISpeech. **Batch5 — done**: AssertFact, Loop, TeleportPawnToLocation,
-   SetOrUnsetInputContext. Next: ManipulateSpawnZoneRepopulation / InitiateQuest.
+   SetOrUnsetInputContext. **Batch6 — done**: ManipulateSpawnZoneRepopulation,
+   InitiateQuest, SetMovableSpotlightTarget, ChangePressure. Next:
+   WaitForQuestLogToFinish / CloseDoor / ToggleAIReactions.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

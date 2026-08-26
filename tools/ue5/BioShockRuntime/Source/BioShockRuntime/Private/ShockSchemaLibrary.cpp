@@ -6,6 +6,7 @@
 #include "ShockActionAttackTarget.h"
 #include "ShockActionBlockingExecuteScript.h"
 #include "ShockActionChangeCollision.h"
+#include "ShockActionChangePressure.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionControlScriptedSequence.h"
@@ -17,8 +18,10 @@
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
+#include "ShockActionInitiateQuest.h"
 #include "ShockActionLog.h"
 #include "ShockActionLoop.h"
+#include "ShockActionManipulateSpawnZoneRepopulation.h"
 #include "ShockActionMuteAI.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionOpenDoor.h"
@@ -27,6 +30,7 @@
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
+#include "ShockActionSetMovableSpotlightTarget.h"
 #include "ShockActionSetOrUnsetInputContext.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetTipPriority.h"
@@ -942,6 +946,95 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Ctx->bUnset = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("Unset"));
+				}
+			}
+			if (UShockActionManipulateSpawnZoneRepopulation* Zone = Cast<UShockActionManipulateSpawnZoneRepopulation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpawnZoneName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Zone->SpawnZoneName = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnZoneName"));
+				}
+				auto ParseRepop = [](const FString& Text, EShockSpawnZoneRepopulationState& Out) -> bool
+				{
+					if (Text.StartsWith(TEXT("<")))
+					{
+						return false;
+					}
+					int32 V = 0;
+					LexFromString(V, *Text);
+					if (V < 0 || V > 2)
+					{
+						return false;
+					}
+					Out = static_cast<EShockSpawnZoneRepopulationState>(V);
+					return true;
+				};
+				EShockSpawnZoneRepopulationState State = EShockSpawnZoneRepopulationState::NoChange;
+				if (Lookup(Classes, ClassName, TEXT("AggressorRepopulationState"), Text) && ParseRepop(Text, State))
+				{
+					Zone->AggressorState = State;
+					Applied.Add(TEXT("AggressorRepopulationState"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ProtectorRepopulationState"), Text) && ParseRepop(Text, State))
+				{
+					Zone->ProtectorState = State;
+					Applied.Add(TEXT("ProtectorRepopulationState"));
+				}
+			}
+			if (UShockActionInitiateQuest* Quest = Cast<UShockActionInitiateQuest>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Quest->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ShowHUDFeedBack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Quest->bShowHUDFeedBack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ShowHUDFeedBack"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SetAsActiveQuest"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Quest->bSetAsActiveQuest = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("SetAsActiveQuest"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("NewQuestMessage"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Quest->NewQuestMessage = Unquote(Text);
+					Applied.Add(TEXT("NewQuestMessage"));
+				}
+			}
+			if (UShockActionSetMovableSpotlightTarget* Spot = Cast<UShockActionSetMovableSpotlightTarget>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpotlightLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spot->SpotlightLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpotlightLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spot->TargetActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetActorLabel"));
+				}
+			}
+			if (UShockActionChangePressure* Press = Cast<UShockActionChangePressure>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("RegionName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Press->RegionName = FName(*Unquote(Text));
+					Applied.Add(TEXT("RegionName"));
+				}
+				int32 V = 0;
+				if (Lookup(Classes, ClassName, TEXT("DesiredPressure"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(V, *Text);
+					Press->DesiredPressure = static_cast<uint8>(FMath::Clamp(V, 0, 255));
+					Applied.Add(TEXT("DesiredPressure"));
 				}
 			}
 			Ok = true;
