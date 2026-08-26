@@ -1347,7 +1347,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    stand-in; label foreach open. **ActionSpawnAI first slice — done**: RequestSpawn record;
    no SpawningManager. **ActionStopEffect first slice — done**: UnTrigger record fire. Next:
    ActionPlayAnimation. **ActionPlayAnimation first slice — done**: play-request record
-   (ShockGame.U); no mesh playback. Next: ActionScriptNote.
+   (ShockGame.U); no mesh playback. **ActionScriptNote + ActionDestroyActor first slices —
+   done**: note string; Destroy() stand-in. Next: ActionAttackTarget.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

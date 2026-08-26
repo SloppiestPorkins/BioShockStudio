@@ -381,6 +381,24 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Rate=1; alive-only; Idle recorded.
 
+## ActionScriptNote (Phase 4 census #13)
+
+Editor note string; runtime execute does nothing. `UShockActionScriptNote` stores `Note`.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_script_note.py -unattended -nopause -nosplash
+```
+
+## ActionDestroyActor (Phase 4 census #14)
+
+`DestroyTarget` → `AActor::Destroy()`. Label foreach and pawn NotifyKilled are not wired.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_destroy.py -unattended -nopause -nosplash
+```
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

@@ -621,6 +621,16 @@ bOnlyPlayOnAlivePawns=true from schema; `PlayOnActor` records intent. Live
 `run_action_play_anim.py`, `Success - 0 error(s)`. No mesh channel playback / wait. Next:
 `ActionScriptNote`.
 
+### Phase 4 ActionScriptNote first slice — done, 26 Aug 2026
+
+`UShockActionScriptNote`: holds `Note` string; runtime no-op (`EvaluateBool` false). Live
+`run_action_script_note.py`. Next: `ActionDestroyActor`.
+
+### Phase 4 ActionDestroyActor first slice — done, 26 Aug 2026
+
+`UShockActionDestroyActor`: `DestroyTarget` calls `Destroy()` on a passed actor. Label foreach /
+NotifyKilled open. Live `run_action_destroy.py`. Next census: `ActionAttackTarget`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

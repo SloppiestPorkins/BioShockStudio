@@ -35,11 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionPlayAnimation first slice, landed 26 Aug 2026: ShockGame.U
-params + PlayOnActor record; no mesh playback.
+Continue after ActionScriptNote + ActionDestroyActor first slices, landed 26 Aug
+2026. Census through #14. Next: ActionAttackTarget (315 refs).
 Do not re-run prior UE verifies to re-confirm.
-Next: ActionScriptNote (455) then ActionDestroyActor (373). Do not invent
-cubemap face order, material graphs, panner units, switch-selection.
+Do not invent cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 Portable ImHex: C:\Users\Jack\Tools\ImHex\imhex.exe. Blender 5.1 on user PATH.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
