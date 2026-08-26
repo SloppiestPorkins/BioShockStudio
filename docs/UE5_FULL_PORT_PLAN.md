@@ -483,16 +483,16 @@ dangling mesh reference could not pass as a placed one.
 
 **Two real findings, both from running it rather than reading it.**
 
-- **The rig path has no skip-on-exists.** `import_bioshock.main` re-normalizes every animation
-  through Blender and re-imports it on each run — it reports "updated", but does the whole job.
-  `AggressorBabyJane`'s 457 animations are 20 of the 22 minutes above, and `1-Medical` places 32
+- **The rig path had no skip-on-exists.** `import_bioshock.main` re-normalized every animation
+  through Blender and re-imported it on each run — it reported "updated", but did the whole job.
+  `AggressorBabyJane`'s 457 animations were 20 of the 22 minutes above, and `1-Medical` places 32
   distinct rigs, which is why the first (unfiltered) attempt was still importing characters two
   hours in. `import_level.main` now takes `rig_names`; the slice defaults to the one archetype
   Phase 0 actually asks for, and the report records which rigs were requested so a narrowed run
   cannot be misread as a whole-level one. Every other skeletal asset falls back to a bind-pose
   static mesh — the existing behaviour for a rig that fails to import, not a new compromise.
-  Making the rig import skip work already done is a real improvement and is **not** done here: a
-  skip that silently keeps a stale asset is its own failure mode and needs its own verification.
+  **Skip-on-exists landed the same day** (next entry): a skip that silently keeps a stale asset is
+  the failure mode, so it was verified by tampering, not by timing a second run.
 - **Cheap preconditions must run before expensive work.** The first narrowed run spent 24 minutes
   importing the level and then died on the weapon, because `Exports\TommyGun` predated manifest
   texture intent and `import_bioshock` refused it — correctly. The weapon is now imported first.
@@ -500,6 +500,21 @@ dangling mesh reference could not pass as a placed one.
 **What this is not.** Not playable, and not a look: there is no gameplay layer, lighting is unbuilt,
 level material *graphs* and `TextureCube` assembly remain `UNKNOWN`, and 31 of 32 rigs were
 deliberately not imported. It is an asset round trip that now survives the editor closing.
+
+### Rig importer skip-on-exists — done, 26 Aug 2026
+
+The slice's 22 minutes were 20 minutes of re-normalizing `AggressorBabyJane`'s 457 animations on a
+path that already reported "updated". Skip is now a fingerprint of the *export on disk* (inventory
+plus source file size+mtime) stamped on the skeletal mesh after a complete import. A later run
+reuses only when that stamp matches **and** every animation and texture is still present. A missing
+stamp, a mismatch, or a hole in the inventory is a full re-import. Inventory-only matching is
+deliberately not used — that is how a stale mesh with the same names would be kept.
+
+**Proven able to fail, live UE5.7, TommyGun export, `run_import_skip.py`, `Success - 0 error(s)`.**
+First import 37s / 0 reused; second **0.16s / 2 reused**; breaking the stamp on one rig re-imported
+that rig only (1 reused, 26s); deleting `EmptyFidgetTommygun` did the same and the animation was
+restored. Unstamped assets from before this change still pay once, then stamp. `BIOSHOCK_FORCE_IMPORT=1`
+turns skip off.
 
 ### App-facing "export to UE5" workflow — deliberately not started
 

@@ -1328,7 +1328,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    2026, not visually confirmed**. **The Phase 0 vertical slice's asset half — done, 26 Aug 2026**:
    `1-Medical` + one enemy archetype + one weapon imported in one pass into a saved 14 MB `.umap`
    and checked from the level *reloaded off disk*, identical census across the round trip, arch
-   canary 2422.0. Not playable — that needs Phase 3.
+   canary 2422.0. Not playable — that needs Phase 3. **Rig skip-on-exists — done the same day**:
+   fingerprint of the export, proven to refuse a stale stamp and a missing animation.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

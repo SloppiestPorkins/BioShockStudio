@@ -32,6 +32,17 @@ bind decoded base-colour/normal textures, and place them in the slot used by the
 section. The textured first-person pistol is visually verified in UE5.7. The pistol (12 animations)
 and TommyGun (13 animations) slices pass `verify_bioshock_import.py`.
 
+**A second import of the same export is a reuse, not a re-normalize.** After a complete import the
+skeletal mesh is stamped with `BioShockImportFingerprint` — a hash of the current export's
+inventory and source-file size+mtime. A later `import_bioshock.main` skips Blender and FBX when that
+stamp matches and every animation and texture is still present. A missing stamp, a mismatch, or a
+hole in the inventory is a full re-import; inventory-only matching is deliberately not used, because
+that is how a stale mesh with the same names would be kept. `BIOSHOCK_FORCE_IMPORT=1` turns skip
+off. `skipped` in the report still means "failed to import"; reuse is counted separately as
+`reused`. **Measured live UE5.7, 26 Aug 2026**, TommyGun export, `run_import_skip.py`: first import
+37s / 0 reused; second **0.16s / 2 reused**; breaking the stamp re-imported that one rig (1 reused,
+26s); deleting `EmptyFidgetTommygun` did the same; `Success - 0 error(s)`.
+
 For a level JSON export, run `validate_level_manifest.py <map>.ue5-level.json` before importing. It
 requires manifest version 3, verifies that the actor coverage ledger reconciles to the raw actor
 graph, checks every ordinary geometry instance's stable actor key (with the compiled world explicitly
@@ -148,10 +159,10 @@ mirrored one is ~4295).
 (`Agg_BabyJane`), which is what Phase 0 asks for; the level's other 31 skeletal assets fall back to
 bind-pose static meshes, exactly as they do for a rig that fails to import, and the report records
 which rigs were asked for so a filtered run cannot be misread as a whole-level one. Set it empty for
-every rig — and budget hours, because **`import_bioshock` has no skip-on-exists**: each rig's
-animations are re-normalized through Blender and re-imported on every run, and one splicer variant
-carries 457 (20 minutes of the 22 above). This is an asset round trip, not a playable slice: there
-is no gameplay layer, and the level's look is still unbuilt lighting.
+every rig — a first import of an unstamped rig still pays the animation cost (one splicer
+variant carries 457, 20 minutes of the 22 above); a second import of the same export reuses. This
+is an asset round trip, not a playable slice: there is no gameplay layer, and the level's look is
+still unbuilt lighting.
 
 The run leaves a small `_Scratch.umap` beside the level. That is the mechanism, not a stray: the
 editor has to actually leave the slice level before loading it, or the "reload" would hand back the
