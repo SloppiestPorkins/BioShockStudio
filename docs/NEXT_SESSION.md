@@ -35,10 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Code-only (UNVERIFIED, no UAT/UE): playable stand-ins + batch20–22 Action*
+Code-only (UNVERIFIED, no UAT/UE): playable stand-ins + batch20–24 Action*
 wired on disk. Next heavy: one BuildPlugin, then run_playable_standin.py +
-run_action_batch20.py + batch21 + batch22.
-Next census head after verify: RemoveCraftingFormula / StartSecurityAlarm.
+run_action_batch20.py through batch24.
+Next census: ActionFor (control-flow) / AssignNextSecurityBotSpawnLocation.
 Branch feature/fbx-materials-gui. No Task/backup-agent.
 ```
 

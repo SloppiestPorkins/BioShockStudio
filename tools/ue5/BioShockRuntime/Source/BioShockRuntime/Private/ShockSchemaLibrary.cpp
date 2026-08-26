@@ -7,6 +7,7 @@
 #include "ShockActionApplyScriptedHandAttachment.h"
 #include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
+#include "ShockActionAssignNextGathererBooty.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -35,6 +36,7 @@
 #include "ShockActionExitScript.h"
 #include "ShockActionFadeVolumeOverride.h"
 #include "ShockActionFailQuest.h"
+#include "ShockActionFilterItem.h"
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
@@ -43,6 +45,7 @@
 #include "ShockActionLockDoor.h"
 #include "ShockActionLog.h"
 #include "ShockActionLoop.h"
+#include "ShockActionMakeBotsAttack.h"
 #include "ShockActionManipulateSpawnZoneRepopulation.h"
 #include "ShockActionModifyLocomotionKeyword.h"
 #include "ShockActionMuteAI.h"
@@ -51,6 +54,7 @@
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionPlayScriptedHandAnimation.h"
+#include "ShockActionPlaceItemInContainer.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionRemoveGoal.h"
 #include "ShockActionRemoveAvailableHoldable.h"
@@ -88,6 +92,7 @@
 #include "ShockActionSpawnTurret.h"
 #include "ShockActionStartAIHeadTracking.h"
 #include "ShockActionStartScriptedHandAnimationSequence.h"
+#include "ShockActionStartSecurityAlarm.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionStopScriptedHandAnimationSequence.h"
 #include "ShockActionStopSecurityAlarm.h"
@@ -2133,6 +2138,102 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					ClearTrain->MessageName = FName(*Unquote(Text));
 					Applied.Add(TEXT("MessageName"));
+				}
+			}
+			if (UShockActionRemoveCraftingFormula* Formula = Cast<UShockActionRemoveCraftingFormula>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("FormulaClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Formula->FormulaClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("FormulaClass"));
+				}
+			}
+			if (UShockActionStartSecurityAlarm* Alarm = Cast<UShockActionStartSecurityAlarm>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Alarm->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SecurityBotClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Alarm->SecurityBotClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("SecurityBotClass"));
+				}
+				int32 Num = 0;
+				if (Lookup(Classes, ClassName, TEXT("NumSecurityBotsToSpawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Num, *Text);
+					Alarm->NumSecurityBotsToSpawn = Num;
+					Applied.Add(TEXT("NumSecurityBotsToSpawn"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bForceNewSecurityTarget"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Alarm->bForceNewSecurityTarget = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bForceNewSecurityTarget"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bInfiniteAlarm"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Alarm->bInfiniteAlarm = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bInfiniteAlarm"));
+				}
+			}
+			if (UShockActionFilterItem* Filter = Cast<UShockActionFilterItem>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ItemClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Filter->ItemClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("ItemClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("UnFilter"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Filter->bUnFilter = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("UnFilter"));
+				}
+			}
+			if (UShockActionMakeBotsAttack* Bots = Cast<UShockActionMakeBotsAttack>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ControllerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bots->ControllerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ControllerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AttackeeLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bots->AttackeeLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttackeeLabel"));
+				}
+			}
+			if (UShockActionPlaceItemInContainer* Place = Cast<UShockActionPlaceItemInContainer>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ContainerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Place->ContainerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ContainerLabel"));
+				}
+			}
+			if (UShockActionAssignNextGathererBooty* Booty = Cast<UShockActionAssignNextGathererBooty>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("NextGathererBooty"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Booty->NextGathererBootyLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("NextGathererBooty"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("NextGathererBootyLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Booty->NextGathererBootyLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("NextGathererBootyLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("GathererLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Booty->GathererLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererLabel"));
 				}
 			}
 			Ok = true;

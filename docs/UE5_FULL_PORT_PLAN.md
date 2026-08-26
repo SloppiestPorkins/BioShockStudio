@@ -771,13 +771,15 @@ Written while UE BuildPlugin/editor were parked (user gaming). Not claimed live:
 - `UShockActionAttackTarget::ApplyImmediateDamage`.
 - Batch20 Action* + SchemaLibrary wiring + `run_action_batch20.py` /
   `run_playable_standin.py` (scripts exist; **not run**).
-- Batch21–22 Action* + SchemaLibrary + verify scripts (**not run**):
+- Batch21–24 Action* + SchemaLibrary + verify scripts (**not run**):
   GathererVent / TellAIToWait / ClearContainer / LocomotionKeyword;
-  LinkedGatherer / ChangeAnimationRate / ReplaceQuest / ClearTrainingMessage.
+  LinkedGatherer / ChangeAnimationRate / ReplaceQuest / ClearTrainingMessage;
+  RemoveCraftingFormula / StartSecurityAlarm / RemoveHandAttach / FilterItem;
+  MakeBotsAttack / PlaceItemInContainer / AssignNextGathererBooty.
 - `AShockPlayer::EnablePlayableInput` + legacy `Fire` bind (needs project
   Input ActionMapping named Fire). AutoPossess still disabled.
 
-Next heavy step: one `BuildPlugin`, then playable_standin + batch20–22 verifies.
+Next heavy step: one `BuildPlugin`, then playable_standin + batch20–24 verifies.
 Still not PIE possess, TommyGun, or SpawningManager.
 
 ### App-facing "export to UE5" workflow — deliberately not started
