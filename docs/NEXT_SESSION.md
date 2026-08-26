@@ -36,10 +36,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Continue Phase 4 census in batches (one UAT + one headless verify per batch).
-Landed through batch17: StartAIHeadTracking, SetCollisionAvoidance,
-RemoveItemsFromPlayer, EnableOrDisableLevelSwitching.
-Next: DisablePlayerMovement / StopSecurityAlarm / FailQuest /
+Landed through batch18: DisablePlayerMovement, StopSecurityAlarm, FailQuest,
 ToggleCeilingCrawlerRangedAttack.
+Next: DisableOrEnableResurrectionStation / RemoveAvailableHoldable /
+AwardAchievement / TellAIToSendWeaponFireMessage.
 Do not re-run prior verifies. Prefer batching. No Task/backup-agent.
 Branch feature/fbx-materials-gui. Standing: auto-approve UE BuildPlugin /
 UnrealEditor-Cmd for BioShockUE5 when possible — user asked not to stop for

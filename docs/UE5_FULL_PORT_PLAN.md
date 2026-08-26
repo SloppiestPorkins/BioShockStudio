@@ -749,6 +749,11 @@ bathysphere travel still open. Next: keep walking the census head.
 Live `run_action_batch17.py`, `Success - 0 error(s)`. Look-at / nav avoidance /
 inventory remove / level-transition gate still open. Next: keep walking the census head.
 
+### Phase 4 census batch18 (Move / Alarm / FailQuest / CeilingCrawler) — done, 26 Aug 2026
+
+Live `run_action_batch18.py`, `Success - 0 error(s)`. Input gate / alarm /
+quest fail / crawler combat still open. Next: keep walking the census head.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

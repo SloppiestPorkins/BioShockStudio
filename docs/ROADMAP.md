@@ -1376,7 +1376,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    SpawnTurret, SpawnSecurityBot, ToggleAIWeaponVisibility,
    UnlockBathysphereDestination. **Batch17 — done**: StartAIHeadTracking,
    SetCollisionAvoidance, RemoveItemsFromPlayer, EnableOrDisableLevelSwitching.
-   Next: DisablePlayerMovement / StopSecurityAlarm.
+   **Batch18 — done**: DisablePlayerMovement, StopSecurityAlarm, FailQuest,
+   ToggleCeilingCrawlerRangedAttack. Next: DisableOrEnableResurrectionStation /
+   RemoveAvailableHoldable.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

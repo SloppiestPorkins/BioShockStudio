@@ -20,12 +20,14 @@
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionDisableOrEnableConcept.h"
+#include "ShockActionDisablePlayerMovement.h"
 #include "ShockActionDisplayOnScreenDebugMessage.h"
 #include "ShockActionEnableOrDisableLevelSaving.h"
 #include "ShockActionEnableOrDisableLevelSwitching.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFadeVolumeOverride.h"
+#include "ShockActionFailQuest.h"
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionGiveItemsToPlayer.h"
 #include "ShockActionHideOrShowActor.h"
@@ -74,11 +76,13 @@
 #include "ShockActionStartScriptedHandAnimationSequence.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionStopScriptedHandAnimationSequence.h"
+#include "ShockActionStopSecurityAlarm.h"
 #include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionToggleAIAttachmentVisibility.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
 #include "ShockActionToggleAIWeaponVisibility.h"
+#include "ShockActionToggleCeilingCrawlerRangedAttack.h"
 #include "ShockActionTriggerHavokForceActor.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
@@ -1755,6 +1759,52 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Switch->bDisableLevelSwitching = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("DisableLevelSwitching"));
+				}
+			}
+			if (UShockActionDisablePlayerMovement* Move = Cast<UShockActionDisablePlayerMovement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DisableMovement"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Move->bDisableMovement = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("DisableMovement"));
+				}
+			}
+			if (UShockActionStopSecurityAlarm* Alarm = Cast<UShockActionStopSecurityAlarm>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("bBotsBecomeDormant"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Alarm->bBotsBecomeDormant = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bBotsBecomeDormant"));
+				}
+			}
+			if (UShockActionFailQuest* Fail = Cast<UShockActionFailQuest>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fail->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("FailQuestMessage"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Fail->FailQuestMessage = Unquote(Text);
+					Applied.Add(TEXT("FailQuestMessage"));
+				}
+			}
+			if (UShockActionToggleCeilingCrawlerRangedAttack* Crawler = Cast<UShockActionToggleCeilingCrawlerRangedAttack>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("CeilingCrawlerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawler->CeilingCrawlerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("CeilingCrawlerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bEnableRangedAttack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crawler->bEnableRangedAttack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bEnableRangedAttack"));
 				}
 			}
 			Ok = true;
