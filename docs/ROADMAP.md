@@ -1369,7 +1369,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    ToggleAIAttacking, SetActorLabel. **Batch12 — done**: FadeVolumeOverride,
    InitiateDamage, TriggerHavokForceActor, ChangeQuestArrowActor. **Batch13 —
    done**: EnableOrDisableLevelSaving, RetractFact, SetAIVulnerability,
-   VariableDecrement. Next: SetMaterialSwitchIndex / ToggleAIAttachmentVisibility.
+   VariableDecrement. **Batch14 — done**: SetMaterialSwitchIndex,
+   ToggleAIAttachmentVisibility, PlayScriptedHandAnimation,
+   CompleteQuestObjective. Next: SetHUDDisplayState and the long tail.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

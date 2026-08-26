@@ -14,6 +14,7 @@
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionCloseDoor.h"
 #include "ShockActionCompleteQuest.h"
+#include "ShockActionCompleteQuestObjective.h"
 #include "ShockActionControlScriptedSequence.h"
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
@@ -37,6 +38,7 @@
 #include "ShockActionOpenDoor.h"
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
+#include "ShockActionPlayScriptedHandAnimation.h"
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionRemoveGoal.h"
 #include "ShockActionRetractFact.h"
@@ -48,6 +50,7 @@
 #include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetAIVulnerability.h"
 #include "ShockActionSetLightProperties.h"
+#include "ShockActionSetMaterialSwitchIndex.h"
 #include "ShockActionSetMovableSpotlightState.h"
 #include "ShockActionSetMovableSpotlightTarget.h"
 #include "ShockActionSetOrUnsetInputContext.h"
@@ -61,6 +64,7 @@
 #include "ShockActionSpawnReactiveActor.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionTeleportPawnToLocation.h"
+#include "ShockActionToggleAIAttachmentVisibility.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
 #include "ShockActionTriggerHavokForceActor.h"
@@ -1495,6 +1499,93 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Dec->Target = FName(*Unquote(Text));
 					Applied.Add(TEXT("Target"));
+				}
+			}
+			if (UShockActionSetMaterialSwitchIndex* MatSwitch = Cast<UShockActionSetMaterialSwitchIndex>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Material"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					MatSwitch->MaterialSwitchName = FName(*Unquote(Text));
+					Applied.Add(TEXT("Material"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("Index"), Text) && ParseFloat(Text, V))
+				{
+					MatSwitch->Index = V;
+					Applied.Add(TEXT("Index"));
+				}
+			}
+			if (UShockActionToggleAIAttachmentVisibility* Attach = Cast<UShockActionToggleAIAttachmentVisibility>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AttachmentCategory"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->AttachmentCategory = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttachmentCategory"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bHideAttachments"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->bHideAttachments = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bHideAttachments"));
+				}
+			}
+			if (UShockActionPlayScriptedHandAnimation* Hand = Cast<UShockActionPlayScriptedHandAnimation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("HandAnimation"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hand->HandAnimation = FName(*Unquote(Text));
+					Applied.Add(TEXT("HandAnimation"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AttachmentAnimation"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hand->AttachmentAnimation = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttachmentAnimation"));
+				}
+				int32 End = 0;
+				if (Lookup(Classes, ClassName, TEXT("AnimationEndBehavior"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(End, *Text);
+					Hand->AnimationEndBehavior = End;
+					Applied.Add(TEXT("AnimationEndBehavior"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("EaseIn"), Text) && ParseFloat(Text, V))
+				{
+					Hand->EaseIn = V;
+					Applied.Add(TEXT("EaseIn"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("WaitForAnimationToFinish"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hand->bWaitForAnimationToFinish = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("WaitForAnimationToFinish"));
+				}
+			}
+			if (UShockActionCompleteQuestObjective* Obj = Cast<UShockActionCompleteQuestObjective>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Obj->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ShowHUDFeedBack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Obj->bShowHUDFeedBack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ShowHUDFeedBack"));
+				}
+				int32 Count = 0;
+				if (Lookup(Classes, ClassName, TEXT("NumberOfObjectivesCompleted"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Count, *Text);
+					Obj->NumberOfObjectivesCompleted = Count;
+					Applied.Add(TEXT("NumberOfObjectivesCompleted"));
 				}
 			}
 			Ok = true;
