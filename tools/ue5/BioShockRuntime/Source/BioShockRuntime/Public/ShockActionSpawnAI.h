@@ -3,12 +3,14 @@
 #include "ShockAction.h"
 #include "ShockActionSpawnAI.generated.h"
 
+class AActor;
+
 /**
  * UnrealScript `ActionSpawnAI` (ShockAI.U, native). Calls SpawningManager.SpawnScriptedAI with
  * type, location label, spawned label, radii, mimic/force flags, etc.
  *
- * First slice: hold the spawn-request params and record `RequestSpawn` intent. No SpawningManager,
- * no AI pawn spawn, no loot/patrol/mimic pose wiring.
+ * RequestSpawn records intent. SpawnAtLocation is a playable-slice stand-in that spawns
+ * ABaseShockAI in a world — not SpawningManager, archetypes, or loot.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSpawnAI : public UShockAction
@@ -45,6 +47,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName LastRequestedLocationLabel;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TWeakObjectPtr<AActor> LastSpawnedActor;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(
 		FName InAIType,
@@ -69,7 +74,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FName GetLastRequestedLocationLabel() const { return LastRequestedLocationLabel; }
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* GetLastSpawnedActor() const { return LastSpawnedActor.Get(); }
+
 	/** Records the spawn request. Returns false if AITypeToSpawn is None. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSpawn();
+
+	/**
+	 * Spawns ABaseShockAI at Location in World. Records RequestSpawn first.
+	 * Returns the pawn, or null on failure.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* SpawnAtLocation(UObject* WorldContextObject, FVector Location);
 };

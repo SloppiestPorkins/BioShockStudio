@@ -1,5 +1,7 @@
 #include "ShockActionAttackTarget.h"
 
+#include "ShockPawn.h"
+
 UShockActionAttackTarget::UShockActionAttackTarget()
 {
 	ActionClassName = TEXT("ActionAttackTarget");
@@ -21,5 +23,15 @@ bool UShockActionAttackTarget::RequestAttack()
 	LastRequestedAILabel = AILabel;
 	LastRequestedTargetLabel = TargetLabel;
 	bLastRequestedOnSight = bAttackOnSight;
+	return true;
+}
+
+bool UShockActionAttackTarget::ApplyImmediateDamage(AShockPawn* Target, float DamageAmount)
+{
+	if (!RequestAttack() || !Target || DamageAmount <= 0.0f)
+	{
+		return false;
+	}
+	Target->ApplyAuthoredDamage(DamageAmount);
 	return true;
 }

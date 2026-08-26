@@ -8,6 +8,9 @@
  * collision height come from the Phase 2 schema JSON at apply-time — they are not authored in
  * this header. `CollisionHeight` is VPawn's override in VengeanceShared.U (68), not Engine.U
  * Pawn's 78.
+ *
+ * AuthoredHealth / AuthoredMaxHealth are schema fields. CurrentHealth is a playable-slice
+ * stand-in tracker; it is not UE's damage pipeline or BioShock's HitPoints system.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockPawn : public ACharacter
@@ -25,4 +28,27 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float AuthoredMaxHealth = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float CurrentHealth = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bIsDead = false;
+
+	/** Seeds CurrentHealth from AuthoredMaxHealth (or AuthoredHealth). Idempotent if already > 0. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	void EnsureHealthInitialized();
+
+	/**
+	 * Subtracts Damage from CurrentHealth. Returns remaining health.
+	 * Playable-slice stand-in — no armor, plasmids, or death anims.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	float ApplyAuthoredDamage(float Damage);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	float GetCurrentHealth() const { return CurrentHealth; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	bool IsDead() const { return bIsDead; }
 };

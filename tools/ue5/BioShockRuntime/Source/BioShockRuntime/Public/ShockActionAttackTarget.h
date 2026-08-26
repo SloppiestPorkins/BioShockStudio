@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionAttackTarget.generated.h"
 
+class AShockPawn;
+
 /**
  * UnrealScript `ActionAttackTarget` (ShockAI.U): tell AIs labeled AILabel to attack TargetLabel
  * (immediate ScriptedAttackTarget, or AddTargetToAttackOnSight when bAttackOnSight).
@@ -58,4 +60,11 @@ public:
 	/** Records the attack order. Returns false if either label is None. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestAttack();
+
+	/**
+	 * Playable-slice stand-in: records RequestAttack then ApplyAuthoredDamage on Target.
+	 * No label foreach / ScriptedAttackTarget.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool ApplyImmediateDamage(AShockPawn* Target, float DamageAmount);
 };

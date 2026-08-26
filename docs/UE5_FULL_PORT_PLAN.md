@@ -760,6 +760,21 @@ Live `run_action_batch19.py`, `Success - 0 error(s)`. Station enable /
 holdable inventory / achievements / weapon-fire messages still open. Next: keep
 walking the census head.
 
+### Playable-slice stand-ins (code only, UNVERIFIED) — 26 Aug 2026
+
+Written while UE BuildPlugin/editor were parked (user gaming). Not claimed live:
+
+- `AShockPawn`: `CurrentHealth` / `ApplyAuthoredDamage` (schema HP stand-in).
+- `AShockWeapon`: hitscan `FireAt` → pawn damage.
+- `AShockPlayer`: `EquipWeapon` / `TryFireEquippedWeapon`.
+- `UShockActionSpawnAI::SpawnAtLocation` → `ABaseShockAI` in a world.
+- `UShockActionAttackTarget::ApplyImmediateDamage`.
+- Batch20 Action* + SchemaLibrary wiring + `run_action_batch20.py` /
+  `run_playable_standin.py` (scripts exist; **not run**).
+
+Next heavy step: one `BuildPlugin`, then those two verifies. Still not PIE possess,
+TommyGun, or SpawningManager.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

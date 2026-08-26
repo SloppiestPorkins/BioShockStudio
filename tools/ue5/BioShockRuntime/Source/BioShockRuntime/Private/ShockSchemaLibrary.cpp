@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionActivateResurrectionStation.h"
 #include "ShockActionAISpeech.h"
+#include "ShockActionApplyImpulse.h"
+#include "ShockActionApplyScriptedHandAttachment.h"
 #include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
 #include "ShockActionAttackTarget.h"
@@ -68,10 +70,12 @@
 #include "ShockActionSetPlayerInvincibility.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetQuestHint.h"
+#include "ShockActionSetSpawnerRepopulationState.h"
 #include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
 #include "ShockActionShowTrainingMessage.h"
 #include "ShockActionSpawnAI.h"
+#include "ShockActionSpawnPlayerEscortedGatherer.h"
 #include "ShockActionSpawnReactiveActor.h"
 #include "ShockActionSpawnSecurityBot.h"
 #include "ShockActionSpawnTurret.h"
@@ -1860,6 +1864,94 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Fire->WeaponClass = FName(*Unquote(Text));
 					Applied.Add(TEXT("weaponClass"));
+				}
+			}
+			if (UShockActionSetSpawnerRepopulationState* Spawner = Cast<UShockActionSetSpawnerRepopulationState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpawnerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawner->SpawnerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Flag"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Spawner->bFlag = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Flag"));
+				}
+			}
+			if (UShockActionSpawnPlayerEscortedGatherer* Gatherer = Cast<UShockActionSpawnPlayerEscortedGatherer>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("GathererVentLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->GathererVentLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererVentLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpawnPositionLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->SpawnPositionLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnPositionLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpawnedGathererLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->SpawnedGathererLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpawnedGathererLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCorpseCanBeRemoved"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->bCorpseCanBeRemoved = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCorpseCanBeRemoved"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bDontWaitForPlayer"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->bDontWaitForPlayer = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bDontWaitForPlayer"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bForceSpawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->bForceSpawn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bForceSpawn"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bShouldPlayerEscort"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Gatherer->bShouldPlayerEscort = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bShouldPlayerEscort"));
+				}
+				int32 Vuln = 0;
+				if (Lookup(Classes, ClassName, TEXT("GathererVulnerableState"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Vuln, *Text);
+					Gatherer->GathererVulnerableState = Vuln;
+					Applied.Add(TEXT("GathererVulnerableState"));
+				}
+			}
+			if (UShockActionApplyScriptedHandAttachment* Hand = Cast<UShockActionApplyScriptedHandAttachment>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AttachmentClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hand->AttachmentClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttachmentClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AttachmentBone"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Hand->AttachmentBone = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttachmentBone"));
+				}
+			}
+			if (UShockActionApplyImpulse* Impulse = Cast<UShockActionApplyImpulse>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Impulse->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BoneName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Impulse->BoneName = FName(*Unquote(Text));
+					Applied.Add(TEXT("BoneName"));
 				}
 			}
 			Ok = true;
