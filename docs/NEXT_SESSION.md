@@ -35,13 +35,11 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Code-only playable-slice stand-ins landed on disk (UNVERIFIED — no UAT/UE while
-user games): ShockPawn.CurrentHealth / ApplyAuthoredDamage, ShockWeapon.FireAt
-hitscan, ShockPlayer.EquipWeapon/TryFireEquippedWeapon, SpawnAI.SpawnAtLocation,
-AttackTarget.ApplyImmediateDamage. Batch20 Action* + SchemaLibrary wired;
-verify scripts written but not run.
-Next when heavy OK: one BuildPlugin, then run_playable_standin.py +
-run_action_batch20.py. Branch feature/fbx-materials-gui. No Task/backup-agent.
+Code-only (UNVERIFIED, no UAT/UE): playable stand-ins + batch20–22 Action*
+wired on disk. Next heavy: one BuildPlugin, then run_playable_standin.py +
+run_action_batch20.py + batch21 + batch22.
+Next census head after verify: RemoveCraftingFormula / StartSecurityAlarm.
+Branch feature/fbx-materials-gui. No Task/backup-agent.
 ```
 
 **What wastes time here**

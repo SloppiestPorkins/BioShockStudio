@@ -2,6 +2,7 @@
 
 #include "ShockWeapon.h"
 #include "Camera/CameraComponent.h"
+#include "Components/InputComponent.h"
 #include "GameFramework/Controller.h"
 
 AShockPlayer::AShockPlayer()
@@ -14,6 +15,11 @@ AShockPlayer::AShockPlayer()
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 {
 	EquippedWeapon = Weapon;
+}
+
+void AShockPlayer::EnablePlayableInput(bool bEnable)
+{
+	bPlayableInputEnabled = bEnable;
 }
 
 bool AShockPlayer::TryFireEquippedWeapon()
@@ -40,4 +46,14 @@ bool AShockPlayer::TryFireEquippedWeapon()
 	}
 
 	return EquippedWeapon->FireAt(this, Start, Aim.Vector());
+}
+
+void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	if (!PlayerInputComponent || !bPlayableInputEnabled)
+	{
+		return;
+	}
+	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::TryFireEquippedWeapon);
 }

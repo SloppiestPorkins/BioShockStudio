@@ -10,12 +10,15 @@
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
+#include "ShockActionChangeAnimationRate.h"
 #include "ShockActionChangeCollision.h"
 #include "ShockActionChangePawnPhysics.h"
 #include "ShockActionChangePressure.h"
 #include "ShockActionChangeQuestArrowActor.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
+#include "ShockActionClearContainer.h"
+#include "ShockActionClearTrainingMessage.h"
 #include "ShockActionCloseDoor.h"
 #include "ShockActionCompleteQuest.h"
 #include "ShockActionCompleteQuestObjective.h"
@@ -41,6 +44,7 @@
 #include "ShockActionLog.h"
 #include "ShockActionLoop.h"
 #include "ShockActionManipulateSpawnZoneRepopulation.h"
+#include "ShockActionModifyLocomotionKeyword.h"
 #include "ShockActionMuteAI.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionOpenDoor.h"
@@ -51,6 +55,7 @@
 #include "ShockActionRemoveGoal.h"
 #include "ShockActionRemoveAvailableHoldable.h"
 #include "ShockActionRemoveItemsFromPlayer.h"
+#include "ShockActionReplaceQuest.h"
 #include "ShockActionRetractFact.h"
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
@@ -60,6 +65,7 @@
 #include "ShockActionSetAIPatrol.h"
 #include "ShockActionSetAIVulnerability.h"
 #include "ShockActionSetCollisionAvoidance.h"
+#include "ShockActionSetGathererVentPlayerCanSpawn.h"
 #include "ShockActionSetHUDDisplayState.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMaterialSwitchIndex.h"
@@ -75,6 +81,7 @@
 #include "ShockActionShockInventory.h"
 #include "ShockActionShowTrainingMessage.h"
 #include "ShockActionSpawnAI.h"
+#include "ShockActionSpawnLinkedGathererAndProtector.h"
 #include "ShockActionSpawnPlayerEscortedGatherer.h"
 #include "ShockActionSpawnReactiveActor.h"
 #include "ShockActionSpawnSecurityBot.h"
@@ -86,6 +93,7 @@
 #include "ShockActionStopSecurityAlarm.h"
 #include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionTellAIToSendWeaponFireMessage.h"
+#include "ShockActionTellAIToWait.h"
 #include "ShockActionToggleAIAttachmentVisibility.h"
 #include "ShockActionToggleAIAttacking.h"
 #include "ShockActionToggleAIReactions.h"
@@ -1952,6 +1960,179 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Impulse->BoneName = FName(*Unquote(Text));
 					Applied.Add(TEXT("BoneName"));
+				}
+			}
+			if (UShockActionSetGathererVentPlayerCanSpawn* Vent = Cast<UShockActionSetGathererVentPlayerCanSpawn>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("GathererVentLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vent->GathererVentLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererVentLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Flag"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Vent->bFlag = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Flag"));
+				}
+			}
+			if (UShockActionTellAIToWait* WaitAI = Cast<UShockActionTellAIToWait>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					WaitAI->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+			}
+			if (UShockActionClearContainer* Clear = Cast<UShockActionClearContainer>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ContainerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Clear->ContainerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ContainerLabel"));
+				}
+			}
+			if (UShockActionModifyLocomotionKeyword* Loco = Cast<UShockActionModifyLocomotionKeyword>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Loco->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("keyword"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Loco->Keyword = FName(*Unquote(Text));
+					Applied.Add(TEXT("keyword"));
+				}
+				int32 Priority = 0;
+				if (Lookup(Classes, ClassName, TEXT("KeywordPriority"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Priority, *Text);
+					Loco->KeywordPriority = Priority;
+					Applied.Add(TEXT("KeywordPriority"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bAddKeyword"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Loco->bAddKeyword = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bAddKeyword"));
+				}
+			}
+			if (UShockActionSpawnLinkedGathererAndProtector* Linked = Cast<UShockActionSpawnLinkedGathererAndProtector>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ProtectorTypeToSpawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->ProtectorTypeToSpawn = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorTypeToSpawn"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("AssociatedGathererVent"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->AssociatedGathererVentLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AssociatedGathererVent"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ProtectorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->ProtectorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("GathererLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->GathererLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ProtectorSpawnLocationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->ProtectorSpawnLocationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorSpawnLocationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("GathererSpawnLocationLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->GathererSpawnLocationLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererSpawnLocationLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bProtectorCorpseCanBeRemoved"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->bProtectorCorpseCanBeRemoved = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bProtectorCorpseCanBeRemoved"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bGathererCorpseCanBeRemoved"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->bGathererCorpseCanBeRemoved = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bGathererCorpseCanBeRemoved"));
+				}
+				int32 Vuln = 0;
+				if (Lookup(Classes, ClassName, TEXT("GathererVulnerableState"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Vuln, *Text);
+					Linked->GathererVulnerableState = Vuln;
+					Applied.Add(TEXT("GathererVulnerableState"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bForceSpawn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Linked->bForceSpawn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bForceSpawn"));
+				}
+			}
+			if (UShockActionChangeAnimationRate* AnimRate = Cast<UShockActionChangeAnimationRate>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AnimRate->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetAnimationName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AnimRate->TargetAnimationName = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetAnimationName"));
+				}
+				float Rate = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TargetAnimationRate"), Text) && ParseFloat(Text, Rate))
+				{
+					AnimRate->TargetAnimationRate = Rate;
+					Applied.Add(TEXT("TargetAnimationRate"));
+				}
+				float Time = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("RateChangeTime"), Text) && ParseFloat(Text, Time))
+				{
+					AnimRate->RateChangeTime = Time;
+					Applied.Add(TEXT("RateChangeTime"));
+				}
+			}
+			if (UShockActionReplaceQuest* Replace = Cast<UShockActionReplaceQuest>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Replace->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ReplacementQuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Replace->ReplacementQuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("ReplacementQuestName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("CopyObjectivesCompleted"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Replace->bCopyObjectivesCompleted = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("CopyObjectivesCompleted"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("UpdatedMessage"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Replace->UpdatedMessage = Unquote(Text);
+					Applied.Add(TEXT("UpdatedMessage"));
+				}
+			}
+			if (UShockActionClearTrainingMessage* ClearTrain = Cast<UShockActionClearTrainingMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MessageName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ClearTrain->MessageName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MessageName"));
 				}
 			}
 			Ok = true;

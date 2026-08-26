@@ -4,6 +4,7 @@
 #include "ShockPlayer.generated.h"
 
 class AShockWeapon;
+class UInputComponent;
 
 /** UnrealScript `ShockPlayer`. CollisionRadius=34 is on this class's own defaults, not the parent. */
 UCLASS()
@@ -17,6 +18,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<AShockWeapon> EquippedWeapon;
 
+	/** When true, SetupPlayerInputComponent binds legacy Action "Fire". Default false. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bPlayableInputEnabled = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void EquipWeapon(AShockWeapon* Weapon);
 
@@ -24,9 +29,14 @@ public:
 	AShockWeapon* GetEquippedWeapon() const { return EquippedWeapon; }
 
 	/**
-	 * Fires EquippedWeapon from Eye height along ControlRotation (or ActorRotation).
-	 * Playable-slice stand-in — no input binding, no holdable inventory.
+	 * Opt-in playable-slice helpers. Does not enable AutoPossess by default (PIE still unclaimed).
+	 * Fire binding needs a project Input ActionMapping named "Fire" (e.g. Left Mouse).
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void EnablePlayableInput(bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryFireEquippedWeapon();
+
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 };
