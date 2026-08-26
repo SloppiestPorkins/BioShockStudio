@@ -1393,7 +1393,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Batch29–30 — done**: StopTimer, EnableOrDisableHudMessages, PlayMovie,
    TelekinesisDropObject, SetAIRangedWeaponAccuracy,
    EnableOrDisableTrainingMessages, HackTurret, ControlPlant.
-   Next: SetEffectsSystemContext / ResetProtectorAttackTargets.
+   **Batch31–32 — done**: SetEffectsSystemContext, ResetProtectorAttackTargets,
+   EnableOrDisableDamageVolume, ClearAIDamageStates, SetCorpseCanBeRemoved,
+   UnEquipAllPlasmids, StartTimer, IncrementNumRosesPlayerPickedUp.
+   Next: PlayEffectAndWaitForStart / GrenadierUseLiveGrenadeWeapon.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

@@ -31,6 +31,14 @@
 #include "ShockActionEnableOrDisableTrainingMessages.h"
 #include "ShockActionHackTurret.h"
 #include "ShockActionControlPlant.h"
+#include "ShockActionSetEffectsSystemContext.h"
+#include "ShockActionResetProtectorAttackTargets.h"
+#include "ShockActionEnableOrDisableDamageVolume.h"
+#include "ShockActionClearAIDamageStates.h"
+#include "ShockActionSetCorpseCanBeRemoved.h"
+#include "ShockActionUnEquipAllPlasmids.h"
+#include "ShockActionStartTimer.h"
+#include "ShockActionIncrementNumRosesPlayerPickedUp.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2638,6 +2646,88 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Plant->bRevive = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("bRevive"));
+				}
+			}
+			if (UShockActionSetEffectsSystemContext* FxCtx = Cast<UShockActionSetEffectsSystemContext>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Context"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxCtx->Context = FName(*Unquote(Text));
+					Applied.Add(TEXT("Context"));
+				}
+				int32 Target = 0;
+				if (Lookup(Classes, ClassName, TEXT("ContextAppliesTo"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Target, *Text);
+					FxCtx->ContextAppliesTo = static_cast<uint8>(FMath::Clamp(Target, 0, 255));
+					Applied.Add(TEXT("ContextAppliesTo"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("RemoveInsteadOfAdd"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxCtx->bRemoveInsteadOfAdd = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("RemoveInsteadOfAdd"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("LogTriggerInfo"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					FxCtx->bLogTriggerInfo = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("LogTriggerInfo"));
+				}
+			}
+			if (UShockActionResetProtectorAttackTargets* Protector = Cast<UShockActionResetProtectorAttackTargets>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ProtectorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Protector->ProtectorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableDamageVolume* DmgVol = Cast<UShockActionEnableOrDisableDamageVolume>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("VolumeLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DmgVol->VolumeLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("VolumeLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EnableVolume"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DmgVol->bEnableVolume = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableVolume"));
+				}
+			}
+			if (UShockActionClearAIDamageStates* ClearDmg = Cast<UShockActionClearAIDamageStates>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ClearDmg->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+			}
+			if (UShockActionSetCorpseCanBeRemoved* Corpse = Cast<UShockActionSetCorpseCanBeRemoved>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("CorpseLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Corpse->CorpseLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("CorpseLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCorpseCanBeRemoved"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Corpse->bCorpseCanBeRemoved = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCorpseCanBeRemoved"));
+				}
+			}
+			if (UShockActionStartTimer* StartTimer = Cast<UShockActionStartTimer>(Action))
+			{
+				FString Text;
+				float Sec = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("Seconds"), Text) && ParseFloat(Text, Sec))
+				{
+					StartTimer->Seconds = Sec;
+					Applied.Add(TEXT("Seconds"));
 				}
 			}
 			Ok = true;

@@ -788,6 +788,12 @@ Live `run_action_batch29.py` + `run_action_batch30.py`, `Success - 0 error(s)`.
 Accuracy stores UE `Range` as `FVector2D` Min/Max; PlantShaders array deferred.
 Next: SetEffectsSystemContext / ResetProtectorAttackTargets.
 
+### Phase 4 census batch31–32 (EffectsContext / Protector / DamageVol / ClearDamage / Corpse / Plasmids / StartTimer / Roses) — done, 26 Aug 2026
+
+Live `run_action_batch31.py` + `run_action_batch32.py`, `Success - 0 error(s)`.
+EffectsContext rejects the schema placeholder default Context name.
+Next: PlayEffectAndWaitForStart / GrenadierUseLiveGrenadeWeapon.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

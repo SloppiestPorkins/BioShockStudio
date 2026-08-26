@@ -35,10 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue Phase 4 census. Landed through batch30 (verified live): StopTimer,
-HudMessages, PlayMovie, TelekinesisDrop, RangedAccuracy, TrainingMessages,
-HackTurret, ControlPlant.
-Next: SetEffectsSystemContext / ResetProtectorAttackTargets.
+Continue Phase 4 census. Landed through batch32 (verified live): EffectsContext,
+ResetProtector, DamageVolume, ClearAIDamageStates, CorpseCanBeRemoved,
+UnEquipAllPlasmids, StartTimer, IncrementNumRoses.
+Next: PlayEffectAndWaitForStart / GrenadierUseLiveGrenadeWeapon.
 Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
 ```
 
