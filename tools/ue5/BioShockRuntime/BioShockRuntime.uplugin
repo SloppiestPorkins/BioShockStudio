@@ -1,0 +1,17 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1",
+  "FriendlyName": "BioShock Runtime",
+  "Description": "Phase 3 skeleton: ShockPawn/ShockPlayer/GameMode populated from schema JSON, not hand-authored numbers.",
+  "Category": "Other",
+  "EnabledByDefault": false,
+  "CanContainContent": false,
+  "Modules": [
+    {
+      "Name": "BioShockRuntime",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
