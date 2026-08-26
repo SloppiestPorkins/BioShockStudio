@@ -1398,7 +1398,11 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    UnEquipAllPlasmids, StartTimer, IncrementNumRosesPlayerPickedUp.
    **Batch33–34 — done**: PlayEffectAndWaitForStart, GrenadierUseLiveGrenadeWeapon,
    WaitForCriticalMessageStart, StopHUD, PlayHUD, ActivateSecurityBot, EndDLCLevel.
-   Next: EnableBathysphereModeForPlayer / WaitUntilActorHasLanded (2-ref tail).
+   **Batch35–36 — done**: EnableBathysphereModeForPlayer, WaitUntilActorHasLanded,
+   EnableOrDisableCascadingWaterVolume, AssignNextGathererLabel,
+   AttachCollisionDamageListener, EnableOrDisableHavokForceActor, Ragdoll,
+   SetNextAssassinTeleportPoint.
+   Next: SetDoorBrokenState / ForcePlayerCrouch / HideNeedleElement.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

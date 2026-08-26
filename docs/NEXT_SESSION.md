@@ -35,9 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue Phase 4 census. Landed through batch34 (verified live): FxWait, Grenadier,
-CritMessageWait, StopHUD, PlayHUD, ActivateSecurityBot, EndDLCLevel.
-Next: EnableBathysphereModeForPlayer / WaitUntilActorHasLanded.
+Continue Phase 4 census. Landed through batch36 (verified live): BathysphereMode,
+WaitUntilLanded, CascadingWater, GathererLabel, CollisionListener, HavokEnable,
+Ragdoll, AssassinTeleportPoint.
+Next: SetDoorBrokenState / ForcePlayerCrouch / HideNeedleElement.
 Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
 ```
 

@@ -46,6 +46,14 @@
 #include "ShockActionPlayHUD.h"
 #include "ShockActionActivateSecurityBot.h"
 #include "ShockActionEndDLCLevel.h"
+#include "ShockActionEnableBathysphereModeForPlayer.h"
+#include "ShockActionWaitUntilActorHasLanded.h"
+#include "ShockActionEnableOrDisableCascadingWaterVolume.h"
+#include "ShockActionAssignNextGathererLabel.h"
+#include "ShockActionAttachCollisionDamageListener.h"
+#include "ShockActionEnableOrDisableHavokForceActor.h"
+#include "ShockActionRagdoll.h"
+#include "ShockActionSetNextAssassinTeleportPoint.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2822,6 +2830,114 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Dlc->bFailedLevel = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("FailedLevel"));
+				}
+			}
+			if (UShockActionEnableBathysphereModeForPlayer* BathMode = Cast<UShockActionEnableBathysphereModeForPlayer>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("EnableBathysphereMode"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					BathMode->bEnableBathysphereMode = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableBathysphereMode"));
+				}
+			}
+			if (UShockActionWaitUntilActorHasLanded* Landed = Cast<UShockActionWaitUntilActorHasLanded>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Landed->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableCascadingWaterVolume* Water = Cast<UShockActionEnableOrDisableCascadingWaterVolume>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("VolumeLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Water->VolumeLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("VolumeLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EnableVolume"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Water->bEnableVolume = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("EnableVolume"));
+				}
+			}
+			if (UShockActionAssignNextGathererLabel* GathererLbl = Cast<UShockActionAssignNextGathererLabel>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ProtectorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					GathererLbl->ProtectorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("GathererLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					GathererLbl->GathererLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererLabel"));
+				}
+			}
+			if (UShockActionAttachCollisionDamageListener* CollListen = Cast<UShockActionAttachCollisionDamageListener>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("TargetLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CollListen->TargetLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("OwnerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CollListen->OwnerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("OwnerLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableHavokForceActor* HavokEnable = Cast<UShockActionEnableOrDisableHavokForceActor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Target"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					HavokEnable->Target = FName(*Unquote(Text));
+					Applied.Add(TEXT("Target"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("enabled"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					HavokEnable->bEnabled = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("enabled"));
+				}
+			}
+			if (UShockActionRagdoll* Rag = Cast<UShockActionRagdoll>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Rag->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bRelativeToAIRotation"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Rag->bRelativeToAIRotation = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bRelativeToAIRotation"));
+				}
+				float Momentum = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("HitMomentumImparted"), Text) && ParseFloat(Text, Momentum))
+				{
+					Rag->HitMomentumImparted = Momentum;
+					Applied.Add(TEXT("HitMomentumImparted"));
+				}
+			}
+			if (UShockActionSetNextAssassinTeleportPoint* AssTp = Cast<UShockActionSetNextAssassinTeleportPoint>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AssassinLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AssTp->AssassinLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AssassinLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TeleportLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AssTp->TeleportLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("TeleportLabel"));
 				}
 			}
 			Ok = true;
