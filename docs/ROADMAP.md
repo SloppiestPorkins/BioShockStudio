@@ -1361,7 +1361,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    SetOrUnsetInputContext. **Batch6 — done**: ManipulateSpawnZoneRepopulation,
    InitiateQuest, SetMovableSpotlightTarget, ChangePressure. **Batch7 — done**:
    WaitForQuestLogToFinish, SetMovableSpotlightState, CloseDoor, ToggleAIReactions.
-   Next: SendTriggerMessage / DisplayOnScreenDebugMessage / SetPlayerInvincibility.
+   **Batch8 — done**: SendTriggerMessage, DisplayOnScreenDebugMessage,
+   SetPlayerInvincibility, RunConsoleCommand. Next: SetAIPatrol /
+   ChangePawnPhysics / SetPawnInvincibility.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

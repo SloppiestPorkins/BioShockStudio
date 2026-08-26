@@ -462,9 +462,10 @@ CinematicFadeView / DisableOrEnableConcept / ControlScriptedSequence / DealDamag
 SetOrUnsetInputContext (`run_action_batch5.py`), then ManipulateSpawnZoneRepopulation /
 InitiateQuest / SetMovableSpotlightTarget / ChangePressure (`run_action_batch6.py`),
 then WaitForQuestLogToFinish / SetMovableSpotlightState / CloseDoor /
-ToggleAIReactions (`run_action_batch7.py`). All `Success - 0 error(s)`. These are
-parameter + request-record slices — no script VM, FX, combat, door mechanics, or Tyrion
-goal stack.
+ToggleAIReactions (`run_action_batch7.py`), then SendTriggerMessage /
+DisplayOnScreenDebugMessage / SetPlayerInvincibility / RunConsoleCommand
+(`run_action_batch8.py`). All `Success - 0 error(s)`. These are parameter +
+request-record slices — no script VM, FX, combat, door mechanics, or Tyrion goal stack.
 
 ## Validation map
 

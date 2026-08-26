@@ -14,6 +14,7 @@
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionDisableOrEnableConcept.h"
+#include "ShockActionDisplayOnScreenDebugMessage.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFreezeHavokActor.h"
@@ -29,11 +30,14 @@
 #include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionPostMovementGoal.h"
+#include "ShockActionRunConsoleCommand.h"
 #include "ShockActionScriptNote.h"
+#include "ShockActionSendTriggerMessage.h"
 #include "ShockActionSetLightProperties.h"
 #include "ShockActionSetMovableSpotlightState.h"
 #include "ShockActionSetMovableSpotlightTarget.h"
 #include "ShockActionSetOrUnsetInputContext.h"
+#include "ShockActionSetPlayerInvincibility.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSetTipPriority.h"
 #include "ShockActionShockInventory.h"
@@ -1127,6 +1131,42 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					React->EventReactions = Toggle;
 					Applied.Add(TEXT("EventReactions"));
+				}
+			}
+			if (UShockActionSendTriggerMessage* Trig = Cast<UShockActionSendTriggerMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Instigator"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Trig->InstigatorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Instigator"));
+				}
+			}
+			if (UShockActionDisplayOnScreenDebugMessage* Dbg = Cast<UShockActionDisplayOnScreenDebugMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Message"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Dbg->Message = Unquote(Text);
+					Applied.Add(TEXT("Message"));
+				}
+			}
+			if (UShockActionSetPlayerInvincibility* Inv = Cast<UShockActionSetPlayerInvincibility>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("bInvincible"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Inv->bInvincible = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bInvincible"));
+				}
+			}
+			if (UShockActionRunConsoleCommand* Cmd = Cast<UShockActionRunConsoleCommand>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Command"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Cmd->Command = Unquote(Text);
+					Applied.Add(TEXT("Command"));
 				}
 			}
 			Ok = true;
