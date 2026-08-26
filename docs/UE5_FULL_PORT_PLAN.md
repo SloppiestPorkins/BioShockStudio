@@ -575,6 +575,14 @@ configurator yet. Next census: `ActionNonBlockingExecuteScript`.
 `run_action_nonblocking_script.py`, `Success - 0 error(s)`. No Script VM / label lookup yet. Next
 census: `ActionSetLightProperties`.
 
+### Phase 4 ActionSetLightProperties first slice — done, 26 Aug 2026
+
+`UShockActionSetLightProperties`: Object label + ChangeProperty brightness/colour; `ApplyToActor`
+writes intensity (LightBrightness scale) and light colour on the first `ULightComponent`. Live
+`run_action_set_light.py`, `Success - 0 error(s)`. LightType / period / phase / shadow flags still
+open; decompiled `LightBrightnessProperty` lists no value field (float inferred from Engine.Light
++ level import). Next census: `ActionVariableAssignIfNotExist`.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

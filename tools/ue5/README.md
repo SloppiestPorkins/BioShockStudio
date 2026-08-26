@@ -285,6 +285,22 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Default non-blocking; empty
 target refused; configured target recorded.
 
+## ActionSetLightProperties (Phase 4 census #6)
+
+Finds lights by `Object` label and writes nested `*Property` fields when `ChangeProperty` is true.
+This slice applies **brightness** (intensity = BioShock `LightBrightness` scale) and **colour** to
+the first `ULightComponent` on a target actor. LightType / period / phase / shadow flags are not
+ported yet. Decompiled `LightBrightnessProperty` has no value var line — float is inferred from
+Engine.Light + level import.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_action_set_light.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** intensity 2.5; colour channels
+match Configure (use `unreal.Color(r=,g=,b=,a=)`).
+
 ## Validation map
 
 `build_validation_map.py` builds one map holding an instance of every asset class this pipeline

@@ -4,6 +4,7 @@
 #include "ShockActionExecuteScript.h"
 #include "ShockActionNonBlockingExecuteScript.h"
 #include "ShockActionPlayEffect.h"
+#include "ShockActionSetLightProperties.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionWait.h"
 #include "ShockPawn.h"
@@ -313,6 +314,15 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Exec->bBlock = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("block"));
+				}
+			}
+			if (UShockActionSetLightProperties* Light = Cast<UShockActionSetLightProperties>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Object"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Light->ObjectLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("Object"));
 				}
 			}
 			Ok = true;

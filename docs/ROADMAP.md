@@ -1340,7 +1340,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    only; full SetPropertyText open. **ActionIf first slice — done**: OR + true/else branch choice.
    Next census: ActionPlayEffect. **ActionPlayEffect first slice — done**: ScriptTrigger record
    fire; no FX yet. **ActionNonBlockingExecuteScript first slice — done**: records targetScript,
-   block=false; no Script VM. Next: ActionSetLightProperties.
+   block=false; no Script VM. **ActionSetLightProperties first slice — done**: brightness+colour
+   on ULightComponent; type/period/phase/shadow open. Next: ActionVariableAssignIfNotExist.
 4. An app-facing "export to UE5" workflow — **deliberately not started**; a product decision, not a
    decode, pending a call on whether the app should carry this at all.
 

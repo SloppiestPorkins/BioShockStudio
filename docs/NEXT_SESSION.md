@@ -35,10 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue after ActionNonBlockingExecuteScript first slice, landed 26 Aug 2026:
-records targetScript / block=false; no Script VM.
+Continue after ActionSetLightProperties first slice, landed 26 Aug 2026:
+brightness+colour ApplyToActor on ULightComponent; type/period/phase open.
 Do not re-run prior UE verifies to re-confirm.
-Next startable: ActionSetLightProperties (census #6, 968 refs). Do not invent
+Next startable: ActionVariableAssignIfNotExist (census #7, 853 refs). Do not invent
 cubemap face order, material graphs, panner units, switch-selection.
 Fast 265/265 (measured 26 Aug). Branch feature/fbx-materials-gui.
 No Task/backup-agent. Do not re-survey. Commit logical slices.
