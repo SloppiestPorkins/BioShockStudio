@@ -496,7 +496,7 @@ def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials
     return meshes
 
 
-def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root):
+def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root, rig_names=None):
     """Imports the FBX rig export-level wrote for each SkeletalMesh-kind asset (one directory per
     distinct mesh, `Rigs/<meshName>/ue5_manifest.json`, next to the level's own manifest), so
     `_import_instances` can place these as real animated SkeletalMeshActors below.
@@ -511,11 +511,20 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
     character (e.g. a common splicer variant) can appear in many different levels and should be
     one shared, reused asset across all of them, not duplicated per level.
     `import_bioshock.main` is itself idempotent, so re-importing an already-imported character from
-    a later level updates rather than duplicates it.
+    a later level updates rather than duplicates it. Note that "updates" means it does the work
+    again -- there is no skip-on-exists on the rig path, and a rig's animations dominate the cost
+    (one splicer variant carries 457), which is what `rig_names` exists for.
+
+    `rig_names`, when given, is the set of mesh names to import rigs for; every other SkeletalMesh
+    asset falls back to the bind-pose static mesh exactly as it does for a rig that failed to
+    import. That is a deliberate narrowing for a thin slice, not a coverage claim -- the caller
+    reports which names it asked for so a filtered run cannot read as a whole-level one.
     """
     skeletal_meshes = {}
     for asset in manifest.get("assets") or []:
         if asset.get("kind") != "SkeletalMesh":
+            continue
+        if rig_names is not None and asset["name"] not in rig_names:
             continue
 
         rig_dir = os.path.join(manifest_dir, "Rigs", asset["name"])
@@ -596,7 +605,7 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
         handled.add(instance["actorKey"])
 
 def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
-         character_content_root="/Game/BioShockCharacters"):
+         character_content_root="/Game/BioShockCharacters", rig_names=None):
     """Import one level manifest. Returns the created/updated/skipped/unsupported report."""
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -634,7 +643,8 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     _import_lights(manifest, existing, report, handled)
     _import_cubemap_probes(manifest, existing, report, handled, cubemap_faces)
 
-    skeletal_meshes = _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root)
+    skeletal_meshes = _import_skeletal_rigs(
+        manifest, manifest_dir, report, character_content_root, rig_names)
 
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
