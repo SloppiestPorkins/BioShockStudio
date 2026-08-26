@@ -9,6 +9,7 @@
 #include "ShockActionChangePressure.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionCinematicFadeView.h"
+#include "ShockActionCloseDoor.h"
 #include "ShockActionControlScriptedSequence.h"
 #include "ShockActionDealDamage.h"
 #include "ShockActionDestroyActor.h"
@@ -30,6 +31,7 @@
 #include "ShockActionPostMovementGoal.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSetLightProperties.h"
+#include "ShockActionSetMovableSpotlightState.h"
 #include "ShockActionSetMovableSpotlightTarget.h"
 #include "ShockActionSetOrUnsetInputContext.h"
 #include "ShockActionSetProperty.h"
@@ -38,6 +40,7 @@
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionTeleportPawnToLocation.h"
+#include "ShockActionToggleAIReactions.h"
 #include "ShockActionTweakAIHearing.h"
 #include "ShockActionTweakAIVision.h"
 #include "ShockActionUnlockDoor.h"
@@ -45,6 +48,7 @@
 #include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
 #include "ShockActionWaitForGoal.h"
+#include "ShockActionWaitForQuestLogToFinish.h"
 #include "ShockPawn.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
@@ -1035,6 +1039,94 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 					LexFromString(V, *Text);
 					Press->DesiredPressure = static_cast<uint8>(FMath::Clamp(V, 0, 255));
 					Applied.Add(TEXT("DesiredPressure"));
+				}
+			}
+			if (UShockActionWaitForQuestLogToFinish* QuestLog = Cast<UShockActionWaitForQuestLogToFinish>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestLog"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					QuestLog->QuestLogClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestLog"));
+				}
+				float V = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("TimeoutSeconds"), Text) && ParseFloat(Text, V))
+				{
+					QuestLog->TimeoutSeconds = V;
+					Applied.Add(TEXT("TimeoutSeconds"));
+				}
+			}
+			if (UShockActionSetMovableSpotlightState* SpotState = Cast<UShockActionSetMovableSpotlightState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SpotlightLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SpotState->SpotlightLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SpotlightLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("SpotlightOn"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SpotState->bSpotlightOn = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("SpotlightOn"));
+				}
+			}
+			if (UShockActionCloseDoor* Close = Cast<UShockActionCloseDoor>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Close->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ForceClose"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Close->bForceClose = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ForceClose"));
+				}
+			}
+			if (UShockActionToggleAIReactions* React = Cast<UShockActionToggleAIReactions>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					React->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				auto ParseToggle = [](const FString& Text, EShockToggleHitReactions& Out) -> bool
+				{
+					if (Text.StartsWith(TEXT("<")))
+					{
+						return false;
+					}
+					int32 V = 0;
+					LexFromString(V, *Text);
+					if (V < 0 || V > 2)
+					{
+						return false;
+					}
+					Out = static_cast<EShockToggleHitReactions>(V);
+					return true;
+				};
+				EShockToggleHitReactions Toggle = EShockToggleHitReactions::DoNotChange;
+				if (Lookup(Classes, ClassName, TEXT("FullBodyHitReactions"), Text) && ParseToggle(Text, Toggle))
+				{
+					React->FullBodyHitReactions = Toggle;
+					Applied.Add(TEXT("FullBodyHitReactions"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("QuickHitReactions"), Text) && ParseToggle(Text, Toggle))
+				{
+					React->QuickHitReactions = Toggle;
+					Applied.Add(TEXT("QuickHitReactions"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("FallDownHitReactions"), Text) && ParseToggle(Text, Toggle))
+				{
+					React->FallDownHitReactions = Toggle;
+					Applied.Add(TEXT("FallDownHitReactions"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EventReactions"), Text) && ParseToggle(Text, Toggle))
+				{
+					React->EventReactions = Toggle;
+					Applied.Add(TEXT("EventReactions"));
 				}
 			}
 			Ok = true;

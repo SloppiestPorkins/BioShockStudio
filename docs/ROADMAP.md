@@ -1359,8 +1359,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    DealDamage (request-record slices). **Batch4 — done**: WaitForGoal, ChangeSkinAtIndex,
    OpenDoor, AISpeech. **Batch5 — done**: AssertFact, Loop, TeleportPawnToLocation,
    SetOrUnsetInputContext. **Batch6 — done**: ManipulateSpawnZoneRepopulation,
-   InitiateQuest, SetMovableSpotlightTarget, ChangePressure. Next:
-   WaitForQuestLogToFinish / CloseDoor / ToggleAIReactions.
+   InitiateQuest, SetMovableSpotlightTarget, ChangePressure. **Batch7 — done**:
+   WaitForQuestLogToFinish, SetMovableSpotlightState, CloseDoor, ToggleAIReactions.
+   Next: SendTriggerMessage / DisplayOnScreenDebugMessage / SetPlayerInvincibility.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
