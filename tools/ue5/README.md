@@ -280,7 +280,8 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 ```
 
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Label write round-trips; unknown
-property names return false.
+property names return false. **bHidden → SetActorHiddenInGame — done 27 Aug 2026**
+(`run_action_set_property.py`, `Success - 0 error(s)`).
 
 ## ActionIf (Phase 4 census #3)
 
