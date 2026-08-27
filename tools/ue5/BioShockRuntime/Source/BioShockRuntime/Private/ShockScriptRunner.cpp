@@ -77,6 +77,17 @@
 #include "ShockActionWaitForGoal.h"
 #include "ShockActionSetOrUnsetInputContext.h"
 #include "ShockActionChangePressure.h"
+#include "ShockActionManipulateSpawnZoneRepopulation.h"
+#include "ShockActionSetMovableSpotlightTarget.h"
+#include "ShockActionSetMovableSpotlightState.h"
+#include "ShockActionWaitForQuestLogToFinish.h"
+#include "ShockActionToggleAIReactions.h"
+#include "ShockActionDisplayOnScreenDebugMessage.h"
+#include "ShockActionSetPlayerInvincibility.h"
+#include "ShockActionSetAIPatrol.h"
+#include "ShockActionChangePawnPhysics.h"
+#include "ShockActionSetPawnInvincibility.h"
+#include "ShockActionSetAINormalLODOverrideTime.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1223,6 +1234,94 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionChangePressure* Pressure = Cast<UShockActionChangePressure>(Action))
 	{
 		Pressure->RequestChange();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionManipulateSpawnZoneRepopulation* SpawnZone = Cast<UShockActionManipulateSpawnZoneRepopulation>(Action))
+	{
+		SpawnZone->RequestManipulate();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetMovableSpotlightTarget* SpotlightTarget = Cast<UShockActionSetMovableSpotlightTarget>(Action))
+	{
+		SpotlightTarget->RequestSetTarget();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetMovableSpotlightState* SpotlightState = Cast<UShockActionSetMovableSpotlightState>(Action))
+	{
+		SpotlightState->RequestSetState();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionWaitForQuestLogToFinish* QuestLogWait = Cast<UShockActionWaitForQuestLogToFinish>(Action))
+	{
+		QuestLogWait->RequestWait();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionToggleAIReactions* ToggleReactions = Cast<UShockActionToggleAIReactions>(Action))
+	{
+		ToggleReactions->RequestToggle();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDisplayOnScreenDebugMessage* DebugMsg = Cast<UShockActionDisplayOnScreenDebugMessage>(Action))
+	{
+		DebugMsg->RequestDisplay();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetPlayerInvincibility* PlayerInv = Cast<UShockActionSetPlayerInvincibility>(Action))
+	{
+		PlayerInv->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetAIPatrol* AIPatrol = Cast<UShockActionSetAIPatrol>(Action))
+	{
+		AIPatrol->RequestSetPatrol();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangePawnPhysics* PawnPhysics = Cast<UShockActionChangePawnPhysics>(Action))
+	{
+		PawnPhysics->RequestChange();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetPawnInvincibility* PawnInv = Cast<UShockActionSetPawnInvincibility>(Action))
+	{
+		PawnInv->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetAINormalLODOverrideTime* LODOverride = Cast<UShockActionSetAINormalLODOverrideTime>(Action))
+	{
+		LODOverride->RequestSet();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
