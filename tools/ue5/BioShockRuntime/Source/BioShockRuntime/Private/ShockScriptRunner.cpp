@@ -1,6 +1,7 @@
 #include "ShockScriptRunner.h"
 
 #include "ShockAction.h"
+#include "ShockActionExecuteScript.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionIf.h"
 #include "ShockActionScriptNote.h"
@@ -8,6 +9,7 @@
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
+#include "ShockScriptRegistry.h"
 #include "ShockVariableScope.h"
 
 UShockScriptRunner::UShockScriptRunner()
@@ -19,6 +21,15 @@ UShockScriptRunner::UShockScriptRunner()
 void UShockScriptRunner::Configure(FName InLabel)
 {
 	ScriptLabel = InLabel;
+}
+
+void UShockScriptRunner::SetRegistry(UShockScriptRegistry* InRegistry)
+{
+	Registry = InRegistry;
+	if (Registry)
+	{
+		Registry->RegisterScript(this);
+	}
 }
 
 void UShockScriptRunner::AddAction(UShockAction* Action)
@@ -62,6 +73,8 @@ bool UShockScriptRunner::StartExecution()
 	bExitRequested = false;
 	bWaitPrepared = false;
 	PendingWait = nullptr;
+	PendingChild = nullptr;
+	SpawnedChildren.Reset();
 	bIsExecuting = true;
 	return true;
 }
@@ -70,25 +83,83 @@ void UShockScriptRunner::FinishExecution()
 {
 	bIsExecuting = false;
 	PendingWait = nullptr;
+	PendingChild = nullptr;
 	bWaitPrepared = false;
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
 }
 
+void UShockScriptRunner::TickSpawnedChildren(float WorldTimeSeconds)
+{
+	for (int32 i = SpawnedChildren.Num() - 1; i >= 0; --i)
+	{
+		UShockScriptRunner* Child = SpawnedChildren[i];
+		if (!Child)
+		{
+			SpawnedChildren.RemoveAt(i);
+			continue;
+		}
+		if (Child->bIsExecuting)
+		{
+			Child->TickExecution(WorldTimeSeconds);
+		}
+		if (!Child->bIsExecuting)
+		{
+			SpawnedChildren.RemoveAt(i);
+		}
+	}
+}
+
+bool UShockScriptRunner::AnySpawnedChildExecuting() const
+{
+	for (const TObjectPtr<UShockScriptRunner>& Child : SpawnedChildren)
+	{
+		if (Child && Child->bIsExecuting)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 {
-	if (!bIsExecuting)
+	while (true)
 	{
-		return false;
-	}
-	while (bIsExecuting)
-	{
-		if (!StepOne(WorldTimeSeconds))
+		if (PendingChild)
+		{
+			if (PendingChild->bIsExecuting)
+			{
+				PendingChild->TickExecution(WorldTimeSeconds);
+			}
+			if (PendingChild->bIsExecuting)
+			{
+				TickSpawnedChildren(WorldTimeSeconds);
+				return true;
+			}
+			PendingChild = nullptr;
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			continue;
+		}
+
+		if (!bIsExecuting)
 		{
 			break;
 		}
+
+		if (!StepOne(WorldTimeSeconds))
+		{
+			if (PendingChild)
+			{
+				continue;
+			}
+			break;
+		}
 	}
-	return bIsExecuting;
+
+	TickSpawnedChildren(WorldTimeSeconds);
+	return bIsExecuting || AnySpawnedChildExecuting();
 }
 
 bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
@@ -133,6 +204,38 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		++ActionsCompleted;
 		FinishExecution();
 		return false;
+	}
+
+	if (UShockActionExecuteScript* Exec = Cast<UShockActionExecuteScript>(Action))
+	{
+		if (!Exec->RequestExecute())
+		{
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			return true;
+		}
+		UShockScriptRunner* Child = Registry ? Registry->FindScript(Exec->TargetScript) : nullptr;
+		if (!Child || Child == this)
+		{
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			return true;
+		}
+		if (!Child->StartExecution())
+		{
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			return true;
+		}
+		if (Exec->IsBlocking())
+		{
+			PendingChild = Child;
+			return false;
+		}
+		SpawnedChildren.Add(Child);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
 	}
 
 	if (UShockActionVariableAssign* Assign = Cast<UShockActionVariableAssign>(Action))
@@ -184,7 +287,6 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		return true;
 	}
 
-	// Unknown / request-record-only action: step over.
 	++CurrentlyExecutingActionIndex;
 	++ActionsCompleted;
 	return true;

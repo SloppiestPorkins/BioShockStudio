@@ -833,6 +833,13 @@ VariableAssign/Inc/Dec, ExitScript, ScriptNote; unknown actions are stepped. Liv
 `run_script_runner.py`, `Success - 0 error(s)`. Not a level-placed Script actor, no message
 triggers, no BlockingExecuteScript parent/child, no Loop.
 
+### Phase 4 Blocking / NonBlocking ExecuteScript — done, 27 Aug 2026
+
+`UShockScriptRegistry` maps label → runner. Blocking starts a child and holds the parent until
+the child finishes (same-tick start so Wait wake times stay correct). Non-blocking starts a child
+and continues the parent; parent `TickExecution` also drives spawned children. Live
+`run_script_blocking.py`, `Success - 0 error(s)`. No message triggers / Loop / level Script actors.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

@@ -1410,7 +1410,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    BooleanStatement. Every action class in the 21-map usage probe now has a first-slice
    `UShockAction`. **Script runner first slice — done, 27 Aug 2026**:
    `UShockScriptRunner` linear queue (Wait/If/Exit/Note/VarAssign), live verified.
-   Next: BlockingExecuteScript parent/child or Medical playable input — not more census.
+   **Blocking/NonBlocking ExecuteScript — done same day**: registry + parent/child, live
+   `run_script_blocking.py`. Next: Medical playable input or Loop — not more census.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

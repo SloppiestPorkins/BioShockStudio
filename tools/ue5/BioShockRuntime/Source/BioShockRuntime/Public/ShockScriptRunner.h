@@ -5,6 +5,8 @@
 
 class UShockAction;
 class UShockActionWait;
+class UShockScriptRegistry;
+class UShockScriptRunner;
 class UShockVariableScope;
 
 /**
@@ -12,10 +14,9 @@ class UShockVariableScope;
  *
  * Holds an authored Actions list, copies it into a run queue on Start, then Tick advances:
  * ActionWait (latent), ActionIf (expand true/else into the queue), variable assigns,
- * ActionExitScript, ActionScriptNote. Unknown actions are stepped over and counted.
+ * ActionExitScript, ActionScriptNote, Blocking/NonBlocking ExecuteScript (child by label).
  *
- * Not a full VM: no message triggers, no BlockingExecuteScript parent/child, no Loop,
- * no level-placed Script actors yet.
+ * Not a full VM: no message triggers, no Loop, no level-placed Script actors yet.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockScriptRunner : public UObject
@@ -43,8 +44,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<UShockVariableScope> Variables;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TObjectPtr<UShockScriptRegistry> Registry;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void Configure(FName InLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetRegistry(UShockScriptRegistry* InRegistry);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void AddAction(UShockAction* Action);
@@ -69,8 +76,9 @@ public:
 	bool StartExecution();
 
 	/**
-	 * Advance until blocked on a Wait or finished. Pass the same monotonic WorldTimeSeconds
-	 * a Level would use (editor/test can fake it). Returns true while still executing.
+	 * Advance until blocked on a Wait / blocking child, or finished.
+	 * Also ticks non-blocking children this runner started. Returns true while still executing
+	 * (or while a non-blocking child is still running after this runner finished).
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	bool TickExecution(float WorldTimeSeconds);
@@ -85,9 +93,17 @@ private:
 	UPROPERTY()
 	TObjectPtr<UShockActionWait> PendingWait;
 
+	UPROPERTY()
+	TObjectPtr<UShockScriptRunner> PendingChild;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UShockScriptRunner>> SpawnedChildren;
+
 	bool bExitRequested = false;
 	bool bWaitPrepared = false;
 
 	void FinishExecution();
 	bool StepOne(float WorldTimeSeconds);
+	void TickSpawnedChildren(float WorldTimeSeconds);
+	bool AnySpawnedChildExecuting() const;
 };
