@@ -5,7 +5,7 @@
 
 /**
  * UnrealScript `ActionLoop`: repeatedly run loopActions until ExitLoop.
- * First slice holds CurrentIndex default -1 and records enter-loop intent; no child VM yet.
+ * Runner expands LoopActions into the queue and restarts until ExitLoop or 1000 iters.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionLoop : public UShockAction
@@ -21,8 +21,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bEnteredLoop = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TArray<TObjectPtr<UShockAction>> LoopActions;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(int32 InCurrentIndex);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void AddLoopAction(UShockAction* Action);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 GetLoopActionNum() const { return LoopActions.Num(); }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 GetCurrentIndex() const { return CurrentIndex; }

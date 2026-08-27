@@ -225,8 +225,9 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 **Measured live UE5.7, 27 Aug 2026 — `Success - 0 error(s)`.** Linear Wait + If true-branch
 verified. Blocking/NonBlocking ExecuteScript: `run_script_blocking.py`, same day, also
-`Success - 0 error(s)` (`UShockScriptRegistry` label lookup). Not a level-placed Script actor;
-no message triggers / Loop yet.
+`Success - 0 error(s)` (`UShockScriptRegistry` label lookup). ActionLoop/ExitLoop:
+`run_script_loop.py`, same day, `Success - 0 error(s)`. Not a level-placed Script actor;
+no message triggers yet.
 
 ## Playable Fire input
 

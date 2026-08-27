@@ -1411,9 +1411,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    `UShockAction`. **Script runner first slice — done, 27 Aug 2026**:
    `UShockScriptRunner` linear queue (Wait/If/Exit/Note/VarAssign), live verified.
    **Blocking/NonBlocking ExecuteScript — done same day**: registry + parent/child, live
-   `run_script_blocking.py`. **Playable Fire mapping — done same day**:
+   `run_script_blocking.py`. **ActionLoop/ExitLoop — done same day**:
+   `run_script_loop.py`. **Playable Fire mapping — done same day**:
    `run_playable_input.py` (legacy Input + LMB Fire + EnablePlayableInput). Next: PIE
-   possess (human) or Loop — not more census.
+   possess (human) or message-triggered Script start.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

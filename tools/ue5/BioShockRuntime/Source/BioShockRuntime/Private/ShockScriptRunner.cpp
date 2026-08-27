@@ -2,8 +2,10 @@
 
 #include "ShockAction.h"
 #include "ShockActionExecuteScript.h"
+#include "ShockActionExitLoop.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionIf.h"
+#include "ShockActionLoop.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
@@ -75,6 +77,7 @@ bool UShockScriptRunner::StartExecution()
 	PendingWait = nullptr;
 	PendingChild = nullptr;
 	SpawnedChildren.Reset();
+	LoopStack.Reset();
 	bIsExecuting = true;
 	return true;
 }
@@ -87,6 +90,55 @@ void UShockScriptRunner::FinishExecution()
 	bWaitPrepared = false;
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
+	LoopStack.Reset();
+}
+
+int32 UShockScriptRunner::InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert)
+{
+	int32 Inserted = 0;
+	int32 At = InsertAt;
+	for (const TObjectPtr<UShockAction>& Action : ToInsert)
+	{
+		if (Action)
+		{
+			RunQueue.Insert(Action, At++);
+			++Inserted;
+		}
+	}
+	if (Inserted == 0)
+	{
+		return 0;
+	}
+	for (FLoopFrame& Frame : LoopStack)
+	{
+		if (Frame.BodyStartIndex >= InsertAt)
+		{
+			Frame.BodyStartIndex += Inserted;
+		}
+		if (Frame.BodyEndIndex >= InsertAt)
+		{
+			Frame.BodyEndIndex += Inserted;
+		}
+	}
+	return Inserted;
+}
+
+bool UShockScriptRunner::ResolveLoopBoundaries()
+{
+	bool bRestarted = false;
+	while (LoopStack.Num() > 0 && CurrentlyExecutingActionIndex == LoopStack.Last().BodyEndIndex)
+	{
+		FLoopFrame& Top = LoopStack.Last();
+		if (Top.bKeepLooping && Top.Iteration < MaxLoopIterations)
+		{
+			++Top.Iteration;
+			CurrentlyExecutingActionIndex = Top.BodyStartIndex;
+			bRestarted = true;
+			break;
+		}
+		LoopStack.Pop();
+	}
+	return bRestarted;
 }
 
 void UShockScriptRunner::TickSpawnedChildren(float WorldTimeSeconds)
@@ -164,7 +216,16 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 
 bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 {
+	ResolveLoopBoundaries();
+
 	if (bExitRequested || CurrentlyExecutingActionIndex < 0 || CurrentlyExecutingActionIndex >= RunQueue.Num())
+	{
+		FinishExecution();
+		return false;
+	}
+
+	// Past end of outer queue while loops still want to run — ResolveLoopBoundaries handles BodyEnd.
+	if (CurrentlyExecutingActionIndex >= RunQueue.Num())
 	{
 		FinishExecution();
 		return false;
@@ -204,6 +265,40 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		++ActionsCompleted;
 		FinishExecution();
 		return false;
+	}
+
+	if (UShockActionExitLoop* ExitLoop = Cast<UShockActionExitLoop>(Action))
+	{
+		ExitLoop->RequestExitLoop();
+		if (LoopStack.Num() > 0)
+		{
+			FLoopFrame& Top = LoopStack.Last();
+			Top.bKeepLooping = false;
+			CurrentlyExecutingActionIndex = Top.BodyEndIndex;
+			++ActionsCompleted;
+			return true;
+		}
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionLoop* Loop = Cast<UShockActionLoop>(Action))
+	{
+		Loop->RequestEnterLoop();
+		const int32 InsertAt = CurrentlyExecutingActionIndex + 1;
+		const int32 BodyStart = InsertAt;
+		const int32 Inserted = InsertActionsAt(InsertAt, Loop->LoopActions);
+		FLoopFrame Frame;
+		Frame.Loop = Loop;
+		Frame.BodyStartIndex = BodyStart;
+		Frame.BodyEndIndex = BodyStart + Inserted;
+		Frame.Iteration = 0;
+		Frame.bKeepLooping = true;
+		LoopStack.Add(Frame);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
 	}
 
 	if (UShockActionExecuteScript* Exec = Cast<UShockActionExecuteScript>(Action))
@@ -267,14 +362,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		const FString Branch = IfAction->ChooseBranch();
 		const TArray<TObjectPtr<UShockAction>>& BranchActions =
 			Branch == TEXT("true") ? IfAction->TrueActions : IfAction->ElseActions;
-		int32 InsertAt = CurrentlyExecutingActionIndex + 1;
-		for (const TObjectPtr<UShockAction>& BranchAction : BranchActions)
-		{
-			if (BranchAction)
-			{
-				RunQueue.Insert(BranchAction, InsertAt++);
-			}
-		}
+		InsertActionsAt(CurrentlyExecutingActionIndex + 1, BranchActions);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

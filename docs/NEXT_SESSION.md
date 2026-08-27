@@ -35,9 +35,8 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Playable Fire mapping + EnablePlayableInput verified (DefaultInput.ini legacy + LMB).
-Script runner: linear + Blocking/NonBlocking done.
-Next: PIE possess (human Play check), or ActionLoop/ExitLoop on the runner.
+ActionLoop/ExitLoop on script runner verified live.
+Next: PIE possess (human Play), or message-triggered Script start.
 Branch feature/fbx-materials-gui.
 ```
 
