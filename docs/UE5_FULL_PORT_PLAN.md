@@ -958,6 +958,12 @@ in-level for fire to do anything useful).
 RunConsoleCommand / ChangeStaticMesh Request* wired. Live `run_script_physics_timer.py`,
 `Success - 0 error(s)`.
 
+### Phase 4 runner AI / spawn / fact — done, 27 Aug 2026
+
+SetAIState / SpawnPickup / SpawnTurret / AssertFact / RetractFact / ForcePlayerMove /
+TellAIToWait / TellAIToContinue Request* wired; Ragdoll `ApplyInWorld` physics impulse.
+Live `run_script_ai_spawn.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

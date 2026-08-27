@@ -45,6 +45,15 @@
 #include "ShockActionStopTimer.h"
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionChangeStaticMesh.h"
+#include "ShockActionSetAIState.h"
+#include "ShockActionRagdoll.h"
+#include "ShockActionSpawnPickup.h"
+#include "ShockActionSpawnTurret.h"
+#include "ShockActionAssertFact.h"
+#include "ShockActionRetractFact.h"
+#include "ShockActionForcePlayerMove.h"
+#include "ShockActionTellAIToWait.h"
+#include "ShockActionTellAIToContinue.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -920,6 +929,83 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionChangeStaticMesh* ChangeMesh = Cast<UShockActionChangeStaticMesh>(Action))
 	{
 		ChangeMesh->RequestChange();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetAIState* AIState = Cast<UShockActionSetAIState>(Action))
+	{
+		AIState->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRagdoll* Ragdoll = Cast<UShockActionRagdoll>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Ragdoll->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSpawnPickup* Pickup = Cast<UShockActionSpawnPickup>(Action))
+	{
+		Pickup->RequestSpawn();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSpawnTurret* Turret = Cast<UShockActionSpawnTurret>(Action))
+	{
+		Turret->RequestSpawn();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionAssertFact* Assert = Cast<UShockActionAssertFact>(Action))
+	{
+		Assert->RequestAssert();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRetractFact* Retract = Cast<UShockActionRetractFact>(Action))
+	{
+		Retract->RequestRetract();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionForcePlayerMove* ForceMove = Cast<UShockActionForcePlayerMove>(Action))
+	{
+		ForceMove->RequestMove();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTellAIToWait* WaitAI = Cast<UShockActionTellAIToWait>(Action))
+	{
+		WaitAI->RequestWait();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTellAIToContinue* ContinueAI = Cast<UShockActionTellAIToContinue>(Action))
+	{
+		ContinueAI->RequestContinue();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

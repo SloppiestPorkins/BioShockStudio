@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionRagdoll.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionRagdoll`. Records AI + impulse; no ragdoll yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionRagdoll : public UShockAction
@@ -38,4 +40,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestRagdoll();
+
+	/** Find AILabel actor and apply physics impulse stand-in. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
