@@ -68,7 +68,7 @@ def main(out):
     script.tick_execution(0.0)
     report["door_b"] = "ok"
 
-    # Re-entry skip while waiting
+    # Re-entry while waiting: message is queued (UC MessageQueue), not rejected.
     waiting = unreal.new_object(runner_cls)
     waiting.configure("Busy")
     waiting.set_triggered_by("BusySrc")
@@ -77,12 +77,19 @@ def main(out):
     waiting.add_action(_assign("Once", "1"))
     if int(registry.dispatch_message("Trigger", "BusySrc")) != 1:
         f.append("Busy start")
-    if int(registry.dispatch_message("Trigger", "BusySrc")) != 0:
-        f.append("Busy re-entry should skip")
+    if int(registry.dispatch_message("Trigger", "BusySrc")) != 1:
+        f.append("Busy second should queue")
+    if int(waiting.get_message_queue_num()) != 1:
+        f.append("queue num %s" % waiting.get_message_queue_num())
     waiting.tick_execution(0.0)
     if not bool(waiting.is_executing):
         f.append("Busy should still wait")
     waiting.tick_execution(1.0)
+    # First run finished and dequeued second: may be mid-second Wait.
+    if int(waiting.get_message_queue_num()) != 0:
+        f.append("queue should drain to start second")
+    if bool(waiting.is_executing):
+        waiting.tick_execution(2.0)
     if str(waiting.ensure_variables().get_value_or_empty("Once")) != "1":
         f.append("Once missing")
     report["reentry"] = "ok"

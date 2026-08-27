@@ -15,9 +15,9 @@ class UShockVariableScope;
  *
  * Holds an authored Actions list, copies it into a run queue on Start, then Tick advances:
  * ActionWait, ActionIf, ActionLoop/ExitLoop, variable assigns, ExitScript, ScriptNote,
- * Blocking/NonBlocking ExecuteScript (child by label), message TriggeredBy start.
+ * Blocking/NonBlocking ExecuteScript (child by label), message TriggeredBy start + MessageQueue.
  *
- * Not a full VM: no real Message objects / queue, no level-placed Script actors yet.
+ * Not a full VM: no real Message UObject copies, no level-placed Script actors yet.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockScriptRunner : public UObject
@@ -32,7 +32,7 @@ public:
 
 	/**
 	 * UnrealScript Actor.TriggeredBy (inherited): comma-separated source labels that may start
-	 * this script. Empty matches any DispatchMessage source.
+	 * this script. Empty does not match (UC only registerMessage when non-empty).
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString TriggeredBy;
@@ -74,8 +74,8 @@ public:
 	bool MatchesTriggeredBy(const FString& SourceLabel) const;
 
 	/**
-	 * If enabled, TriggeredBy matches, and not already executing: record the message and
-	 * StartExecution. Returns false when skipped (disabled / mismatch / re-entry).
+	 * If enabled and TriggeredBy matches: start when idle, else enqueue (UC MessageQueue).
+	 * Returns true when the message was started or queued; false when rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	bool TryStartFromMessage(FName MessageClassName, const FString& SourceLabel);
@@ -85,6 +85,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	FString GetLastMessageSource() const { return LastMessageSource; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 GetMessageQueueNum() const { return MessageQueue.Num(); }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void SetRegistry(UShockScriptRegistry* InRegistry);
@@ -132,6 +135,12 @@ private:
 		bool bKeepLooping = true;
 	};
 
+	struct FQueuedMessage
+	{
+		FName MessageClass;
+		FString SourceLabel;
+	};
+
 	UPROPERTY()
 	TArray<TObjectPtr<UShockAction>> Actions;
 
@@ -148,6 +157,7 @@ private:
 	TArray<TObjectPtr<UShockScriptRunner>> SpawnedChildren;
 
 	TArray<FLoopFrame> LoopStack;
+	TArray<FQueuedMessage> MessageQueue;
 
 	bool bExitRequested = false;
 	bool bWaitPrepared = false;
@@ -155,6 +165,7 @@ private:
 	static constexpr int32 MaxLoopIterations = 1000;
 
 	void FinishExecution();
+	bool TryDequeueAndStart();
 	bool StepOne(float WorldTimeSeconds);
 	bool ResolveLoopBoundaries();
 	int32 InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert);

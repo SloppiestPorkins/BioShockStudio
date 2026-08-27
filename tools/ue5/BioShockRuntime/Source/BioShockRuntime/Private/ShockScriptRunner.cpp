@@ -53,9 +53,17 @@ bool UShockScriptRunner::MatchesTriggeredBy(const FString& SourceLabel) const
 
 bool UShockScriptRunner::TryStartFromMessage(FName MessageClassName, const FString& SourceLabel)
 {
-	if (!bEnabled || bIsExecuting || !MatchesTriggeredBy(SourceLabel))
+	if (!bEnabled || !MatchesTriggeredBy(SourceLabel))
 	{
 		return false;
+	}
+	if (bIsExecuting)
+	{
+		FQueuedMessage Queued;
+		Queued.MessageClass = MessageClassName;
+		Queued.SourceLabel = SourceLabel;
+		MessageQueue.Add(Queued);
+		return true;
 	}
 	LastMessageClass = MessageClassName;
 	LastMessageSource = SourceLabel;
@@ -128,6 +136,20 @@ void UShockScriptRunner::FinishExecution()
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
 	LoopStack.Reset();
+	TryDequeueAndStart();
+}
+
+bool UShockScriptRunner::TryDequeueAndStart()
+{
+	if (MessageQueue.Num() == 0 || !bEnabled)
+	{
+		return false;
+	}
+	const FQueuedMessage Msg = MessageQueue[0];
+	MessageQueue.RemoveAt(0);
+	LastMessageClass = Msg.MessageClass;
+	LastMessageSource = Msg.SourceLabel;
+	return StartExecution();
 }
 
 int32 UShockScriptRunner::InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert)
@@ -240,6 +262,17 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 		if (!StepOne(WorldTimeSeconds))
 		{
 			if (PendingChild)
+			{
+				continue;
+			}
+			// Blocked on Wait — leave until a later Tick with later WorldTime.
+			if (PendingWait)
+			{
+				break;
+			}
+			// FinishExecution may have dequeued MessageQueue and restarted — step again
+			// this frame so the new Wait gets PrepareWait at the finish time.
+			if (bIsExecuting)
 			{
 				continue;
 			}

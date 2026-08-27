@@ -227,8 +227,8 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 verified. Blocking/NonBlocking ExecuteScript: `run_script_blocking.py`, same day, also
 `Success - 0 error(s)` (`UShockScriptRegistry` label lookup). ActionLoop/ExitLoop:
 `run_script_loop.py`, same day, `Success - 0 error(s)`. Message TriggeredBy:
-`run_script_message.py`, same day, `Success - 0 error(s)`. Not a level-placed Script actor;
-MessageQueue while busy still open.
+`run_script_message.py`, same day, `Success - 0 error(s)`. MessageQueue while busy:
+`run_script_queue.py`, same day, `Success - 0 error(s)`. Not a level-placed Script actor.
 
 ## Playable Fire input
 

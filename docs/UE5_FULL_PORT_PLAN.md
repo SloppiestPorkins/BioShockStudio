@@ -850,8 +850,13 @@ Live `run_script_loop.py`, `Success - 0 error(s)`.
 ### Phase 4 message-triggered Script start — done, 27 Aug 2026
 
 `TriggeredBy` (comma-separated labels) + `UShockScriptRegistry::DispatchMessage`. Empty
-TriggeredBy does not start (matches UC BeginPlay register gate). Re-entry while executing is
-skipped (queue still open). Live `run_script_message.py`, `Success - 0 error(s)`.
+TriggeredBy does not start (matches UC BeginPlay register gate). Live `run_script_message.py`,
+`Success - 0 error(s)`.
+
+### Phase 4 MessageQueue while busy — done, 27 Aug 2026
+
+Busy + matching message enqueues `{MessageClass, SourceLabel}`; `FinishExecution` dequeues and
+`StartExecution` (same-frame PrepareWait). Live `run_script_queue.py`, `Success - 0 error(s)`.
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

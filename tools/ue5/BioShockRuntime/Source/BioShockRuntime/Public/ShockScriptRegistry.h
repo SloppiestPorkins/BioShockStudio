@@ -22,9 +22,9 @@ public:
 	int32 Num() const { return ByLabel.Num(); }
 
 	/**
-	 * Start every registered script whose TriggeredBy matches SourceLabel
-	 * (comma-separated tokens; empty TriggeredBy matches any). Returns how many started.
-	 * Scripts already executing are skipped (message queue still open).
+	 * Start or queue every registered script whose TriggeredBy matches SourceLabel.
+	 * Returns how many accepted the message (started or queued). Scripts that reject
+	 * (disabled / TriggeredBy mismatch) are not counted.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 DispatchMessage(FName MessageClassName, const FString& SourceLabel);
