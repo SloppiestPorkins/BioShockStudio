@@ -125,6 +125,7 @@ bool UShockScriptRunner::StartExecution()
 	PendingChild = nullptr;
 	SpawnedChildren.Reset();
 	LoopStack.Reset();
+	ForStack.Reset();
 	bIsExecuting = true;
 	return true;
 }
@@ -138,6 +139,7 @@ void UShockScriptRunner::FinishExecution()
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
 	LoopStack.Reset();
+	ForStack.Reset();
 	TryDequeueAndStart();
 }
 
@@ -181,6 +183,17 @@ int32 UShockScriptRunner::InsertActionsAt(int32 InsertAt, const TArray<TObjectPt
 			Frame.BodyEndIndex += Inserted;
 		}
 	}
+	for (FForFrame& Frame : ForStack)
+	{
+		if (Frame.BodyStartIndex >= InsertAt)
+		{
+			Frame.BodyStartIndex += Inserted;
+		}
+		if (Frame.BodyEndIndex >= InsertAt)
+		{
+			Frame.BodyEndIndex += Inserted;
+		}
+	}
 	return Inserted;
 }
 
@@ -198,6 +211,40 @@ bool UShockScriptRunner::ResolveLoopBoundaries()
 			break;
 		}
 		LoopStack.Pop();
+	}
+	return bRestarted;
+}
+
+bool UShockScriptRunner::ResolveForBoundaries()
+{
+	bool bRestarted = false;
+	while (ForStack.Num() > 0 && CurrentlyExecutingActionIndex == ForStack.Last().BodyEndIndex)
+	{
+		FForFrame& Top = ForStack.Last();
+		UShockActionFor* ForAction = Top.ForAction;
+		if (!ForAction || Top.Iteration >= MaxLoopIterations)
+		{
+			ForStack.Pop();
+			continue;
+		}
+
+		UShockVariableScope* Vars = EnsureVariables();
+		float Counter = ForAction->BeginValue;
+		FString CounterText = Vars->GetValueOrEmpty(ForAction->CounterName);
+		if (!CounterText.IsEmpty())
+		{
+			LexFromString(Counter, *CounterText);
+		}
+		const float Next = Counter + 1.0f;
+		if (Next <= ForAction->EndValue + KINDA_SMALL_NUMBER)
+		{
+			Vars->Set(ForAction->CounterName, LexToString(Next));
+			++Top.Iteration;
+			CurrentlyExecutingActionIndex = Top.BodyStartIndex;
+			bRestarted = true;
+			break;
+		}
+		ForStack.Pop();
 	}
 	return bRestarted;
 }
@@ -289,6 +336,7 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 {
 	ResolveLoopBoundaries();
+	ResolveForBoundaries();
 
 	if (bExitRequested || CurrentlyExecutingActionIndex < 0 || CurrentlyExecutingActionIndex >= RunQueue.Num())
 	{
@@ -375,9 +423,23 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionFor* ForAction = Cast<UShockActionFor>(Action))
 	{
-		// Counter VariableFloat iterations still open — expand forActions once per enter.
-		ForAction->RequestEnterFor();
-		InsertActionsAt(CurrentlyExecutingActionIndex + 1, ForAction->ForActions);
+		if (!ForAction->RequestEnterFor())
+		{
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			return true;
+		}
+		UShockVariableScope* Vars = EnsureVariables();
+		Vars->Set(ForAction->CounterName, LexToString(ForAction->BeginValue));
+		const int32 InsertAt = CurrentlyExecutingActionIndex + 1;
+		const int32 BodyStart = InsertAt;
+		const int32 Inserted = InsertActionsAt(InsertAt, ForAction->ForActions);
+		FForFrame Frame;
+		Frame.ForAction = ForAction;
+		Frame.BodyStartIndex = BodyStart;
+		Frame.BodyEndIndex = BodyStart + Inserted;
+		Frame.Iteration = 0;
+		ForStack.Add(Frame);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

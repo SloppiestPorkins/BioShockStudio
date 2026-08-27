@@ -286,7 +286,8 @@ property names return false.
 
 Native Scripting.U if: OR over `testsOr` (`ActionBool`), then `trueActions` vs `elseActions`.
 `UShockActionIf` chooses the branch; `UShockTruthStatement` evaluates `Value` via `FCString::ToBool`.
-Nested latent Execute on a script graph is still open.
+Nested latent Execute on a script graph is still open for many actions, but
+`ActionLoop` / `ActionFor` (counter ≤ End) now expand on the runner.
 
 ```bash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \

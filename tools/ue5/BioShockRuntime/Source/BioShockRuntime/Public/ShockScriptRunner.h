@@ -5,6 +5,7 @@
 
 class UShockAction;
 class UShockActionLoop;
+class UShockActionFor;
 class UShockActionWait;
 class UShockScriptRegistry;
 class UShockScriptRunner;
@@ -14,8 +15,9 @@ class UShockVariableScope;
  * First-slice stand-in for UnrealScript `Script` action execution.
  *
  * Holds an authored Actions list, copies it into a run queue on Start, then Tick advances:
- * ActionWait, ActionIf, ActionLoop/ExitLoop, variable assigns, ExitScript, ScriptNote,
- * Blocking/NonBlocking ExecuteScript (child by label), message TriggeredBy start + MessageQueue.
+ * ActionWait, ActionIf, ActionLoop/ExitLoop, ActionFor (counter body repeats),
+ * variable assigns, ExitScript, ScriptNote, Blocking/NonBlocking ExecuteScript
+ * (child by label), message TriggeredBy start + MessageQueue.
  *
  * Not a full VM: no real Message UObject copies, no level-placed Script actors yet.
  */
@@ -113,6 +115,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 GetLoopDepth() const { return LoopStack.Num(); }
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 GetForDepth() const { return ForStack.Num(); }
+
 	/** Copies authored Actions into the run queue and begins. Returns false if disabled/empty. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	bool StartExecution();
@@ -133,6 +138,14 @@ private:
 		int32 BodyEndIndex = 0;
 		int32 Iteration = 0;
 		bool bKeepLooping = true;
+	};
+
+	struct FForFrame
+	{
+		TObjectPtr<UShockActionFor> ForAction;
+		int32 BodyStartIndex = 0;
+		int32 BodyEndIndex = 0;
+		int32 Iteration = 0;
 	};
 
 	struct FQueuedMessage
@@ -157,6 +170,7 @@ private:
 	TArray<TObjectPtr<UShockScriptRunner>> SpawnedChildren;
 
 	TArray<FLoopFrame> LoopStack;
+	TArray<FForFrame> ForStack;
 	TArray<FQueuedMessage> MessageQueue;
 
 	bool bExitRequested = false;
@@ -168,6 +182,7 @@ private:
 	bool TryDequeueAndStart();
 	bool StepOne(float WorldTimeSeconds);
 	bool ResolveLoopBoundaries();
+	bool ResolveForBoundaries();
 	int32 InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert);
 	void TickSpawnedChildren(float WorldTimeSeconds);
 	bool AnySpawnedChildExecuting() const;

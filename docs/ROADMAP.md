@@ -1426,10 +1426,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    exports); import wires `AddTrueAction` / `AddElseAction` / `AddLoopAction` /
    `AddTest` when a Shock class exists. Live verify: nested bodies present;
    And/Not/TestFact ActionBool stubs closed the sample's testsOr gaps.
-   **ActionPropertyTest + ActionFor forActions — done same day**: runner expands For
-   body once; live limit-70 import nested_for=3. Remaining nested miss on that
-   sample: ActionDisplayMapHUDRegion (stub in flight).
-   Next: PIE possess (human), or full ActionFor counter iterations / property-test eval.
+   **ActionPropertyTest + ActionFor forActions — done same day**: runner repeats For
+   body while counter ≤ End (`run_script_for.py`); live limit-70 import nested_for=3,
+   nested_unmapped=0 (DisplayMapHUDRegion stub).
+   Next: PIE possess (human), or PropertyTest EvaluateBool / remaining fidelity.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

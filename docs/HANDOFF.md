@@ -22,11 +22,11 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor (this session) | **Phase 4: ActionFor counter iterations** (body import already landed) | `ShockScriptRunner.*`, `ShockActionFor.*`, `ShockVariableScope.*` | 27 Aug 2026 |
+| *(none)* | Active claims empty. Add a row before starting work. | — | — |
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
-If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion.
-Older Aug 23–25 rows cleared on consolidation; **re-add a claim if that work is still active.**
+If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,
+ActionFor counter iterations (`run_script_for.py`). Older Aug 23–25 rows cleared on consolidation.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a
