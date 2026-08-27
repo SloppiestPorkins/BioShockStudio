@@ -1437,7 +1437,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    label world move/rename/physics freeze (`run_script_world_move.py`).
    **Runner Give/RemoveItems + DisplayMap/Print/SetQuestHint — done same day**
    (`run_script_inventory_ui.py`). **Runner quest + AutoSave — done same day**
-   (`run_script_quest_save.py`). Next: PIE possess (human).
+   (`run_script_quest_save.py`). **Runner DealDamage + ChangeLevel/Crouch/DisableMove —
+   done same day** (`run_script_damage_level.py`). **PIE playable prep — done same day**:
+   ShockPlayer FP camera + Move/Turn/Look binds; DefaultInput axes; playable input default on.
+   Next: **human** open `/Game/BioShockSlice/1-Medical` → Play → confirm possess/move/fire.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

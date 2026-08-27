@@ -35,6 +35,10 @@
 #include "ShockActionCompleteQuestObjective.h"
 #include "ShockActionFailQuest.h"
 #include "ShockActionAutoSave.h"
+#include "ShockActionDealDamage.h"
+#include "ShockActionChangeLevel.h"
+#include "ShockActionForcePlayerCrouch.h"
+#include "ShockActionDisablePlayerMovement.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -815,6 +819,43 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionAutoSave* AutoSave = Cast<UShockActionAutoSave>(Action))
 	{
 		AutoSave->RequestSave();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDealDamage* DealDmg = Cast<UShockActionDealDamage>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		DealDmg->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangeLevel* ChangeLevel = Cast<UShockActionChangeLevel>(Action))
+	{
+		ChangeLevel->RequestChange();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionForcePlayerCrouch* Crouch = Cast<UShockActionForcePlayerCrouch>(Action))
+	{
+		Crouch->RequestCrouch();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDisablePlayerMovement* DisableMove = Cast<UShockActionDisablePlayerMovement>(Action))
+	{
+		DisableMove->RequestSet();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

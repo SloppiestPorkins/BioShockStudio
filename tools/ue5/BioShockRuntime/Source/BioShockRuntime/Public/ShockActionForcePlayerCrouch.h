@@ -15,11 +15,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bShouldCrouch = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bLastShouldCrouch = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(bool bInShouldCrouch);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool GetShouldCrouch() const { return bShouldCrouch; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool GetLastShouldCrouch() const { return bLastShouldCrouch; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestCrouch();

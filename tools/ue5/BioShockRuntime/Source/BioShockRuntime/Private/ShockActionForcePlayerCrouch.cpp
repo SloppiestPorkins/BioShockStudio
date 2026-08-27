@@ -12,5 +12,6 @@ void UShockActionForcePlayerCrouch::Configure(bool bInShouldCrouch)
 
 bool UShockActionForcePlayerCrouch::RequestCrouch()
 {
+	bLastShouldCrouch = bShouldCrouch;
 	return true;
 }

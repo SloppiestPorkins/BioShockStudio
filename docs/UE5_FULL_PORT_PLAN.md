@@ -934,6 +934,23 @@ Request* wired in the runner. Live `run_script_inventory_ui.py`, `Success - 0 er
 InitiateQuest / CompleteQuestObjective / CompleteQuest / FailQuest / AutoSave Request*
 wired. Live `run_script_quest_save.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner DealDamage + ChangeLevel / Crouch / DisableMove — done, 27 Aug 2026
+
+`DealDamage.ApplyInWorld` damages labeled `AShockPawn`. ChangeLevel / ForcePlayerCrouch /
+DisablePlayerMovement Request* wired. Live `run_script_damage_level.py`,
+`Success - 0 error(s)`.
+
+### Phase 4 PIE playable prep — done, 27 Aug 2026 (possess claim still human)
+
+`AShockPlayer`: first-person camera; `bPlayableInputEnabled` default true; BindAxis
+MoveForward/MoveRight/Turn/LookUp + Fire. `verify_playable_input.py` writes those
+AxisMappings into the throwaway project's `DefaultInput.ini`. Live
+`run_playable_input.py`, `Success - 0 error(s)`.
+
+**Human-only to claim PIE possess:** open BioShockUE5 → `/Game/BioShockSlice/1-Medical`
+→ Play → confirm spawn at MedicalStart, WASD/look, LMB Fire (needs an equipped weapon
+in-level for fire to do anything useful).
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

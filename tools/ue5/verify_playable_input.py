@@ -19,6 +19,14 @@ def _spawn(cls, loc):
 
 
 FIRE_LINE = '+ActionMappings=(ActionName="Fire",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=LeftMouseButton)'
+AXIS_LINES = [
+    '+AxisMappings=(AxisName="MoveForward",Scale=1.000000,Key=W)',
+    '+AxisMappings=(AxisName="MoveForward",Scale=-1.000000,Key=S)',
+    '+AxisMappings=(AxisName="MoveRight",Scale=-1.000000,Key=A)',
+    '+AxisMappings=(AxisName="MoveRight",Scale=1.000000,Key=D)',
+    '+AxisMappings=(AxisName="Turn",Scale=1.000000,Key=MouseX)',
+    '+AxisMappings=(AxisName="LookUp",Scale=-1.000000,Key=MouseY)',
+]
 LEGACY_INPUT = "DefaultPlayerInputClass=/Script/Engine.PlayerInput"
 LEGACY_COMPONENT = "DefaultInputComponentClass=/Script/Engine.InputComponent"
 
@@ -63,6 +71,24 @@ def ensure_fire_in_default_input(project_dir):
         _log("wrote Fire ActionMapping to DefaultInput.ini")
     else:
         _log("DefaultInput.ini already has Fire")
+    for line in AXIS_LINES:
+        # Match AxisName="MoveForward" etc. already present
+        axis_name = re.search(r'AxisName="([^"]+)"', line)
+        key_name = re.search(r"Key=([A-Za-z0-9]+)", line)
+        if not axis_name or not key_name:
+            continue
+        needle = 'AxisName="%s"' % axis_name.group(1)
+        key = key_name.group(1)
+        if needle in text and ("Key=%s" % key) in text:
+            continue
+        # Avoid duplicate exact lines
+        if line in text:
+            continue
+        if not text.endswith("\n"):
+            text += "\n"
+        text += line + "\n"
+        changed = True
+        _log("wrote axis %s %s" % (axis_name.group(1), key))
     if changed:
         open(path, "w", encoding="utf-8", newline="\n").write(text)
     return path, changed
@@ -80,6 +106,10 @@ def main(out):
     if 'ActionName="Fire"' not in ini_text and "ActionName=Fire" not in ini_text:
         f.append("Fire missing from DefaultInput.ini")
     report["fire_mapping"] = "ok"
+    for axis in ("MoveForward", "MoveRight", "Turn", "LookUp"):
+        if ('AxisName="%s"' % axis) not in ini_text:
+            f.append("axis missing %s" % axis)
+    report["axis_mappings"] = "ok"
 
     player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
     weapon_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWeapon")

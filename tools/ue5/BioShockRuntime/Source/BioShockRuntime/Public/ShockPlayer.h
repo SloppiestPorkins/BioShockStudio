@@ -4,6 +4,7 @@
 #include "ShockPlayer.generated.h"
 
 class AShockWeapon;
+class UCameraComponent;
 class UInputComponent;
 
 /** UnrealScript `ShockPlayer`. CollisionRadius=34 is on this class's own defaults, not the parent. */
@@ -18,9 +19,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<AShockWeapon> EquippedWeapon;
 
-	/** When true, SetupPlayerInputComponent binds legacy Action "Fire". Default false. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
+	TObjectPtr<UCameraComponent> FirstPersonCamera;
+
+	/**
+	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
+	 * Defaults true so GameMode-spawned PIE pawns walk/fire without an extra script call.
+	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bPlayableInputEnabled = false;
+	bool bPlayableInputEnabled = true;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void EquipWeapon(AShockWeapon* Weapon);
@@ -29,8 +36,8 @@ public:
 	AShockWeapon* GetEquippedWeapon() const { return EquippedWeapon; }
 
 	/**
-	 * Opt-in playable-slice helpers. Does not enable AutoPossess by default (PIE still unclaimed).
-	 * Fire binding needs a project Input ActionMapping named "Fire" (e.g. Left Mouse).
+	 * Playable-slice helpers. AutoPossess stays Disabled (GameMode + PlayerStart spawn path).
+	 * Needs project ActionMapping "Fire" and AxisMappings MoveForward/MoveRight/Turn/LookUp.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void EnablePlayableInput(bool bEnable);
@@ -44,6 +51,9 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
-	/** Input bind target — BindAction requires void(void), not bool. */
 	void HandleFireInput();
+	void MoveForward(float Value);
+	void MoveRight(float Value);
+	void TurnAtRate(float Value);
+	void LookUpAtRate(float Value);
 };

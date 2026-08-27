@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionDealDamage.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDealDamage : public UShockAction
 {
@@ -40,4 +42,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDamage();
+
+	/** Find ShockPawns by TargetLabel and ApplyAuthoredDamage each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
