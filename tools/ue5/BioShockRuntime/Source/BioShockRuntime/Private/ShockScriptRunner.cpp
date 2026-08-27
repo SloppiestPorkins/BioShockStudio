@@ -25,6 +25,11 @@
 #include "ShockActionTeleportPawnToLocation.h"
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionSetActorLabel.h"
+#include "ShockActionGiveItemsToPlayer.h"
+#include "ShockActionRemoveItemsFromPlayer.h"
+#include "ShockActionDisplayMapHUDRegion.h"
+#include "ShockActionPrintClientMessage.h"
+#include "ShockActionSetQuestHint.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -725,6 +730,46 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		SetLabel->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionGiveItemsToPlayer* Give = Cast<UShockActionGiveItemsToPlayer>(Action))
+	{
+		Give->RequestGive();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRemoveItemsFromPlayer* Remove = Cast<UShockActionRemoveItemsFromPlayer>(Action))
+	{
+		Remove->RequestRemove();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDisplayMapHUDRegion* MapHud = Cast<UShockActionDisplayMapHUDRegion>(Action))
+	{
+		MapHud->RequestDisplay();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPrintClientMessage* PrintMsg = Cast<UShockActionPrintClientMessage>(Action))
+	{
+		PrintMsg->RequestPrint();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetQuestHint* QuestHint = Cast<UShockActionSetQuestHint>(Action))
+	{
+		QuestHint->RequestSet();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

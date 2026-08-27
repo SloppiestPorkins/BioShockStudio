@@ -13,8 +13,12 @@ public:
 	FString MessageText;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName MessageType;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString LastPrintedText;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(const FString& InText, FName InType);
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	FString GetLastPrintedText() const { return LastPrintedText; }
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestPrint();
 };

@@ -11,5 +11,10 @@ void UShockActionPrintClientMessage::Configure(const FString& InText, FName InTy
 }
 bool UShockActionPrintClientMessage::RequestPrint()
 {
-	return !MessageText.IsEmpty();
+	if (MessageText.IsEmpty())
+	{
+		return false;
+	}
+	LastPrintedText = MessageText;
+	return true;
 }

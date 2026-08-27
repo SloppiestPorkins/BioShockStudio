@@ -924,6 +924,11 @@ no door actor mechanics yet). Live `run_script_doors.py`, `Success - 0 error(s)`
 `TeleportInWorld` (PawnLabel → MarkerLabel), `FreezeHavokActor.ApplyInWorld`,
 `SetActorLabel.ApplyInWorld`. Live `run_script_world_move.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner inventory / map / print / quest hint — done, 27 Aug 2026
+
+GiveItems / RemoveItems / DisplayMapHUDRegion / PrintClientMessage / SetQuestHint
+Request* wired in the runner. Live `run_script_inventory_ui.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

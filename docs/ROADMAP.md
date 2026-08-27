@@ -1434,7 +1434,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    `tools/ue5/rebuild_runtime_fast.ps1` (incremental UBT ~15–50s; BuildPlugin only to seed
    HostProject). **Runner door Request* — done same day**: Open/Close/Lock/Unlock
    (`run_script_doors.py`). **Runner Teleport/Freeze/SetActorLabel — done same day**:
-   label world move/rename/physics freeze (`run_script_world_move.py`). Next: PIE possess (human).
+   label world move/rename/physics freeze (`run_script_world_move.py`).
+   **Runner Give/RemoveItems + DisplayMap/Print/SetQuestHint — done same day**
+   (`run_script_inventory_ui.py`). Next: PIE possess (human).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

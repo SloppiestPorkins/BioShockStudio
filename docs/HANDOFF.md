@@ -23,8 +23,8 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-**Recently released:** Phase 4 runner Teleport/Freeze/SetActorLabel by label
-(`run_script_world_move.py`); Open/Close/Lock/UnlockDoor; PlayAnimation + Log;
+**Recently released:** Phase 4 runner Give/RemoveItems + DisplayMap/Print/SetQuestHint
+(`run_script_inventory_ui.py`); Teleport/Freeze/SetActorLabel; doors; anim/log;
 `rebuild_runtime_fast.ps1`.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
