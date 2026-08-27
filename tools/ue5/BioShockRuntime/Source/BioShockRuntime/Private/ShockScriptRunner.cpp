@@ -9,9 +9,11 @@
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
+#include "ShockActionPlayEffect.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionStopEffect.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -568,6 +570,32 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		Destroy->DestroyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPlayEffect* PlayFx = Cast<UShockActionPlayEffect>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		PlayFx->FireInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStopEffect* StopFx = Cast<UShockActionStopEffect>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		StopFx->StopInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

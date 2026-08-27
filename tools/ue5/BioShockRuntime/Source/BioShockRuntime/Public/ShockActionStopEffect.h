@@ -4,6 +4,7 @@
 #include "ShockActionStopEffect.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionStopEffect`: UnTriggerEffectEvent(EffectEvent, EffectTag) on actors labeled
@@ -53,4 +54,8 @@ public:
 	/** Records the UnTriggerEffectEvent call. Does not tear down FX. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool StopOnActor(AActor* Target);
+
+	/** Find actors by ActorLabel and StopOnActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 StopInWorld(UWorld* World);
 };

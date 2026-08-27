@@ -4,6 +4,7 @@
 #include "ShockActionPlayEffect.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionPlayEffect` (Scripting.U). Finds actors by `ActorLabel` and calls
@@ -48,4 +49,8 @@ public:
 	/** Records the TriggerEffectEvent call that script would make. Does not spawn FX. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool FireOnActor(AActor* Target);
+
+	/** Find actors by ActorLabel and FireOnActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 FireInWorld(UWorld* World);
 };

@@ -22,7 +22,10 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor (this session) | **Phase 4: runner PlayEffect/StopEffect by label** | `ShockActionPlayEffect.*`, `ShockActionStopEffect.*`, `ShockScriptRunner.*`, verify scripts | 27 Aug 2026 |
+| *(none)* | Active claims empty. Add a row before starting work. | — | — |
+
+**Recently released:** Phase 4 through 27 Aug 2026 including runner PlayEffect/StopEffect by label
+(`run_script_fx.py`).
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,
