@@ -228,6 +228,21 @@ verified. Blocking/NonBlocking ExecuteScript: `run_script_blocking.py`, same day
 `Success - 0 error(s)` (`UShockScriptRegistry` label lookup). Not a level-placed Script actor;
 no message triggers / Loop yet.
 
+## Playable Fire input
+
+`run_playable_input.py` ensures the throwaway project's `Config/DefaultInput.ini` has
+`ActionName="Fire"` → LeftMouseButton and legacy `Engine.PlayerInput` /
+`Engine.InputComponent` (Enhanced Input ignores ActionMappings). Verifies
+`EnablePlayableInput` + `TryFireEquippedWeapon`.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_playable_input.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 27 Aug 2026 — `Success - 0 error(s)`.** PIE possess still a human Play
+check.
+
 ## ActionWait (Phase 4 head)
 
 `ActionWait` lives in **Scripting.U**, not ShockGame/ShockAI. One float `Seconds` (default 1).

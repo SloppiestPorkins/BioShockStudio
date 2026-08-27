@@ -840,6 +840,13 @@ the child finishes (same-tick start so Wait wake times stay correct). Non-blocki
 and continues the parent; parent `TickExecution` also drives spawned children. Live
 `run_script_blocking.py`, `Success - 0 error(s)`. No message triggers / Loop / level Script actors.
 
+### Playable Fire input mapping — done, 27 Aug 2026
+
+`run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's
+`DefaultInput.ini`, and forces legacy `Engine.PlayerInput` / `Engine.InputComponent` (Enhanced Input
+ignores ActionMappings). Verifies `EnablePlayableInput(true)` + `TryFireEquippedWeapon` damage.
+Live `Success - 0 error(s)`. PIE possess still a human Play check; AutoPossess still disabled.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

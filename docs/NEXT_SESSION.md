@@ -35,9 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Script runner: linear + Blocking/NonBlocking ExecuteScript verified live.
-Next: Medical playable input (Fire ActionMapping + EnablePlayableInput), or Loop/ExitLoop.
-Branch feature/fbx-materials-gui. Fast tier only unless diff hits shared decode.
+Playable Fire mapping + EnablePlayableInput verified (DefaultInput.ini legacy + LMB).
+Script runner: linear + Blocking/NonBlocking done.
+Next: PIE possess (human Play check), or ActionLoop/ExitLoop on the runner.
+Branch feature/fbx-materials-gui.
 ```
 
 **What wastes time here**

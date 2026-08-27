@@ -36,6 +36,9 @@ public:
 	void EnablePlayableInput(bool bEnable);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsPlayableInputEnabled() const { return bPlayableInputEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryFireEquippedWeapon();
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
