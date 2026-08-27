@@ -914,6 +914,11 @@ instance_applied=931, `Success - 0 error(s)`.
 Day-to-day C++ rebuild: `tools/ue5/rebuild_runtime_fast.ps1` (HostProject UBT incremental;
 `-CleanModule` ~50s). Full `RunUAT BuildPlugin` only to seed HostProject.
 
+### Phase 4 runner Open/Close/Lock/UnlockDoor — done, 27 Aug 2026
+
+Runner calls `RequestOpen` / `RequestClose` / `RequestLock` / `RequestUnlock` (record slice;
+no door actor mechanics yet). Live `run_script_doors.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

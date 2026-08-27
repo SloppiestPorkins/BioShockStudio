@@ -35,8 +35,8 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Phase 4 on main (push as you go): Medical Script import clean; runner Hide/SetProperty/
-Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget/PlayAnimation/Log by label.
-Rebuild: tools/ue5/rebuild_runtime_fast.ps1 (not BuildPlugin each time).
+Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget/PlayAnimation/Log/OpenCloseLockUnlockDoor
+by label. Rebuild: tools/ue5/rebuild_runtime_fast.ps1 (not BuildPlugin each time).
 Next: human PIE possess, or more runner-wired actions.
 Branch: main only.
 ```

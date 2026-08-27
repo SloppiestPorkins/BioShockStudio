@@ -18,6 +18,10 @@
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionLog.h"
+#include "ShockActionLockDoor.h"
+#include "ShockActionOpenDoor.h"
+#include "ShockActionCloseDoor.h"
+#include "ShockActionUnlockDoor.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -647,6 +651,38 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionLog* LogAction = Cast<UShockActionLog>(Action))
 	{
 		LogAction->Emit();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionOpenDoor* OpenDoor = Cast<UShockActionOpenDoor>(Action))
+	{
+		OpenDoor->RequestOpen();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionCloseDoor* CloseDoor = Cast<UShockActionCloseDoor>(Action))
+	{
+		CloseDoor->RequestClose();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionLockDoor* LockDoor = Cast<UShockActionLockDoor>(Action))
+	{
+		LockDoor->RequestLock();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionUnlockDoor* UnlockDoor = Cast<UShockActionUnlockDoor>(Action))
+	{
+		UnlockDoor->RequestUnlock();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
