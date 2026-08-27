@@ -1,20 +1,39 @@
 """Import level-placed Script actors from ue5-level.json as AShockScript.
 
-First slice: Label, location, TriggeredBy (decoded from property valueHex), and action
-*class* stubs for every ShockAction* that loads. Does not decode per-action package
-properties (Seconds, Variable names, If branches, …) — those stay UNKNOWN here.
+Places Label, location, TriggeredBy (valueHex), and ShockAction stubs. Applies class
+*defaults* from Phase 2.1 schema JSON (Scripting / ShockGame / ShockAI) — not per-instance
+package overrides (those remain UNKNOWN until a props sidecar exists).
 
-Idempotent via BioShockScriptKey=<manifest key> tags (full refresh each run). Shared
-UShockScriptRegistry across imported scripts so TriggeredBy / SendTriggerMessage can resolve.
+Idempotent via BioShockScriptKey=<manifest key> (full refresh). Shared registry.
 """
 
 from __future__ import annotations
 
 import json
+import os
 
 import unreal
 
 KEY_TAG_PREFIX = "BioShockScriptKey="
+
+DEFAULT_SCHEMA_DIR = r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice"
+SCHEMA_FILES = (
+    "Scripting.schema.json",
+    "ShockGame.schema.json",
+    "ShockAI.schema.json",
+)
+
+# UnrealScript Action* → concrete UShockAction* when names do not match 1:1.
+ACTION_CLASS_OVERRIDES = {
+    "ActionVariableAssign": "ShockActionVariableAssignOverwrite",
+    # ShockGame.U ships this class name in lowercase.
+    "actionSetQuestHint": "ShockActionSetQuestHint",
+}
+
+# Schema Lookup class name when it differs from the placed Action* name.
+SCHEMA_CLASS_OVERRIDES = {
+    "actionSetQuestHint": "actionSetQuestHint",
+}
 
 
 def _log(message):
@@ -36,11 +55,7 @@ def _existing_by_key():
 
 
 def decode_triggered_by_hex(value_hex):
-    """Decode a Script actor's TriggeredBy Str property ValueHex.
-
-    Tagged Str payload: one byte character count (including trailing null), then UTF-16LE.
-    Confirmed against Medical samples (player, All, 1-Medical).
-    """
+    """Decode Script TriggeredBy Str ValueHex: count byte + UTF-16LE."""
     if not value_hex:
         return ""
     raw = bytes.fromhex(value_hex)
@@ -59,24 +74,36 @@ def triggered_by_from_actor(actor_doc):
     return ""
 
 
-# UnrealScript Action* → concrete UShockAction* when names do not match 1:1.
-ACTION_CLASS_OVERRIDES = {
-    # Base assign is abstract; overwrite is the UC ActionVariableAssign behaviour.
-    "ActionVariableAssign": "ShockActionVariableAssignOverwrite",
-}
-
-
 def shock_action_class_name(action_class):
-    """ActionWait → ShockActionWait (with a few concrete overrides)."""
-    if not action_class or not action_class.startswith("Action"):
+    if not action_class:
         return None
     if action_class in ACTION_CLASS_OVERRIDES:
         return ACTION_CLASS_OVERRIDES[action_class]
-    return "Shock" + action_class
+    if action_class.startswith("Action"):
+        return "Shock" + action_class
+    return None
 
 
-def try_create_action(action_class, object_name):
-    """Instantiate a first-slice ShockAction by UnrealScript class name. Params not applied."""
+def schema_paths(schema_dir=None):
+    root = schema_dir or os.environ.get("BIOSHOCK_SCHEMA_DIR", DEFAULT_SCHEMA_DIR)
+    return [os.path.join(root, name) for name in SCHEMA_FILES if os.path.isfile(os.path.join(root, name))]
+
+
+def apply_schema_defaults(action, action_class, paths):
+    """Try each schema file until ApplyActionDefaults reports ok."""
+    schema_name = SCHEMA_CLASS_OVERRIDES.get(action_class, action_class)
+    for path in paths:
+        try:
+            raw = unreal.ShockSchemaLibrary.apply_action_defaults(action, path, schema_name)
+            report = json.loads(raw)
+            if report.get("ok"):
+                return True, path, report.get("applied") or []
+        except Exception:
+            continue
+    return False, None, []
+
+
+def try_create_action(action_class, object_name, paths, stats):
     shock_name = shock_action_class_name(action_class)
     if not shock_name:
         return None, "bad-name"
@@ -87,16 +114,29 @@ def try_create_action(action_class, object_name):
         action = unreal.new_object(cls)
     except Exception:
         return None, "abstract-or-fail"
+
+    ok, _path, applied = apply_schema_defaults(action, action_class, paths)
+    if ok:
+        stats["schema_applied"] += 1
+        stats["schema_props"] += len(applied)
+    else:
+        stats["schema_miss"] += 1
+
     if action_class == "ActionScriptNote" and hasattr(action, "configure"):
         try:
-            action.configure(object_name or action_class)
+            # Prefer schema Note text when present; else object name.
+            note = object_name or action_class
+            if hasattr(action, "get_note"):
+                current = str(action.get_note() or "")
+                if current:
+                    note = current
+            action.configure(note)
         except Exception:
             pass
     return action, "ok"
 
 
-def import_scripts(manifest_path, limit=None):
-    """Destroy prior BioShockScriptKey actors, then spawn AShockScript from the manifest."""
+def import_scripts(manifest_path, limit=None, schema_dir=None):
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
 
@@ -104,11 +144,13 @@ def import_scripts(manifest_path, limit=None):
     if not script_cls:
         raise RuntimeError("ShockScript class missing — rebuild BioShockRuntime")
 
+    paths = schema_paths(schema_dir)
     for _key, actor in list(_existing_by_key().items()):
         _actor_subsystem().destroy_actor(actor)
 
     report = {
         "manifest": manifest_path,
+        "schemas": paths,
         "scripts_in_manifest": 0,
         "created": 0,
         "skipped": 0,
@@ -116,10 +158,15 @@ def import_scripts(manifest_path, limit=None):
         "actions_unmapped": 0,
         "unmapped_classes": {},
         "with_triggered_by": 0,
+        "schema_applied": 0,
+        "schema_miss": 0,
+        "schema_props": 0,
         "registry_num": 0,
+        "wait_seconds_sample": None,
         "failures": [],
         "sample": {},
     }
+    stats = report
 
     scripts = [a for a in (manifest.get("actors") or []) if a.get("className") == "Script"]
     report["scripts_in_manifest"] = len(scripts)
@@ -137,7 +184,6 @@ def import_scripts(manifest_path, limit=None):
             report["with_triggered_by"] += 1
 
         location = actor_doc.get("location") or [0, 0, 0]
-        # LevelActorDocument.Location is not GameBasis-converted (import_level._place).
         loc = unreal.Vector(float(location[0]), float(location[1]), float(location[2]))
         actor = _actor_subsystem().spawn_actor_from_class(script_cls, loc, unreal.Rotator(0, 0, 0))
         if actor is None:
@@ -160,13 +206,23 @@ def import_scripts(manifest_path, limit=None):
                 report["actions_unmapped"] += 1
                 continue
             action_class = ref.get("className") or ""
-            action, _status = try_create_action(action_class, ref.get("objectName"))
+            action, _status = try_create_action(
+                action_class, ref.get("objectName"), paths, stats
+            )
             if action is None:
                 report["actions_unmapped"] += 1
                 report["unmapped_classes"][action_class] = (
                     report["unmapped_classes"].get(action_class, 0) + 1
                 )
                 continue
+            if action_class == "ActionWait" and report["wait_seconds_sample"] is None:
+                if hasattr(action, "get_editor_property"):
+                    try:
+                        report["wait_seconds_sample"] = float(action.get_editor_property("seconds"))
+                    except Exception:
+                        report["wait_seconds_sample"] = float(getattr(action, "seconds", -1))
+                else:
+                    report["wait_seconds_sample"] = float(getattr(action, "seconds", -1))
             runner.add_action(action)
             report["actions_mapped"] += 1
             action_count += 1
@@ -190,12 +246,13 @@ def import_scripts(manifest_path, limit=None):
         report["sample"]["actions_completed"] = int(sample_actor.get_runner().get_actions_completed())
 
     _log(
-        "imported scripts created=%s mapped=%s unmapped=%s registry=%s"
+        "imported scripts created=%s mapped=%s schema=%s/%s unmapped=%s"
         % (
             report["created"],
             report["actions_mapped"],
+            report["schema_applied"],
+            report["schema_applied"] + report["schema_miss"],
             report["actions_unmapped"],
-            report["registry_num"],
         )
     )
     return report

@@ -231,7 +231,8 @@ verified. Blocking/NonBlocking ExecuteScript: `run_script_blocking.py`, same day
 `run_script_queue.py`, same day, `Success - 0 error(s)`. Level-placed `AShockScript`:
 `run_script_actor.py`, same day, `Success - 0 error(s)`. SendTriggerMessage dispatch:
 `run_script_trigger.py`, same day, `Success - 0 error(s)`. Script JSON import:
-`run_import_scripts.py`, same day, `Success - 0 error(s)` (stubs + TriggeredBy; params open).
+`run_import_scripts.py`, same day, `Success - 0 error(s)` (stubs + TriggeredBy + schema
+class defaults; per-instance package props open).
 
 ## Playable Fire input
 

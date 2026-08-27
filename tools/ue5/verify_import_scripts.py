@@ -46,6 +46,13 @@ def main(out, manifest=None):
         f.append("registry empty")
     if int(imported.get("actions_mapped", 0)) < 1:
         f.append("no actions mapped")
+    if int(imported.get("schema_applied", 0)) < 1:
+        f.append("schema defaults not applied")
+    wait_s = imported.get("wait_seconds_sample")
+    if wait_s is None or abs(float(wait_s) - 1.0) > 1e-4:
+        f.append("Wait Seconds sample %s" % wait_s)
+    if imported.get("unmapped_classes"):
+        f.append("unmapped %s" % imported.get("unmapped_classes"))
 
     sample = imported.get("sample") or {}
     if sample.get("label") == "TipUnlock1-Medical":
@@ -54,7 +61,6 @@ def main(out, manifest=None):
         if int(sample.get("dispatch_accepted", 0)) < 1:
             f.append("TipUnlock dispatch %s" % sample.get("dispatch_accepted"))
     else:
-        # TipUnlock may be past the limit — still require some TriggeredBy scripts.
         if int(imported.get("with_triggered_by", 0)) < 1:
             f.append("no TriggeredBy in imported set")
 

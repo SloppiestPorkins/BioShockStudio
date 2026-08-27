@@ -35,8 +35,8 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Script JSON→AShockScript import first slice verified (Medical, stubs + TriggeredBy).
-Next: PIE possess (human Play), or decode action params from package exports into stubs.
+Script import applies schema class defaults (Wait Seconds=1); actionSetQuestHint mapped.
+Next: PIE possess (human), or per-instance action props from package exports.
 Branch feature/fbx-materials-gui.
 ```
 

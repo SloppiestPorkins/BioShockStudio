@@ -1419,8 +1419,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **AShockScript level-placed actor — done same day**: `run_script_actor.py`.
    **SendTriggerMessage → DispatchMessage — done same day**: `run_script_trigger.py`.
    **Script JSON → AShockScript import — done same day**: `run_import_scripts.py`
-   (identity stubs + TriggeredBy decode; action params still UNKNOWN).
-   Next: PIE possess (human) or action-param decode from package exports.
+   (identity stubs + TriggeredBy decode; **schema class defaults applied** — Wait Seconds=1;
+   `actionSetQuestHint` mapped; per-instance package props still UNKNOWN).
+   Next: PIE possess (human) or action instance props from package exports.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

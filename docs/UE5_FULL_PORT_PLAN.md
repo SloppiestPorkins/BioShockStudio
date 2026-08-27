@@ -873,9 +873,10 @@ Runner executes `ActionSendTriggerMessage` via `DispatchVia` → `MessageTrigger
 ### Phase 4 Script JSON → AShockScript import — done, 27 Aug 2026
 
 `import_scripts.py` places Medical `Script` actors as `AShockScript` (Label, location,
-TriggeredBy from property valueHex, shared registry). Action *class* stubs for every loadable
-`ShockAction*`; per-action package properties not applied. Live `run_import_scripts.py`,
-`Success - 0 error(s)`.
+TriggeredBy from property valueHex, shared registry). Action stubs get Phase 2.1 schema
+*class defaults* (`ApplyActionDefaults`); per-instance package overrides still UNKNOWN.
+`actionSetQuestHint` → `ShockActionSetQuestHint`. Live `run_import_scripts.py`,
+`Success - 0 error(s)` (Wait Seconds sample **1**).
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 
