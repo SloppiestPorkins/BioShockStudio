@@ -37,7 +37,7 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Script import instance overlay widened (PlayEffect/SetProperty/ExecuteScript/Hide/…).
 Next: PIE possess (human Play), or expand nested If/Loop action graphs from package.
-Branch feature/fbx-materials-gui.
+Branch main (only working branch).
 ```
 
 **What wastes time here**
@@ -116,8 +116,8 @@ lock) before building the main solution again.
 
 ## State of the tree
 
-Branch `feature/fbx-materials-gui`, remote `origin` exists
-(`github.com/jackwickens6-lgtm/BioShockStudio`) but **do not push without being asked**. Working
+Branch `main` (only working branch), remote `origin` exists
+(`github.com/SloppiestPorkins/BioShockStudio`, old URL may redirect). Working
 tree clean as of this writing. **A second AI agent (ChatGPT) works this same repository
 concurrently** — read `HANDOFF.md`'s Active work table before starting, and never `git add -A`;
 stage files by name. Commit in small, logical, buildable groups as you go — the user has asked for
