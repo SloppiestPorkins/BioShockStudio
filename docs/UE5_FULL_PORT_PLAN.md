@@ -806,6 +806,25 @@ Live `run_action_batch35.py` + `run_action_batch36.py`, `Success - 0 error(s)`.
 WaitUntilActorHasLanded rejects schema placeholder `UNSPECIFIED`.
 Next: SetDoorBrokenState / ForcePlayerCrouch / HideNeedleElement.
 
+### Phase 4 census batch37–39 (DoorBroken / Crouch / Needle / EndGame / PEG / Adaptive / Gatherer / Shocking / AttachBone) — done, 27 Aug 2026
+
+Live `run_action_batch37.py` + `run_action_batch38.py` + `run_action_batch39.py`, `Success - 0 error(s)`.
+HideNeedleElement / ShowNeedleElement use UC names without `Action` prefix.
+ActionEndGame default `NumberOfGatherersKilledToGetBadEnding = 14`.
+
+### Phase 4 census batch40–44 (1-ref tail through SetPlasmidSlotLockedState) — done, 27 Aug 2026
+
+Live `run_action_batch40.py` … `run_action_batch44.py`, `Success - 0 error(s)`.
+Covers SetPlayerFOV, TrainingCondition, security/hack tail, AutoSave, corpse fade, quest toggle,
+machine enable, container slot, bouncer, plasmids.
+
+### Phase 4 census batch45 (BooleanStatement) — done, 27 Aug 2026
+
+Live `run_action_batch45.py`, `Success - 0 error(s)`.
+**Census complete:** every action class referenced in the 21-map probe now has a first-slice
+`UShockAction` (params + schema defaults + request-record; no script VM). Next: execution wiring /
+playable slice, not more census batches.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

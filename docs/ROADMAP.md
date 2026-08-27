@@ -1402,7 +1402,13 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    EnableOrDisableCascadingWaterVolume, AssignNextGathererLabel,
    AttachCollisionDamageListener, EnableOrDisableHavokForceActor, Ragdoll,
    SetNextAssassinTeleportPoint.
-   Next: SetDoorBrokenState / ForcePlayerCrouch / HideNeedleElement.
+   **Batch37–39 — done**: SetDoorBrokenState, ForcePlayerCrouch, HideNeedleElement,
+   ShowNeedleElement, EndGame, ChangePEGWaitDistance, DisableOrEnableAdaptiveDifficulty,
+   ForceGathererInteractable, DealShockingDamageInRadius, AttachToBone.
+   **Batch40–45 — done; census complete**: 1-ref tail (FOV, Training, security, autosave,
+   corpse fade, print message, quest toggle, machine, container slot, bouncer, plasmids) plus
+   BooleanStatement. Every action class in the 21-map usage probe now has a first-slice
+   `UShockAction`. Next: script execution wiring / playable Medical slice, not more census.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

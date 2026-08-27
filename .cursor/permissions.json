@@ -1,0 +1,32 @@
+{
+  "autoRun": {
+    "allow_instructions": [
+      "Allow read-only git: status, diff, log, show, branch.",
+      "Allow git add and git commit for BioShockHavok repo work when the user asked to keep going or commit.",
+      "Allow dotnet build and dotnet test --filter Tier=Fast.",
+      "Allow dotnet test filtered to specific test classes the agent is verifying.",
+      "Allow robocopy syncing tools/ue5/BioShockRuntime to the BioShockUE5 Plugins folder.",
+      "Allow RunUAT BuildPlugin for BioShockRuntime and copying PluginBuild Binaries into Plugins.",
+      "Allow UnrealEditor-Cmd headless -run=pythonscript for tools/ue5/run_action_batch*.py and run_playable_standin.py.",
+      "Allow python one-liners that inspect schema JSON under BioShockUE5 Exports slice."
+    ],
+    "block_instructions": [
+      "Block git push --force and git reset --hard.",
+      "Block deleting files outside the repo or under user Documents without explicit user request.",
+      "Block curl or wget to unknown domains except package managers and GitHub during normal dev.",
+      "Block formatting or wiping entire drives."
+    ]
+  },
+  "terminalAllowlist": [
+    "dotnet build*",
+    "dotnet test*",
+    "robocopy*",
+    "git status*",
+    "git diff*",
+    "git log*",
+    "git add*",
+    "git commit*",
+    "python*",
+    "py *"
+  ]
+}

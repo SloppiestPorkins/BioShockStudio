@@ -54,6 +54,34 @@
 #include "ShockActionEnableOrDisableHavokForceActor.h"
 #include "ShockActionRagdoll.h"
 #include "ShockActionSetNextAssassinTeleportPoint.h"
+#include "ShockActionSetDoorBrokenState.h"
+#include "ShockActionForcePlayerCrouch.h"
+#include "ShockActionHideNeedleElement.h"
+#include "ShockActionShowNeedleElement.h"
+#include "ShockActionEndGame.h"
+#include "ShockActionChangePEGWaitDistance.h"
+#include "ShockActionDisableOrEnableAdaptiveDifficulty.h"
+#include "ShockActionForceGathererInteractable.h"
+#include "ShockActionDealShockingDamageInRadius.h"
+#include "ShockActionAttachToBone.h"
+#include "ShockActionSetPlayerFOV.h"
+#include "ShockActionTrainingCondition.h"
+#include "ShockActionSetGrenadierSuicideState.h"
+#include "ShockActionUnHackSecuritySystem.h"
+#include "ShockActionKeypadContainerUsed.h"
+#include "ShockActionHackSecuritySystem.h"
+#include "ShockActionAssignNextProtectorVent.h"
+#include "ShockActionEnableOrDisableSoundPropagation.h"
+#include "ShockActionAutoSave.h"
+#include "ShockActionSetCorpseFadeoutTime.h"
+#include "ShockActionPrintClientMessage.h"
+#include "ShockActionToggleQuestVisibility.h"
+#include "ShockActionDisableOrEnableMachine.h"
+#include "ShockActionPlaceItemInContainerSlot.h"
+#include "ShockActionSetBouncerCanStepBack.h"
+#include "ShockActionEquipPlasmid.h"
+#include "ShockActionSetPlasmidSlotLockedState.h"
+#include "ShockBooleanStatement.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -2938,6 +2966,416 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					AssTp->TeleportLabel = FName(*Unquote(Text));
 					Applied.Add(TEXT("TeleportLabel"));
+				}
+			}
+			if (UShockActionSetDoorBrokenState* DoorBroken = Cast<UShockActionSetDoorBrokenState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("DoorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DoorBroken->DoorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("DoorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("IsBroken"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DoorBroken->bIsBroken = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("IsBroken"));
+				}
+			}
+			if (UShockActionForcePlayerCrouch* Crouch = Cast<UShockActionForcePlayerCrouch>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ShouldCrouch"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Crouch->bShouldCrouch = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ShouldCrouch"));
+				}
+			}
+			if (UShockActionEndGame* EndGame = Cast<UShockActionEndGame>(Action))
+			{
+				FString Text;
+				int32 Threshold = 0;
+				if (Lookup(Classes, ClassName, TEXT("NumberOfGatherersKilledToGetBadEnding"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Threshold, *Text);
+					EndGame->NumberOfGatherersKilledToGetBadEnding = Threshold;
+					Applied.Add(TEXT("NumberOfGatherersKilledToGetBadEnding"));
+				}
+			}
+			if (UShockActionChangePEGWaitDistance* Peg = Cast<UShockActionChangePEGWaitDistance>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("PEGLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Peg->PEGLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("PEGLabel"));
+				}
+				float Dist = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("WaitDistance"), Text) && ParseFloat(Text, Dist))
+				{
+					Peg->WaitDistance = Dist;
+					Applied.Add(TEXT("WaitDistance"));
+				}
+			}
+			if (UShockActionDisableOrEnableAdaptiveDifficulty* Adapt = Cast<UShockActionDisableOrEnableAdaptiveDifficulty>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Enable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Adapt->bEnable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Enable"));
+				}
+			}
+			if (UShockActionForceGathererInteractable* ForceGather = Cast<UShockActionForceGathererInteractable>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("GathererLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ForceGather->GathererLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GathererLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ForceInteractable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ForceGather->bForceInteractable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("ForceInteractable"));
+				}
+			}
+			if (UShockActionDealShockingDamageInRadius* Shock = Cast<UShockActionDealShockingDamageInRadius>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SourceActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Shock->SourceActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("SourceActorLabel"));
+				}
+				float Dmg = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("DamageAmount"), Text) && ParseFloat(Text, Dmg))
+				{
+					Shock->DamageAmount = Dmg;
+					Applied.Add(TEXT("DamageAmount"));
+				}
+				int32 V = 0;
+				if (Lookup(Classes, ClassName, TEXT("DamageType"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(V, *Text);
+					Shock->DamageType = V;
+					Applied.Add(TEXT("DamageType"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("InnerRadius"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(V, *Text);
+					Shock->InnerRadius = V;
+					Applied.Add(TEXT("InnerRadius"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("OuterRadius"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(V, *Text);
+					Shock->OuterRadius = V;
+					Applied.Add(TEXT("OuterRadius"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("MaxNumBolts"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(V, *Text);
+					Shock->MaxNumBolts = V;
+					Applied.Add(TEXT("MaxNumBolts"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("EffectClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Shock->EffectClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("EffectClass"));
+				}
+				float Time = 0.0f;
+				if (Lookup(Classes, ClassName, TEXT("EffectTime"), Text) && ParseFloat(Text, Time))
+				{
+					Shock->EffectTime = Time;
+					Applied.Add(TEXT("EffectTime"));
+				}
+			}
+			if (UShockActionAttachToBone* Attach = Cast<UShockActionAttachToBone>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AttachmentActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->AttachmentActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AttachmentActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("BaseActorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->BaseActorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("BaseActorLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("TargetBone"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Attach->TargetBone = FName(*Unquote(Text));
+					Applied.Add(TEXT("TargetBone"));
+				}
+			}
+			if (UShockActionSetPlayerFOV* SetPlayerFOV = Cast<UShockActionSetPlayerFOV>(Action))
+			{
+				FString Text;
+				float FovVal = 0.f;
+				if (Lookup(Classes, ClassName, TEXT("FOV"), Text) && ParseFloat(Text, FovVal))
+				{
+					SetPlayerFOV->FOV = FovVal;
+					Applied.Add(TEXT("FOV"));
+				}
+			}
+			if (UShockActionTrainingCondition* Training = Cast<UShockActionTrainingCondition>(Action))
+			{
+				FString Text;
+				float WeightVal = 0.f;
+				if (Lookup(Classes, ClassName, TEXT("Weight"), Text) && ParseFloat(Text, WeightVal))
+				{
+					Training->Weight = WeightVal;
+					Applied.Add(TEXT("Weight"));
+				}
+				int32 TickDelayVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("TickDelay"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(TickDelayVal, *Text);
+					Training->TickDelay = TickDelayVal;
+					Applied.Add(TEXT("TickDelay"));
+				}
+				int32 PriorityVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("Priority"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(PriorityVal, *Text);
+					Training->Priority = PriorityVal;
+					Applied.Add(TEXT("Priority"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Concept"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Training->ConceptName = FName(*Unquote(Text));
+					Applied.Add(TEXT("Concept"));
+				}
+			}
+			if (UShockActionSetGrenadierSuicideState* GrenSuicide = Cast<UShockActionSetGrenadierSuicideState>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("GrenadierLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					GrenSuicide->GrenadierLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("GrenadierLabel"));
+				}
+				int32 StateVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("SpecialCommitSuicideState"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(StateVal, *Text);
+					GrenSuicide->SpecialCommitSuicideState = StateVal;
+					Applied.Add(TEXT("SpecialCommitSuicideState"));
+				}
+			}
+			if (UShockActionKeypadContainerUsed* KeypadUsed = Cast<UShockActionKeypadContainerUsed>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("KeypadContainerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					KeypadUsed->KeypadContainerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("KeypadContainerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Success"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					KeypadUsed->bSuccess = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Success"));
+				}
+			}
+			if (UShockActionHackSecuritySystem* HackSec = Cast<UShockActionHackSecuritySystem>(Action))
+			{
+				FString Text;
+				float ShutdownVal = 0.f;
+				if (Lookup(Classes, ClassName, TEXT("ShutdownTime"), Text) && ParseFloat(Text, ShutdownVal))
+				{
+					HackSec->ShutdownTime = ShutdownVal;
+					Applied.Add(TEXT("ShutdownTime"));
+				}
+			}
+			if (UShockActionAssignNextProtectorVent* ProtVent = Cast<UShockActionAssignNextProtectorVent>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("NextProtectorVent"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ProtVent->NextProtectorVentName = FName(*Unquote(Text));
+					Applied.Add(TEXT("NextProtectorVent"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ProtectorLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ProtVent->ProtectorLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ProtectorLabel"));
+				}
+			}
+			if (UShockActionEnableOrDisableSoundPropagation* SoundProp = Cast<UShockActionEnableOrDisableSoundPropagation>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Enable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					SoundProp->bEnable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Enable"));
+				}
+			}
+			if (UShockActionAutoSave* AutoSave = Cast<UShockActionAutoSave>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Command"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AutoSave->Command = Unquote(Text);
+					Applied.Add(TEXT("Command"));
+				}
+			}
+			if (UShockActionSetCorpseFadeoutTime* CorpseFade = Cast<UShockActionSetCorpseFadeoutTime>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("AILabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CorpseFade->AILabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("AILabel"));
+				}
+				float FadeVal = 0.f;
+				if (Lookup(Classes, ClassName, TEXT("FadeOutDuration"), Text) && ParseFloat(Text, FadeVal))
+				{
+					CorpseFade->FadeOutDuration = FadeVal;
+					Applied.Add(TEXT("FadeOutDuration"));
+				}
+			}
+			if (UShockActionPrintClientMessage* PrintMsg = Cast<UShockActionPrintClientMessage>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MessageText"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PrintMsg->MessageText = Unquote(Text);
+					Applied.Add(TEXT("MessageText"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("MessageType"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PrintMsg->MessageType = FName(*Unquote(Text));
+					Applied.Add(TEXT("MessageType"));
+				}
+			}
+			if (UShockActionToggleQuestVisibility* ToggleQuest = Cast<UShockActionToggleQuestVisibility>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("QuestName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					ToggleQuest->QuestName = FName(*Unquote(Text));
+					Applied.Add(TEXT("QuestName"));
+				}
+			}
+			if (UShockActionDisableOrEnableMachine* Machine = Cast<UShockActionDisableOrEnableMachine>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MachineLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Machine->MachineLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("MachineLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("MachineClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Machine->MachineClassName = FName(*Unquote(Text));
+					Applied.Add(TEXT("MachineClass"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Enable"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Machine->bEnable = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Enable"));
+				}
+			}
+			if (UShockActionPlaceItemInContainerSlot* PlaceSlot = Cast<UShockActionPlaceItemInContainerSlot>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ContainerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PlaceSlot->ContainerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("ContainerLabel"));
+				}
+				int32 SlotVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("Slot"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(SlotVal, *Text);
+					PlaceSlot->Slot = SlotVal;
+					Applied.Add(TEXT("Slot"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("OverwriteExistingItem"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PlaceSlot->bOverwriteExistingItem = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("OverwriteExistingItem"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("ItemClass"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PlaceSlot->ItemClass = FName(*Unquote(Text));
+					Applied.Add(TEXT("ItemClass"));
+				}
+				int32 StackVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("StackSize"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(StackVal, *Text);
+					PlaceSlot->StackSize = StackVal;
+					Applied.Add(TEXT("StackSize"));
+				}
+			}
+			if (UShockActionSetBouncerCanStepBack* Bouncer = Cast<UShockActionSetBouncerCanStepBack>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("BouncerLabel"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bouncer->BouncerLabel = FName(*Unquote(Text));
+					Applied.Add(TEXT("BouncerLabel"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("bCanStepBack"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Bouncer->bCanStepBack = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bCanStepBack"));
+				}
+			}
+			if (UShockActionEquipPlasmid* EquipPlasmid = Cast<UShockActionEquipPlasmid>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Plasmid"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					EquipPlasmid->Plasmid = FName(*Unquote(Text));
+					Applied.Add(TEXT("Plasmid"));
+				}
+				int32 SlotVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("slotNumber"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(SlotVal, *Text);
+					EquipPlasmid->SlotNumber = SlotVal;
+					Applied.Add(TEXT("slotNumber"));
+				}
+			}
+			if (UShockActionSetPlasmidSlotLockedState* PlasmidLock = Cast<UShockActionSetPlasmidSlotLockedState>(Action))
+			{
+				FString Text;
+				int32 TrackVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("Track"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(TrackVal, *Text);
+					PlasmidLock->Track = TrackVal;
+					Applied.Add(TEXT("Track"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Lock"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PlasmidLock->bLock = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("Lock"));
+				}
+			}
+			if (UShockBooleanStatement* BoolStmt = Cast<UShockBooleanStatement>(Action))
+			{
+				FString Text;
+				int32 OpVal = 0;
+				if (Lookup(Classes, ClassName, TEXT("logicOp"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(OpVal, *Text);
+					BoolStmt->LogicOp = OpVal;
+					Applied.Add(TEXT("logicOp"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					BoolStmt->Lhs = Unquote(Text);
+					Applied.Add(TEXT("lhs"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					BoolStmt->Rhs = Unquote(Text);
+					Applied.Add(TEXT("rhs"));
 				}
 			}
 			Ok = true;

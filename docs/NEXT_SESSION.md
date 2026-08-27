@@ -35,11 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Continue Phase 4 census. Landed through batch36 (verified live): BathysphereMode,
-WaitUntilLanded, CascadingWater, GathererLabel, CollisionListener, HavokEnable,
-Ragdoll, AssassinTeleportPoint.
-Next: SetDoorBrokenState / ForcePlayerCrouch / HideNeedleElement.
-Branch feature/fbx-materials-gui. Prefer batching. No Task/backup-agent.
+Phase 4 action census is complete (batch45 verified live, BooleanStatement tail).
+All 186 map-referenced action classes have UShockAction first slices + schema defaults.
+Next: wire actions into script execution / playable Medical slice (PIE possess unclaimed).
+Branch feature/fbx-materials-gui. Fast tier only unless diff hits shared decode.
 ```
 
 **What wastes time here**
