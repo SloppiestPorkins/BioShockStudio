@@ -22,7 +22,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| *(none)* | Active claims empty. Add a row before starting work. | — | — |
+| Cursor (this session) | **Phase 4: runner PlayEffect/StopEffect by label** | `ShockActionPlayEffect.*`, `ShockActionStopEffect.*`, `ShockScriptRunner.*`, verify scripts | 27 Aug 2026 |
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,
@@ -556,6 +556,20 @@ Each of these produced a plausible, wrong result before it was understood.
   actor key handled, but only once a real mesh actor is actually standing (not on a mesh-lookup or
   spawn failure), so that failure case still falls through to `_import_actors`'s placeholder rather
   than losing its representation entirely.
+- **The local backup agent (`tools/backup-agent/`, aider driven by local Ollama models) can race a
+  live session's own uncommitted edit to the same file and silently discard it** (25 Aug 2026). A
+  Claude session hit its usage limit mid-edit to `ExportLevel` in `Program.cs`; the `SessionEnd`
+  hook fired, `run.ps1` started autonomously, and by the time the session resumed and rebuilt, the
+  file was back to the last *committed* state — the live edit gone, no error, no warning, exit code
+  0 throughout. The `.run.lock` file only stops two `run.ps1` invocations from overlapping each
+  other; it does nothing to stop the agent from touching a file a live, unrelated session is also
+  mid-edit on. **Do not run `tools/backup-agent/run.ps1` (by hand or via the hook) while a session
+  you care about has uncommitted changes anywhere in this repo** — commit or stash first. The
+  `SessionEnd` hook is disabled as of this finding (removed from the "AI Test" project's
+  `.claude/settings.local.json`, not this repo's own settings); re-enabling it should wait for a
+  real fix — e.g. the wrapper checking `git status --short` is clean before starting a task, or the
+  hook including some explicit "nothing else is using this repo right now" signal — not just the
+  existing lock file, which was never designed to answer that question.
 
 ## 5. Validation
 

@@ -19,6 +19,16 @@ broken tree. This catches an obviously broken change; it does not replace review
 catch the "numerically fine, visibly wrong" failure mode this project's own `docs/HANDOFF.md` §4
 records repeatedly — several of those needed a live UE5 run or a render to actually catch.
 
+**It can race a live session's own uncommitted edit and silently discard it — this actually
+happened, 25 Aug 2026.** `.run.lock` only stops two `run.ps1` invocations from overlapping each
+other; it does not check whether anyone else has uncommitted work in the repo. A Claude session hit
+its usage limit mid-edit, the `SessionEnd` hook fired, `run.ps1` ran autonomously, and the session's
+own live edit to `Program.cs` ended up reverted to the last committed state with no error at all.
+**Do not run this (by hand or via a hook) while a session you care about has uncommitted changes
+anywhere in the repo — commit or stash first.** The `SessionEnd` hook is disabled for this reason
+(see `docs/HANDOFF.md` §4) until the wrapper itself checks for a clean tree, or some other real
+signal, before starting.
+
 ## What's set up
 
 - **`../.aider.conf.yml`** — model (`ollama_chat/qwen3-coder:30b`, `qwen2.5-coder:14b` as the weak
