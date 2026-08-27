@@ -14,4 +14,8 @@ public:
 
 	/** Used by ActionIf's testsOr OR. Not Blueprint-exposed — subclasses override in C++. */
 	virtual bool EvaluateBool() const;
+
+	/** World-aware evaluation (e.g. ActionPropertyTest by actor Label). Defaults to EvaluateBool. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	virtual bool EvaluateInWorld(class UWorld* World) const;
 };

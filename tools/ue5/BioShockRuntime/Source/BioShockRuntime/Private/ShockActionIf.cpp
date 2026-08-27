@@ -31,11 +31,15 @@ void UShockActionIf::AddElseAction(UShockAction* Action)
 	}
 }
 
-bool UShockActionIf::EvaluateTestsOr() const
+bool UShockActionIf::EvaluateTestsOr(UWorld* World) const
 {
 	for (const TObjectPtr<UShockActionBool>& Test : TestsOr)
 	{
-		if (Test && Test->EvaluateBool())
+		if (!Test)
+		{
+			continue;
+		}
+		if (World ? Test->EvaluateInWorld(World) : Test->EvaluateBool())
 		{
 			return true;
 		}
@@ -43,8 +47,8 @@ bool UShockActionIf::EvaluateTestsOr() const
 	return false;
 }
 
-FString UShockActionIf::ChooseBranch()
+FString UShockActionIf::ChooseBranch(UWorld* World)
 {
-	LastBranch = EvaluateTestsOr() ? TEXT("true") : TEXT("else");
+	LastBranch = EvaluateTestsOr(World) ? TEXT("true") : TEXT("else");
 	return LastBranch;
 }

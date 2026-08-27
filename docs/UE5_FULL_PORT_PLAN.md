@@ -898,11 +898,11 @@ defaults + import overlays. Live import: nested_unmapped_classes empty for those
 
 ### Phase 4 ActionPropertyTest + ActionFor body — done, 27 Aug 2026
 
-`UShockActionPropertyTest` (params; EvaluateBool false until property lookup).
-`UShockActionFor.ForActions` + `AddForAction`; runner expands body and **repeats while
-counter ≤ EndValue** (inclusive), writing the counter into `UShockVariableScope`.
-Import wires `forActions`. Live `run_import_scripts.py` limit 70: nested_for=3;
-`run_script_for.py` verifies 1→3 and 0→0.
+`UShockActionPropertyTest` — Label/ActorLabel `EvaluateInWorld` with EOpTest; other
+propertyPaths still false. ActionIf/ChooseBranch take optional World (runner passes
+outer actor world). Live `run_action_property_test.py`: equals/mismatch/notequal + If true.
+`UShockActionFor.ForActions` + counter iterations through End. Import wires nested graphs.
+Live import limit 70: nested_for=3, nested_unmapped=0.
 
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 

@@ -16,6 +16,9 @@
 #include "ShockScriptRegistry.h"
 #include "ShockVariableScope.h"
 
+#include "GameFramework/Actor.h"
+#include "Engine/World.h"
+
 UShockScriptRunner::UShockScriptRunner()
 {
 	ScriptLabel = NAME_None;
@@ -511,7 +514,15 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionIf* IfAction = Cast<UShockActionIf>(Action))
 	{
-		const FString Branch = IfAction->ChooseBranch();
+		UWorld* World = nullptr;
+		if (const UObject* OuterObj = GetOuter())
+		{
+			if (const AActor* OuterActor = Cast<AActor>(OuterObj))
+			{
+				World = OuterActor->GetWorld();
+			}
+		}
+		const FString Branch = IfAction->ChooseBranch(World);
 		const TArray<TObjectPtr<UShockAction>>& BranchActions =
 			Branch == TEXT("true") ? IfAction->TrueActions : IfAction->ElseActions;
 		InsertActionsAt(CurrentlyExecutingActionIndex + 1, BranchActions);

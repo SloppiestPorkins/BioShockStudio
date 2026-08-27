@@ -4,6 +4,7 @@
 #include "ShockActionIf.generated.h"
 
 class UShockActionBool;
+class UWorld;
 
 /**
  * UnrealScript `ActionIf` (Scripting.U, native). OR over `testsOr`; if any is true run
@@ -40,12 +41,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void AddElseAction(UShockAction* Action);
 
-	/** OR of EvaluateBool on testsOr. Empty testsOr is false (editor: "If nothing"). */
+	/** OR of EvaluateInWorld on testsOr. Empty testsOr is false (editor: "If nothing"). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
-	bool EvaluateTestsOr() const;
+	bool EvaluateTestsOr(UWorld* World = nullptr) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
-	FString ChooseBranch();
+	FString ChooseBranch(UWorld* World = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FString GetLastBranch() const { return LastBranch; }

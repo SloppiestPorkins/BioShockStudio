@@ -3,9 +3,11 @@
 #include "ShockActionBool.h"
 #include "ShockActionPropertyTest.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionPropertyTest` (Scripting.U, native). Compare actor property to Value.
- * First slice holds params; EvaluateBool is false until property lookup is wired.
+ * Label / ActorLabel path evaluates in-world; other propertyPaths stay false until wired.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPropertyTest : public UShockActionBool
@@ -35,4 +37,5 @@ public:
 	void Configure(FName InLabel, const FString& InPropertyPath, const FString& InValue, int32 InOpTest, int32 InMaxPasses);
 
 	virtual bool EvaluateBool() const override;
+	virtual bool EvaluateInWorld(UWorld* World) const override;
 };

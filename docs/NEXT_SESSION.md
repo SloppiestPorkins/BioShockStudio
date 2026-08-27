@@ -34,9 +34,9 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Phase 4 script track on main: nested If/Loop/For import, ActionBool stubs,
-ActionPropertyTest, DisplayMapHUDRegion, ActionFor counter iterations (verified).
-Next: human PIE possess, or ActionPropertyTest EvaluateBool (Label property).
+Phase 4 on main: nested If/Loop/For import, ActionFor counters, ActionPropertyTest
+Label EvaluateInWorld (verified), DisplayMapHUDRegion stub.
+Next: human PIE possess, or more propertyPath coverage / OrStatement if needed.
 Branch: main only.
 ```
 
