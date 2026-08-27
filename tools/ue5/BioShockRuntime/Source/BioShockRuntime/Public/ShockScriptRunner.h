@@ -15,9 +15,9 @@ class UShockVariableScope;
  *
  * Holds an authored Actions list, copies it into a run queue on Start, then Tick advances:
  * ActionWait, ActionIf, ActionLoop/ExitLoop, variable assigns, ExitScript, ScriptNote,
- * Blocking/NonBlocking ExecuteScript (child by label).
+ * Blocking/NonBlocking ExecuteScript (child by label), message TriggeredBy start.
  *
- * Not a full VM: no message triggers, no level-placed Script actors yet.
+ * Not a full VM: no real Message objects / queue, no level-placed Script actors yet.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockScriptRunner : public UObject
@@ -29,6 +29,19 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName ScriptLabel;
+
+	/**
+	 * UnrealScript Actor.TriggeredBy (inherited): comma-separated source labels that may start
+	 * this script. Empty matches any DispatchMessage source.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString TriggeredBy;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName LastMessageClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString LastMessageSource;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bEnabled = true;
@@ -50,6 +63,28 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void Configure(FName InLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetTriggeredBy(const FString& InTriggeredBy);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	FString GetTriggeredBy() const { return TriggeredBy; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool MatchesTriggeredBy(const FString& SourceLabel) const;
+
+	/**
+	 * If enabled, TriggeredBy matches, and not already executing: record the message and
+	 * StartExecution. Returns false when skipped (disabled / mismatch / re-entry).
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool TryStartFromMessage(FName MessageClassName, const FString& SourceLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	FName GetLastMessageClass() const { return LastMessageClass; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	FString GetLastMessageSource() const { return LastMessageSource; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void SetRegistry(UShockScriptRegistry* InRegistry);

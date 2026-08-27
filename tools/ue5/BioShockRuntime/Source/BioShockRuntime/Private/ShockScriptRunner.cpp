@@ -25,6 +25,43 @@ void UShockScriptRunner::Configure(FName InLabel)
 	ScriptLabel = InLabel;
 }
 
+void UShockScriptRunner::SetTriggeredBy(const FString& InTriggeredBy)
+{
+	TriggeredBy = InTriggeredBy;
+}
+
+bool UShockScriptRunner::MatchesTriggeredBy(const FString& SourceLabel) const
+{
+	const FString Trimmed = TriggeredBy.TrimStartAndEnd();
+	if (Trimmed.IsEmpty() || SourceLabel.IsEmpty())
+	{
+		// UC BeginPlay only registerMessage when TriggeredBy is non-empty.
+		return false;
+	}
+	TArray<FString> Tokens;
+	Trimmed.ParseIntoArray(Tokens, TEXT(","), true);
+	for (FString& Token : Tokens)
+	{
+		Token = Token.TrimStartAndEnd();
+		if (Token.Equals(SourceLabel, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UShockScriptRunner::TryStartFromMessage(FName MessageClassName, const FString& SourceLabel)
+{
+	if (!bEnabled || bIsExecuting || !MatchesTriggeredBy(SourceLabel))
+	{
+		return false;
+	}
+	LastMessageClass = MessageClassName;
+	LastMessageSource = SourceLabel;
+	return StartExecution();
+}
+
 void UShockScriptRunner::SetRegistry(UShockScriptRegistry* InRegistry)
 {
 	Registry = InRegistry;

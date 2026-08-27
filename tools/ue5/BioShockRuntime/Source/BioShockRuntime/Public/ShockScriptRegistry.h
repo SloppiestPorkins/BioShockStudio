@@ -5,7 +5,7 @@
 
 class UShockScriptRunner;
 
-/** Label → script runner lookup for ExecuteScript actions. First-slice; not level actors. */
+/** Label → script runner lookup for ExecuteScript + message dispatch. First-slice; not level actors. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockScriptRegistry : public UObject
 {
@@ -20,6 +20,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 Num() const { return ByLabel.Num(); }
+
+	/**
+	 * Start every registered script whose TriggeredBy matches SourceLabel
+	 * (comma-separated tokens; empty TriggeredBy matches any). Returns how many started.
+	 * Scripts already executing are skipped (message queue still open).
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 DispatchMessage(FName MessageClassName, const FString& SourceLabel);
 
 private:
 	UPROPERTY()

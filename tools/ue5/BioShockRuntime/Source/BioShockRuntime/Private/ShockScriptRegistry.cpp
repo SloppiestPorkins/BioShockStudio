@@ -23,3 +23,21 @@ UShockScriptRunner* UShockScriptRegistry::FindScript(FName Label) const
 	}
 	return nullptr;
 }
+
+int32 UShockScriptRegistry::DispatchMessage(FName MessageClassName, const FString& SourceLabel)
+{
+	int32 Started = 0;
+	for (const TPair<FName, TObjectPtr<UShockScriptRunner>>& Pair : ByLabel)
+	{
+		UShockScriptRunner* Script = Pair.Value.Get();
+		if (!Script)
+		{
+			continue;
+		}
+		if (Script->TryStartFromMessage(MessageClassName, SourceLabel))
+		{
+			++Started;
+		}
+	}
+	return Started;
+}

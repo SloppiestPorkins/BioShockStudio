@@ -1412,9 +1412,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    `UShockScriptRunner` linear queue (Wait/If/Exit/Note/VarAssign), live verified.
    **Blocking/NonBlocking ExecuteScript — done same day**: registry + parent/child, live
    `run_script_blocking.py`. **ActionLoop/ExitLoop — done same day**:
-   `run_script_loop.py`. **Playable Fire mapping — done same day**:
+   `run_script_loop.py`. **Message TriggeredBy dispatch — done same day**:
+   `run_script_message.py`. **Playable Fire mapping — done same day**:
    `run_playable_input.py` (legacy Input + LMB Fire + EnablePlayableInput). Next: PIE
-   possess (human) or message-triggered Script start.
+   possess (human) or MessageQueue while busy.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

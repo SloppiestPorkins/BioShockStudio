@@ -838,7 +838,20 @@ triggers, no BlockingExecuteScript parent/child, no Loop.
 `UShockScriptRegistry` maps label → runner. Blocking starts a child and holds the parent until
 the child finishes (same-tick start so Wait wake times stay correct). Non-blocking starts a child
 and continues the parent; parent `TickExecution` also drives spawned children. Live
-`run_script_blocking.py`, `Success - 0 error(s)`. No message triggers / Loop / level Script actors.
+`run_script_blocking.py`, `Success - 0 error(s)`. No message triggers / level Script actors
+(Loop landed same day — see below).
+
+### Phase 4 ActionLoop / ExitLoop — done, 27 Aug 2026
+
+`UShockActionExitLoop` + `UShockActionLoop.LoopActions`. Runner stack expands body into the queue,
+restarts until ExitLoop or 1000 iterations (UC safety). Mid-body ExitLoop jumps to body end.
+Live `run_script_loop.py`, `Success - 0 error(s)`.
+
+### Phase 4 message-triggered Script start — done, 27 Aug 2026
+
+`TriggeredBy` (comma-separated labels) + `UShockScriptRegistry::DispatchMessage`. Empty
+TriggeredBy does not start (matches UC BeginPlay register gate). Re-entry while executing is
+skipped (queue still open). Live `run_script_message.py`, `Success - 0 error(s)`.
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

@@ -35,8 +35,9 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-ActionLoop/ExitLoop on script runner verified live.
-Next: PIE possess (human Play), or message-triggered Script start.
+Message-triggered Script start verified (TriggeredBy + DispatchMessage).
+Loop/ExitLoop + Fire mapping + Blocking also landed.
+Next: PIE possess (human Play), or MessageQueue while busy.
 Branch feature/fbx-materials-gui.
 ```
 
