@@ -972,6 +972,12 @@ SetDoorBrokenState, HackTurret, HackSecuritySystem, PlayHUD, StopHUD,
 SetMaterialSwitchIndex Request* wired. Live `run_script_light_sec.py`,
 `Success - 0 error(s)`.
 
+### Phase 4 runner AI tweak / fade / speech — done, 27 Aug 2026
+
+TweakAIVision, TweakAIHearing, SetTipPriority, MuteAI, CinematicFadeView,
+ChangeSkinAtIndex, AISpeech Request* wired on `UShockScriptRunner`. Live
+`run_script_ai_tweak.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.
