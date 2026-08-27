@@ -30,7 +30,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InObjectLabel, FName InPropertyName, const FString& InNewValue);
 
-	/** Sets ActorLabel when PropertyName is Label/label; other properties stay UNKNOWN here. */
+	/** Sets ActorLabel when PropertyName is Label; bHidden/Hidden toggles actor hidden-in-game. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
 };

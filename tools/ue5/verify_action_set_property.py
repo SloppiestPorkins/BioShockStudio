@@ -53,10 +53,20 @@ def main(schema_path, report_path):
         if label != "BioShockSetPropCanary":
             failures.append("actor label %s != BioShockSetPropCanary" % label)
 
-    # Unknown property name must not invent a write.
+	# Unknown property name must not invent a write.
     action.configure("x", "SomeUnknownProp", "1")
     if action.apply_to_actor(target):
         failures.append("ApplyToActor should refuse unknown properties")
+
+    # bHidden stand-in (UE2 special path → SetActorHiddenInGame). ApplyToActor itself
+    # round-trips via AActor::IsHidden — trust that return rather than a Python property name.
+    action.configure("x", "bHidden", "true")
+    if not action.apply_to_actor(target):
+        failures.append("bHidden true apply failed")
+    action.configure("x", "bHidden", "false")
+    if not action.apply_to_actor(target):
+        failures.append("bHidden false apply failed")
+    report["bHidden"] = "ok"
 
     subsystem.destroy_actor(target)
     report["failures"] = failures

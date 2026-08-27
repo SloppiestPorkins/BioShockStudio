@@ -33,6 +33,16 @@ bool UShockActionSetProperty::ApplyToActor(AActor* Target)
 #endif
 	}
 
+	if (Prop.Equals(TEXT("bHidden"), ESearchCase::IgnoreCase)
+		|| Prop.Equals(TEXT("Hidden"), ESearchCase::IgnoreCase))
+	{
+		const bool bHide = NewValue.ToBool()
+			|| NewValue.Equals(TEXT("1"), ESearchCase::IgnoreCase)
+			|| NewValue.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+		Target->SetActorHiddenInGame(bHide);
+		return Target->IsHidden() == bHide;
+	}
+
 	// Full SetPropertyText coverage is deferred — native UE2 path, many property types.
 	return false;
 }
