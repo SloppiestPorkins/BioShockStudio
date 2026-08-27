@@ -45,7 +45,7 @@ TweakAIVision/Hearing/SetTipPriority/MuteAI/CinematicFade/ChangeSkin/AISpeech/
 PostMovementGoal/Concept/ScriptedSequence/WaitForGoal/InputContext/ChangePressure/
 SpawnZoneRepopulation/SpotlightTarget+State/QuestLogWait/ToggleAIReactions/
 DisplayDebug/Player+PawnInvincibility/SetAIPatrol/ChangePawnPhysics/LODOverride by label.
-PIE prep done (WASD/look/Fire + camera); **human:** open 1-Medical, Play, confirm possess.
+Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
 Rebuild: tools/ue5/rebuild_runtime_fast.ps1.
 Branch: main only.
 ```

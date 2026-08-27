@@ -10,4 +10,8 @@ class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
 
 public:
 	AShockGameMode();
+
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 };

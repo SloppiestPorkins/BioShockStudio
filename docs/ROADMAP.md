@@ -1447,7 +1447,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    (`run_script_light_sec.py`). **Runner AI tweak/fade/speech — done same day**
    (`run_script_ai_tweak.py`). **Runner movement/goal/input — done same day**
    (`run_script_movement.py`). **Runner spawn/spotlight/world-AI — done same day**
-   (`run_script_world_ai.py`). Next: **human** PIE possess on 1-Medical.
+   (`run_script_world_ai.py`). **Game-mode possess on 1-Medical — done same day**
+   (`run_game_possess.py`). Next: runner batches or equip weapon in-level for Fire.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

@@ -62,11 +62,25 @@ def _find_tagged_player_start():
     return None
 
 
+def _find_medical_player_start():
+    for actor in _actors().get_all_level_actors():
+        if not isinstance(actor, unreal.PlayerStart):
+            continue
+        label = actor.get_actor_label()
+        if label in ("MedicalStart", "BioShock_MedicalStart"):
+            return actor
+    return _find_tagged_player_start()
+
+
 def _ensure_player_start():
-    existing = _find_tagged_player_start()
+    existing = _find_medical_player_start()
     if existing is not None:
         existing.set_actor_location(MEDICAL_START, False, True)
         existing.set_actor_rotation(unreal.Rotator(0.0, MEDICAL_START_YAW, 0.0), False)
+        tags = list(existing.tags)
+        if unreal.Name(PLAYER_START_TAG) not in tags:
+            tags.append(unreal.Name(PLAYER_START_TAG))
+            existing.tags = tags
         return existing, False
 
     start = _actors().spawn_actor_from_class(unreal.PlayerStart, MEDICAL_START)
@@ -90,8 +104,10 @@ def _set_game_mode(mode_class):
 
 def _reload_map(map_path):
     level = _level_subsystem()
-    if not level.new_level(SCRATCH_MAP):
-        raise RuntimeError("could not switch away to %s" % SCRATCH_MAP)
+    # Prefer loading an existing scratch map (vertical slice seeds _Scratch.umap the same way).
+    if not level.load_level(SCRATCH_MAP):
+        if not level.new_level(SCRATCH_MAP):
+            raise RuntimeError("could not switch away to %s" % SCRATCH_MAP)
     if _find_tagged_player_start() is not None:
         raise RuntimeError("tagged PlayerStart still present after leaving the slice level")
     if not level.load_level(map_path):

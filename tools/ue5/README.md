@@ -210,7 +210,22 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** Reloaded DefaultGameMode is
 `ShockGameMode`; tagged PlayerStart still at MedicalStart; piloted pawn radius **34**, half-height
 **68**, walk **450**. Editor `PlayerController.Possess` access-violates under `-unattended` — not
-claimed. Python does not run inside PIE, so pressing Play is still a human check.
+claimed. Python does not run inside PIE; editor Play still AVs under `-unattended`.
+
+### Game-mode possess verify (automated)
+
+`run_game_possess.py` runs possess prep + playable input, then launches
+`/Game/BioShockSlice/1-Medical?game=ShockGameMode` with `-game -bioshockverifypossess`.
+`ShockGameMode` picks the tagged `MedicalStart` PlayerStart, snaps the pawn there in `PostLogin`,
+logs `BIOSHOCK_POSSESS_OK`, and quits.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_game_possess.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 27 Aug 2026 — `Success - 0 error(s)`.** ShockPlayer at MedicalStart
+(XY < 1 uu), `playable=1`. Editor viewport Play is still the human check for WASD/look/Fire feel.
 
 ## Script runner (Phase 4 execution head)
 

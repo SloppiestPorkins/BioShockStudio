@@ -940,16 +940,19 @@ wired. Live `run_script_quest_save.py`, `Success - 0 error(s)`.
 DisablePlayerMovement Request* wired. Live `run_script_damage_level.py`,
 `Success - 0 error(s)`.
 
-### Phase 4 PIE playable prep — done, 27 Aug 2026 (possess claim still human)
+### Phase 4 PIE playable prep — done, 27 Aug 2026
 
 `AShockPlayer`: first-person camera; `bPlayableInputEnabled` default true; BindAxis
 MoveForward/MoveRight/Turn/LookUp + Fire. `verify_playable_input.py` writes those
 AxisMappings into the throwaway project's `DefaultInput.ini`. Live
 `run_playable_input.py`, `Success - 0 error(s)`.
 
-**Human-only to claim PIE possess:** open BioShockUE5 → `/Game/BioShockSlice/1-Medical`
-→ Play → confirm spawn at MedicalStart, WASD/look, LMB Fire (needs an equipped weapon
-in-level for fire to do anything useful).
+### Phase 0 game-mode possess — done, 27 Aug 2026
+
+`run_game_possess.py`: possess prep + `-game -bioshockverifypossess` on 1-Medical.
+`ShockGameMode` chooses tagged `MedicalStart`, snaps pawn in `PostLogin`. Live
+`Success - 0 error(s)` — ShockPlayer at MedicalStart (XY < 1 uu), `playable=1`.
+Editor viewport Play remains the human check for WASD/look/Fire feel.
 
 ### Phase 4 runner DealDamageInRadius / ApplyImpulse + timer / console / mesh — done, 27 Aug 2026
 
