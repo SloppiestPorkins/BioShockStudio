@@ -1,0 +1,63 @@
+class Shotgun extends PlayerWeapon
+	config(Weapons)
+	notplaceable
+	hidecategories(DrawScale3D,DisplayAdvanced);
+
+defaultproperties
+{
+	AltFireModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.SG_UpgradeA'
+	StrictlySuperiorModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.SG_UpgradeB'
+	AltFireModAttachmentSocket="upgradeA"
+	StrictlySuperiorModAttachmentSocket="upgradeB"
+	IdlingStrictlySuperiorAttachmentAnim="SG_UpgradeB_spin"
+	EmptyIdlingHandsAnim="EmptyFidgetShotgun"
+	ShouldUseThreePartReloading=true
+	ReloadingEmptyWeaponHandsAnim[0]=(AnimationName="ReloadShotgun_Start",minAnimRate=0.0000000,maxAnimRate=100.8899994)
+	ReloadingNotEmptyWeaponHandsAnim[0]=(AnimationName="ReloadShotgun_Start",minAnimRate=0.0000000,maxAnimRate=100.8899994)
+	ReloadingLoopHandsAnim[0]=(AnimationName="ReloadShotgun_LOOP",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingLoopAnim[0]=(AnimationName="Reload_Loop",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingFinishHandsAnim[0]=(AnimationName="ReloadShotgun_End",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingFinishAnim[0]=(AnimationName="Reload",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringHandsAnim[0]=(AnimationName="FireShotgun",minAnimRate=0.0000000,maxAnimRate=1.9000000)
+	FiringHandsAnim[1]=(AnimationName="FireShotgun_2Speed",minAnimRate=2.0000000,maxAnimRate=5.0000000)
+	FiringFinalShotHandsAnim[0]=(AnimationName="FireShotgun",minAnimRate=0.0000000,maxAnimRate=1.9000000)
+	FiringFinalShotHandsAnim[1]=(AnimationName="FireShotgun_2Speed",minAnimRate=2.0000000,maxAnimRate=5.0000000)
+	FriendlyName="Shotgun"
+	AvailableAmmoTypes[0]=Class'ShockGame.Shotgun_00Buck'
+	AvailableAmmoTypes[1]=Class'ShockGame.Shotgun_IonicBuck'
+	AvailableAmmoTypes[2]=Class'ShockGame.Shotgun_HighExplosiveBuck'
+	DefaultAmmoSelection=Class'ShockGame.Shotgun_00Buck'
+	WeaponModel=SkeletalMesh'ShockGame.WP_Shotgun.WP_ShotgunMesh'
+	AmmunitionModelSocket="AmmoSocket"
+	MagicBulletRadius=0.1500000
+	MagicBulletChance=1.0000000
+	EffectiveMagicBulletDistance=1000.0000000
+	ReloadingEmptyWeaponAnim[0]=(AnimationName="SingleFrame",minAnimRate=0.0000000,maxAnimRate=100.8899994)
+	ReloadingNotEmptyWeaponAnim[0]=(AnimationName="SingleFrame",minAnimRate=0.0000000,maxAnimRate=100.8899994)
+	FiringAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=1.9000000)
+	FiringAnim[1]=(AnimationName="SingleFrame",minAnimRate=2.0000000,maxAnimRate=5.0000000)
+	FiringFinalShotAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=1.9000000)
+	FiringFinalShotAnim[1]=(AnimationName="SingleFrame",minAnimRate=2.0000000,maxAnimRate=5.0000000)
+	BaseMagazineSize=4
+	BaseAccuracy=0.0000000
+	UpgradeStatName[0]="ShotgunUpgrade_RateOfFire"
+	UpgradeStatName[1]="ShotgunUpgrade_Damage"
+	AltFireModStatName="Damage"
+	OnFiredEffects[0]=(EmitterClass=Class'ShockGame.FXClass.ShotgunMuzzleFX',LightClass=Class'ShockGame.FXClass.DynamicLightMuzzleFlash',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_00Buck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[1]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_MuzzleSmoke',LightClass=none,AttachmentBone="shelleject",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_00Buck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[2]=(EmitterClass=Class'ShockGame.FXClass.ShotGunMuzzleIon',LightClass=Class'ShockGame.FXClass.DynamicLightMuzzleFlash',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_IonicBuck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[3]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_MuzzleSmoke',LightClass=none,AttachmentBone="shelleject",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_IonicBuck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[4]=(EmitterClass=Class'ShockGame.FXClass.ShotgunMuzzleFX',LightClass=Class'ShockGame.FXClass.DynamicLightMuzzleFlash',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_HighExplosiveBuck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[5]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_MuzzleSmoke',LightClass=none,AttachmentBone="shelleject",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="Shotgun_HighExplosiveBuck",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[6]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="SteamB",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=4,EmitterAction=0)
+	OnFiredEffects[7]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="SteamB",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=3,EmitterAction=0)
+	OnFiredEffects[8]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="steamc",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=4,EmitterAction=0)
+	OnFiredEffects[9]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="steamc",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=3,EmitterAction=0)
+	OnFiredEffects[10]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="SteamA",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=4,EmitterAction=0)
+	OnFiredEffects[11]=(EmitterClass=Class'ShockGame.FXClass.Shotgun_Steam',LightClass=none,AttachmentBone="SteamA",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=3,EmitterAction=0)
+	IdlingHandsAnim[0]="FidgetShotgun"
+	IdlingHandsAnimWeight[0]=100.0000000
+	EquippingHandsAnim="EquipShotgun"
+	EquippingAnim="SingleFram"
+	AttachBone="Launcher"
+}

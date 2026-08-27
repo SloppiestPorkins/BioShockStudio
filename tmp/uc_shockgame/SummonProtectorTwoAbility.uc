@@ -1,0 +1,2 @@
+class SummonProtectorTwoAbility extends SummonProtectorAbility
+	config;

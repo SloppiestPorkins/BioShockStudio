@@ -1,0 +1,3 @@
+class LifeDrainCeilingCrawlerRangedWeapon extends CeilingCrawlerRangedWeapon
+	config(Weapons)
+	hidecategories(DrawScale3D,DisplayAdvanced);

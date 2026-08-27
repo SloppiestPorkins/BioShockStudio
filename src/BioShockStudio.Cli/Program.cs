@@ -65,6 +65,7 @@ try
         "names" => Names(root, args),
         "weapon-effects" => WeaponEffectsCommand(root, args),
         "effect-class" => EffectClassCommand(root, args),
+        "export-script-actions" => ExportScriptActions(root, args),
         _ => Usage(),
     };
 }
@@ -102,6 +103,10 @@ static int Usage()
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
                                         Resolve one class's own flat effect-class property by name.
+          export-script-actions <map> <out.json>
+                                        Dump scalar properties for every Script Actions[] export
+                                        (per-instance overrides for UE5 import). Nested ActionIf
+                                        graphs stay as class identity only.
           textures <package> [pattern]  List textures with format and size.
           sounds <package> [pattern]    List native Sound exports and identified payload formats.
           export-sounds <package> <out-dir> [pattern]
@@ -1433,6 +1438,109 @@ static int EffectClassCommand(string root, string[] args)
     if (result is null) { Console.Error.WriteLine($"'{args[3]}' on '{args[2]}' did not resolve to a local emitter class."); return 1; }
 
     Console.WriteLine($"{args[2]}.{args[3]} -> {result.Source.ObjectName} ({result.MaxParticles?.ToString() ?? "?"} max particles)");
+    return 0;
+}
+
+/// <summary>
+/// Writes one JSON object per resolved Script action export: scalar Name/Str/Float/Int/Bool
+/// properties only. Used by tools/ue5/import_scripts.py to apply per-instance overrides after
+/// schema class defaults. Does not expand nested ActionIf/ActionLoop action arrays.
+/// </summary>
+static int ExportScriptActions(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-script-actions <map> <out.json>");
+        return 1;
+    }
+
+    string packageFile = ResolvePackage(root, args[1]);
+    using var package = BioShockPackage.Open(packageFile);
+    var context = LevelAnalyzer.Analyze(package);
+
+    var byKey = new Dictionary<string, object>(StringComparer.Ordinal);
+    int scripts = 0, actions = 0, skipped = 0;
+
+    foreach (var actor in context.Actors)
+    {
+        if (actor.ScriptActions is not { } script) continue;
+        scripts++;
+        foreach (var action in script.Actions)
+        {
+            if (action.Source is not { } source)
+            {
+                skipped++;
+                continue;
+            }
+
+            string key = source.Key;
+            if (byKey.ContainsKey(key))
+            {
+                actions++;
+                continue;
+            }
+
+            Dictionary<string, object?> properties;
+            try
+            {
+                var raw = package.ReadExportData(package.Exports[source.ExportIndex]);
+                var list = UnrealPropertyReader.Read(raw, package.Names, out _, out _);
+                properties = new Dictionary<string, object?>(StringComparer.Ordinal);
+                foreach (var property in list)
+                {
+                    object? value = property.Type switch
+                    {
+                        UnrealPropertyType.Float => property.AsFloat(),
+                        UnrealPropertyType.Int => property.AsInt(),
+                        UnrealPropertyType.Bool => property.BoolValue,
+                        UnrealPropertyType.Str => PropertyValues.AsString(property),
+                        UnrealPropertyType.Name => PropertyValues.AsName(property, package),
+                        _ => null,
+                    };
+                    if (value is null) continue;
+                    // First occurrence wins (arrayIndex duplicates are rare on these actions).
+                    properties.TryAdd(property.Name, value);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                           or ArgumentOutOfRangeException)
+            {
+                skipped++;
+                continue;
+            }
+
+            byKey[key] = new Dictionary<string, object?>
+            {
+                ["sourceKey"] = key,
+                ["className"] = source.ClassName,
+                ["objectName"] = source.ObjectName,
+                ["exportIndex"] = source.ExportIndex,
+                ["properties"] = properties,
+            };
+            actions++;
+        }
+    }
+
+    var document = new Dictionary<string, object>
+    {
+        ["formatVersion"] = 1,
+        ["package"] = context.PackageName,
+        ["scripts"] = scripts,
+        ["actions"] = actions,
+        ["skipped"] = skipped,
+        ["bySourceKey"] = byKey,
+    };
+
+    string outPath = args[2];
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+    File.WriteAllText(outPath, JsonSerializer.Serialize(document, new JsonSerializerOptions
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    }));
+    Console.WriteLine(outPath);
+    Console.Error.WriteLine($"script-actions: {scripts} scripts, {byKey.Count} unique exports, {skipped} skipped");
     return 0;
 }
 

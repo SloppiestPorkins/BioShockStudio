@@ -1,0 +1,32 @@
+class RangedAggressorSMGAttackAction extends RangedAggressorAttackAction
+	config(AI)
+	collapsecategories
+	hidecategories(Object,InternalParameters);
+
+defaultproperties
+{
+	CoverRollAnimations[0]="SMG_JumpFromCoverLEFT_A"
+	CoverRollAnimations[1]="SMG_JumpFromCoverLEFT_B"
+	CoverRollAnimations[2]="SMG_DodgeLEFT_B"
+	CoverRollAnimations[3]="SMG_DodgeRIGHT_B"
+	CoverRollAnimations[4]="SMG_JumpFromCoverRIGHT_A"
+	CoverRollAnimations[5]="SMG_JumpFromCoverRIGHT_B"
+	MinDistanceToApproachTargetWhileMovingAround=300.0000000
+	MinDistanceToAttackWithRangedWeapon=400.0000000
+	MoveRangeForPositionAdjust=(Min=200.0000000,Max=800.0000000)
+	TimeToWaitAfterBeginningAttackBeforeMoving=2.0000000
+	MinTimeBetweenMovementRateChanges=1.0000000
+	ChanceToReload=1.0000000
+	TimeRangeBetweenReloads=(Min=10.0000000,Max=10.0000000)
+	DistanceToMoveForMeleeAttack=150.0000000
+	MoveToLocalPointChance=0.5000000
+	MinDistanceToMoveAround=400.0000000
+	MaxDistanceToMoveAround=2000.0000000
+	TimeToStartMovingAgainRange=(Min=2.0000000,Max=4.0000000)
+	AIThreatenChance=0.5000000
+	PlayerWithWrenchEquippedThreatenChance=0.2500000
+	PlayerWithoutWrenchEquippedThreatenChance=0.0500000
+	MimicAttackInfos[0]=(MimicPoseAnimationName="SMG_PlayDeadBack_POSE",ForwardAttackAnimationName="SMG_getUpBack_A",LeftAttackAnimationName="SMG_getUpBack_A",RightAttackAnimationName="SMG_getUpBack_A",BackwardAttackAnimationName="SMG_getUpBack_A")
+	MimicAttackInfos[1]=(MimicPoseAnimationName="SMG_PlayDeadStomach_POSE",ForwardAttackAnimationName="SMG_getUpStomach_A",LeftAttackAnimationName="SMG_getUpStomach_A",RightAttackAnimationName="SMG_getUpStomach_A",BackwardAttackAnimationName="SMG_getUpStomach_A")
+	MimicAttackInfos[2]=(MimicPoseAnimationName="SMG_PlaydeadSitWall_Pose",ForwardAttackAnimationName="SMG_PlayDeadSitWall",LeftAttackAnimationName="SMG_PlayDeadSitWall",RightAttackAnimationName="SMG_PlayDeadSitWall",BackwardAttackAnimationName="SMG_PlayDeadSitWall")
+}

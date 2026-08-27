@@ -1,0 +1,60 @@
+class MachineGun extends PlayerWeapon
+	native
+	config(Weapons)
+	notplaceable
+	hidecategories(DrawScale3D,DisplayAdvanced);
+
+defaultproperties
+{
+	AltFireModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.TG_upgradeA'
+	StrictlySuperiorModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.TG_upgradeB'
+	AltFireModAttachmentSocket="upgradeA"
+	StrictlySuperiorModAttachmentSocket="upgradeB"
+	EmptyIdlingHandsAnim="EmptyFidgetTommygun"
+	CanBeZoomed=true
+	ZoomedFOVAngle=50.0000000
+	ZoomedForegroundFOVAngle=55.0000000
+	ZoomingInHandsAnim="ZoomingInTommyGun"
+	ZoomingOutHandsAnim="ZoomingOutTommyGun"
+	ZoomedIdlingHandsAnim="ZoomedInFidgetTommyGun"
+	ZoomedFiringHandsAnim[0]=(AnimationName="ZoomedInFireTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingEmptyWeaponHandsAnim[0]=(AnimationName="ReloadTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingNotEmptyWeaponHandsAnim[0]=(AnimationName="ReloadTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringHandsAnim[0]=(AnimationName="FireTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringFinalShotHandsAnim[0]=(AnimationName="FireTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ZoomedFiringFinalShotHandsAnim[0]=(AnimationName="ZoomedInFireTommyGun",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ZoomedFiringFinalShotAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	InaccuracyPenaltyPerRoundSpent=0.1500000
+	FriendlyName="Machine Gun"
+	AvailableAmmoTypes[0]=Class'ShockGame.MachineGun_Bullet'
+	AvailableAmmoTypes[1]=Class'ShockGame.MachineGun_FrozenBullet'
+	AvailableAmmoTypes[2]=Class'ShockGame.MachineGun_ArmorPiercingBullet'
+	DefaultAmmoSelection=Class'ShockGame.MachineGun_Bullet'
+	WeaponModel=SkeletalMesh'ShockGame.WP_TommyGun.TommyGunMESH'
+	AmmunitionModelSocket="AmmoDummySocket"
+	MagicBulletRadius=0.1000000
+	MagicBulletChance=1.0000000
+	EffectiveMagicBulletDistance=800.0000000
+	ReloadingEmptyWeaponAnim[0]=(AnimationName="Reload",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingNotEmptyWeaponAnim[0]=(AnimationName="Reload",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringFinalShotAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	BaseMagazineSize=40
+	BaseAccuracy=1.9000000
+	BaseFireRate=0.9000000
+	UpgradeStatName[0]="MachineGunUpgrade_Damage"
+	UpgradeStatName[1]="MachineGunUpgrade_Kickback"
+	AltFireModStatName="Kickback"
+	OnFiredEffects[0]=(EmitterClass=Class'ShockGame.FXClass.MachineGun_MuzzleFX',LightClass=Class'ShockGame.FXClass.DynamicLight_MuzzleMG',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="MachineGun_Bullet",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[1]=(EmitterClass=Class'ShockGame.FXClass.MachineGun_MuzzleFX',LightClass=Class'ShockGame.FXClass.DynamicLight_MuzzleMG',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="MachineGun_ArmorPiercingBullet",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[2]=(EmitterClass=Class'ShockGame.FXClass.MachineGun_ColdMuzzleFX',LightClass=Class'ShockGame.FXClass.DynamicLight_MuzzleMG',AttachmentBone="muzzle",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="MachineGun_FrozenBullet",UpgradeType=0,EmitterAction=0)
+	OnFiredEffects[3]=(EmitterClass=Class'ShockGame.FXClass.MG_ShellEject',LightClass=none,AttachmentBone="shelleject",LocationOffset=(X=0.0000000,Y=0.0000000,Z=0.0000000),RotationOffset=(Pitch=0,Yaw=0,Roll=0),AmmoType="None",UpgradeType=0,EmitterAction=1)
+	TracerEffects[0]=(EmitterClass=Class'ShockGame.FXClass.MG_Tracer',AmmoType="MachineGun_Bullet",UpgradeType=0)
+	TracerEffects[1]=(EmitterClass=Class'ShockGame.FXClass.MG_Tracer',AmmoType="MachineGun_ArmorPiercingBullet",UpgradeType=0)
+	TracerEffects[2]=(EmitterClass=Class'ShockGame.FXClass.MG_Tracer',AmmoType="MachineGun_FrozenBullet",UpgradeType=0)
+	TracerStartBone="muzzle"
+	IdlingHandsAnim[0]="FidgetTommygun"
+	IdlingHandsAnimWeight[0]=100.0000000
+	EquippingHandsAnim="EquipTommygun"
+	AttachBone="TommyGun"
+}

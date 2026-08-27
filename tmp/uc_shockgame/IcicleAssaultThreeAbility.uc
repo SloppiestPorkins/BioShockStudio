@@ -1,0 +1,2 @@
+class IcicleAssaultThreeAbility extends IcicleAssaultAbility
+	config;

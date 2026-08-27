@@ -1,0 +1,3 @@
+class CollectResourceGoal extends BioshockCharacterGoal
+	collapsecategories
+	hidecategories(Object,InternalParameters);

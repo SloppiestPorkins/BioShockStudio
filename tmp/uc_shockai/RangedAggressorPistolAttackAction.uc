@@ -1,0 +1,39 @@
+class RangedAggressorPistolAttackAction extends RangedAggressorAttackAction
+	config(AI)
+	collapsecategories
+	hidecategories(Object,InternalParameters);
+
+defaultproperties
+{
+	CoverRollAnimations[0]="PI_JumpFromCoverLEFT_A"
+	CoverRollAnimations[1]="PI_dodgeLEFT_B"
+	CoverRollAnimations[2]="PI_JumpFromCoverLEFT_B"
+	CoverRollAnimations[3]="PI_dodgeRIGHT_B"
+	CoverRollAnimations[4]="PI_JumpFromCoverRIGHT_A"
+	CoverRollAnimations[5]="PI_JumpFromCoverRIGHT_B"
+	MinDistanceToApproachTargetWhileMovingAround=300.0000000
+	MinDistanceToAttackWithRangedWeapon=400.0000000
+	MoveRangeForPositionAdjust=(Min=200.0000000,Max=800.0000000)
+	TimeToWaitAfterBeginningAttackBeforeMoving=2.0000000
+	MinTimeBetweenMovementRateChanges=1.0000000
+	ChanceToReload=0.5000000
+	TimeRangeBetweenReloads=(Min=8.0000000,Max=12.0000000)
+	DistanceToMoveForMeleeAttack=150.0000000
+	MoveToLocalPointChance=0.5000000
+	MinDistanceToMoveAround=400.0000000
+	MaxDistanceToMoveAround=2000.0000000
+	TimeToStartMovingAgainRange=(Min=2.0000000,Max=4.0000000)
+	PushAnimations[0]="PI_pushBack_A"
+	AIThreatenChance=0.8000000
+	PlayerWithWrenchEquippedThreatenChance=0.5000000
+	ThreatenAnimations[0]="PI_Threaten_A_agg"
+	ThreatenAnimations[1]="PI_Threaten_F_agg"
+	ThreatenAnimations[2]="PI_Threaten_G_agg"
+	ThreatenAnimations[3]="PI_Threaten_I_agg"
+	RequiredThreatenAngleDegrees=15.0000000
+	MimicAttackInfos[0]=(MimicPoseAnimationName="PI_PlayDeadBack_POSE",ForwardAttackAnimationName="PI_getUpBack_A",LeftAttackAnimationName="PI_getUpBack_A",RightAttackAnimationName="PI_getUpBack_A",BackwardAttackAnimationName="PI_getUpBack_A")
+	MimicAttackInfos[1]=(MimicPoseAnimationName="PI_PlayDeadStomach_POSE",ForwardAttackAnimationName="PI_getUpStomach_B",LeftAttackAnimationName="PI_getUpStomach_B",RightAttackAnimationName="PI_getUpStomach_B",BackwardAttackAnimationName="PI_getUpStomach_B")
+	MinDodgeTime=10.0000000
+	InitialReactionAnimations[0]="PI_Threaten_A_agg"
+	DistanceFromTargetToDoInitialReactionRange=(Min=400.0000000,Max=2000.0000000)
+}

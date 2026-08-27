@@ -1,0 +1,7 @@
+class LifeDrainCeilingCrawlerRangedWeaponAmmo extends CeilingCrawlerRangedWeaponAmmo
+	config(Weapons);
+
+defaultproperties
+{
+	DamageStimuliSetName="LifeDrainCeilingCrawlerRangedWeaponStimuliSet"
+}

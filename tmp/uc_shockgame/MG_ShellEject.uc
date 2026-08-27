@@ -1,0 +1,15 @@
+class MG_ShellEject extends Emitter
+	config
+	hidecategories(DrawScale3D);
+
+defaultproperties
+{
+	Emitters=/* Array type was not detected. */
+	bLightChanged=true
+	Tag="SecBotMG_MuzzleFX"
+	Location=(X=-280.0000000,Y=1380.0000000,Z=-432.0000000)
+	bUnlit=false
+	DrawPriority=1
+	bSelected=true
+	Label="SecBotMG_MuzzleFX"
+}

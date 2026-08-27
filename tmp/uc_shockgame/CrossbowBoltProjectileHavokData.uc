@@ -1,0 +1,3 @@
+class CrossbowBoltProjectileHavokData extends ProjectileRigidBodyData
+	editinlinenew
+	hidecategories(Object);

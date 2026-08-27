@@ -1,0 +1,117 @@
+class ActionWaitForCriticalMessage extends Action implements IInterestedInCriticalMessageEvents
+	abstract
+	native
+	editinlinenew
+	collapsecategories
+	hidecategories(Object);
+
+var travel float TimeoutSeconds;
+var travel name EffectSpecToWaitFor;
+var private travel float WakeTime;
+var private travel bool AudioCompleted;
+var private transient CriticalMessageQueue CMQ;
+
+function OnCriticalMessageStarted(name EffectEvent, name EffectSpecificationName, VolumeCategory.EVolumeCategory VolumeCategory)
+{
+	return;
+}
+
+function OnCriticalMessageStopped(name EffectEvent, name EffectSpecificationName, VolumeCategory.EVolumeCategory VolumeCategory, bool PlayedToCompletion)
+{
+
+	/* Statement decompilation error: Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+		
+	*/
+	// End:0x10E
+	/*@Error*/
+	SLog(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(string(Name), "Audio Spec='"), string(EffectSpecificationName)), "' from Event='"), string(EffectEvent)), "' Category='"), string(GetEnum(Enum'Engine.VolumeCategory.EVolumeCategory', int(VolumeCategory)))), "' completed at time "), string(parentScript.Level.TimeSeconds)));
+	AudioCompleted = true;
+	CMQ.RemoveCriticalMessageEventObserver(self);
+	return;
+	@NULL
+	Variable
+	Variable
+	@NULL
+}
+
+function PostCheckpointRestore()
+{
+
+	/* Statement decompilation error: Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+		
+	*/
+	// End:0x163
+	/*@Error*/
+	CMQ = Class'IGSoundEffectsSubsystem.SoundEffectsSubsystem'.static.GetCriticalMessageQueue(parentScript);
+	AssertWithDescription(__NFUN_119__(CMQ, none), __NFUN_112__(__NFUN_112__(__NFUN_112__(string(Name), " in Script "), string(parentScript.Name)), "could not register with CriticalMessageQueue after checkpoint restore; this action may not work correctly."));
+	CMQ.AddCriticalMessageEventObserver(self);
+	WakeTime = __NFUN_174__(parentScript.Level.TimeSeconds, TimeoutSeconds);
+	return;
+	@NULL
+	Variable
+	stop;
+	default.@NULL
+}
+
+function Variable latentExecute()
+{
+	resolveParameters();
+	AssertWithDescription(__NFUN_255__(EffectSpecToWaitFor, 'None'), __NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__("EffectSpecToWaitFor not specified for ", string(Name)), " in Script "), string(parentScript.Name)), ", action will not work"));
+	// End:0xB9
+	if(__NFUN_254__(EffectSpecToWaitFor, 'None'))
+	{
+		return none;
+		SLog(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(string(Name), " began waiting at time "), string(parentScript.Level.TimeSeconds)), " for audio Spec='"), string(EffectSpecToWaitFor)), "' to finish, or will time out after "), string(TimeoutSeconds)), " seconds"));
+	}
+	WakeTime = __NFUN_174__(parentScript.Level.TimeSeconds, TimeoutSeconds);
+	AudioCompleted = false;
+	CMQ = Class'IGSoundEffectsSubsystem.SoundEffectsSubsystem'.static.GetCriticalMessageQueue(parentScript);
+	AssertWithDescription(__NFUN_119__(CMQ, none), __NFUN_112__(__NFUN_112__(__NFUN_112__(string(Name), " in Script "), string(parentScript.Name)), "could not register with CriticalMessageQueue when starting; this action may not work correctly."));
+	CMQ.AddCriticalMessageEventObserver(self);
+	// End:0x30F
+	if(__NFUN_130__(__NFUN_130__(__NFUN_129__(AudioCompleted), __NFUN_176__(parentScript.Level.TimeSeconds, WakeTime)), parentScript.continueExecution()))
+	{
+		__NFUN_256__(0.0000000);
+		goto J0x2A6;
+		/* Statement decompilation error: Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+			
+		*/
+
+		// End:0x3D8
+		/*@Error*/
+		SLog(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__(string(Name), " Timed out at time "), string(parentScript.Level.TimeSeconds)), " after waiting "), string(TimeoutSeconds)), " seconds for audio Spec='"), string(EffectSpecToWaitFor)), "' to complete"));
+	}
+	AudioCompleted = true;
+	CMQ.RemoveCriticalMessageEventObserver(self);
+	WakeTime = 0.0000000;
+	return none;
+	return;
+	@NULL
+	MessageTriggerVolume
+	Variable
+	@NULL
+}
+
+function Variable execute()
+{
+	super.execute();
+	return none;
+	return;
+	@NULL
+}
+
+function editorDisplayString(out string S)
+{
+	S = __NFUN_112__(__NFUN_112__(__NFUN_112__(__NFUN_112__("Wait up to ", string(TimeoutSeconds)), " seconds for audio '"), propertyDisplayString('EffectSpecToWaitFor')), "' to finish playing");
+	return;
+	@NULL
+	Variable
+}
+
+defaultproperties
+{
+	TimeoutSeconds=60.0000000
+	actionDisplayName="Wait for audio to finish"
+	actionHelp="Wait for audio from a particular EffectSpecification to stop, with an optional timeout"
+	Category="AudioVisual"
+}

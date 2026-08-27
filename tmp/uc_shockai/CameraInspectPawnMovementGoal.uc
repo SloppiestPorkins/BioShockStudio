@@ -1,0 +1,3 @@
+class CameraInspectPawnMovementGoal extends CameraTrackPawnMovementGoal
+	collapsecategories
+	hidecategories(Object,InternalParameters);

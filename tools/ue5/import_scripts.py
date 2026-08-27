@@ -103,7 +103,70 @@ def apply_schema_defaults(action, action_class, paths):
     return False, None, []
 
 
-def try_create_action(action_class, object_name, paths, stats):
+def load_action_props(props_path):
+    if not props_path or not os.path.isfile(props_path):
+        return {}
+    with open(props_path, "r", encoding="utf-8") as handle:
+        doc = json.load(handle)
+    return doc.get("bySourceKey") or doc.get("by_source_key") or {}
+
+
+def _prop(bag, *names):
+    props = (bag or {}).get("properties") or {}
+    for name in names:
+        if name in props and props[name] is not None:
+            return props[name]
+        # case-insensitive fallback
+        for key, value in props.items():
+            if key.lower() == name.lower() and value is not None:
+                return value
+    return None
+
+
+def apply_instance_props(action, action_class, source_key, props_by_key, stats):
+    """Overlay per-instance package properties after schema defaults."""
+    if not source_key or source_key not in props_by_key:
+        return False
+    bag = props_by_key[source_key]
+    try:
+        if action_class == "ActionWait":
+            seconds = _prop(bag, "Seconds")
+            if seconds is not None and hasattr(action, "configure"):
+                action.configure(float(seconds))
+                stats["instance_applied"] += 1
+                return True
+        if action_class in ("ActionVariableAssign", "ActionVariableAssignIfNotExist"):
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if lhs is not None and rhs is not None and hasattr(action, "configure"):
+                action.configure(lhs, str(rhs))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionScriptNote":
+            note = _prop(bag, "Note")
+            if note is not None and hasattr(action, "configure"):
+                action.configure(str(note))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionSendTriggerMessage":
+            instigator = _prop(bag, "Instigator")
+            if instigator is not None and hasattr(action, "configure"):
+                action.configure(instigator)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionLog":
+            text = _prop(bag, "Text")
+            if text is not None and hasattr(action, "configure"):
+                action.configure(str(text))
+                stats["instance_applied"] += 1
+                return True
+    except Exception:
+        stats["instance_fail"] += 1
+        return False
+    return False
+
+
+def try_create_action(action_class, object_name, paths, stats, source_key=None, props_by_key=None):
     shock_name = shock_action_class_name(action_class)
     if not shock_name:
         return None, "bad-name"
@@ -122,21 +185,24 @@ def try_create_action(action_class, object_name, paths, stats):
     else:
         stats["schema_miss"] += 1
 
+    apply_instance_props(action, action_class, source_key, props_by_key or {}, stats)
+
     if action_class == "ActionScriptNote" and hasattr(action, "configure"):
         try:
-            # Prefer schema Note text when present; else object name.
             note = object_name or action_class
             if hasattr(action, "get_note"):
                 current = str(action.get_note() or "")
                 if current:
                     note = current
-            action.configure(note)
+            # Only configure from object name when instance/schema left Note empty.
+            if hasattr(action, "get_note") and not str(action.get_note() or ""):
+                action.configure(note)
         except Exception:
             pass
     return action, "ok"
 
 
-def import_scripts(manifest_path, limit=None, schema_dir=None):
+def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
 
@@ -145,12 +211,30 @@ def import_scripts(manifest_path, limit=None, schema_dir=None):
         raise RuntimeError("ShockScript class missing — rebuild BioShockRuntime")
 
     paths = schema_paths(schema_dir)
+    if props_path is None:
+        props_path = os.environ.get("BIOSHOCK_SCRIPT_ACTION_PROPS")
+        if not props_path:
+            sibling = os.path.join(
+                os.path.dirname(manifest_path),
+                PathStem(manifest_path) + ".script-actions.json",
+            )
+            # Prefer explicit Medical sidecar next to slice schemas.
+            candidates = [
+                os.path.join(os.path.dirname(manifest_path), "1-Medical.script-actions.json"),
+                sibling,
+                os.path.join(DEFAULT_SCHEMA_DIR, "1-Medical.script-actions.json"),
+            ]
+            props_path = next((p for p in candidates if os.path.isfile(p)), None)
+    props_by_key = load_action_props(props_path)
+
     for _key, actor in list(_existing_by_key().items()):
         _actor_subsystem().destroy_actor(actor)
 
     report = {
         "manifest": manifest_path,
         "schemas": paths,
+        "props_path": props_path,
+        "props_loaded": len(props_by_key),
         "scripts_in_manifest": 0,
         "created": 0,
         "skipped": 0,
@@ -161,8 +245,11 @@ def import_scripts(manifest_path, limit=None, schema_dir=None):
         "schema_applied": 0,
         "schema_miss": 0,
         "schema_props": 0,
+        "instance_applied": 0,
+        "instance_fail": 0,
         "registry_num": 0,
         "wait_seconds_sample": None,
+        "wait_instance_seconds": None,
         "failures": [],
         "sample": {},
     }
@@ -206,8 +293,14 @@ def import_scripts(manifest_path, limit=None, schema_dir=None):
                 report["actions_unmapped"] += 1
                 continue
             action_class = ref.get("className") or ""
+            source_key = ref.get("sourceKey")
             action, _status = try_create_action(
-                action_class, ref.get("objectName"), paths, stats
+                action_class,
+                ref.get("objectName"),
+                paths,
+                stats,
+                source_key=source_key,
+                props_by_key=props_by_key,
             )
             if action is None:
                 report["actions_unmapped"] += 1
@@ -215,14 +308,18 @@ def import_scripts(manifest_path, limit=None, schema_dir=None):
                     report["unmapped_classes"].get(action_class, 0) + 1
                 )
                 continue
-            if action_class == "ActionWait" and report["wait_seconds_sample"] is None:
-                if hasattr(action, "get_editor_property"):
-                    try:
-                        report["wait_seconds_sample"] = float(action.get_editor_property("seconds"))
-                    except Exception:
-                        report["wait_seconds_sample"] = float(getattr(action, "seconds", -1))
-                else:
-                    report["wait_seconds_sample"] = float(getattr(action, "seconds", -1))
+            if action_class == "ActionWait":
+                try:
+                    seconds = float(action.get_editor_property("seconds"))
+                except Exception:
+                    seconds = float(getattr(action, "seconds", -1))
+                if report["wait_seconds_sample"] is None:
+                    report["wait_seconds_sample"] = seconds
+                # Prefer a non-default instance override when present.
+                if source_key and source_key in props_by_key:
+                    inst = _prop(props_by_key[source_key], "Seconds")
+                    if inst is not None and abs(float(inst) - 1.0) > 1e-4:
+                        report["wait_instance_seconds"] = float(seconds)
             runner.add_action(action)
             report["actions_mapped"] += 1
             action_count += 1
@@ -246,13 +343,20 @@ def import_scripts(manifest_path, limit=None, schema_dir=None):
         report["sample"]["actions_completed"] = int(sample_actor.get_runner().get_actions_completed())
 
     _log(
-        "imported scripts created=%s mapped=%s schema=%s/%s unmapped=%s"
+        "imported scripts created=%s mapped=%s schema=%s instance=%s unmapped=%s"
         % (
             report["created"],
             report["actions_mapped"],
             report["schema_applied"],
-            report["schema_applied"] + report["schema_miss"],
+            report["instance_applied"],
             report["actions_unmapped"],
         )
     )
     return report
+
+
+def PathStem(path):
+    base = os.path.basename(path)
+    if base.endswith(".ue5-level.json"):
+        return base[: -len(".ue5-level.json")]
+    return os.path.splitext(base)[0]

@@ -1,0 +1,9 @@
+class LifeDrainCeilingCrawlerRangedWeaponProjectile extends CeilingCrawlerRangedWeaponProjectile
+	config(Weapons)
+	hidecategories(DrawScale3D,DisplayAdvanced,Events,Object,Sound,Force,Pressure,Animation);
+
+defaultproperties
+{
+	StaticProjectileModel=StaticMesh'ShockAI.WP_AI_CChook.WP_AI_CChook'
+	StimuliSetToBeAppliedWhenCaughtByTelekinesis="TKLifeDrainCeilingCrawlerRangedWeaponStimuliSet"
+}

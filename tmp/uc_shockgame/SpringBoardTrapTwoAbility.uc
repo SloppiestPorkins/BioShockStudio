@@ -1,0 +1,2 @@
+class SpringBoardTrapTwoAbility extends SpringBoardTrapAbility
+	config;

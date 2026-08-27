@@ -1,0 +1,7 @@
+class GrenadeLauncher_LiquidNitrogen extends ExplosiveProjectileAmmo
+	config(Weapons);
+
+defaultproperties
+{
+	AmmoSpecificDamageAmplificationPercentBonusModGroup="GrenadeLauncherDamage_PercentBonus"
+}

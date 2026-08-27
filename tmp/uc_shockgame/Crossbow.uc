@@ -1,0 +1,60 @@
+class Crossbow extends PlayerWeapon
+	config(Weapons)
+	notplaceable
+	hidecategories(DrawScale3D,DisplayAdvanced);
+
+function bool ShouldShowAmmoModel()
+{
+	return __NFUN_132__(__NFUN_151__(RoundsRemaining, 0), __NFUN_119__(PendingAmmoSelection, CurrentAmmoSelection));
+	return;
+	@NULL
+	Item
+	Item
+}
+
+defaultproperties
+{
+	AltFireModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.XB_UpgradeB'
+	StrictlySuperiorModAttachmentClass=Class'ShockGame.WeaponUpgradeClasses.XB_UpgradeA'
+	AltFireModAttachmentSocket="XB_UpgradeB"
+	StrictlySuperiorModAttachmentSocket="XB_UpgradeA"
+	IdlingAltFireAttachmentAnim="XB_UpgradeB_Anim"
+	EmptyIdlingHandsAnim="EmptyFidgetCrossbow"
+	CanBeZoomed=true
+	ZoomedFOVAngle=15.0000000
+	ZoomedForegroundFOVAngle=35.0000000
+	ZoomingInHandsAnim="ZoomingIn_Crossbow"
+	ZoomingOutHandsAnim="ZoomingOut_Crossbow"
+	ZoomedIdlingHandsAnim="ZoomedInFidget_Crossbow"
+	ZoomedFiringHandsAnim[0]=(AnimationName="ZoomedInFire_Crossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ZoomedFiringAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingEmptyWeaponHandsAnim[0]=(AnimationName="ReloadCrossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingNotEmptyWeaponHandsAnim[0]=(AnimationName="ReloadCrossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringHandsAnim[0]=(AnimationName="FireCrossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringFinalShotHandsAnim[0]=(AnimationName="FireCrossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ZoomedFiringFinalShotHandsAnim[0]=(AnimationName="FireCrossbow",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ZoomedFiringFinalShotAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FriendlyName="Crossbow"
+	AvailableAmmoTypes[0]=Class'ShockGame.Crossbow_Bolt'
+	AvailableAmmoTypes[1]=Class'ShockGame.Crossbow_SuperHeatedBolt'
+	AvailableAmmoTypes[2]=Class'ShockGame.Crossbow_TrapBolt'
+	DefaultAmmoSelection=Class'ShockGame.Crossbow_Bolt'
+	WeaponModel=SkeletalMesh'ShockGame.WP_Crossbow.WP_CrossbowMesh'
+	AmmunitionModelSocket="AmmoDummy"
+	MagicBulletRadius=0.0500000
+	MagicBulletChance=1.0000000
+	EffectiveMagicBulletDistance=2000.0000000
+	ReloadingEmptyWeaponAnim[0]=(AnimationName="Reload",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	ReloadingNotEmptyWeaponAnim[0]=(AnimationName="Reload",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	FiringFinalShotAnim[0]=(AnimationName="Fire",minAnimRate=0.0000000,maxAnimRate=100.0000000)
+	BaseMagazineSize=5
+	BaseAccuracy=0.0000000
+	UpgradeStatName[0]="CrossbowUpgrade_BreakageChance"
+	UpgradeStatName[1]="CrossbowUpgrade_Damage"
+	AltFireModStatName="Damage"
+	IdlingHandsAnim[0]="FidgetCrossbow"
+	IdlingHandsAnimWeight[0]=100.0000000
+	EquippingHandsAnim="EquipCrossbow"
+	AttachBone="Crossbow"
+}
