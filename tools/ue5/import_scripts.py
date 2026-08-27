@@ -1,10 +1,10 @@
 """Import level-placed Script actors from ue5-level.json as AShockScript.
 
-Places Label, location, TriggeredBy (valueHex), and ShockAction stubs. Applies class
-*defaults* from Phase 2.1 schema JSON (Scripting / ShockGame / ShockAI) — not per-instance
-package overrides (those remain UNKNOWN until a props sidecar exists).
+Places Label, location, TriggeredBy (valueHex), and ShockAction stubs. Applies:
+1) Phase 2.1 schema *class defaults*, then
+2) per-instance scalar props from `export-script-actions` sidecar (bySourceKey).
 
-Idempotent via BioShockScriptKey=<manifest key> (full refresh). Shared registry.
+Nested ActionIf/Loop graphs stay identity-only. Idempotent via BioShockScriptKey.
 """
 
 from __future__ import annotations

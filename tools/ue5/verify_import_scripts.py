@@ -48,9 +48,16 @@ def main(out, manifest=None):
         f.append("no actions mapped")
     if int(imported.get("schema_applied", 0)) < 1:
         f.append("schema defaults not applied")
+    if int(imported.get("props_loaded", 0)) < 1:
+        f.append("script-actions props sidecar not loaded")
+    if int(imported.get("instance_applied", 0)) < 1:
+        f.append("no instance props applied")
     wait_s = imported.get("wait_seconds_sample")
-    if wait_s is None or abs(float(wait_s) - 1.0) > 1e-4:
+    if wait_s is None or float(wait_s) <= 0:
         f.append("Wait Seconds sample %s" % wait_s)
+    wait_inst = imported.get("wait_instance_seconds")
+    if wait_inst is None or abs(float(wait_inst) - 1.0) < 1e-4:
+        f.append("expected non-default Wait instance Seconds, got %s" % wait_inst)
     if imported.get("unmapped_classes"):
         f.append("unmapped %s" % imported.get("unmapped_classes"))
 

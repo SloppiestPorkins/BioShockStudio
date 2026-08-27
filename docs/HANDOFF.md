@@ -33,7 +33,7 @@ means no row is currently claimed, not that no one is working ? always check the
 | Cursor (this session) | **SendTriggerMessage → DispatchMessage** — verified live (`run_script_trigger.py`). | (released) | 27 Aug 2026 |
 | Cursor (this session) | **Script JSON → AShockScript import** — verified live (`run_import_scripts.py`). | (released) | 27 Aug 2026 |
 | Cursor (this session) | **Script import schema defaults + quest-hint** — verified live. | (released) | 27 Aug 2026 |
-| Cursor (this session) | **Script action instance props dump + import** | `src/BioShockStudio.Cli/`, `tools/ue5/import_scripts.py` | 27 Aug 2026 |
+| Cursor (this session) | **Script action instance props** — verified live (`export-script-actions` + import). | (released) | 27 Aug 2026 |
 
 > **Collision, 23 Aug 2026 ? for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,
