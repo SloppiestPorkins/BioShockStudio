@@ -964,6 +964,14 @@ SetAIState / SpawnPickup / SpawnTurret / AssertFact / RetractFact / ForcePlayerM
 TellAIToWait / TellAIToContinue Request* wired; Ragdoll `ApplyInWorld` physics impulse.
 Live `run_script_ai_spawn.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner light / collision / security / HUD — done, 27 Aug 2026
+
+`SetLightProperties.ApplyInWorld` (brightness on labeled lights),
+`ChangeCollision.ApplyInWorld` (CollideActors enable/disable). Start/StopSecurityAlarm,
+SetDoorBrokenState, HackTurret, HackSecuritySystem, PlayHUD, StopHUD,
+SetMaterialSwitchIndex Request* wired. Live `run_script_light_sec.py`,
+`Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

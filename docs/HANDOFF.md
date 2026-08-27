@@ -23,11 +23,11 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-**Recently released:** Phase 4 runner SetAIState/Ragdoll/SpawnPickup/SpawnTurret/AssertRetractFact/
-ForcePlayerMove/TellAIWaitContinue (`run_script_ai_spawn.py`). PIE possess still human Play.
+**Recently released:** Phase 4 runner SetLightProperties/ChangeCollision ApplyInWorld +
+security/HUD/hack/material records (`run_script_light_sec.py`). PIE possess still human Play.
 
-**Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
-If/Loop/For import; physics/timer; quest/inventory; doors/Teleport/Freeze. Older rows cleared.
+**Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — AI/spawn/fact;
+physics/timer; quest/inventory; doors/Teleport/Freeze. Older rows cleared.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a

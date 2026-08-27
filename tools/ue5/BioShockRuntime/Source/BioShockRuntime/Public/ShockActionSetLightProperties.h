@@ -4,6 +4,7 @@
 #include "ShockActionSetLightProperties.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionSetLightProperties` (Scripting.U). Finds Engine.Light actors by label
@@ -73,4 +74,8 @@ public:
 	/** Applies enabled brightness/colour to Target's first light component. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find actors by ObjectLabel and ApplyToActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

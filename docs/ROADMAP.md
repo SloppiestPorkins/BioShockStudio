@@ -1443,7 +1443,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    Next: **human** open `/Game/BioShockSlice/1-Medical` → Play → confirm possess/move/fire.
    **Runner DealDamageInRadius/ApplyImpulse + timer/console/mesh — done same day**
    (`run_script_physics_timer.py`). **Runner AI/spawn/fact — done same day**
-   (`run_script_ai_spawn.py`). Next: **human** PIE possess on 1-Medical.
+   (`run_script_ai_spawn.py`). **Runner light/collision + security/HUD — done same day**
+   (`run_script_light_sec.py`). Next: **human** PIE possess on 1-Medical.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

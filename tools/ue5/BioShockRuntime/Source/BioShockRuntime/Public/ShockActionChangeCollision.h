@@ -4,6 +4,7 @@
 #include "ShockActionChangeCollision.generated.h"
 
 class AActor;
+class UWorld;
 
 /** Mirrors UnrealScript ActionChangeCollision.CollisionChangeType. */
 UENUM(BlueprintType)
@@ -72,4 +73,8 @@ public:
 	/** Applies CollideActors to SetActorEnableCollision when not DoNotChange. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find actors by TargetLabel and ApplyToActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

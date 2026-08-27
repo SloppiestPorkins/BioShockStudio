@@ -54,6 +54,16 @@
 #include "ShockActionForcePlayerMove.h"
 #include "ShockActionTellAIToWait.h"
 #include "ShockActionTellAIToContinue.h"
+#include "ShockActionSetLightProperties.h"
+#include "ShockActionChangeCollision.h"
+#include "ShockActionStartSecurityAlarm.h"
+#include "ShockActionStopSecurityAlarm.h"
+#include "ShockActionSetDoorBrokenState.h"
+#include "ShockActionHackTurret.h"
+#include "ShockActionHackSecuritySystem.h"
+#include "ShockActionPlayHUD.h"
+#include "ShockActionStopHUD.h"
+#include "ShockActionSetMaterialSwitchIndex.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1006,6 +1016,96 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionTellAIToContinue* ContinueAI = Cast<UShockActionTellAIToContinue>(Action))
 	{
 		ContinueAI->RequestContinue();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetLightProperties* Light = Cast<UShockActionSetLightProperties>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Light->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangeCollision* Collision = Cast<UShockActionChangeCollision>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Collision->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStartSecurityAlarm* StartAlarm = Cast<UShockActionStartSecurityAlarm>(Action))
+	{
+		StartAlarm->RequestStart();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStopSecurityAlarm* StopAlarm = Cast<UShockActionStopSecurityAlarm>(Action))
+	{
+		StopAlarm->RequestStop();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetDoorBrokenState* DoorBroken = Cast<UShockActionSetDoorBrokenState>(Action))
+	{
+		DoorBroken->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionHackTurret* HackTurret = Cast<UShockActionHackTurret>(Action))
+	{
+		HackTurret->RequestHack();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionHackSecuritySystem* HackSec = Cast<UShockActionHackSecuritySystem>(Action))
+	{
+		HackSec->RequestHack();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPlayHUD* PlayHud = Cast<UShockActionPlayHUD>(Action))
+	{
+		PlayHud->RequestPlay();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStopHUD* StopHud = Cast<UShockActionStopHUD>(Action))
+	{
+		StopHud->RequestStop();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetMaterialSwitchIndex* MatSwitch = Cast<UShockActionSetMaterialSwitchIndex>(Action))
+	{
+		MatSwitch->RequestSet();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
