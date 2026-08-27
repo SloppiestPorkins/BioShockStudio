@@ -858,6 +858,12 @@ TriggeredBy does not start (matches UC BeginPlay register gate). Live `run_scrip
 Busy + matching message enqueues `{MessageClass, SourceLabel}`; `FinishExecution` dequeues and
 `StartExecution` (same-frame PrepareWait). Live `run_script_queue.py`, `Success - 0 error(s)`.
 
+### Phase 4 AShockScript level-placed actor — done, 27 Aug 2026
+
+`AShockScript` owns a `UShockScriptRunner`, `EnsureRegistry` / shared registry, `TickScript` with
+authored or world time. Live `run_script_actor.py`, `Success - 0 error(s)`. Not Concepts /
+package defaults / level JSON import.
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's

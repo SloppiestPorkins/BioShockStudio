@@ -35,9 +35,10 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-MessageQueue while busy verified (enqueue + drain on Finish).
-Script runner: Wait/If/Loop/Blocking/TriggeredBy/MessageQueue + Fire mapping landed.
-Next: PIE possess (human Play), or level-placed Script actors.
+AShockScript level-placed actor first slice verified (spawn + TriggeredBy + TickScript).
+Script runner: Wait/If/Loop/Blocking/TriggeredBy/MessageQueue + Fire + AShockScript.
+Next: PIE possess (human Play), or wire ActionSendTriggerMessage → DispatchMessage,
+or import Script actors from level JSON.
 Branch feature/fbx-materials-gui.
 ```
 

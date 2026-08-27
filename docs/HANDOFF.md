@@ -29,6 +29,7 @@ means no row is currently claimed, not that no one is working ? always check the
 | Composer (this session) | **Gate 5 Phase 1** ? sequences/switch candidates on the level manifest **landed**. Cubemap live look taken over by the Cursor row below. | (released) | 25 Aug 2026 |
 | Cursor (this session) | **Script runner: Loop + message TriggeredBy + Fire** — verified live. | (released) | 27 Aug 2026 |
 | Cursor (this session) | **MessageQueue while busy** — verified live (`run_script_queue.py`). | (released) | 27 Aug 2026 |
+| Cursor (this session) | **AShockScript level-placed actor** — verified live (`run_script_actor.py`). | (released) | 27 Aug 2026 |
 
 > **Collision, 23 Aug 2026 ? for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,

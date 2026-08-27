@@ -1415,8 +1415,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    `run_script_loop.py`. **Message TriggeredBy dispatch — done same day**:
    `run_script_message.py`. **MessageQueue while busy — done same day**:
    `run_script_queue.py`. **Playable Fire mapping — done same day**:
-   `run_playable_input.py` (legacy Input + LMB Fire + EnablePlayableInput). Next: PIE
-   possess (human) or level-placed Script actors.
+   `run_playable_input.py` (legacy Input + LMB Fire + EnablePlayableInput).
+   **AShockScript level-placed actor — done same day**: `run_script_actor.py`.
+   Next: PIE possess (human), SendTriggerMessage→Dispatch, or Script JSON import.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
