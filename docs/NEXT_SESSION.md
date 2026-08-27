@@ -34,10 +34,11 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Phase 4 on main: full Medical Script import clean (300 scripts, 0 nested unmapped),
-ActionFor counters, PropertyTest Label EvaluateInWorld.
-Next: human PIE possess check (headless path is solid).
-Branch: main only.
+Phase 4 on main: full Medical Script import clean; ActionFor counters; PropertyTest
+Label/bHidden; SetProperty bHidden; runner Hide/SetProperty/Destroy by label in World
+(run_script_world_actions.py).
+Next: human PIE possess, or more runner-wired actions (PlayEffect etc.).
+Branch: main only. Local commits ahead of origin — push when asked.
 ```
 
 **What wastes time here**

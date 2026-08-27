@@ -4,6 +4,7 @@
 #include "ShockActionHideOrShowActor.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionHideOrShowActor`: allActorLabel + SetHidden(HideActor).
@@ -43,4 +44,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find actors by ActorLabel in World and ApplyToActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

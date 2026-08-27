@@ -1,5 +1,6 @@
 #include "ShockActionHideOrShowActor.h"
 
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 
 UShockActionHideOrShowActor::UShockActionHideOrShowActor()
@@ -28,4 +29,33 @@ bool UShockActionHideOrShowActor::ApplyToActor(AActor* Target)
 	bLastAppliedHide = bHideActor;
 	bLastApplySucceeded = true;
 	return true;
+}
+
+int32 UShockActionHideOrShowActor::ApplyInWorld(UWorld* World)
+{
+	int32 Applied = 0;
+	if (!World || ActorLabel.IsNone())
+	{
+		return 0;
+	}
+	const FString Want = ActorLabel.ToString();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+#if WITH_EDITOR
+		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
+		{
+			continue;
+		}
+		if (ApplyToActor(Actor))
+		{
+			++Applied;
+		}
+#endif
+	}
+	return Applied;
 }

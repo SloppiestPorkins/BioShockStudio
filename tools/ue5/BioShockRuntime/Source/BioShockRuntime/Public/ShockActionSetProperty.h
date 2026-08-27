@@ -4,6 +4,7 @@
 #include "ShockActionSetProperty.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionSetProperty` (Scripting.U, native). Finds actors by label (`Object`) and
@@ -33,4 +34,8 @@ public:
 	/** Sets ActorLabel when PropertyName is Label; bHidden/Hidden toggles actor hidden-in-game. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find actors by ObjectLabel and ApplyToActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

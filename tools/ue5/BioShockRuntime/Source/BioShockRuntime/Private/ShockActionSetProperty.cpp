@@ -1,5 +1,6 @@
 #include "ShockActionSetProperty.h"
 
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 
 UShockActionSetProperty::UShockActionSetProperty()
@@ -45,4 +46,33 @@ bool UShockActionSetProperty::ApplyToActor(AActor* Target)
 
 	// Full SetPropertyText coverage is deferred — native UE2 path, many property types.
 	return false;
+}
+
+int32 UShockActionSetProperty::ApplyInWorld(UWorld* World)
+{
+	int32 Applied = 0;
+	if (!World || ObjectLabel.IsNone())
+	{
+		return 0;
+	}
+	const FString Want = ObjectLabel.ToString();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+#if WITH_EDITOR
+		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
+		{
+			continue;
+		}
+		if (ApplyToActor(Actor))
+		{
+			++Applied;
+		}
+#endif
+	}
+	return Applied;
 }

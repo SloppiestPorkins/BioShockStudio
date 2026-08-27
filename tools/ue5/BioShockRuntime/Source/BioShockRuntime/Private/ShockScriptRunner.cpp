@@ -1,14 +1,17 @@
 #include "ShockScriptRunner.h"
 
 #include "ShockAction.h"
+#include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitLoop.h"
 #include "ShockActionExitScript.h"
 #include "ShockActionFor.h"
+#include "ShockActionHideOrShowActor.h"
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
+#include "ShockActionSetProperty.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -526,6 +529,45 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		const TArray<TObjectPtr<UShockAction>>& BranchActions =
 			Branch == TEXT("true") ? IfAction->TrueActions : IfAction->ElseActions;
 		InsertActionsAt(CurrentlyExecutingActionIndex + 1, BranchActions);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionHideOrShowActor* HideShow = Cast<UShockActionHideOrShowActor>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		HideShow->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetProperty* SetProp = Cast<UShockActionSetProperty>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		SetProp->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDestroyActor* Destroy = Cast<UShockActionDestroyActor>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Destroy->DestroyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
