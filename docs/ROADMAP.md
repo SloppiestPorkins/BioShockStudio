@@ -1421,9 +1421,14 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **Script JSON → AShockScript import — done same day**: `run_import_scripts.py`
    (TriggeredBy decode; schema class defaults; **per-instance scalars via**
    `export-script-actions` — Wait/Assign/Note/Trigger/Log plus PlayEffect/SetProperty/
-   ExecuteScript/HideOrShow/Destroy/Attack/PlayAnim/SpawnAI). Nested If/Loop
-   graphs still identity-only.
-   Next: PIE possess (human) or nested If/Loop action expansion.
+   ExecuteScript/HideOrShow/Destroy/Attack/PlayAnim/SpawnAI). **Nested If/Loop
+   expansion — done same day**: dump formatVersion 2 `childArrays` (BFS nested
+   exports); import wires `AddTrueAction` / `AddElseAction` / `AddLoopAction` /
+   `AddTest` when a Shock class exists. Live verify: nested bodies present;
+   `ActionPropertyTest` / `ActionTestFact` still identity-unmapped in testsOr
+   (no Shock class yet).
+   Next: PIE possess (human), or ActionPropertyTest / remaining ActionBool census
+   for testsOr fidelity.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

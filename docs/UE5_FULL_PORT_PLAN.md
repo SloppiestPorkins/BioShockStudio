@@ -861,8 +861,8 @@ Busy + matching message enqueues `{MessageClass, SourceLabel}`; `FinishExecution
 ### Phase 4 AShockScript level-placed actor — done, 27 Aug 2026
 
 `AShockScript` owns a `UShockScriptRunner`, `EnsureRegistry` / shared registry, `TickScript` with
-authored or world time. Live `run_script_actor.py`, `Success - 0 error(s)`. Not Concepts /
-package defaults / level JSON import.
+authored or world time. Live `run_script_actor.py`, `Success - 0 error(s)`. Level JSON import
+landed same day (see below). Concepts still open.
 
 ### Phase 4 SendTriggerMessage → DispatchMessage — done, 27 Aug 2026
 
@@ -878,8 +878,18 @@ TriggeredBy from property valueHex, shared registry). Action stubs get Phase 2.1
 (`bySourceKey` sidecar). Overlay covers Wait/Assign/Note/SendTriggerMessage/Log plus
 PlayEffect, SetProperty, ExecuteScript, HideOrShow, DestroyActor, AttackTarget,
 PlayAnimation, SpawnAI. `actionSetQuestHint` → `ShockActionSetQuestHint`. Nested If/Loop
-bodies not expanded. Live `run_import_scripts.py`, `Success - 0 error(s)` (280 instance
-overlays on a 40-script Medical sample).
+bodies expanded from dump `childArrays` (true/else/loop + testsOr when Shock
+ActionBool exists). Live `run_import_scripts.py`, `Success - 0 error(s)` (nested
+bodies + prior instance overlays on a 40-script Medical sample).
+
+### Phase 4 nested If/Loop import — done, 27 Aug 2026
+
+`export-script-actions` BFS-walks nested Action exports (`formatVersion` 2,
+`childArrays`). `import_scripts.py` recursively `AddTrueAction` / `AddElseAction` /
+`AddLoopAction` / `AddTest`. Medical dump: 1958 unique exports, 495 nested enqueued.
+`ActionPropertyTest` / `ActionTestFact` / `AndStatement` / `NotStatement` still lack Shock
+classes (testsOr partial — 66 tests mapped, 12 unmapped on the 40-script sample).
+Live verify nested body counts > 0 (248 true / 20 else / 4 loop on that sample).
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

@@ -233,7 +233,8 @@ verified. Blocking/NonBlocking ExecuteScript: `run_script_blocking.py`, same day
 `run_script_trigger.py`, same day, `Success - 0 error(s)`. Script JSON import:
 `run_import_scripts.py`, same day, `Success - 0 error(s)` (TriggeredBy + schema defaults +
 `export-script-actions` instance scalars for Wait/Assign/Note/Trigger/Log plus
-PlayEffect/SetProperty/ExecuteScript/Hide/Destroy/Attack/PlayAnim/SpawnAI).
+PlayEffect/SetProperty/ExecuteScript/Hide/Destroy/Attack/PlayAnim/SpawnAI). **Nested
+If/Loop import** (formatVersion 2 `childArrays`) — same day, `Success - 0 error(s)`.
 
 ## Playable Fire input
 

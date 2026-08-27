@@ -1446,8 +1446,17 @@ static int EffectClassCommand(string root, string[] args)
 /// properties only. Used by tools/ue5/import_scripts.py to apply per-instance overrides after
 /// schema class defaults. Does not expand nested ActionIf/ActionLoop action arrays.
 /// </summary>
+/// <summary>
+/// Dumps Script action instance properties plus nested ActionIf/Loop/For child sourceKeys.
+/// </summary>
 static int ExportScriptActions(string root, string[] args)
 {
+    // Object-reference arrays that nest further Action exports.
+    string[] childArrayNames =
+    [
+        "trueActions", "elseActions", "loopActions", "testsOr", "forActions",
+    ];
+
     if (args.Length < 3)
     {
         Console.Error.WriteLine("usage: export-script-actions <map> <out.json>");
@@ -1459,7 +1468,8 @@ static int ExportScriptActions(string root, string[] args)
     var context = LevelAnalyzer.Analyze(package);
 
     var byKey = new Dictionary<string, object>(StringComparer.Ordinal);
-    int scripts = 0, actions = 0, skipped = 0;
+    var queue = new Queue<SourceId>();
+    int scripts = 0, actions = 0, skipped = 0, nestedEnqueued = 0;
 
     foreach (var actor in context.Actors)
     {
@@ -1473,61 +1483,99 @@ static int ExportScriptActions(string root, string[] args)
                 continue;
             }
 
-            string key = source.Key;
-            if (byKey.ContainsKey(key))
-            {
-                actions++;
-                continue;
-            }
-
-            Dictionary<string, object?> properties;
-            try
-            {
-                var raw = package.ReadExportData(package.Exports[source.ExportIndex]);
-                var list = UnrealPropertyReader.Read(raw, package.Names, out _, out _);
-                properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-                foreach (var property in list)
-                {
-                    object? value = property.Type switch
-                    {
-                        UnrealPropertyType.Float => property.AsFloat(),
-                        UnrealPropertyType.Int => property.AsInt(),
-                        UnrealPropertyType.Bool => property.BoolValue,
-                        UnrealPropertyType.Str => PropertyValues.AsString(property),
-                        UnrealPropertyType.Name => PropertyValues.AsName(property, package),
-                        _ => null,
-                    };
-                    if (value is null) continue;
-                    // First occurrence wins (arrayIndex duplicates are rare on these actions).
-                    properties.TryAdd(property.Name, value);
-                }
-            }
-            catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
-                                           or ArgumentOutOfRangeException)
-            {
-                skipped++;
-                continue;
-            }
-
-            byKey[key] = new Dictionary<string, object?>
-            {
-                ["sourceKey"] = key,
-                ["className"] = source.ClassName,
-                ["objectName"] = source.ObjectName,
-                ["exportIndex"] = source.ExportIndex,
-                ["properties"] = properties,
-            };
             actions++;
+            if (byKey.ContainsKey(source.Key)) continue;
+            queue.Enqueue(source);
         }
+    }
+
+    while (queue.Count > 0)
+    {
+        var source = queue.Dequeue();
+        string key = source.Key;
+        if (byKey.ContainsKey(key)) continue;
+
+        Dictionary<string, object?> properties;
+        Dictionary<string, object> childArrays;
+        try
+        {
+            var raw = package.ReadExportData(package.Exports[source.ExportIndex]);
+            var list = UnrealPropertyReader.Read(raw, package.Names, out _, out _);
+            properties = new Dictionary<string, object?>(StringComparer.Ordinal);
+            childArrays = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (var property in list)
+            {
+                if (property.Type == UnrealPropertyType.Array
+                    && childArrayNames.Contains(property.Name, StringComparer.Ordinal)
+                    && PropertyValues.TryAsReferenceArrayExact(property, out var indices))
+                {
+                    var keys = new List<string>(indices.Count);
+                    foreach (var index in indices)
+                    {
+                        if (index.IsNull || !index.IsExport) continue;
+                        if (index.ExportIndex < 0 || index.ExportIndex >= package.Exports.Count)
+                            continue;
+                        var target = package.Exports[index.ExportIndex];
+                        string className = package.GetClassName(target);
+                        var child = new SourceId(
+                            Path.GetFileNameWithoutExtension(package.FilePath),
+                            target.Index,
+                            className,
+                            target.ObjectName);
+                        keys.Add(child.Key);
+                        if (!byKey.ContainsKey(child.Key))
+                        {
+                            queue.Enqueue(child);
+                            nestedEnqueued++;
+                        }
+                    }
+
+                    childArrays[property.Name] = keys;
+                    continue;
+                }
+
+                object? value = property.Type switch
+                {
+                    UnrealPropertyType.Float => property.AsFloat(),
+                    UnrealPropertyType.Int => property.AsInt(),
+                    UnrealPropertyType.Bool => property.BoolValue,
+                    UnrealPropertyType.Str => PropertyValues.AsString(property),
+                    UnrealPropertyType.Name => PropertyValues.AsName(property, package),
+                    _ => null,
+                };
+                if (value is null) continue;
+                // First occurrence wins (arrayIndex duplicates are rare on these actions).
+                properties.TryAdd(property.Name, value);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            skipped++;
+            continue;
+        }
+
+        var entry = new Dictionary<string, object?>
+        {
+            ["sourceKey"] = key,
+            ["className"] = source.ClassName,
+            ["objectName"] = source.ObjectName,
+            ["exportIndex"] = source.ExportIndex,
+            ["properties"] = properties,
+        };
+        if (childArrays.Count > 0)
+            entry["childArrays"] = childArrays;
+        byKey[key] = entry;
     }
 
     var document = new Dictionary<string, object>
     {
-        ["formatVersion"] = 1,
+        ["formatVersion"] = 2,
         ["package"] = context.PackageName,
         ["scripts"] = scripts,
         ["actions"] = actions,
         ["skipped"] = skipped,
+        ["nestedEnqueued"] = nestedEnqueued,
         ["bySourceKey"] = byKey,
     };
 
@@ -1540,7 +1588,9 @@ static int ExportScriptActions(string root, string[] args)
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     }));
     Console.WriteLine(outPath);
-    Console.Error.WriteLine($"script-actions: {scripts} scripts, {byKey.Count} unique exports, {skipped} skipped");
+    Console.Error.WriteLine(
+        $"script-actions: {scripts} scripts, {byKey.Count} unique exports " +
+        $"(nested enqueued {nestedEnqueued}), {skipped} skipped");
     return 0;
 }
 

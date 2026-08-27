@@ -52,6 +52,21 @@ def main(out, manifest=None):
         f.append("script-actions props sidecar not loaded")
     if int(imported.get("instance_applied", 0)) < 200:
         f.append("instance props applied %s (expected >= 200 after widen)" % imported.get("instance_applied"))
+    nested_bodies = (
+        int(imported.get("nested_true", 0))
+        + int(imported.get("nested_else", 0))
+        + int(imported.get("nested_loop", 0))
+    )
+    if nested_bodies < 1:
+        f.append(
+            "nested If/Loop bodies %s (true=%s else=%s loop=%s)"
+            % (
+                nested_bodies,
+                imported.get("nested_true"),
+                imported.get("nested_else"),
+                imported.get("nested_loop"),
+            )
+        )
     wait_s = imported.get("wait_seconds_sample")
     if wait_s is None or float(wait_s) <= 0:
         f.append("Wait Seconds sample %s" % wait_s)

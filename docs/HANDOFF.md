@@ -22,32 +22,21 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Codex | **Gate 4 item 1**: exact actor/schema-name resolution against shipped FSB sample names, then sound-event response routing | `src/BioShockStudio.Core/Audio/`, `src/BioShockStudio.Core/Level/`, `tests/BioShockStudio.Tests/*Audio*Tests.cs`, `docs/ROADMAP.md`, `docs/research/audio.md` | 23 Aug 2026 |
-| Claude (second session) | Gate 1 items 1 and 2 ? **landed and verified**. Not starting item 3: the row above claims it. Next: **Gate 1 item 4** (materials ? panners/rotators, `MaterialSwitch` dynamic selection, `MaterialSequence`) | `src/BioShockStudio.Core/{Mesh,Materials}/`, `tests/BioShockStudio.Tests/{SkeletalMeshSection,StaticMesh}*Tests.cs`; next: `src/BioShockStudio.Core/Materials/` | 23 Aug 2026 |
-| Claude (prior session) | Gate 4 item 4 movers/doors/weapon/plasmid effects ? **landed through** `ResolveEffectProperty` + DoorSwitch reactions. Row kept for history; no longer owning the track. | (released) | 23?25 Aug 2026 |
-| Claude (third session) | **TASK-000 / TASK-009 closeout** ? the four bucket-sum tests, the last un-filtered one, and the stale verification stamp | `tests/BioShockStudio.Tests/InteractionActorSchemaTests.cs`; `docs/ROADMAP.md` "Test health" **only** (the ROADMAP touch was cleared with the user first, since the row above claims that file for Gate 4 audio edits at a different part of it) | 23 Aug 2026 |
-| Composer (this session) | **Gate 5 Phase 1** ? sequences/switch candidates on the level manifest **landed**. Cubemap live look taken over by the Cursor row below. | (released) | 25 Aug 2026 |
-| Cursor (this session) | **Script runner: Loop + message TriggeredBy + Fire** — verified live. | (released) | 27 Aug 2026 |
-| Cursor (this session) | **MessageQueue while busy** — verified live (`run_script_queue.py`). | (released) | 27 Aug 2026 |
-| Cursor (this session) | **AShockScript level-placed actor** — verified live (`run_script_actor.py`). | (released) | 27 Aug 2026 |
-| Cursor (this session) | **SendTriggerMessage → DispatchMessage** — verified live (`run_script_trigger.py`). | (released) | 27 Aug 2026 |
-| Cursor (this session) | **Script JSON → AShockScript import** — verified live (`run_import_scripts.py`). | (released) | 27 Aug 2026 |
-| Cursor (this session) | **Script import schema defaults + quest-hint** — verified live. | (released) | 27 Aug 2026 |
-| Cursor (this session) | **Script action instance props** — verified live (`export-script-actions` + import). | (released) | 27 Aug 2026 |
+| *(none)* | Active claims empty. Add a row before starting work. | — | — |
 
-> **Collision, 23 Aug 2026 ? for the user to relay.** The second session's row below claims
-> `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,
-> `MaterialSwitch` dynamic selection, `MaterialSequence`) as its next track. **This session did
-> that work instead, without checking this table first ? a breach of the rule directly above.**
-> All of item 4 is landed and committed (`2cc637b`, `b2c6808`): the animators decode, the switch
-> candidate array decodes on all 45 switches, and `MaterialSequence` turned out to have been
-> decoded all along and merely unwired. **That row's next track is therefore already done** ? it
-> should be redirected rather than started. The row is left in place because it is not this
-> session's to remove.
+**Recently released (do not re-claim as live):** Cursor Phase 4 script track through 27 Aug 2026 —
+script runner, MessageQueue, AShockScript, JSON import, schema defaults, instance-prop overlay,
+**nested If/Loop childArrays import** (`export-script-actions` formatVersion 2). Older Aug 23–25
+rows (Codex Gate 4 audio, Claude materials/TASK closeouts, Composer Gate 5) were cleared as stale
+on consolidation; **re-add a claim if that work is still active.**
 
-**Why this exists, not a branch-per-track workflow:** branches only help if both agents actually use
-them, and this session can't enforce that on a separate ChatGPT session it doesn't control. A
-written claim here is the lowest-overhead thing both sessions can actually be expected to check. The
+> **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
+> was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a
+> reminder to check the table before starting.
+
+**Why this exists, not a branch-per-track workflow:** day-to-day work is on **`main` only** (feature
+branches are not the standing process). Concurrent agents still need this claim table because they
+share one working tree. A written claim is the lowest-overhead coordination both sessions can check. The
 existing git-hygiene rule below (stage by filename, never `git add -A`, commit in small logical
 groups) is the safety net under this ? it limits the blast radius of a collision even when this
 table is stale or unchecked.

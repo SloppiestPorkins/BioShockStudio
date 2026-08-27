@@ -2,9 +2,10 @@
 
 Places Label, location, TriggeredBy (valueHex), and ShockAction stubs. Applies:
 1) Phase 2.1 schema *class defaults*, then
-2) per-instance scalar props from `export-script-actions` sidecar (bySourceKey).
+2) per-instance scalar props from `export-script-actions` sidecar (bySourceKey),
+3) nested If/Loop (and testsOr when a Shock ActionBool exists) from childArrays.
 
-Nested ActionIf/Loop graphs stay identity-only. Idempotent via BioShockScriptKey.
+Idempotent via BioShockScriptKey.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import os
 import unreal
 
 KEY_TAG_PREFIX = "BioShockScriptKey="
+MAX_NEST_DEPTH = 32
 
 DEFAULT_SCHEMA_DIR = r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice"
 SCHEMA_FILES = (
@@ -28,6 +30,8 @@ ACTION_CLASS_OVERRIDES = {
     "ActionVariableAssign": "ShockActionVariableAssignOverwrite",
     # ShockGame.U ships this class name in lowercase.
     "actionSetQuestHint": "ShockActionSetQuestHint",
+    "BooleanStatement": "ShockBooleanStatement",
+    "TruthStatement": "ShockTruthStatement",
 }
 
 # Schema Lookup class name when it differs from the placed Action* name.
@@ -82,6 +86,21 @@ def shock_action_class_name(action_class):
     if action_class.startswith("Action"):
         return "Shock" + action_class
     return None
+
+
+def _child_arrays(bag):
+    return (bag or {}).get("childArrays") or (bag or {}).get("child_arrays") or {}
+
+
+def _child_keys(bag, *names):
+    arrays = _child_arrays(bag)
+    for name in names:
+        if name in arrays and arrays[name] is not None:
+            return list(arrays[name])
+        for key, value in arrays.items():
+            if key.lower() == name.lower() and value is not None:
+                return list(value)
+    return []
 
 
 def schema_paths(schema_dir=None):
@@ -228,7 +247,16 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
     return False
 
 
-def try_create_action(action_class, object_name, paths, stats, source_key=None, props_by_key=None):
+def try_create_action(
+    action_class,
+    object_name,
+    paths,
+    stats,
+    source_key=None,
+    props_by_key=None,
+    depth=0,
+    visiting=None,
+):
     shock_name = shock_action_class_name(action_class)
     if not shock_name:
         return None, "bad-name"
@@ -261,7 +289,105 @@ def try_create_action(action_class, object_name, paths, stats, source_key=None, 
                 action.configure(note)
         except Exception:
             pass
+
+    expand_nested_actions(
+        action,
+        action_class,
+        source_key,
+        props_by_key or {},
+        paths,
+        stats,
+        depth=depth,
+        visiting=visiting,
+    )
     return action, "ok"
+
+
+def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiting, nest_bucket):
+    bag = props_by_key.get(child_key) or {}
+    child_class = bag.get("className") or bag.get("class_name") or ""
+    child_name = bag.get("objectName") or bag.get("object_name") or child_key
+    if not child_class:
+        stats["nested_unmapped"] += 1
+        stats["nested_unmapped_classes"]["(missing-className)"] = (
+            stats["nested_unmapped_classes"].get("(missing-className)", 0) + 1
+        )
+        return None
+    child, status = try_create_action(
+        child_class,
+        child_name,
+        paths,
+        stats,
+        source_key=child_key,
+        props_by_key=props_by_key,
+        depth=depth + 1,
+        visiting=visiting,
+    )
+    if child is None:
+        stats["nested_unmapped"] += 1
+        stats["nested_unmapped_classes"][child_class] = (
+            stats["nested_unmapped_classes"].get(child_class, 0) + 1
+        )
+        return None
+    stats[nest_bucket] += 1
+    return child
+
+
+def expand_nested_actions(
+    action,
+    action_class,
+    source_key,
+    props_by_key,
+    paths,
+    stats,
+    depth=0,
+    visiting=None,
+):
+    """Wire true/else/loop/tests childGraphs from the package dump."""
+    if not source_key or source_key not in props_by_key:
+        return
+    if depth >= MAX_NEST_DEPTH:
+        stats["nested_depth_cap"] += 1
+        return
+
+    visiting = set(visiting or ())
+    if source_key in visiting:
+        stats["nested_cycle_skip"] += 1
+        return
+    visiting.add(source_key)
+    try:
+        bag = props_by_key[source_key]
+        if action_class == "ActionIf":
+            for child_key in _child_keys(bag, "trueActions"):
+                child = _create_from_source_key(
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_true"
+                )
+                if child is not None and hasattr(action, "add_true_action"):
+                    action.add_true_action(child)
+            for child_key in _child_keys(bag, "elseActions"):
+                child = _create_from_source_key(
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_else"
+                )
+                if child is not None and hasattr(action, "add_else_action"):
+                    action.add_else_action(child)
+            for child_key in _child_keys(bag, "testsOr"):
+                child = _create_from_source_key(
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_tests"
+                )
+                if child is not None and hasattr(action, "add_test"):
+                    try:
+                        action.add_test(child)
+                    except Exception:
+                        stats["nested_test_cast_fail"] += 1
+        elif action_class == "ActionLoop":
+            for child_key in _child_keys(bag, "loopActions"):
+                child = _create_from_source_key(
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_loop"
+                )
+                if child is not None and hasattr(action, "add_loop_action"):
+                    action.add_loop_action(child)
+    finally:
+        visiting.discard(source_key)
 
 
 def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
@@ -309,6 +435,15 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         "schema_props": 0,
         "instance_applied": 0,
         "instance_fail": 0,
+        "nested_true": 0,
+        "nested_else": 0,
+        "nested_loop": 0,
+        "nested_tests": 0,
+        "nested_unmapped": 0,
+        "nested_unmapped_classes": {},
+        "nested_depth_cap": 0,
+        "nested_cycle_skip": 0,
+        "nested_test_cast_fail": 0,
         "registry_num": 0,
         "wait_seconds_sample": None,
         "wait_instance_seconds": None,
@@ -405,12 +540,16 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         report["sample"]["actions_completed"] = int(sample_actor.get_runner().get_actions_completed())
 
     _log(
-        "imported scripts created=%s mapped=%s schema=%s instance=%s unmapped=%s"
+        "imported scripts created=%s mapped=%s schema=%s instance=%s nested=%s unmapped=%s"
         % (
             report["created"],
             report["actions_mapped"],
             report["schema_applied"],
             report["instance_applied"],
+            report["nested_true"]
+            + report["nested_else"]
+            + report["nested_loop"]
+            + report["nested_tests"],
             report["actions_unmapped"],
         )
     )
