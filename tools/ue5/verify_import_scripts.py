@@ -67,6 +67,10 @@ def main(out, manifest=None):
                 imported.get("nested_loop"),
             )
         )
+    nested_unmapped = imported.get("nested_unmapped_classes") or {}
+    for missing in ("AndStatement", "NotStatement", "ActionTestFact"):
+        if nested_unmapped.get(missing):
+            f.append("nested still missing %s (%s)" % (missing, nested_unmapped.get(missing)))
     wait_s = imported.get("wait_seconds_sample")
     if wait_s is None or float(wait_s) <= 0:
         f.append("Wait Seconds sample %s" % wait_s)

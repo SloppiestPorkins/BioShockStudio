@@ -887,9 +887,16 @@ bodies + prior instance overlays on a 40-script Medical sample).
 `export-script-actions` BFS-walks nested Action exports (`formatVersion` 2,
 `childArrays`). `import_scripts.py` recursively `AddTrueAction` / `AddElseAction` /
 `AddLoopAction` / `AddTest`. Medical dump: 1958 unique exports, 495 nested enqueued.
-`ActionPropertyTest` / `ActionTestFact` / `AndStatement` / `NotStatement` still lack Shock
-classes (testsOr partial — 66 tests mapped, 12 unmapped on the 40-script sample).
+`ActionPropertyTest` still lacks a Shock class (not seen in the 40-script sample's
+unmapped set). AndStatement / NotStatement / ActionTestFact first-slice stubs landed
+same day — testsOr unmapped dropped to 0 on that sample.
 Live verify nested body counts > 0 (248 true / 20 else / 4 loop on that sample).
+
+### Phase 4 ActionBool testsOr stubs (And/Not/TestFact) — done, 27 Aug 2026
+
+`UShockAndStatement` / `UShockNotStatement` / `UShockActionTestFact`: params +
+`EvaluateBool` (And/Not boolean; TestFact returns false until FactDatabase). Schema
+defaults + import overlays. Live import: nested_unmapped_classes empty for those three.
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

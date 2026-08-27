@@ -1425,10 +1425,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    expansion — done same day**: dump formatVersion 2 `childArrays` (BFS nested
    exports); import wires `AddTrueAction` / `AddElseAction` / `AddLoopAction` /
    `AddTest` when a Shock class exists. Live verify: nested bodies present;
-   `ActionPropertyTest` / `ActionTestFact` still identity-unmapped in testsOr
-   (no Shock class yet).
-   Next: PIE possess (human), or ActionPropertyTest / remaining ActionBool census
-   for testsOr fidelity.
+   And/Not/TestFact ActionBool stubs closed the sample's testsOr gaps.
+   `ActionPropertyTest` still open if needed for other maps.
+   Next: PIE possess (human), or ActionPropertyTest / For-body expansion.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

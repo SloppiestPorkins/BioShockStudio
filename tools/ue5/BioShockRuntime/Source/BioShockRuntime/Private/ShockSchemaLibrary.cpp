@@ -82,6 +82,9 @@
 #include "ShockActionEquipPlasmid.h"
 #include "ShockActionSetPlasmidSlotLockedState.h"
 #include "ShockBooleanStatement.h"
+#include "ShockAndStatement.h"
+#include "ShockNotStatement.h"
+#include "ShockActionTestFact.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -3376,6 +3379,48 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					BoolStmt->Rhs = Unquote(Text);
 					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockAndStatement* AndStmt = Cast<UShockAndStatement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AndStmt->bLhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("lhs"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					AndStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockNotStatement* NotStmt = Cast<UShockNotStatement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					NotStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockActionTestFact* TestFact = Cast<UShockActionTestFact>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Slot_1"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					TestFact->Slot1 = FName(*Unquote(Text));
+					Applied.Add(TEXT("Slot_1"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_2"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					TestFact->Slot2 = Unquote(Text);
+					Applied.Add(TEXT("Slot_2"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Slot_3"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					TestFact->Slot3 = Unquote(Text);
+					Applied.Add(TEXT("Slot_3"));
 				}
 			}
 			Ok = true;

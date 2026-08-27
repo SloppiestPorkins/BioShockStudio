@@ -26,8 +26,8 @@ means no row is currently claimed, not that no one is working ? always check the
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 script track through 27 Aug 2026 —
 script runner, MessageQueue, AShockScript, JSON import, schema defaults, instance-prop overlay,
-**nested If/Loop childArrays import** (`export-script-actions` formatVersion 2). Older Aug 23–25
-rows (Codex Gate 4 audio, Claude materials/TASK closeouts, Composer Gate 5) were cleared as stale
+nested If/Loop childArrays import, And/Not/TestFact ActionBool stubs. Older Aug 23–25 rows
+(Codex Gate 4 audio, Claude materials/TASK closeouts, Composer Gate 5) were cleared as stale
 on consolidation; **re-add a claim if that work is still active.**
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim

@@ -32,6 +32,8 @@ ACTION_CLASS_OVERRIDES = {
     "actionSetQuestHint": "ShockActionSetQuestHint",
     "BooleanStatement": "ShockBooleanStatement",
     "TruthStatement": "ShockTruthStatement",
+    "AndStatement": "ShockAndStatement",
+    "NotStatement": "ShockNotStatement",
 }
 
 # Schema Lookup class name when it differs from the placed Action* name.
@@ -239,6 +241,27 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 max_r = float(_prop(bag, "MaxRadiusToSpawnAroundSpawnLoc") or 0.0)
                 force = bool(_prop(bag, "bForceSpawn") or False)
                 action.configure(ai_type, loc, spawned or "", min_r, max_r, force)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "AndStatement":
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if (lhs is not None or rhs is not None) and hasattr(action, "configure"):
+                action.configure(bool(lhs) if lhs is not None else False, bool(rhs) if rhs is not None else False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "NotStatement":
+            rhs = _prop(bag, "rhs", "Rhs")
+            if rhs is not None and hasattr(action, "configure"):
+                action.configure(bool(rhs))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionTestFact":
+            s1 = _prop(bag, "Slot_1", "Slot1")
+            s2 = _prop(bag, "Slot_2", "Slot2")
+            s3 = _prop(bag, "Slot_3", "Slot3")
+            if s1 is not None and hasattr(action, "configure"):
+                action.configure(s1, str(s2 or ""), str(s3 or ""))
                 stats["instance_applied"] += 1
                 return True
     except Exception:

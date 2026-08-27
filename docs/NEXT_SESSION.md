@@ -35,8 +35,9 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Phase 4 script track on main: runner + MessageQueue + AShockScript + JSON import with
-schema defaults, instance-prop overlay, and nested If/Loop childArrays expansion.
-Next: human PIE possess check, or ActionPropertyTest / remaining ActionBool for testsOr.
+schema defaults, instance-prop overlay, nested If/Loop childArrays, and And/Not/TestFact
+testsOr stubs.
+Next: human PIE possess check, or ActionPropertyTest / ActionFor body expansion.
 Branch: main only.
 ```
 
