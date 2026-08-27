@@ -1420,9 +1420,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **SendTriggerMessage → DispatchMessage — done same day**: `run_script_trigger.py`.
    **Script JSON → AShockScript import — done same day**: `run_import_scripts.py`
    (TriggeredBy decode; schema class defaults; **per-instance scalars via**
-   `export-script-actions` sidecar — Wait/Assign/Note/SendTrigger/Log). Nested If/Loop
+   `export-script-actions` — Wait/Assign/Note/Trigger/Log plus PlayEffect/SetProperty/
+   ExecuteScript/HideOrShow/Destroy/Attack/PlayAnim/SpawnAI). Nested If/Loop
    graphs still identity-only.
-   Next: PIE possess (human) or wider instance overlay.
+   Next: PIE possess (human) or nested If/Loop action expansion.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

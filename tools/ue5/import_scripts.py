@@ -160,6 +160,68 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 action.configure(str(text))
                 stats["instance_applied"] += 1
                 return True
+        if action_class == "ActionPlayEffect":
+            tag = _prop(bag, "EffectTag")
+            label = _prop(bag, "ActorLabel")
+            event = _prop(bag, "EffectEvent")
+            if (tag is not None or label is not None) and hasattr(action, "configure"):
+                action.configure(event or "", tag or "", label or "")
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionSetProperty":
+            obj = _prop(bag, "Object")
+            prop = _prop(bag, "Property")
+            value = _prop(bag, "NewValue")
+            if obj is not None and prop is not None and value is not None and hasattr(action, "configure"):
+                action.configure(obj, prop, str(value))
+                stats["instance_applied"] += 1
+                return True
+        if action_class in ("ActionNonBlockingExecuteScript", "ActionBlockingExecuteScript"):
+            target = _prop(bag, "targetScript", "TargetScript")
+            if target is not None and hasattr(action, "configure"):
+                action.configure(target, action_class == "ActionBlockingExecuteScript")
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionHideOrShowActor":
+            label = _prop(bag, "ActorLabel")
+            hide = _prop(bag, "HideActor")
+            if label is not None and hasattr(action, "configure"):
+                action.configure(label, bool(hide) if hide is not None else False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionDestroyActor":
+            target = _prop(bag, "Target")
+            if target is not None and hasattr(action, "configure"):
+                action.configure(target)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionAttackTarget":
+            ai = _prop(bag, "AILabel")
+            target = _prop(bag, "TargetLabel")
+            if ai is not None and target is not None and hasattr(action, "configure"):
+                action.configure(ai, target, False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionPlayAnimation":
+            target = _prop(bag, "TargetLabel")
+            anim = _prop(bag, "Animation")
+            channel = _prop(bag, "Channel")
+            if target is not None and hasattr(action, "configure"):
+                action.configure(target, anim or "", 1.0, int(channel) if channel is not None else 0)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionSpawnAI":
+            loc = _prop(bag, "SpawnLocationLabel")
+            spawned = _prop(bag, "SpawnedAILabel")
+            if loc is not None and hasattr(action, "configure"):
+                # Configure(AIType, SpawnLocation, SpawnedLabel, minR, maxR, bForce) — type often default
+                ai_type = _prop(bag, "AITypeToSpawn") or ""
+                min_r = float(_prop(bag, "MinRadiusToSpawnAroundSpawnLoc") or 0.0)
+                max_r = float(_prop(bag, "MaxRadiusToSpawnAroundSpawnLoc") or 0.0)
+                force = bool(_prop(bag, "bForceSpawn") or False)
+                action.configure(ai_type, loc, spawned or "", min_r, max_r, force)
+                stats["instance_applied"] += 1
+                return True
     except Exception:
         stats["instance_fail"] += 1
         return False

@@ -50,8 +50,8 @@ def main(out, manifest=None):
         f.append("schema defaults not applied")
     if int(imported.get("props_loaded", 0)) < 1:
         f.append("script-actions props sidecar not loaded")
-    if int(imported.get("instance_applied", 0)) < 1:
-        f.append("no instance props applied")
+    if int(imported.get("instance_applied", 0)) < 200:
+        f.append("instance props applied %s (expected >= 200 after widen)" % imported.get("instance_applied"))
     wait_s = imported.get("wait_seconds_sample")
     if wait_s is None or float(wait_s) <= 0:
         f.append("Wait Seconds sample %s" % wait_s)

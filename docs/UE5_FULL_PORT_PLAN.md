@@ -875,9 +875,11 @@ Runner executes `ActionSendTriggerMessage` via `DispatchVia` → `MessageTrigger
 `import_scripts.py` places Medical `Script` actors as `AShockScript` (Label, location,
 TriggeredBy from property valueHex, shared registry). Action stubs get Phase 2.1 schema
 *class defaults*, then per-instance scalars from `bioshock-tool export-script-actions`
-(`bySourceKey` sidecar). Overlay covers Wait/Assign/Note/SendTriggerMessage/Log.
-`actionSetQuestHint` → `ShockActionSetQuestHint`. Nested If/Loop bodies not expanded.
-Live `run_import_scripts.py`, `Success - 0 error(s)`.
+(`bySourceKey` sidecar). Overlay covers Wait/Assign/Note/SendTriggerMessage/Log plus
+PlayEffect, SetProperty, ExecuteScript, HideOrShow, DestroyActor, AttackTarget,
+PlayAnimation, SpawnAI. `actionSetQuestHint` → `ShockActionSetQuestHint`. Nested If/Loop
+bodies not expanded. Live `run_import_scripts.py`, `Success - 0 error(s)` (280 instance
+overlays on a 40-script Medical sample).
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

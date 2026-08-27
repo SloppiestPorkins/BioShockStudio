@@ -35,8 +35,8 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Script import applies schema defaults + per-instance props (export-script-actions).
-Next: PIE possess (human Play), or expand instance overlay beyond Wait/Assign/Note/Trigger/Log.
+Script import instance overlay widened (PlayEffect/SetProperty/ExecuteScript/Hide/…).
+Next: PIE possess (human Play), or expand nested If/Loop action graphs from package.
 Branch feature/fbx-materials-gui.
 ```
 
