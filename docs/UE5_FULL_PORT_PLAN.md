@@ -902,7 +902,10 @@ defaults + import overlays. Live import: nested_unmapped_classes empty for those
 propertyPaths still false. ActionIf/ChooseBranch take optional World (runner passes
 outer actor world). Live `run_action_property_test.py`: equals/mismatch/notequal + If true.
 `UShockActionFor.ForActions` + counter iterations through End. Import wires nested graphs.
-Live import limit 70: nested_for=3, nested_unmapped=0.
+Live import limit 70: nested_for=3, nested_unmapped=0. **Full Medical (300 scripts)
+— same day**: created=300, actions_mapped=1463, nested true/else/loop/for/tests =
+331/37/10/3/114, nested_unmapped=0, top-level unmapped_classes empty,
+instance_applied=931, `Success - 0 error(s)`.
 
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 

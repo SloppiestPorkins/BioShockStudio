@@ -1427,9 +1427,9 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    `AddTest` when a Shock class exists. Live verify: nested bodies present;
    And/Not/TestFact ActionBool stubs closed the sample's testsOr gaps.
    **ActionPropertyTest + ActionFor forActions — done same day**: runner repeats For
-   body while counter ≤ End (`run_script_for.py`); live limit-70 import nested_for=3,
-   nested_unmapped=0 (DisplayMapHUDRegion stub).
-   Next: PIE possess (human), or PropertyTest EvaluateBool / remaining fidelity.
+   body while counter ≤ End (`run_script_for.py`); **full Medical import (300)**:
+   1463 mapped, nested 331/37/10/3/114, nested_unmapped=0, unmapped_classes empty.
+   PropertyTest Label EvaluateInWorld verified. Next: PIE possess (human).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
