@@ -23,13 +23,11 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-| Cursor (this session) | **Phase 4: runner movement/goal/input batch** | `ShockScriptRunner.cpp`, `run_script_movement.py` | 27 Aug 2026 |
+**Recently released:** Phase 4 runner PostMovementGoal, Concept, ScriptedSequence,
+WaitForGoal, InputContext, ChangePressure (`run_script_movement.py`). PIE possess still human Play.
 
-**Recently released:** Phase 4 runner TweakAIVision/Hearing, SetTipPriority, MuteAI,
-CinematicFadeView, ChangeSkinAtIndex, AISpeech (`run_script_ai_tweak.py`). PIE possess still human Play.
-
-**Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — light/collision/
-security/HUD; AI/spawn/fact; physics/timer. Older rows cleared.
+**Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — AI tweak/fade;
+light/collision/security; AI/spawn. Older rows cleared.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a
