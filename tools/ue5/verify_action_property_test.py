@@ -59,6 +59,18 @@ def main(out):
         f.append("If branch %s != true" % branch)
     report["if_true"] = branch
 
+    # bHidden path after SetActorHiddenInGame.
+    set_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionSetProperty")
+    setter = unreal.new_object(set_cls)
+    setter.configure("PropTestTarget", "bHidden", "true")
+    if not setter.apply_to_actor(cube):
+        f.append("set bHidden true")
+    hid_test = unreal.new_object(prop_cls)
+    hid_test.configure("PropTestTarget", "bHidden", "True", 2, -1)
+    if not bool(hid_test.evaluate_in_world(world)):
+        f.append("bHidden True should match")
+    report["bHidden"] = "ok"
+
     subsystem.destroy_actor(cube)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

@@ -66,7 +66,9 @@ bool UShockActionPropertyTest::EvaluateInWorld(UWorld* World) const
 	const FString Path = PropertyPath.IsEmpty() ? TEXT("Label") : PropertyPath;
 	const bool bIsLabelPath = Path.Equals(TEXT("Label"), ESearchCase::IgnoreCase)
 		|| Path.Equals(TEXT("ActorLabel"), ESearchCase::IgnoreCase);
-	if (!bIsLabelPath)
+	const bool bIsHiddenPath = Path.Equals(TEXT("bHidden"), ESearchCase::IgnoreCase)
+		|| Path.Equals(TEXT("Hidden"), ESearchCase::IgnoreCase);
+	if (!bIsLabelPath && !bIsHiddenPath)
 	{
 		return false;
 	}
@@ -83,6 +85,11 @@ bool UShockActionPropertyTest::EvaluateInWorld(UWorld* World) const
 		if (!Actor->GetActorLabel().Equals(WantLabel, ESearchCase::CaseSensitive))
 		{
 			continue;
+		}
+		if (bIsHiddenPath)
+		{
+			const FString HiddenText = Actor->IsHidden() ? TEXT("True") : TEXT("False");
+			return ComparePropertyStrings(OpTest, HiddenText, Value);
 		}
 		return ComparePropertyStrings(OpTest, Actor->GetActorLabel(), Value);
 #else
