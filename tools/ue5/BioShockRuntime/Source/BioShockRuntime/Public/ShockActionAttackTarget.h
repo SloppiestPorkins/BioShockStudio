@@ -4,6 +4,7 @@
 #include "ShockActionAttackTarget.generated.h"
 
 class AShockPawn;
+class UWorld;
 
 /**
  * UnrealScript `ActionAttackTarget` (ShockAI.U): tell AIs labeled AILabel to attack TargetLabel
@@ -67,4 +68,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyImmediateDamage(AShockPawn* Target, float DamageAmount);
+
+	/**
+	 * Records RequestAttack; if TargetLabel resolves to a ShockPawn, applies authored damage.
+	 * Returns true when the request was recorded (damage is best-effort).
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool RequestAttackInWorld(UWorld* World, float DamageAmount = 1.0f);
 };

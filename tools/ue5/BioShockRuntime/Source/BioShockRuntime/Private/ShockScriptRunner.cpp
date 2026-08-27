@@ -1,6 +1,7 @@
 #include "ShockScriptRunner.h"
 
 #include "ShockAction.h"
+#include "ShockActionAttackTarget.h"
 #include "ShockActionDestroyActor.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitLoop.h"
@@ -13,6 +14,7 @@
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
 #include "ShockActionSetProperty.h"
+#include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
@@ -596,6 +598,32 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		StopFx->StopInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSpawnAI* SpawnAI = Cast<UShockActionSpawnAI>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		SpawnAI->SpawnInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionAttackTarget* Attack = Cast<UShockActionAttackTarget>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Attack->RequestAttackInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

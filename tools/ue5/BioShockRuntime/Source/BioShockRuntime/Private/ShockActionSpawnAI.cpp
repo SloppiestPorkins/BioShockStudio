@@ -1,8 +1,10 @@
 #include "ShockActionSpawnAI.h"
 
 #include "BaseShockAI.h"
+#include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 UShockActionSpawnAI::UShockActionSpawnAI()
 {
@@ -61,6 +63,39 @@ AActor* UShockActionSpawnAI::SpawnAtLocation(UObject* WorldContextObject, FVecto
 
 	AI->ConfigureIdentity(AITypeToSpawn, SpawnedAILabel.IsNone() ? AITypeToSpawn : SpawnedAILabel);
 	AI->EnsureHealthInitialized();
+#if WITH_EDITOR
+	if (!SpawnedAILabel.IsNone())
+	{
+		AI->SetActorLabel(SpawnedAILabel.ToString());
+	}
+#endif
 	LastSpawnedActor = AI;
 	return AI;
+}
+
+AActor* UShockActionSpawnAI::SpawnInWorld(UWorld* World)
+{
+	if (!World || SpawnLocationLabel.IsNone())
+	{
+		return nullptr;
+	}
+	const FString Want = SpawnLocationLabel.ToString();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+#if WITH_EDITOR
+		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
+		{
+			continue;
+		}
+		return SpawnAtLocation(World, Actor->GetActorLocation());
+#else
+		(void)Actor;
+#endif
+	}
+	return nullptr;
 }

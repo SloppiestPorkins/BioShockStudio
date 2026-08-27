@@ -4,6 +4,7 @@
 #include "ShockActionSpawnAI.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionSpawnAI` (ShockAI.U, native). Calls SpawningManager.SpawnScriptedAI with
@@ -87,4 +88,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	AActor* SpawnAtLocation(UObject* WorldContextObject, FVector Location);
+
+	/** Resolve SpawnLocationLabel in World and SpawnAtLocation there. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* SpawnInWorld(UWorld* World);
 };

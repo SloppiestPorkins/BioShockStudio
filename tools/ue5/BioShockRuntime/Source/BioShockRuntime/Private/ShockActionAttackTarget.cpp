@@ -1,5 +1,7 @@
 #include "ShockActionAttackTarget.h"
 
+#include "EngineUtils.h"
+#include "GameFramework/Actor.h"
 #include "ShockPawn.h"
 
 UShockActionAttackTarget::UShockActionAttackTarget()
@@ -33,5 +35,41 @@ bool UShockActionAttackTarget::ApplyImmediateDamage(AShockPawn* Target, float Da
 		return false;
 	}
 	Target->ApplyAuthoredDamage(DamageAmount);
+	return true;
+}
+
+bool UShockActionAttackTarget::RequestAttackInWorld(UWorld* World, float DamageAmount)
+{
+	if (!RequestAttack())
+	{
+		return false;
+	}
+	if (!World || TargetLabel.IsNone())
+	{
+		return true;
+	}
+	const FString Want = TargetLabel.ToString();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+#if WITH_EDITOR
+		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
+		{
+			continue;
+		}
+		if (AShockPawn* Pawn = Cast<AShockPawn>(Actor))
+		{
+			if (DamageAmount > 0.0f)
+			{
+				Pawn->ApplyAuthoredDamage(DamageAmount);
+			}
+			break;
+		}
+#endif
+	}
 	return true;
 }
