@@ -35,8 +35,8 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-SendTriggerMessage→DispatchMessage verified; AShockScript + MessageQueue also landed.
-Next: PIE possess (human Play), or Script actor import from level JSON.
+Script JSON→AShockScript import first slice verified (Medical, stubs + TriggeredBy).
+Next: PIE possess (human Play), or decode action params from package exports into stubs.
 Branch feature/fbx-materials-gui.
 ```
 

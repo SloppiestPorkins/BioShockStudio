@@ -870,6 +870,13 @@ Runner executes `ActionSendTriggerMessage` via `DispatchVia` → `MessageTrigger
 (or parent Script label when Instigator is None). Live `run_script_trigger.py`,
 `Success - 0 error(s)`.
 
+### Phase 4 Script JSON → AShockScript import — done, 27 Aug 2026
+
+`import_scripts.py` places Medical `Script` actors as `AShockScript` (Label, location,
+TriggeredBy from property valueHex, shared registry). Action *class* stubs for every loadable
+`ShockAction*`; per-action package properties not applied. Live `run_import_scripts.py`,
+`Success - 0 error(s)`.
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's
