@@ -85,6 +85,8 @@
 #include "ShockAndStatement.h"
 #include "ShockNotStatement.h"
 #include "ShockActionTestFact.h"
+#include "ShockActionPropertyTest.h"
+#include "ShockActionDisplayMapHUDRegion.h"
 #include "ShockActionAttackTarget.h"
 #include "ShockActionAwardAchievement.h"
 #include "ShockActionBlockingExecuteScript.h"
@@ -3421,6 +3423,48 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					TestFact->Slot3 = Unquote(Text);
 					Applied.Add(TEXT("Slot_3"));
+				}
+			}
+			if (UShockActionPropertyTest* PropTest = Cast<UShockActionPropertyTest>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("Label"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PropTest->Label = FName(*Unquote(Text));
+					Applied.Add(TEXT("Label"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("propertyPath"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PropTest->PropertyPath = Unquote(Text);
+					Applied.Add(TEXT("propertyPath"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("Value"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					PropTest->Value = Unquote(Text);
+					Applied.Add(TEXT("Value"));
+				}
+				int32 Op = 0;
+				if (Lookup(Classes, ClassName, TEXT("opTest"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Op, *Text);
+					PropTest->OpTest = Op;
+					Applied.Add(TEXT("opTest"));
+				}
+				int32 Passes = 0;
+				if (Lookup(Classes, ClassName, TEXT("maxPasses"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					LexFromString(Passes, *Text);
+					PropTest->MaxPasses = Passes;
+					Applied.Add(TEXT("maxPasses"));
+				}
+			}
+			if (UShockActionDisplayMapHUDRegion* MapHud = Cast<UShockActionDisplayMapHUDRegion>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("MapHUDRegionDescription"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					MapHud->MapHUDRegionDescription = Unquote(Text);
+					Applied.Add(TEXT("MapHUDRegionDescription"));
 				}
 			}
 			Ok = true;

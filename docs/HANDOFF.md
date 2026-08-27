@@ -22,13 +22,11 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| *(none)* | Active claims empty. Add a row before starting work. | — | — |
+| Cursor (this session) | **Phase 4: ActionFor counter iterations** (body import already landed) | `ShockScriptRunner.*`, `ShockActionFor.*`, `ShockVariableScope.*` | 27 Aug 2026 |
 
-**Recently released (do not re-claim as live):** Cursor Phase 4 script track through 27 Aug 2026 —
-script runner, MessageQueue, AShockScript, JSON import, schema defaults, instance-prop overlay,
-nested If/Loop childArrays import, And/Not/TestFact ActionBool stubs. Older Aug 23–25 rows
-(Codex Gate 4 audio, Claude materials/TASK closeouts, Composer Gate 5) were cleared as stale
-on consolidation; **re-add a claim if that work is still active.**
+**Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
+If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion.
+Older Aug 23–25 rows cleared on consolidation; **re-add a claim if that work is still active.**
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a

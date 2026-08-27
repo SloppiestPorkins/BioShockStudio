@@ -15,6 +15,14 @@ void UShockActionFor::Configure(FName InCounter, float InBegin, float InEnd, int
 	CurrentIndex = InIndex;
 }
 
+void UShockActionFor::AddForAction(UShockAction* Action)
+{
+	if (Action)
+	{
+		ForActions.Add(Action);
+	}
+}
+
 bool UShockActionFor::RequestEnterFor()
 {
 	if (CounterName.IsNone())

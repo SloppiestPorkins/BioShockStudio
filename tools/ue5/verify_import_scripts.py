@@ -34,8 +34,8 @@ def main(out, manifest=None):
         f.append("decode All")
     report["decode"] = "ok"
 
-    # Full Medical import is large; cap for headless time unless BIOSHOCK_SCRIPT_LIMIT unset.
-    limit_env = os.environ.get("BIOSHOCK_SCRIPT_LIMIT", "40")
+    # Full Medical import is large; include ActionFor at idx 59 (SpawnBall).
+    limit_env = os.environ.get("BIOSHOCK_SCRIPT_LIMIT", "70")
     limit = int(limit_env) if limit_env else None
     imported = import_scripts.import_scripts(manifest, limit=limit)
     report["import"] = imported
@@ -56,21 +56,31 @@ def main(out, manifest=None):
         int(imported.get("nested_true", 0))
         + int(imported.get("nested_else", 0))
         + int(imported.get("nested_loop", 0))
+        + int(imported.get("nested_for", 0))
     )
     if nested_bodies < 1:
         f.append(
-            "nested If/Loop bodies %s (true=%s else=%s loop=%s)"
+            "nested If/Loop/For bodies %s (true=%s else=%s loop=%s for=%s)"
             % (
                 nested_bodies,
                 imported.get("nested_true"),
                 imported.get("nested_else"),
                 imported.get("nested_loop"),
+                imported.get("nested_for"),
             )
         )
     nested_unmapped = imported.get("nested_unmapped_classes") or {}
-    for missing in ("AndStatement", "NotStatement", "ActionTestFact"):
+    for missing in (
+        "AndStatement",
+        "NotStatement",
+        "ActionTestFact",
+        "ActionPropertyTest",
+        "ActionDisplayMapHUDRegion",
+    ):
         if nested_unmapped.get(missing):
             f.append("nested still missing %s (%s)" % (missing, nested_unmapped.get(missing)))
+    if int(imported.get("nested_for", 0)) < 1 and int(imported.get("created", 0)) >= 70:
+        f.append("expected nested_for>=1 at limit>=70, got %s" % imported.get("nested_for"))
     wait_s = imported.get("wait_seconds_sample")
     if wait_s is None or float(wait_s) <= 0:
         f.append("Wait Seconds sample %s" % wait_s)

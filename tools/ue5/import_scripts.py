@@ -264,6 +264,42 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 action.configure(s1, str(s2 or ""), str(s3 or ""))
                 stats["instance_applied"] += 1
                 return True
+        if action_class == "ActionPropertyTest":
+            label = _prop(bag, "Label")
+            path = _prop(bag, "propertyPath", "PropertyPath")
+            value = _prop(bag, "Value")
+            op = _prop(bag, "opTest", "OpTest")
+            passes = _prop(bag, "maxPasses", "MaxPasses")
+            if (label is not None or path is not None) and hasattr(action, "configure"):
+                action.configure(
+                    label or "",
+                    str(path or ""),
+                    str(value or ""),
+                    int(op) if op is not None else 2,
+                    int(passes) if passes is not None else -1,
+                )
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionFor":
+            counter = _prop(bag, "counterName", "CounterName")
+            begin = _prop(bag, "beginValue", "BeginValue")
+            end = _prop(bag, "EndValue", "endValue")
+            idx = _prop(bag, "CurrentIndex", "currentIndex")
+            if counter is not None and hasattr(action, "configure"):
+                action.configure(
+                    counter,
+                    float(begin) if begin is not None else 0.0,
+                    float(end) if end is not None else 0.0,
+                    int(idx) if idx is not None else -1,
+                )
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionDisplayMapHUDRegion":
+            desc = _prop(bag, "MapHUDRegionDescription")
+            if desc is not None and hasattr(action, "configure"):
+                action.configure(str(desc))
+                stats["instance_applied"] += 1
+                return True
     except Exception:
         stats["instance_fail"] += 1
         return False
@@ -409,6 +445,13 @@ def expand_nested_actions(
                 )
                 if child is not None and hasattr(action, "add_loop_action"):
                     action.add_loop_action(child)
+        elif action_class == "ActionFor":
+            for child_key in _child_keys(bag, "forActions"):
+                child = _create_from_source_key(
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_for"
+                )
+                if child is not None and hasattr(action, "add_for_action"):
+                    action.add_for_action(child)
     finally:
         visiting.discard(source_key)
 
@@ -461,6 +504,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         "nested_true": 0,
         "nested_else": 0,
         "nested_loop": 0,
+        "nested_for": 0,
         "nested_tests": 0,
         "nested_unmapped": 0,
         "nested_unmapped_classes": {},
@@ -572,6 +616,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
             report["nested_true"]
             + report["nested_else"]
             + report["nested_loop"]
+            + report["nested_for"]
             + report["nested_tests"],
             report["actions_unmapped"],
         )

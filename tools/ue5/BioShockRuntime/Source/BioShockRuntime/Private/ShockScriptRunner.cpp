@@ -4,6 +4,7 @@
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitLoop.h"
 #include "ShockActionExitScript.h"
+#include "ShockActionFor.h"
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
 #include "ShockActionScriptNote.h"
@@ -367,6 +368,16 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		Frame.Iteration = 0;
 		Frame.bKeepLooping = true;
 		LoopStack.Add(Frame);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionFor* ForAction = Cast<UShockActionFor>(Action))
+	{
+		// Counter VariableFloat iterations still open — expand forActions once per enter.
+		ForAction->RequestEnterFor();
+		InsertActionsAt(CurrentlyExecutingActionIndex + 1, ForAction->ForActions);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

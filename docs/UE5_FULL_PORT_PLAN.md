@@ -887,16 +887,23 @@ bodies + prior instance overlays on a 40-script Medical sample).
 `export-script-actions` BFS-walks nested Action exports (`formatVersion` 2,
 `childArrays`). `import_scripts.py` recursively `AddTrueAction` / `AddElseAction` /
 `AddLoopAction` / `AddTest`. Medical dump: 1958 unique exports, 495 nested enqueued.
-`ActionPropertyTest` still lacks a Shock class (not seen in the 40-script sample's
-unmapped set). AndStatement / NotStatement / ActionTestFact first-slice stubs landed
-same day — testsOr unmapped dropped to 0 on that sample.
-Live verify nested body counts > 0 (248 true / 20 else / 4 loop on that sample).
+`ActionPropertyTest` first-slice stub + schema/import landed same day. AndStatement /
+NotStatement / ActionTestFact already closed. Live import (limit 70): nested_for **3**,
+nested_unmapped only `ActionDisplayMapHUDRegion` (1).
+Live verify nested body counts > 0 (295 true / 3 for / 4 loop on that sample).
 
 ### Phase 4 ActionBool testsOr stubs (And/Not/TestFact) — done, 27 Aug 2026
 
 `UShockAndStatement` / `UShockNotStatement` / `UShockActionTestFact`: params +
 `EvaluateBool` (And/Not boolean; TestFact returns false until FactDatabase). Schema
 defaults + import overlays. Live import: nested_unmapped_classes empty for those three.
+
+### Phase 4 ActionPropertyTest + ActionFor body — done, 27 Aug 2026
+
+`UShockActionPropertyTest` (params; EvaluateBool false until property lookup).
+`UShockActionFor.ForActions` + `AddForAction`; runner expands body once per enter
+(counter VariableFloat iterations still open). Import wires `forActions`. Live
+`run_import_scripts.py` limit 70: nested_for=3, Success - 0 error(s).
 
 ### Playable Fire input mapping — done, 27 Aug 2026
 

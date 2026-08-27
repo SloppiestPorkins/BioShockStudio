@@ -1426,8 +1426,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    exports); import wires `AddTrueAction` / `AddElseAction` / `AddLoopAction` /
    `AddTest` when a Shock class exists. Live verify: nested bodies present;
    And/Not/TestFact ActionBool stubs closed the sample's testsOr gaps.
-   `ActionPropertyTest` still open if needed for other maps.
-   Next: PIE possess (human), or ActionPropertyTest / For-body expansion.
+   **ActionPropertyTest + ActionFor forActions — done same day**: runner expands For
+   body once; live limit-70 import nested_for=3. Remaining nested miss on that
+   sample: ActionDisplayMapHUDRegion (stub in flight).
+   Next: PIE possess (human), or full ActionFor counter iterations / property-test eval.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

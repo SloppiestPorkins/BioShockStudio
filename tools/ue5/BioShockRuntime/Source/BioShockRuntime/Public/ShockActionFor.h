@@ -5,7 +5,8 @@
 
 /**
  * UnrealScript `ActionFor` (Scripting.U). Counter loop over forActions.
- * First slice holds counter bounds + CurrentIndex; no nested VM yet.
+ * Holds counter bounds + nested ForActions; runner expands the body once per enter
+ * (full counter VariableFloat iterations still open).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionFor : public UShockAction
@@ -30,8 +31,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bEnteredFor = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TArray<TObjectPtr<UShockAction>> ForActions;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InCounter, float InBegin, float InEnd, int32 InIndex);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void AddForAction(UShockAction* Action);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 GetForActionNum() const { return ForActions.Num(); }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FName GetCounterName() const { return CounterName; }
