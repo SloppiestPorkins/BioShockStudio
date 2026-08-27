@@ -1441,6 +1441,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    done same day** (`run_script_damage_level.py`). **PIE playable prep — done same day**:
    ShockPlayer FP camera + Move/Turn/Look binds; DefaultInput axes; playable input default on.
    Next: **human** open `/Game/BioShockSlice/1-Medical` → Play → confirm possess/move/fire.
+   **Runner DealDamageInRadius/ApplyImpulse + timer/console/mesh — done same day**
+   (`run_script_physics_timer.py`).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

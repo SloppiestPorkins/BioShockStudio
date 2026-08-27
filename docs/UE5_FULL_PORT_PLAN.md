@@ -951,6 +951,13 @@ AxisMappings into the throwaway project's `DefaultInput.ini`. Live
 → Play → confirm spawn at MedicalStart, WASD/look, LMB Fire (needs an equipped weapon
 in-level for fire to do anything useful).
 
+### Phase 4 runner DealDamageInRadius / ApplyImpulse + timer / console / mesh — done, 27 Aug 2026
+
+`DealDamageInRadius.ApplyInWorld` damages labeled-source-radius ShockPawns;
+`ApplyImpulse.ApplyInWorld` enables physics + AddImpulse. StartTimer / StopTimer /
+RunConsoleCommand / ChangeStaticMesh Request* wired. Live `run_script_physics_timer.py`,
+`Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

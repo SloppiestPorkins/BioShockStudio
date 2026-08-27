@@ -23,13 +23,12 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-**Recently released:** Phase 4 PIE playable prep (WASD/look/Fire + FP camera, input defaults on);
-runner DealDamage/ChangeLevel/Crouch/DisableMovement (`run_script_damage_level.py`).
-**PIE possess claim still needs human Play** on `/Game/BioShockSlice/1-Medical`.
+**Recently released:** Phase 4 runner DealDamageInRadius/ApplyImpulse + Start/StopTimer/Console/ChangeMesh
+(`run_script_physics_timer.py`). PIE playable prep on main; **human Play** still needed for possess claim.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import; PlayEffect/StopEffect; SpawnAI/AttackTarget; quest/inventory/doors/
-Teleport/Freeze. Older Aug 23–25 rows cleared.
+Teleport/Freeze; DealDamage/ChangeLevel. Older Aug 23–25 rows cleared.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a

@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionDealDamageInRadius.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionDealDamageInRadius`. Records radii + damage; no stim set yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDealDamageInRadius : public UShockAction
@@ -41,4 +43,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDeal();
+
+	/** Damage ShockPawns within OuterRadius of SourceActorLabel. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

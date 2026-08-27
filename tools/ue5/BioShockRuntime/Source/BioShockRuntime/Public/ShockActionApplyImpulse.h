@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionApplyImpulse.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionApplyImpulse` (Scripting.U). Records target + velocity; no physics yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionApplyImpulse : public UShockAction
@@ -35,4 +37,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestApply();
+
+	/** Find Target by label and AddImpulse on root primitive. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

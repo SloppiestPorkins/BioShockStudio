@@ -37,7 +37,8 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 Phase 4 on main (push as you go): Medical Script import clean; runner Hide/SetProperty/
 Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget/PlayAnimation/Log/OpenCloseLockUnlockDoor/
 Teleport/Freeze/SetActorLabel/GiveRemoveItems/DisplayMap/Print/SetQuestHint/
-InitiateCompleteFailQuest/AutoSave/DealDamage/ChangeLevel/Crouch/DisableMove by label.
+InitiateCompleteFailQuest/AutoSave/DealDamage/ChangeLevel/Crouch/DisableMove/
+DealDamageInRadius/ApplyImpulse/StartStopTimer/Console/ChangeMesh by label.
 PIE prep done (WASD/look/Fire + camera); **human:** open 1-Medical, Play, confirm possess.
 Rebuild: tools/ue5/rebuild_runtime_fast.ps1.
 Branch: main only.

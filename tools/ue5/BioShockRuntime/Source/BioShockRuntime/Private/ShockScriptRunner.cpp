@@ -39,6 +39,12 @@
 #include "ShockActionChangeLevel.h"
 #include "ShockActionForcePlayerCrouch.h"
 #include "ShockActionDisablePlayerMovement.h"
+#include "ShockActionDealDamageInRadius.h"
+#include "ShockActionApplyImpulse.h"
+#include "ShockActionStartTimer.h"
+#include "ShockActionStopTimer.h"
+#include "ShockActionRunConsoleCommand.h"
+#include "ShockActionChangeStaticMesh.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -856,6 +862,64 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionDisablePlayerMovement* DisableMove = Cast<UShockActionDisablePlayerMovement>(Action))
 	{
 		DisableMove->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDealDamageInRadius* RadiusDmg = Cast<UShockActionDealDamageInRadius>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		RadiusDmg->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionApplyImpulse* Impulse = Cast<UShockActionApplyImpulse>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Impulse->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStartTimer* StartTimer = Cast<UShockActionStartTimer>(Action))
+	{
+		StartTimer->RequestStart();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStopTimer* StopTimer = Cast<UShockActionStopTimer>(Action))
+	{
+		StopTimer->RequestStop();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRunConsoleCommand* Console = Cast<UShockActionRunConsoleCommand>(Action))
+	{
+		Console->RequestRun();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangeStaticMesh* ChangeMesh = Cast<UShockActionChangeStaticMesh>(Action))
+	{
+		ChangeMesh->RequestChange();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
