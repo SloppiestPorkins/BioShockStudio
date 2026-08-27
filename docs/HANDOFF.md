@@ -22,14 +22,15 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| *(none)* | Active claims empty. Add a row before starting work. | — | — |
 
-**Recently released:** Phase 4 through 27 Aug 2026 including runner PlayEffect/StopEffect by label
-(`run_script_fx.py`).
+**Recently released:** Phase 4 runner PlayAnimation by label + ActionLog Emit
+(`run_script_anim_log.py`); incremental rebuild via `tools/ue5/rebuild_runtime_fast.ps1`
+(~15–50s vs ~10 min BuildPlugin).
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,
-ActionFor counter iterations (`run_script_for.py`). Older Aug 23–25 rows cleared on consolidation.
+ActionFor counter iterations (`run_script_for.py`); PlayEffect/StopEffect; SpawnAI/AttackTarget.
+Older Aug 23–25 rows cleared on consolidation.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a

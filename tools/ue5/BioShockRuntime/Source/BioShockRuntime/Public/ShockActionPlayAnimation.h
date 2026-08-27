@@ -4,6 +4,7 @@
 #include "ShockActionPlayAnimation.generated.h"
 
 class AActor;
+class UWorld;
 
 /** Mirrors UnrealScript ActionPlayAnimation.EEndBehaviorMode. */
 UENUM(BlueprintType)
@@ -79,4 +80,8 @@ public:
 	/** Records the PlayAnimationOnChannel call. Does not play a mesh animation. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool PlayOnActor(AActor* Target);
+
+	/** Find actors by TargetLabel and PlayOnActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 PlayInWorld(UWorld* World);
 };

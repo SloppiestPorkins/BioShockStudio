@@ -35,7 +35,8 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Phase 4 on main (push as you go): Medical Script import clean; runner Hide/SetProperty/
-Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget by label.
+Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget/PlayAnimation/Log by label.
+Rebuild: tools/ue5/rebuild_runtime_fast.ps1 (not BuildPlugin each time).
 Next: human PIE possess, or more runner-wired actions.
 Branch: main only.
 ```
@@ -70,8 +71,9 @@ research note and the claim table, and use this list as a lookup rather than a f
 - **Claim table:** use `docs/HANDOFF.md` Active work before touching shared files.
 - Never `git add -A`; stage by name. Do not commit `tmp/`, game-derived exports, or secrets.
 - UE5.7: `G:\Games\UE_5.7\`. Throwaway project: `C:\Users\Jack\Documents\BioShockUE5\` (outside
-  repo). Plugin SoT: `tools/ue5/BioShockRuntime/`. Headless verify pattern: UAT BuildPlugin → copy
-  Binaries → `UnrealEditor-Cmd -run=pythonscript -script="…"`.
+  repo). Plugin SoT: `tools/ue5/BioShockRuntime/`. Headless verify: **`tools/ue5/rebuild_runtime_fast.ps1`**
+  (incremental UBT, usually ~1–2 min) → `UnrealEditor-Cmd -run=pythonscript -script="…"`. Use full
+  `RunUAT BuildPlugin` only for a clean/first HostProject seed, not every C++ tweak.
 - Script import: `export-script-actions` → `1-Medical.script-actions.json` sidecar (not committed;
   regenerate locally), then `run_import_scripts.py`.
 

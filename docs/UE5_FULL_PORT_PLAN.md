@@ -907,6 +907,13 @@ Live import limit 70: nested_for=3, nested_unmapped=0. **Full Medical (300 scrip
 331/37/10/3/114, nested_unmapped=0, top-level unmapped_classes empty,
 instance_applied=931, `Success - 0 error(s)`.
 
+### Phase 4 runner PlayAnimation + Log — done, 27 Aug 2026
+
+`PlayInWorld` (label → `PlayOnActor`) and `UShockActionLog::Emit` wired in
+`UShockScriptRunner`. Live `run_script_anim_log.py`, `Success - 0 error(s)`.
+Day-to-day C++ rebuild: `tools/ue5/rebuild_runtime_fast.ps1` (HostProject UBT incremental;
+`-CleanModule` ~50s). Full `RunUAT BuildPlugin` only to seed HostProject.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

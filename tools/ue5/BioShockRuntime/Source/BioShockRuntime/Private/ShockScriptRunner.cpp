@@ -10,12 +10,14 @@
 #include "ShockActionHideOrShowActor.h"
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
+#include "ShockActionPlayAnimation.h"
 #include "ShockActionPlayEffect.h"
 #include "ShockActionScriptNote.h"
 #include "ShockActionSendTriggerMessage.h"
 #include "ShockActionSetProperty.h"
 #include "ShockActionSpawnAI.h"
 #include "ShockActionStopEffect.h"
+#include "ShockActionLog.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -624,6 +626,27 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		Attack->RequestAttackInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPlayAnimation* PlayAnim = Cast<UShockActionPlayAnimation>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		PlayAnim->PlayInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionLog* LogAction = Cast<UShockActionLog>(Action))
+	{
+		LogAction->Emit();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

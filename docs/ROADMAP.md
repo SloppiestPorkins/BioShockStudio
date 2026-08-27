@@ -1429,7 +1429,10 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    **ActionPropertyTest + ActionFor forActions — done same day**: runner repeats For
    body while counter ≤ End (`run_script_for.py`); **full Medical import (300)**:
    1463 mapped, nested 331/37/10/3/114, nested_unmapped=0, unmapped_classes empty.
-   PropertyTest Label EvaluateInWorld verified. Next: PIE possess (human).
+   PropertyTest Label EvaluateInWorld verified. **Runner PlayAnimation + Log — done same day**:
+   `PlayInWorld` / `Emit` via runner (`run_script_anim_log.py`). Rebuild path:
+   `tools/ue5/rebuild_runtime_fast.ps1` (incremental UBT ~15–50s; BuildPlugin only to seed
+   HostProject). Next: PIE possess (human).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
