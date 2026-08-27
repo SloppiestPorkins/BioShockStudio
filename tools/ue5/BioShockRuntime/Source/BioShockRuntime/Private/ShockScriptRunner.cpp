@@ -7,6 +7,7 @@
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
 #include "ShockActionScriptNote.h"
+#include "ShockActionSendTriggerMessage.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -398,6 +399,14 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			return false;
 		}
 		SpawnedChildren.Add(Child);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSendTriggerMessage* Trig = Cast<UShockActionSendTriggerMessage>(Action))
+	{
+		Trig->DispatchVia(Registry, ScriptLabel);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

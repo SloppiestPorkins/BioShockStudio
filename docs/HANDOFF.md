@@ -30,6 +30,7 @@ means no row is currently claimed, not that no one is working ? always check the
 | Cursor (this session) | **Script runner: Loop + message TriggeredBy + Fire** — verified live. | (released) | 27 Aug 2026 |
 | Cursor (this session) | **MessageQueue while busy** — verified live (`run_script_queue.py`). | (released) | 27 Aug 2026 |
 | Cursor (this session) | **AShockScript level-placed actor** — verified live (`run_script_actor.py`). | (released) | 27 Aug 2026 |
+| Cursor (this session) | **SendTriggerMessage → DispatchMessage** — verified live (`run_script_trigger.py`). | (released) | 27 Aug 2026 |
 
 > **Collision, 23 Aug 2026 ? for the user to relay.** The second session's row below claims
 > `src/BioShockStudio.Core/Materials/` and names Gate 1 item 4 (panners/rotators,

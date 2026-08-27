@@ -864,6 +864,12 @@ Busy + matching message enqueues `{MessageClass, SourceLabel}`; `FinishExecution
 authored or world time. Live `run_script_actor.py`, `Success - 0 error(s)`. Not Concepts /
 package defaults / level JSON import.
 
+### Phase 4 SendTriggerMessage → DispatchMessage — done, 27 Aug 2026
+
+Runner executes `ActionSendTriggerMessage` via `DispatchVia` → `MessageTrigger` + Instigator
+(or parent Script label when Instigator is None). Live `run_script_trigger.py`,
+`Success - 0 error(s)`.
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's
