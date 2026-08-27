@@ -23,14 +23,12 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-**Recently released:** Phase 4 runner Give/RemoveItems + DisplayMap/Print/SetQuestHint
-(`run_script_inventory_ui.py`); Teleport/Freeze/SetActorLabel; doors; anim/log;
-`rebuild_runtime_fast.ps1`.
+**Recently released:** Phase 4 runner quest Initiate/Complete/Objective/Fail + AutoSave
+(`run_script_quest_save.py`); inventory/UI; Teleport/Freeze/SetActorLabel; doors; anim/log.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,
-ActionFor counter iterations (`run_script_for.py`); PlayEffect/StopEffect; SpawnAI/AttackTarget.
-Older Aug 23–25 rows cleared on consolidation.
+ActionFor; PlayEffect/StopEffect; SpawnAI/AttackTarget. Older Aug 23–25 rows cleared.
 
 > **Collision note (historical, 23 Aug 2026).** A Claude session's Materials / Gate 1 item 4 claim
 > was breached by another session that finished the item (`2cc637b`, `b2c6808`). Kept here as a

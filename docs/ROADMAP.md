@@ -1436,7 +1436,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    (`run_script_doors.py`). **Runner Teleport/Freeze/SetActorLabel — done same day**:
    label world move/rename/physics freeze (`run_script_world_move.py`).
    **Runner Give/RemoveItems + DisplayMap/Print/SetQuestHint — done same day**
-   (`run_script_inventory_ui.py`). Next: PIE possess (human).
+   (`run_script_inventory_ui.py`). **Runner quest + AutoSave — done same day**
+   (`run_script_quest_save.py`). Next: PIE possess (human).
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 

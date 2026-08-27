@@ -929,6 +929,11 @@ no door actor mechanics yet). Live `run_script_doors.py`, `Success - 0 error(s)`
 GiveItems / RemoveItems / DisplayMapHUDRegion / PrintClientMessage / SetQuestHint
 Request* wired in the runner. Live `run_script_inventory_ui.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner quest + AutoSave — done, 27 Aug 2026
+
+InitiateQuest / CompleteQuestObjective / CompleteQuest / FailQuest / AutoSave Request*
+wired. Live `run_script_quest_save.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

@@ -30,6 +30,11 @@
 #include "ShockActionDisplayMapHUDRegion.h"
 #include "ShockActionPrintClientMessage.h"
 #include "ShockActionSetQuestHint.h"
+#include "ShockActionInitiateQuest.h"
+#include "ShockActionCompleteQuest.h"
+#include "ShockActionCompleteQuestObjective.h"
+#include "ShockActionFailQuest.h"
+#include "ShockActionAutoSave.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -770,6 +775,46 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionSetQuestHint* QuestHint = Cast<UShockActionSetQuestHint>(Action))
 	{
 		QuestHint->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionInitiateQuest* InitQuest = Cast<UShockActionInitiateQuest>(Action))
+	{
+		InitQuest->RequestInitiate();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionCompleteQuestObjective* CompleteObj = Cast<UShockActionCompleteQuestObjective>(Action))
+	{
+		CompleteObj->RequestComplete();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionCompleteQuest* CompleteQuest = Cast<UShockActionCompleteQuest>(Action))
+	{
+		CompleteQuest->RequestComplete();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionFailQuest* FailQuest = Cast<UShockActionFailQuest>(Action))
+	{
+		FailQuest->RequestFail();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionAutoSave* AutoSave = Cast<UShockActionAutoSave>(Action))
+	{
+		AutoSave->RequestSave();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

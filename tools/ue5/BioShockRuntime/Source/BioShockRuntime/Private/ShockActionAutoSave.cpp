@@ -11,5 +11,10 @@ void UShockActionAutoSave::Configure(const FString& InCommand)
 }
 bool UShockActionAutoSave::RequestSave()
 {
-	return !Command.IsEmpty();
+	if (Command.IsEmpty())
+	{
+		return false;
+	}
+	LastSavedCommand = Command;
+	return true;
 }
