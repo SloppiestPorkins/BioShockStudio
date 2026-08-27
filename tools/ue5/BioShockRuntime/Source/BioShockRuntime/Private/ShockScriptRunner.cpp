@@ -64,6 +64,13 @@
 #include "ShockActionPlayHUD.h"
 #include "ShockActionStopHUD.h"
 #include "ShockActionSetMaterialSwitchIndex.h"
+#include "ShockActionTweakAIVision.h"
+#include "ShockActionTweakAIHearing.h"
+#include "ShockActionSetTipPriority.h"
+#include "ShockActionMuteAI.h"
+#include "ShockActionCinematicFadeView.h"
+#include "ShockActionChangeSkinAtIndex.h"
+#include "ShockActionAISpeech.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1106,6 +1113,62 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionSetMaterialSwitchIndex* MatSwitch = Cast<UShockActionSetMaterialSwitchIndex>(Action))
 	{
 		MatSwitch->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTweakAIVision* TweakVision = Cast<UShockActionTweakAIVision>(Action))
+	{
+		TweakVision->RequestTweak();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTweakAIHearing* TweakHearing = Cast<UShockActionTweakAIHearing>(Action))
+	{
+		TweakHearing->RequestTweak();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetTipPriority* TipPriority = Cast<UShockActionSetTipPriority>(Action))
+	{
+		TipPriority->RequestSet();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionMuteAI* MuteAI = Cast<UShockActionMuteAI>(Action))
+	{
+		MuteAI->RequestMute();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionCinematicFadeView* FadeView = Cast<UShockActionCinematicFadeView>(Action))
+	{
+		FadeView->RequestFade();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangeSkinAtIndex* ChangeSkin = Cast<UShockActionChangeSkinAtIndex>(Action))
+	{
+		ChangeSkin->RequestChangeSkin();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionAISpeech* AISpeech = Cast<UShockActionAISpeech>(Action))
+	{
+		AISpeech->RequestSpeech();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
