@@ -919,6 +919,11 @@ Day-to-day C++ rebuild: `tools/ue5/rebuild_runtime_fast.ps1` (HostProject UBT in
 Runner calls `RequestOpen` / `RequestClose` / `RequestLock` / `RequestUnlock` (record slice;
 no door actor mechanics yet). Live `run_script_doors.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner Teleport / Freeze / SetActorLabel — done, 27 Aug 2026
+
+`TeleportInWorld` (PawnLabel → MarkerLabel), `FreezeHavokActor.ApplyInWorld`,
+`SetActorLabel.ApplyInWorld`. Live `run_script_world_move.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

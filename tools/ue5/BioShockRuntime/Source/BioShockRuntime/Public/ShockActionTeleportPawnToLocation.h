@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionTeleportPawnToLocation.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionTeleportPawnToLocation`: move PawnLabel to MarkerLabel transform.
- * First slice records the teleport request; no pawn move yet.
+ * TeleportInWorld finds both by editor actor label and moves the pawn.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTeleportPawnToLocation : public UShockAction
@@ -38,4 +40,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestTeleport();
+
+	/** Find PawnLabel + MarkerLabel in World; teleport pawn to marker transform. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool TeleportInWorld(UWorld* World);
 };

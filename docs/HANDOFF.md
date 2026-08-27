@@ -23,8 +23,9 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
-**Recently released:** Phase 4 runner Open/Close/Lock/UnlockDoor Request* (`run_script_doors.py`);
-PlayAnimation + Log; `rebuild_runtime_fast.ps1` (~8–50s vs ~10 min BuildPlugin).
+**Recently released:** Phase 4 runner Teleport/Freeze/SetActorLabel by label
+(`run_script_world_move.py`); Open/Close/Lock/UnlockDoor; PlayAnimation + Log;
+`rebuild_runtime_fast.ps1`.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — nested
 If/Loop/For import, ActionBool testsOr stubs, ActionPropertyTest, ActionDisplayMapHUDRegion,

@@ -4,6 +4,7 @@
 #include "ShockActionFreezeHavokActor.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionFreezeHavokActor`: freeze/unfreeze a Havok actor.
@@ -40,4 +41,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find TargetLabel actors and ApplyToActor each. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

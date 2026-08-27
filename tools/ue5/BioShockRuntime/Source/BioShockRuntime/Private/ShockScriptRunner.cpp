@@ -22,6 +22,9 @@
 #include "ShockActionOpenDoor.h"
 #include "ShockActionCloseDoor.h"
 #include "ShockActionUnlockDoor.h"
+#include "ShockActionTeleportPawnToLocation.h"
+#include "ShockActionFreezeHavokActor.h"
+#include "ShockActionSetActorLabel.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -683,6 +686,45 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionUnlockDoor* UnlockDoor = Cast<UShockActionUnlockDoor>(Action))
 	{
 		UnlockDoor->RequestUnlock();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTeleportPawnToLocation* Teleport = Cast<UShockActionTeleportPawnToLocation>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Teleport->TeleportInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionFreezeHavokActor* Freeze = Cast<UShockActionFreezeHavokActor>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Freeze->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetActorLabel* SetLabel = Cast<UShockActionSetActorLabel>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		SetLabel->ApplyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

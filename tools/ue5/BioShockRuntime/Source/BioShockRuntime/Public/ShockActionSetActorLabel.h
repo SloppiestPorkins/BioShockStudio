@@ -4,6 +4,7 @@
 #include "ShockActionSetActorLabel.generated.h"
 
 class AActor;
+class UWorld;
 
 /**
  * UnrealScript `ActionSetActorLabel`: rename ActorLabel → NewLabel.
@@ -34,4 +35,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** Find ActorLabel and ApplyToActor (rename to NewLabel). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
