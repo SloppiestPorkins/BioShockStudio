@@ -41,7 +41,8 @@ InitiateCompleteFailQuest/AutoSave/DealDamage/ChangeLevel/Crouch/DisableMove/
 DealDamageInRadius/ApplyImpulse/StartStopTimer/Console/ChangeMesh/
 SetAIState/Ragdoll/SpawnPickup/SpawnTurret/AssertRetractFact/ForceMove/TellAI/
 SetLightProperties/ChangeCollision/SecurityAlarm/HUD/Hack/MaterialSwitch/
-TweakAIVision/Hearing/SetTipPriority/MuteAI/CinematicFade/ChangeSkin/AISpeech by label.
+TweakAIVision/Hearing/SetTipPriority/MuteAI/CinematicFade/ChangeSkin/AISpeech/
+PostMovementGoal/Concept/ScriptedSequence/WaitForGoal/InputContext/ChangePressure by label.
 PIE prep done (WASD/look/Fire + camera); **human:** open 1-Medical, Play, confirm possess.
 Rebuild: tools/ue5/rebuild_runtime_fast.ps1.
 Branch: main only.

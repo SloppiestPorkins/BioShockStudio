@@ -23,6 +23,8 @@ means no row is currently claimed, not that no one is working ? always check the
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
 
+| Cursor (this session) | **Phase 4: runner movement/goal/input batch** | `ShockScriptRunner.cpp`, `run_script_movement.py` | 27 Aug 2026 |
+
 **Recently released:** Phase 4 runner TweakAIVision/Hearing, SetTipPriority, MuteAI,
 CinematicFadeView, ChangeSkinAtIndex, AISpeech (`run_script_ai_tweak.py`). PIE possess still human Play.
 

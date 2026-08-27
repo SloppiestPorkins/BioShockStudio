@@ -978,6 +978,12 @@ TweakAIVision, TweakAIHearing, SetTipPriority, MuteAI, CinematicFadeView,
 ChangeSkinAtIndex, AISpeech Request* wired on `UShockScriptRunner`. Live
 `run_script_ai_tweak.py`, `Success - 0 error(s)`.
 
+### Phase 4 runner movement / goal / input — done, 27 Aug 2026
+
+PostMovementGoal, DisableOrEnableConcept, ControlScriptedSequence, WaitForGoal,
+SetOrUnsetInputContext, ChangePressure Request* wired. Live `run_script_movement.py`,
+`Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.

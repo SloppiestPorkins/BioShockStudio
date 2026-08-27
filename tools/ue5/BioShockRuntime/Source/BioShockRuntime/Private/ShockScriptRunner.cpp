@@ -71,6 +71,12 @@
 #include "ShockActionCinematicFadeView.h"
 #include "ShockActionChangeSkinAtIndex.h"
 #include "ShockActionAISpeech.h"
+#include "ShockActionPostMovementGoal.h"
+#include "ShockActionDisableOrEnableConcept.h"
+#include "ShockActionControlScriptedSequence.h"
+#include "ShockActionWaitForGoal.h"
+#include "ShockActionSetOrUnsetInputContext.h"
+#include "ShockActionChangePressure.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1169,6 +1175,54 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionAISpeech* AISpeech = Cast<UShockActionAISpeech>(Action))
 	{
 		AISpeech->RequestSpeech();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPostMovementGoal* PostGoal = Cast<UShockActionPostMovementGoal>(Action))
+	{
+		PostGoal->RequestPost();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDisableOrEnableConcept* Concept = Cast<UShockActionDisableOrEnableConcept>(Action))
+	{
+		Concept->RequestToggle();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionControlScriptedSequence* ScriptedSeq = Cast<UShockActionControlScriptedSequence>(Action))
+	{
+		ScriptedSeq->RequestControl();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionWaitForGoal* WaitGoal = Cast<UShockActionWaitForGoal>(Action))
+	{
+		WaitGoal->RequestWait();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetOrUnsetInputContext* InputCtx = Cast<UShockActionSetOrUnsetInputContext>(Action))
+	{
+		InputCtx->RequestContext();
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionChangePressure* Pressure = Cast<UShockActionChangePressure>(Action))
+	{
+		Pressure->RequestChange();
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

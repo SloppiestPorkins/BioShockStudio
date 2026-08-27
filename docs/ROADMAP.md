@@ -1445,7 +1445,8 @@ Current shape, in brief — see the linked doc for the full evidence behind each
    (`run_script_physics_timer.py`). **Runner AI/spawn/fact — done same day**
    (`run_script_ai_spawn.py`). **Runner light/collision + security/HUD — done same day**
    (`run_script_light_sec.py`). **Runner AI tweak/fade/speech — done same day**
-   (`run_script_ai_tweak.py`). Next: **human** PIE possess on 1-Medical.
+   (`run_script_ai_tweak.py`). **Runner movement/goal/input — done same day**
+   (`run_script_movement.py`). Next: **human** PIE possess on 1-Medical.
 
 ### Track B — UnrealScript bytecode / game-logic decoding
 
