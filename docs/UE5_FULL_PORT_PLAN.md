@@ -984,6 +984,13 @@ PostMovementGoal, DisableOrEnableConcept, ControlScriptedSequence, WaitForGoal,
 SetOrUnsetInputContext, ChangePressure Request* wired. Live `run_script_movement.py`,
 `Success - 0 error(s)`.
 
+### Phase 4 runner spawn / spotlight / world-AI — done, 27 Aug 2026
+
+ManipulateSpawnZoneRepopulation, SetMovableSpotlightTarget/State, WaitForQuestLogToFinish,
+ToggleAIReactions, DisplayOnScreenDebugMessage, SetPlayerInvincibility, SetAIPatrol,
+ChangePawnPhysics, SetPawnInvincibility, SetAINormalLODOverrideTime Request* wired. Live
+`run_script_world_ai.py`, `Success - 0 error(s)`.
+
 ### Phase 4 ActionDisplayMapHUDRegion stub — done, 27 Aug 2026
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.
