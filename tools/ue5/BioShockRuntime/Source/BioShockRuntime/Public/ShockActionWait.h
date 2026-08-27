@@ -25,6 +25,9 @@ public:
 	float WakeAtTime = -1.0f;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void Configure(float InSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void PrepareWait(float WorldTimeSeconds);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")

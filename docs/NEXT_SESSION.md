@@ -35,9 +35,8 @@ from the agent — handoff is write-the-prompt, not auto-spawn.
 
 ```
 @docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Phase 4 action census is complete (batch45 verified live, BooleanStatement tail).
-All 186 map-referenced action classes have UShockAction first slices + schema defaults.
-Next: wire actions into script execution / playable Medical slice (PIE possess unclaimed).
+Script runner first slice landed (verified live): linear Wait/If/Exit/Note/VarAssign.
+Next: BlockingExecuteScript parent/child, or Medical playable input (Fire mapping + PIE).
 Branch feature/fbx-materials-gui. Fast tier only unless diff hits shared decode.
 ```
 

@@ -7,6 +7,11 @@ UShockActionWait::UShockActionWait()
 	WakeAtTime = -1.0f;
 }
 
+void UShockActionWait::Configure(float InSeconds)
+{
+	Seconds = InSeconds;
+}
+
 void UShockActionWait::PrepareWait(float WorldTimeSeconds)
 {
 	WakeAtTime = WorldTimeSeconds + Seconds;

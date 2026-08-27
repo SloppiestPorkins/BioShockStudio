@@ -212,6 +212,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **68**, walk **450**. Editor `PlayerController.Possess` access-violates under `-unattended` — not
 claimed. Python does not run inside PIE, so pressing Play is still a human check.
 
+## Script runner (Phase 4 execution head)
+
+`UShockScriptRunner` is a first-slice stand-in for Scripting.U `Script` action lists: authored
+Actions → run queue; `TickExecution(WorldTime)` advances until blocked on `ActionWait` or finished.
+Handles Wait, If (expand branch), VariableAssign/Inc/Dec, ExitScript, ScriptNote.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_script_runner.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 27 Aug 2026 — `Success - 0 error(s)`.** Linear Wait + If true-branch
+verified. Not a level-placed Script actor; no message triggers / BlockingExecuteScript yet.
+
 ## ActionWait (Phase 4 head)
 
 `ActionWait` lives in **Scripting.U**, not ShockGame/ShockAI. One float `Seconds` (default 1).

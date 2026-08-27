@@ -825,6 +825,14 @@ Live `run_action_batch45.py`, `Success - 0 error(s)`.
 `UShockAction` (params + schema defaults + request-record; no script VM). Next: execution wiring /
 playable slice, not more census batches.
 
+### Phase 4 script runner first slice — done, 27 Aug 2026
+
+`UShockScriptRunner`: authored Actions → run queue; `TickExecution(WorldTime)` advances until
+blocked on `ActionWait` or finished. Handles Wait (latent), If (expand true/else into queue),
+VariableAssign/Inc/Dec, ExitScript, ScriptNote; unknown actions are stepped. Live
+`run_script_runner.py`, `Success - 0 error(s)`. Not a level-placed Script actor, no message
+triggers, no BlockingExecuteScript parent/child, no Loop.
+
 ### App-facing "export to UE5" workflow — deliberately not started
 
 Per §5 Phase 1 and §8: only add this once the command-line import reproduces cleanly on a fresh UE5

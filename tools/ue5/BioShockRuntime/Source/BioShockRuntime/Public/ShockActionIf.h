@@ -46,4 +46,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FString ChooseBranch();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	FString GetLastBranch() const { return LastBranch; }
 };
