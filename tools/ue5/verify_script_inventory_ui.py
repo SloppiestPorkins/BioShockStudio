@@ -32,10 +32,15 @@ def main(out):
         None, "/Script/BioShockRuntime.ShockActionSetQuestHint"
     )
 
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
+
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
     )
     script.configure("InvUiScript", "")
+    player = subsystem.spawn_actor_from_class(
+        player_cls, unreal.Vector(40, 0, 100), unreal.Rotator(0, 0, 0)
+    )
 
     give = unreal.new_object(give_cls)
     give.configure_inventory("Item.Ammo", 3)
@@ -68,8 +73,19 @@ def main(out):
         f.append("print %s" % print_msg.get_last_printed_text())
     if str(hint.get_last_hint_name()) != "LookNearDoor":
         f.append("hint %s" % hint.get_last_hint_name())
+    if player is None:
+        f.append("no ShockPlayer")
+    else:
+        stack = int(player.get_inventory_stack("Item.Ammo"))
+        if stack != 3:
+            f.append("inventory stack %s" % stack)
+        report["ammo_stack"] = stack
+    if int(give.get_last_applied_count()) != 1:
+        f.append("give applied %s" % give.get_last_applied_count())
     report["inventory_ui"] = "ok"
 
+    if player:
+        subsystem.destroy_actor(player)
     subsystem.destroy_actor(script)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

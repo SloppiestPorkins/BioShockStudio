@@ -795,7 +795,12 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionGiveItemsToPlayer* Give = Cast<UShockActionGiveItemsToPlayer>(Action))
 	{
-		Give->RequestGive();
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		Give->ApplyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

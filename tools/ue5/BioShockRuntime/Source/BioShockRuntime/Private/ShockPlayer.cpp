@@ -144,6 +144,26 @@ void AShockPlayer::LookUpAtRate(float Value)
 	AddControllerPitchInput(Value);
 }
 
+int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
+{
+	if (ItemClass.IsNone() || StackSize <= 0)
+	{
+		return 0;
+	}
+	int32& Count = InventoryStacks.FindOrAdd(ItemClass);
+	Count += StackSize;
+	return Count;
+}
+
+int32 AShockPlayer::GetInventoryStack(FName ItemClass) const
+{
+	if (const int32* Count = InventoryStacks.Find(ItemClass))
+	{
+		return *Count;
+	}
+	return 0;
+}
+
 void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);

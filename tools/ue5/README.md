@@ -476,16 +476,18 @@ SpawnedThug's `ScriptedAttackTarget` is Victim, on-sight label recorded, victim 
 
 ## ActionGiveItemsToPlayer (Phase 4 census #16)
 
-ShockGame.U via `ActionShockInventory`: ItemClass + StackSize (default **1**). `RequestGive`
-records the grant; no `AddStackToInventory` yet.
+ShockGame.U via `ActionShockInventory`: ItemClass + StackSize (default **1**). `ApplyInWorld`
+calls `ShockPlayer.AddStackToInventory` on the possessed pawn, or the first placed
+`ShockPlayer` when headless. No Item actors, no warning UI, no max-stack clamp.
+`ActionRemoveItemsFromPlayer` still only records.
 
 ```bash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
-    -script=tools\ue5\run_action_give_items.py -unattended -nopause -nosplash
+    -script=tools\ue5\run_script_inventory_ui.py -unattended -nopause -nosplash
 ```
 
-**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.** StackSize=1 from schema; grant
-PistolAmmo×12 recorded.
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** `Item.Ammo` ×3 lands on the
+placed ShockPlayer (`run_script_inventory_ui.py`).
 
 ## ActionChangeCollision (Phase 4 census #17)
 
