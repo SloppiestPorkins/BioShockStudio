@@ -3,6 +3,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "ShockGameMode.generated.h"
 
+class AShockPlayer;
+
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
 {
