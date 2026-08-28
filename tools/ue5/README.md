@@ -531,6 +531,23 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** WaitForGoal satisfied after
 PostMovementGoal `MoveToPoint`; player snapped to MoveMarker X=300.
 
+## Quests / timers / HUD / alarms / spawn-zone / spotlight / mesh
+
+`ApplyInWorld` writes quest state, timer seconds, HUD strings, alarm flags, spawn-zone
+aggressor, spotlight target/on, and a `ShockMesh_<name>` actor tag (no real mesh swap,
+no save file, no pathing, no Flash HUD). WaitForQuestLogToFinish completes immediately
+once the class name is stored.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_script_world_state.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** FindKey state 2 /
+objectives 1 / OtherQuest fail 3; ammo stack 2; spawn aggressor Enable; timer
+stopped `MyTimerScript`; ImpulseBox tagged `ShockMesh_SomeMesh`; alarm off after
+start+stop, last target Player; HUD not playing; SwitchMat index 2.
+
 ## Phase 4 census batches (through batch3)
 
 Later census head landed in batches to cut editor launches: BlockingExecuteScript through
