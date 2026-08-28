@@ -45,7 +45,7 @@ before deriving anything from bytes, and never fill an unknown field with a gues
 | UE5 import | **Full status moved to `docs/UE5_FULL_PORT_PLAN.md`, 25 Aug 2026** (§3, §3a, §9) — that document is now the canonical UE5 record. In brief: rigs verified for real in UE5.7 across every rig category the game ships; levels import with correct placement, materials, UV mapping and multi-material slots, verified live on `1-Medical`; level-placed characters now import as real animated `SkeletalMeshActor`s (25 Aug 2026). No app-facing UI yet. |
 | Bytecode / game-logic decode | **BioShock's own game logic is readable.** A working third-party decompiler (`tools/uelib-bridge/`) produces real UnrealScript source for 1,445 classes across 11 of 12 script packages, 0 failures, cross-validated against this project's own independent findings. See Track B in Part 2. |
 | Public site / CI | GitHub Pages project page live, deploy workflow committed. |
-| Tests | Full suite **550/550 passing** (measured 23 Aug 2026 at `9cb53b2`). See "Test health" below for the stamp and what has been run since. |
+| Tests | Full suite **599/599 passing** (Fast 269 at `fa2cb54` + Sweep 330, 28 Aug 2026). See "Test health" below for the stamp and what has been run since. |
 
 ---
 
@@ -1514,9 +1514,18 @@ dotnet test                         # both — the number to report
 
 ### Verification stamp — read this before running anything
 
-**Last full-suite run: 550/550 GREEN — 23 Aug 2026, 43m36s, at commit `9cb53b2`.**
-Supersedes the 546/550 red stamp taken earlier the same day at `9b2036f`, and the 464/464 at
-`1c2e4b2` before it.
+**Last full-suite run: 599/599 GREEN — 28 Aug 2026.** Fast tier **269/269** (2m06s) at `fa2cb54`;
+Sweep tier **330/330** (53m21s) run across `94b410e..fa2cb54` — a window with **zero `src/**/*.cs`
+or `tests/**/*.cs` churn** (all commits in it are `tools/ue5/**` + docs), so the two halves compose:
+269 + 330 = 599, tiers being mutually exclusive (`TierCoverageTests`). The sweep ran ~10min slower
+than its 43min baseline because a concurrent Cursor session was building the UE5 plugin throughout.
+
+Supersedes the 550/550 GREEN stamp of 23 Aug 2026 at `9cb53b2` (Fast was 249 then), the 546/550 red
+stamp at `9b2036f`, and the 464/464 at `1c2e4b2`.
+
+**`ROADMAP.md` Part 0.1 is closed by this run** — `DocumentedFiguresTests` and
+`DiagnosticsTests.AReportSaysHowMuchItExamined`, the tests that stamp named as failing, are green
+here (Sweep tier). The classification of what they caught is kept below.
 
 **The four failures that earlier stamp recorded are fixed and the fix is now confirmed at
 whole-suite level** (`43dcaaa`, `1782d3b`). What they were:
@@ -1566,33 +1575,15 @@ not be "fixed" without replacing that signal. **`SoundActorSchemaTests` (345) is
 different reason**: its scope reads as genuinely ambiguous rather than accidental, so narrowing it
 would be a guess about intent.
 
-**Measured after the 550/550 stamp, by name** — the tree has moved on since, and
-`docs/ENGINEERING_RULES.md` §60 says run what the diff could have touched, not everything:
-
-| Run | Result |
-|---|---|
-| `AudioExportTests` | **6/6** (2s) |
-| `SoundActorSpecificationCoverageTests` | **4/4** (4m06s) |
-| the seven bucket-fixed schema classes | **9/9** (1m03s) |
-| `--filter Tier=Fast` | **249/249** (53s) |
-| `EmitterTemplateCensusTests` | **1/1** (11s, all 161 packages) |
-| `EmitterTemplateFieldTests`, `EmitterTemplateCensusTests`, `EffectActorSchemaTests`, `LevelSceneTests` | **18/18** (1m23s) |
-| `--filter Tier=Fast` | **249/249** (1m01s) |
-| `~Level` + `~Export` | **96/96** (4m59s), then **99/99** (4m39s) after `MoverActorSchemaTests` |
-| `--filter Tier=Fast` | **249/249** (53s), re-confirmed after the mover decode |
-
-Those cover everything added since `9cb53b2`: the audio exporter (`Core/Export/AudioExporter.cs`),
-the sample locator (`Core/Audio/AudioSampleLocator.cs`), the rewritten sample-location census, the
-last bucket-filter fix (`9cebd5a`, test-only), and the new emitter census (`EmitterTemplateCensusTests`,
-test-only — no production code changed for it). No production code outside `Core/Audio` and
-`Core/Export` has moved since the stamp. **The whole suite has not been re-run since that commit** and is reported
-as such rather than as passing.
+**Since the `fa2cb54` stamp:** Cursor's lane is committing steadily to `tools/ue5/**` (Phase 4
+execution wiring) plus its own docs. None of that reaches `src/**` or `tests/**`, so the 599/599
+holds until a C# commit lands — at which point run what the diff touched, not the whole sweep.
 
 The recipe, which is a standing user instruction rather than a shortcut — see
 `docs/ENGINEERING_RULES.md` §60 "Test-run economy":
 
 ```bash
-git diff --stat 9cb53b2..HEAD                          # what could have moved since the stamp
+git diff --stat fa2cb54..HEAD                          # what could have moved since the stamp
 dotnet test --filter "FullyQualifiedName~<Class>"      # run only what that covers
 ```
 
