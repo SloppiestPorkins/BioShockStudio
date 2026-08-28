@@ -478,16 +478,16 @@ SpawnedThug's `ScriptedAttackTarget` is Victim, on-sight label recorded, victim 
 
 ShockGame.U via `ActionShockInventory`: ItemClass + StackSize (default **1**). `ApplyInWorld`
 calls `ShockPlayer.AddStackToInventory` on the possessed pawn, or the first placed
-`ShockPlayer` when headless. No Item actors, no warning UI, no max-stack clamp.
-`ActionRemoveItemsFromPlayer` still only records.
+`ShockPlayer` when headless. `ActionRemoveItemsFromPlayer` subtracts from the same map.
 
 ```bash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
-    -script=tools\ue5\run_script_inventory_ui.py -unattended -nopause -nosplash
+    -script=tools\ue5\run_script_player_ai_control.py -unattended -nopause -nosplash
 ```
 
-**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** `Item.Ammo` ×3 lands on the
-placed ShockPlayer (`run_script_inventory_ui.py`).
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** Give 3 / remove 1 → `ammo_stack` 2.
+Same launch also covers crouch, disable-move, concept Hack off, AI state 4, can-attack off,
+physics disabled (`script_player_ai_control_report.json`).
 
 ## ActionChangeCollision (Phase 4 census #17)
 
