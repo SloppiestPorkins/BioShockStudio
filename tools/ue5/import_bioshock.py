@@ -244,6 +244,7 @@ def _import_textures(rig, export_directory, destination, report=None):
 
     imported = []
     seen = {}
+    by_file = {}
 
     for entry in entries:
         source = os.path.join(export_directory, entry["file"].replace("/", os.sep))
@@ -257,6 +258,7 @@ def _import_textures(rig, export_directory, destination, report=None):
         stem = os.path.splitext(os.path.basename(source))[0]
         key = (stem, srgb)
         if key in seen:
+            by_file[entry["file"]] = seen[key]
             continue
 
         existed = _existed(f"{destination}/Textures/{stem}")
@@ -298,6 +300,7 @@ def _import_textures(rig, export_directory, destination, report=None):
         unreal.EditorAssetLibrary.save_loaded_asset(texture)
 
         seen[key] = texture
+        by_file[entry["file"]] = texture
         imported.append(texture)
         if report is not None:
             report["updated" if existed else "created"] += 1
@@ -307,7 +310,22 @@ def _import_textures(rig, export_directory, destination, report=None):
     _log(f"import report: {report['created']} created, {report['updated']} updated, "
          f"{report['skipped']} skipped, {report['unsupported']} unsupported")
     main.last_report = report
-    return imported
+    return imported, by_file
+
+
+def _resolve_imported_texture(entry, destination, imported_by_file):
+    """Prefer the Texture2D object this import pass just created over a disk reload.
+
+    A concurrent editor session can lock `.uasset` files (Windows error 32) so the import task
+    returns a valid texture while `save_loaded_asset` fails — reloading by path then yields None
+    and every wall material falls back to the white master default.
+    """
+    if imported_by_file:
+        texture = imported_by_file.get(entry["file"])
+        if texture is not None:
+            return texture
+    stem = os.path.splitext(os.path.basename(entry["file"]))[0]
+    return _load_if_exists("%s/Textures/%s" % (destination, stem))
 
 
 def _safe_name(value):
@@ -321,19 +339,100 @@ def _load_if_exists(path):
     return unreal.EditorAssetLibrary.load_asset(path) if _existed(path) else None
 
 
-def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None):
+def _material_texture_bindings(material, rig):
+    """Resolve diffuse/normal paths, including class-specific shader slots the JSON may omit."""
+    name = material["name"]
+    by_slot = {}
+    for entry in rig.get("textures") or []:
+        if entry["material"] == name:
+            by_slot[entry["slot"]] = entry["file"]
+
+    diffuse = material.get("diffuse")
+    if not diffuse:
+        for slot in ("WaterDiffuseMap", "AliveDiffuse", "FacingDiffuse", "EdgeDiffuse",
+                     "Diffuse", "DeadDiffuse", "Self"):
+            if slot in by_slot:
+                diffuse = by_slot[slot]
+                break
+
+    normal = material.get("normalMap")
+    if not normal:
+        for slot in ("NormalMap", "AliveNormalMap"):
+            if slot in by_slot:
+                normal = by_slot[slot]
+                break
+    return diffuse, normal, by_slot
+
+
+def _material_declares_alpha_texture(material, rig):
+    name = material.get("name")
+    for entry in rig.get("textures") or []:
+        if entry["material"] == name and entry.get("declaresAlphaTexture"):
+            return True
+    return False
+
+
+def _material_rendering_kind(material, rig):
+    """Map decoded BioShock material flags to a UE5 master-material variant.
+
+    OutputBlending ordinals are still UNKNOWN individually, but 2 and 3 are carried through as
+    translucent and additive rather than ignored. FluidShader surfaces are translucent by class.
+    Window-named shaders are a measured heuristic on Medical: they carry no OutputBlending flag
+    but render as glass in the shipped game.
+    """
+    class_name = material.get("className") or ""
+    name_lower = (material.get("name") or "").lower()
+
+    if material.get("masked"):
+        return "mask"
+    if _material_declares_alpha_texture(material, rig):
+        return "translucent"
+
+    output_blending = material.get("outputBlending")
+    if output_blending == 1:
+        return "translucent"
+    if output_blending == 2:
+        return "translucent"
+    if output_blending == 3:
+        return "additive"
+    if class_name in ("FluidShader", "FluidSurfaceShader"):
+        return "translucent"
+    if class_name in ("WindowShader", "LightBeamShader"):
+        return "translucent" if class_name == "WindowShader" else "additive"
+    if class_name == "Shader" and ("window" in name_lower or "glass" in name_lower):
+        return "translucent"
+    return "opaque"
+
+
+def _blend_mode_for_kind(kind):
+    if kind == "mask":
+        return unreal.BlendMode.BLEND_MASKED
+    if kind == "translucent":
+        return unreal.BlendMode.BLEND_TRANSLUCENT
+    if kind == "additive":
+        return unreal.BlendMode.BLEND_ADDITIVE
+    return unreal.BlendMode.BLEND_OPAQUE
+
+
+def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None, rig=None):
     """Create the small, shared graph every imported BioShock material instances.
 
-    Blend ordinals remain UNKNOWN, so only the independently decoded Masked flag affects blend
-    mode. Two-sidedness and masking are part of the master key because UE does not expose them as
-    ordinary instance parameters.
+    Masked, translucent and additive variants are separate masters so UE5 blend mode and opacity
+    wiring stay compile-time constants. Two-sidedness is part of the master key for the same reason.
     """
-    suffix = ("_Masked" if material.get("masked") else "_Opaque")
-    suffix += "_TwoSided" if material.get("twoSided") else ""
-    # Keep an authored-material-specific parent so its decoded textures are also valid compile-time
-    # defaults. UE 5.7 can resolve the instance override in Python while still rendering the white
-    # parent default on an imported skeletal mesh.
-    name = "M_BioShock_%s_%s%s_V4" % (
+    rig = rig or {}
+    kind = _material_rendering_kind(material, rig)
+    two_sided = bool(material.get("twoSided"))
+    name_lower = (material.get("name") or "").lower()
+    if kind == "translucent" and (
+            "window" in name_lower or "glass" in name_lower
+            or (material.get("className") or "") == "WindowShader"):
+        two_sided = True
+
+    suffix = "_%s" % kind
+    if two_sided:
+        suffix += "_TwoSided"
+    name = "M_BioShock_%s_%s%s_V5" % (
         _safe_name(material.get("className") or "Material"),
         _safe_name(material.get("name") or "Material"), suffix)
     path = "%s/Materials/Masters/%s" % (content_root, name)
@@ -345,21 +444,33 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     master = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         name, "%s/Materials/Masters" % content_root, unreal.Material, factory)
     if master is None:
+        # A previous partial import can leave the package on disk while `does_asset_exist` was
+        # false at the start of this call — unattended create_asset then refuses to overwrite.
+        master = _load_if_exists(path)
+    if master is None:
         raise RuntimeError("could not create master material %s" % path)
 
-    master.set_editor_property("two_sided", bool(material.get("twoSided")))
+    master.set_editor_property("two_sided", two_sided)
     master.set_editor_property("used_with_skeletal_mesh", True)
-    if material.get("masked"):
-        master.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    master.set_editor_property("used_with_static_mesh", True)
+    blend_mode = _blend_mode_for_kind(kind)
+    if blend_mode != unreal.BlendMode.BLEND_OPAQUE:
+        master.set_editor_property("blend_mode", blend_mode)
 
     edit = unreal.MaterialEditingLibrary
     base = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, -150)
     base.set_editor_property("parameter_name", "BaseColor")
     base.set_editor_property(
         "texture", diffuse_texture or _load_if_exists("/Engine/EngineResources/WhiteSquareTexture"))
-    edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
-    if material.get("masked"):
-        edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+    if kind == "additive":
+        edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+        edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY)
+    else:
+        edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+        if kind == "mask":
+            edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+        elif kind == "translucent":
+            edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY)
 
     normal = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 50)
     normal.set_editor_property("parameter_name", "Normal")
@@ -377,13 +488,13 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     return master
 
 
-def _create_material_instances(rig, destination, content_root):
+def _create_material_instances(rig, destination, content_root, imported_by_file=None):
     """Create/update one material instance per authored material, preserving slot order."""
+    imported_by_file = imported_by_file or {}
     textures = {}
     for entry in rig.get("textures") or []:
-        stem = os.path.splitext(os.path.basename(entry["file"]))[0]
-        textures[(entry["material"], entry["slot"])] = _load_if_exists(
-            "%s/Textures/%s" % (destination, stem))
+        textures[(entry["material"], entry["slot"])] = _resolve_imported_texture(
+            entry, destination, imported_by_file)
 
     instances = []
     for material in rig.get("materials") or []:
@@ -395,18 +506,20 @@ def _create_material_instances(rig, destination, content_root):
             instance = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
                 name, folder, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
         if instance is None:
+            instance = _load_if_exists(path)
+        if instance is None:
             raise RuntimeError("could not create material instance %s" % path)
 
         library = unreal.MaterialEditingLibrary
-        diffuse = material.get("diffuse")
-        normal = material.get("normalMap")
+        diffuse, normal, by_slot = _material_texture_bindings(material, rig)
         diffuse_texture = None
         normal_texture = None
         for (owner, slot), texture in textures.items():
             if owner != material["name"] or texture is None:
                 continue
-            file = next((e["file"] for e in rig["textures"]
-                         if e["material"] == owner and e["slot"] == slot), None)
+            file = by_slot.get(slot) or next(
+                (e["file"] for e in rig["textures"]
+                 if e["material"] == owner and e["slot"] == slot), None)
             if file == diffuse:
                 diffuse_texture = texture
             elif file == normal:
@@ -414,7 +527,8 @@ def _create_material_instances(rig, destination, content_root):
 
         instance.set_editor_property(
             "parent", _load_or_create_master(
-                material, content_root, diffuse_texture=diffuse_texture, normal_texture=normal_texture))
+                material, content_root, diffuse_texture=diffuse_texture,
+                normal_texture=normal_texture, rig=rig))
         if diffuse_texture is not None:
             library.set_material_instance_texture_parameter_value(instance, "BaseColor", diffuse_texture)
         if normal_texture is not None:
@@ -667,11 +781,13 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             # Almost certainly the SOCKET_ nulls; see the note at the top of this file.
             _log(f"WARNING: skeleton has {bones} bones, the export declares {rig['boneCount']}")
 
-        textures = _import_textures(rig, export_directory, destination, report)
-        if textures:
-            _log(f"  imported {len(textures)} texture(s) with declared intent")
+        imported_textures, imported_by_file = _import_textures(
+            rig, export_directory, destination, report)
+        if imported_textures:
+            _log(f"  imported {len(imported_textures)} texture(s) with declared intent")
 
-        materials = _create_material_instances(rig, destination, content_root)
+        materials = _create_material_instances(
+            rig, destination, content_root, imported_by_file)
         _assign_materials(mesh, materials)
         if materials:
             _log(f"  created/updated and assigned {len(materials)} material instance(s)")

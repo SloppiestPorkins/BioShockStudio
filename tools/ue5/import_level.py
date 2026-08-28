@@ -13,7 +13,12 @@ level safe.
 **What is and is not reproduced.** Lights become real `PointLight` actors: colour, authored
 `LightBrightness` as intensity (no candela conversion), `LightRadius` as attenuation radius,
 inverse-square falloff off so intensity stays a brightness scale. A light with no radius is not
-spawned — its reach is UNKNOWN. Geometry instances become `StaticMeshActor`/`SkeletalMeshActor`. `CubemapProbe` actors become
+spawned — its reach is UNKNOWN. **Drawable** geometry instances become `StaticMeshActor`/
+`SkeletalMeshActor`. **Gameplay volumes** (`TriggerVolume`, `BlockingVolume`, `FluidVolume`, …)
+become invisible UE5 volume actors sized from their brush OBJ bounds — never as visible meshes.
+**Source CSG brushes** (`kind: Brush` on a plain `Brush` actor) are omitted: their geometry is
+already in the single `BuiltWorld` instance, and placing them again would duplicate architecture
+(the studio viewer hides them for the same reason). `CubemapProbe` actors become
 `SphereReflectionCapture` at the probe position (influence radius left at the engine default —
 no shipped radius is decoded; UNKNOWN rather than guessed). Face PNGs import as `Texture2D`s
 tagged with declaration index; they are **not** packed into a `TextureCube` (face order UNKNOWN).
@@ -36,6 +41,7 @@ import unreal
 # same texture-import and material-instance code serves both paths. Both modules live in this
 # directory, which the caller must already have added to sys.path to import this one.
 import import_bioshock
+import import_policy
 
 SUPPORTED_FORMAT_VERSION = 4
 
@@ -399,11 +405,13 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
     if not materials:
         return {}
 
-    textures = import_bioshock._import_textures(manifest, manifest_dir, destination, report)
+    textures, imported_by_file = import_bioshock._import_textures(
+        manifest, manifest_dir, destination, report)
     if textures:
         _log("  imported %d texture(s) with declared intent" % len(textures))
 
-    instances = import_bioshock._create_material_instances(manifest, destination, content_root)
+    instances = import_bioshock._create_material_instances(
+        manifest, destination, content_root, imported_by_file)
     return {material["key"]: instance for material, instance in zip(materials, instances)}
 
 
@@ -426,6 +434,7 @@ def _assign_asset_material(mesh, asset, materials_by_key, report):
 
     static_materials = []
     resolved_any = False
+    resolved_slots = 0
     for index, section in enumerate(sections):
         slot = unreal.StaticMaterial()
         slot.set_editor_property("material_slot_name", unreal.Name("BioShock_%d" % index))
@@ -434,6 +443,7 @@ def _assign_asset_material(mesh, asset, materials_by_key, report):
         if material is not None:
             slot.set_editor_property("material_interface", material)
             resolved_any = True
+            resolved_slots += 1
 
         static_materials.append(slot)
 
@@ -443,6 +453,7 @@ def _assign_asset_material(mesh, asset, materials_by_key, report):
     mesh.set_editor_property("static_materials", static_materials)
     unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     report["materialsAssigned"] = report.get("materialsAssigned", 0) + 1
+    report["materialSlotsResolved"] = report.get("materialSlotsResolved", 0) + resolved_slots
 
 
 def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key=None):
@@ -496,6 +507,280 @@ def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials
     return meshes
 
 
+def _manifest_actor_classes(manifest):
+    return {entry["key"]: entry.get("className") or ""
+            for entry in manifest.get("actors") or []}
+
+
+def _manifest_asset_kinds(manifest):
+    return {entry["key"]: entry.get("kind") or ""
+            for entry in manifest.get("assets") or []}
+
+
+def _manifest_asset_names(manifest):
+    return {entry["key"]: entry.get("name") or ""
+            for entry in manifest.get("assets") or []}
+
+
+# BioShock corpse actors — policy lives in import_policy.py for unit tests outside the editor.
+_is_dead_body_actor = import_policy.is_dead_body_actor
+_uses_corpse_physics = import_policy.uses_corpse_physics
+_requires_skeletal_rig = import_policy.requires_skeletal_rig
+_dead_body_mesh_names = import_policy.dead_body_mesh_names
+_effective_rig_names = import_policy.effective_rig_names
+
+
+def _ensure_physics_asset(skeletal_mesh):
+    """Create and assign a PhysicsAsset when the rig import left the mesh without one."""
+    physics_asset = skeletal_mesh.get_editor_property("physics_asset")
+    if physics_asset is not None:
+        return physics_asset
+    subsystem = unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem)
+    physics_asset = subsystem.create_physics_asset(skeletal_mesh, True, 0)
+    if physics_asset is not None:
+        unreal.EditorAssetLibrary.save_loaded_asset(physics_asset)
+        unreal.EditorAssetLibrary.save_loaded_asset(skeletal_mesh)
+    return physics_asset
+
+
+def _configure_corpse_physics(actor, skeletal_mesh):
+    """Ragdoll containers simulate; bodies start asleep so the level does not collapse on load."""
+    physics_asset = _ensure_physics_asset(skeletal_mesh)
+    component = actor.skeletal_mesh_component
+    if physics_asset is not None:
+        component.set_physics_asset(physics_asset, True)
+    component.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
+    component.set_simulate_physics(True)
+    component.set_enable_gravity(True)
+    component.set_collision_profile_name("Ragdoll")
+    put_to_sleep = getattr(component, "put_all_rigid_bodies_to_sleep", None)
+    if put_to_sleep is not None:
+        put_to_sleep()
+
+
+def _is_non_drawn_volume(class_name):
+    """Gameplay regions the shipped game never renders — mirrors `ViewportItem.IsVolume`."""
+    if not class_name:
+        return False
+    return (class_name.endswith("Volume")
+            or class_name.endswith("Trigger")
+            or class_name.endswith("ZoneInfo")
+            or class_name.endswith("Zone"))
+
+
+def _should_place_mesh_instance(actor_class, asset_kind):
+    """Whether a manifest instance should become a visible mesh actor.
+
+    Gameplay volumes are placed separately by `_import_region_volumes`. Source CSG brushes are never
+    drawn in the shipped game — the compiled world already contains them.
+    """
+    if asset_kind == "Brush" and not _is_non_drawn_volume(actor_class):
+        return False
+    if _is_non_drawn_volume(actor_class):
+        return False
+    return True
+
+
+# Back-compat for verify scripts written against the interim skip-only policy name.
+_should_place_instance = _should_place_mesh_instance
+
+
+def _remove_owned_mesh(key, existing, report):
+    """Remove a visible mesh stand-in that a previous import wrongly placed on a non-drawn instance."""
+    actor = existing.get(key)
+    if actor is None:
+        return
+    if isinstance(actor, (unreal.StaticMeshActor, unreal.SkeletalMeshActor)):
+        _actor_subsystem().destroy_actor(actor)
+        existing.pop(key, None)
+        report["removed"] = report.get("removed", 0) + 1
+
+
+# UE2 volume class -> UE5 spawn class. TriggerBox is used for TriggerVolume because its box extent
+# is settable from Python; ATriggerVolume's brush builder is not. Collision semantics match.
+_VOLUME_SPAWN_CLASS = {
+    "TriggerVolume": ("TriggerBox", "TriggerVolume"),
+    "BlockingVolume": ("BlockingVolume",),
+    "PathBlockingVolume": ("BlockingVolume",),
+    "FluidVolume": ("PhysicsVolume",),
+    "CascadingWaterVolume": ("PhysicsVolume",),
+    "Volume": ("PhysicsVolume",),
+}
+
+
+def _resolve_volume_class(bio_class):
+    for name in _VOLUME_SPAWN_CLASS.get(bio_class, ()):
+        cls = getattr(unreal, name, None)
+        if cls is not None:
+            return cls
+    return None
+
+
+def _manifest_assets_by_key(manifest):
+    return {entry["key"]: entry for entry in manifest.get("assets") or []}
+
+
+def _instances_by_actor_key(manifest):
+    grouped = {}
+    for instance in manifest.get("instances") or []:
+        grouped.setdefault(instance["actorKey"], []).append(instance)
+    return grouped
+
+
+def _obj_local_bounds(obj_path):
+    """Axis-aligned bounds of an exported brush OBJ in its local space."""
+    mins = [float("inf"), float("inf"), float("inf")]
+    maxs = [-float("inf"), -float("inf"), -float("inf")]
+    found = False
+    with open(obj_path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.startswith("v "):
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+            mins[0] = min(mins[0], x)
+            mins[1] = min(mins[1], y)
+            mins[2] = min(mins[2], z)
+            maxs[0] = max(maxs[0], x)
+            maxs[1] = max(maxs[1], y)
+            maxs[2] = max(maxs[2], z)
+            found = True
+    if not found:
+        return None
+    return mins, maxs
+
+
+def _point_from_manifest_matrix(matrix, x, y, z):
+    """Row-major manifest matrix * column vector, matching `_decompose`'s convention."""
+    return unreal.Vector(
+        matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12],
+        matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13],
+        matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14])
+
+
+def _world_bounds_from_transform(matrix, local_mins, local_maxs):
+    corners = []
+    for sx in (local_mins[0], local_maxs[0]):
+        for sy in (local_mins[1], local_maxs[1]):
+            for sz in (local_mins[2], local_maxs[2]):
+                corners.append(_point_from_manifest_matrix(matrix, sx, sy, sz))
+    xs = [corner.x for corner in corners]
+    ys = [corner.y for corner in corners]
+    zs = [corner.z for corner in corners]
+    center = unreal.Vector(
+        (min(xs) + max(xs)) * 0.5,
+        (min(ys) + max(ys)) * 0.5,
+        (min(zs) + max(zs)) * 0.5)
+    half = unreal.Vector(
+        (max(xs) - min(xs)) * 0.5,
+        (max(ys) - min(ys)) * 0.5,
+        (max(zs) - min(zs)) * 0.5)
+    return center, half
+
+
+def _try_set_box_extent(actor, half_extent):
+    """Set half-extents on a box-shaped volume actor if the spawned class exposes one."""
+    for prop in ("collision_component", "brush_component", "root_component"):
+        try:
+            component = actor.get_editor_property(prop)
+        except Exception:
+            component = None
+        if component is None:
+            continue
+        setter = getattr(component, "set_box_extent", None)
+        if setter is not None:
+            setter(half_extent, False)
+            return True
+    return False
+
+
+def _volume_tags(entry):
+    tags = [unreal.Name(KEY_TAG_PREFIX + entry["key"]),
+            unreal.Name("BioShockClass=" + entry.get("className", ""))]
+    if entry.get("tag"):
+        tags.append(unreal.Name("BioShockTag=" + str(entry["tag"])))
+    region = entry.get("regionActor") or {}
+    triggered_by = region.get("triggeredBy")
+    if triggered_by:
+        tags.append(unreal.Name("BioShockTriggeredBy=" + str(triggered_by)))
+    if region.get("triggerOnlyOnce") is True:
+        tags.append(unreal.Name("BioShockTriggerOnlyOnce=1"))
+    if region.get("disabled") is True:
+        tags.append(unreal.Name("BioShockVolumeDisabled=1"))
+    return tags
+
+
+def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
+    """Place brush-backed gameplay volumes as invisible UE5 volume actors."""
+    assets = _manifest_assets_by_key(manifest)
+    instances = _instances_by_actor_key(manifest)
+
+    for entry in manifest.get("actors") or []:
+        class_name = entry.get("className") or ""
+        if not _is_non_drawn_volume(class_name) or class_name.endswith("ZoneInfo"):
+            continue
+
+        key = entry["key"]
+        handled.add(key)
+
+        spawn_class = _resolve_volume_class(class_name)
+        if spawn_class is None:
+            report["volumesUnsupported"] = report.get("volumesUnsupported", 0) + 1
+            continue
+
+        brush_instances = [
+            inst for inst in instances.get(key, [])
+            if assets.get(inst.get("asset"), {}).get("kind") == "Brush"]
+        if not brush_instances:
+            report["volumesSkipped"] = report.get("volumesSkipped", 0) + 1
+            continue
+
+        instance = brush_instances[0]
+        asset = assets.get(instance["asset"])
+        if asset is None or not asset.get("file"):
+            report["volumesSkipped"] = report.get("volumesSkipped", 0) + 1
+            continue
+
+        obj_path = os.path.join(manifest_dir, asset["file"].replace("/", os.sep))
+        bounds = _obj_local_bounds(obj_path)
+        if bounds is None:
+            report["volumesSkipped"] = report.get("volumesSkipped", 0) + 1
+            _log("volume %s: no OBJ bounds at %s" % (key, obj_path))
+            continue
+
+        center, half_extent = _world_bounds_from_transform(
+            instance["transform"], bounds[0], bounds[1])
+        _, rotation, _ = _decompose(instance["transform"])
+
+        actor = existing.get(key)
+        if actor is not None and not isinstance(actor, spawn_class):
+            _actor_subsystem().destroy_actor(actor)
+            actor = None
+
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(
+                spawn_class, center, rotation)
+            if actor is None:
+                report["volumesSkipped"] = report.get("volumesSkipped", 0) + 1
+                continue
+            report["created"] += 1
+            report["volumesPlaced"] = report.get("volumesPlaced", 0) + 1
+        else:
+            report["updated"] += 1
+            actor.set_actor_location(center, False, False)
+            actor.set_actor_rotation(rotation, False)
+
+        if not _try_set_box_extent(actor, half_extent):
+            # Fallback: scale the actor root when no box component API is exposed.
+            actor.set_actor_scale3d(half_extent)
+
+        actor.set_actor_label(entry.get("label") or entry.get("name") or key)
+        actor.tags = _volume_tags(entry)
+        existing[key] = actor
+
+
 def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root, rig_names=None):
     """Imports the FBX rig export-level wrote for each SkeletalMesh-kind asset (one directory per
     distinct mesh, `Rigs/<meshName>/ue5_manifest.json`, next to the level's own manifest), so
@@ -516,7 +801,14 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
     asset falls back to the bind-pose static mesh exactly as it does for a rig that failed to
     import. That is a deliberate narrowing for a thin slice, not a coverage claim -- the caller
     reports which names it asked for so a filtered run cannot read as a whole-level one.
+
+    Corpse placements are always unioned into that set — see `_effective_rig_names`.
     """
+    rig_names = _effective_rig_names(manifest, rig_names)
+    if rig_names is not None:
+        report["deadBodyRigs"] = sorted(_dead_body_mesh_names(manifest))
+        report["rigsRequested"] = sorted(rig_names)
+
     skeletal_meshes = {}
     for asset in manifest.get("assets") or []:
         if asset.get("kind") != "SkeletalMesh":
@@ -545,14 +837,32 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
 def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled):
     """Place every geometry instance as a StaticMeshActor carrying the asset's mesh -- or, for an
     instance whose asset has a successfully imported character rig, a SkeletalMeshActor instead."""
+    actor_classes = _manifest_actor_classes(manifest)
+    asset_kinds = _manifest_asset_kinds(manifest)
+
     for instance in manifest.get("instances") or []:
         key = "instance:" + instance["actorKey"] + ":" + instance["asset"]
         if key in handled:
             continue
         handled.add(key)
 
+        actor_class_name = actor_classes.get(instance["actorKey"], "")
+        asset_kind = asset_kinds.get(instance["asset"], "")
+        if not _should_place_mesh_instance(actor_class_name, asset_kind):
+            _remove_owned_mesh(key, existing, report)
+            report["meshInstancesSkipped"] = report.get("meshInstancesSkipped", 0) + 1
+            continue
+
+        asset_name = _manifest_asset_names(manifest).get(instance["asset"], "")
+        needs_skeletal = _requires_skeletal_rig(actor_class_name, asset_name)
         skeletal_mesh = skeletal_meshes.get(instance["asset"])
         static_mesh = meshes.get(instance["asset"])
+        if needs_skeletal and skeletal_mesh is None:
+            _remove_owned_mesh(key, existing, report)
+            report["unsupported"] += 1
+            _log("corpse placement %s: no skeletal rig for %s" % (instance["actorKey"], asset_name))
+            continue
+
         actor_class = unreal.SkeletalMeshActor if skeletal_mesh is not None else unreal.StaticMeshActor
 
         if skeletal_mesh is None and static_mesh is None:
@@ -584,6 +894,11 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
 
         if skeletal_mesh is not None:
             actor.skeletal_mesh_component.set_skeletal_mesh_asset(skeletal_mesh)
+            if _uses_corpse_physics(actor_class_name):
+                _configure_corpse_physics(actor, skeletal_mesh)
+                report["corpsesWithPhysics"] = report.get("corpsesWithPhysics", 0) + 1
+            elif needs_skeletal:
+                report["corpseSkeletalOnly"] = report.get("corpseSkeletalOnly", 0) + 1
         else:
             actor.static_mesh_component.set_static_mesh(static_mesh)
         actor.set_actor_scale3d(scale)
@@ -620,7 +935,11 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
         len(manifest.get("instances") or []),
         version))
 
-    report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0}
+    report = {
+        "created": 0, "updated": 0, "skipped": 0, "unsupported": 0,
+        "meshInstancesSkipped": 0, "volumesPlaced": 0, "volumesSkipped": 0,
+        "volumesUnsupported": 0,
+    }
     existing = _existing_by_key()
     _log("%d actor(s) already owned by a previous run" % len(existing))
 
@@ -646,14 +965,18 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
     _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)
+    _import_region_volumes(manifest, manifest_dir, existing, report, handled)
 
     if import_actors:
         _import_actors(manifest, existing, report, handled)
 
     _log("import report: %d created, %d updated, %d skipped, %d unsupported, "
-         "%d mesh(es) with a material assigned"
+         "%d mesh instance(s) not drawn, %d volume(s) placed, %d volume(s) skipped, "
+         "%d mesh(es) with a material assigned, %d material slot(s) resolved"
          % (report["created"], report["updated"], report["skipped"], report["unsupported"],
-            report.get("materialsAssigned", 0)))
+            report.get("meshInstancesSkipped", 0), report.get("volumesPlaced", 0),
+            report.get("volumesSkipped", 0), report.get("materialsAssigned", 0),
+            report.get("materialSlotsResolved", 0)))
 
     main.last_report = report
     return report
