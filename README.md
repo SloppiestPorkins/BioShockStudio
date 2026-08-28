@@ -1,4 +1,4 @@
-# BioShock 1 Remastered Model Studio
+# BioShock 1 Remastered Model Studio MESSAGE ME DISCORD @bio4554 (working on bioshock level editor)
 
 A Windows reverse-engineering and asset-extraction tool for **BioShock 1 Remastered only**, aimed at
 recovering skeletal meshes, skeletons, skinning, Havok animation data, materials, textures, whole
