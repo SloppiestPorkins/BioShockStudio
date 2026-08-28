@@ -24,6 +24,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
+| Claude Code | **Phase 2 data layer: extend level manifest (script graph / spawner config / zone membership / archetype refs)** — read-only recon until Cursor lands item 0, then implementation | `src/BioShockStudio.Core/Level/`, `src/BioShockStudio.Core/Assets/`, manifest exporter, `tests/` | 28 Aug 2026 |
 | Cursor (this session) | **Item 0: land uncommitted backlog** | working-tree diff | 28 Aug 2026 |
 
 **Recently released:** Game-mode possess on 1-Medical (`run_game_possess.py`).
