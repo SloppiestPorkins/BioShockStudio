@@ -4,7 +4,7 @@
     "stop": [
       {
         "command": "python .cursor/hooks/continue-phase4.py",
-        "loop_limit": 25
+        "loop_limit": 500
       }
     ]
   }

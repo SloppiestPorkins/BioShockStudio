@@ -7,7 +7,9 @@ import re
 import sys
 
 # Safety cap per conversation (hooks.json loop_limit is a second backstop).
-MAX_LOOPS = 25
+# Raised 28 Aug 2026 at the user's instruction — keep the Cursor lane grinding
+# through Phase 4 execution wiring without a manual restart every 25 turns.
+MAX_LOOPS = 500
 
 DEFAULT_FOLLOWUP = (
     "Keep going on the Cursor lane (docs/DUAL_AGENT_ROADMAP.md). The action census is COMPLETE "
