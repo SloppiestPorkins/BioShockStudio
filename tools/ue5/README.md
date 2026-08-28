@@ -459,15 +459,20 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 ## ActionAttackTarget (Phase 4 census #15)
 
-ShockAI.U: AILabel / TargetLabel / bAttackOnSight. `RequestAttack` records the order; no
-`ScriptedAttackTarget` / combat yet.
+ShockAI.U: AILabel / TargetLabel / bAttackOnSight. `ApplyInWorld` finds the first alive
+`ShockPawn` with TargetLabel, then every alive `BaseShockAI` with AILabel (editor label or
+`ScriptLabel`) and calls `ScriptedAttackTarget` or `AddTargetToAttackOnSight`. No sight cone,
+pathing, or weapons. `ApplyImmediateDamage` remains a playable-slice helper and is not what
+`execute()` does.
 
 ```bash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
-    -script=tools\ue5\run_action_attack.py -unattended -nopause -nosplash
+    -script=tools\ue5\run_script_spawn_attack.py -unattended -nopause -nosplash
 ```
 
-**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** `run_script_spawn_attack.py`:
+SpawnedThug's `ScriptedAttackTarget` is Victim, on-sight label recorded, victim health unchanged
+(this action orders an attack; it does not deal damage).
 
 ## ActionGiveItemsToPlayer (Phase 4 census #16)
 

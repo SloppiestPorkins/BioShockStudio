@@ -21,9 +21,30 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName AITypeName;
 
+	/** Last pawn passed to ScriptedAttackTarget. Not a combat state machine. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TObjectPtr<AShockPawn> CurrentScriptedAttackTarget;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TArray<FName> AttackOnSightLabels;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FName GetScriptLabel() const { return ScriptLabel; }
+
+	/** UnrealScript `ShockAI.ScriptedAttackTarget` — stores the target; no pathing/weapons yet. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void ScriptedAttackTarget(AShockPawn* Target);
+
+	/** UnrealScript `ShockAI.AddTargetToAttackOnSight` — records the label; no sight cone yet. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void AddTargetToAttackOnSight(FName InTargetLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	AShockPawn* GetScriptedAttackTarget() const { return CurrentScriptedAttackTarget; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool HasAttackOnSightLabel(FName InTargetLabel) const;
 };

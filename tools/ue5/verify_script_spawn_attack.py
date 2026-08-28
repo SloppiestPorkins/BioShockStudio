@@ -1,4 +1,4 @@
-"""Runner SpawnAI at labeled location + AttackTarget request."""
+"""Runner SpawnAI at labeled location + AttackTarget ScriptedAttackTarget."""
 
 import json
 import os
@@ -39,10 +39,13 @@ def main(out):
     spawn.configure("ThuggishSplicer", "SpawnPad", "SpawnedThug", 0.0, 0.0, True)
     attack = unreal.new_object(attack_cls)
     attack.configure("SpawnedThug", "Victim", False)
+    sight = unreal.new_object(attack_cls)
+    sight.configure("SpawnedThug", "Victim", True)
 
     runner = script.get_runner()
     runner.add_action(spawn)
     runner.add_action(attack)
+    runner.add_action(sight)
     if not runner.start_execution():
         f.append("StartExecution")
     runner.tick_execution(0.0)
@@ -54,14 +57,27 @@ def main(out):
         report["spawned"] = spawned.get_actor_label()
         if report["spawned"] != "SpawnedThug":
             f.append("label %s" % report["spawned"])
+        ordered = spawned.get_scripted_attack_target()
+        if ordered is None:
+            f.append("ScriptedAttackTarget not set")
+        elif ordered != victim:
+            f.append("ScriptedAttackTarget was %s" % ordered.get_actor_label())
+        if not bool(spawned.has_attack_on_sight_label("Victim")):
+            f.append("AddTargetToAttackOnSight Victim missing")
     if str(attack.get_last_requested_ai_label()) != "SpawnedThug":
         f.append("attack AI %s" % attack.get_last_requested_ai_label())
     if str(attack.get_last_requested_target_label()) != "Victim":
         f.append("attack target %s" % attack.get_last_requested_target_label())
+    if int(attack.get_last_applied_count()) != 1:
+        f.append("applied count %s" % attack.get_last_applied_count())
+    if int(sight.get_last_applied_count()) != 1:
+        f.append("sight applied count %s" % sight.get_last_applied_count())
     health_after = float(victim.get_current_health())
-    if health_after >= health_before:
-        f.append("expected damage health %s -> %s" % (health_before, health_after))
+    if health_after != health_before:
+        f.append("AttackTarget must not deal damage itself (%s -> %s)" % (
+            health_before, health_after))
     report["health"] = {"before": health_before, "after": health_after}
+    report["applied"] = int(attack.get_last_applied_count())
 
     if spawned:
         subsystem.destroy_actor(spawned)

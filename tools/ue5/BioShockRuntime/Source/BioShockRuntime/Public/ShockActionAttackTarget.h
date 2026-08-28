@@ -9,7 +9,9 @@ class UWorld;
 /**
  * UnrealScript `ActionAttackTarget` (ShockAI.U): tell AIs labeled AILabel to attack TargetLabel
  * (immediate ScriptedAttackTarget, or AddTargetToAttackOnSight when bAttackOnSight).
- * First slice records the request; no AI combat / label foreach yet.
+ *
+ * ApplyInWorld resolves the first alive ShockPawn with TargetLabel, then every alive BaseShockAI
+ * with AILabel (editor actor label or ScriptLabel). No sight cone, pathing, or weapons.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionAttackTarget : public UShockAction
@@ -37,6 +39,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bLastRequestedOnSight = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 LastAppliedCount = 0;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InAILabel, FName InTargetLabel, bool bInAttackOnSight);
 
@@ -58,21 +63,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool WasLastRequestedOnSight() const { return bLastRequestedOnSight; }
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 GetLastAppliedCount() const { return LastAppliedCount; }
+
 	/** Records the attack order. Returns false if either label is None. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestAttack();
 
 	/**
 	 * Playable-slice stand-in: records RequestAttack then ApplyAuthoredDamage on Target.
-	 * No label foreach / ScriptedAttackTarget.
+	 * Not what execute() does — that is ApplyInWorld.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyImmediateDamage(AShockPawn* Target, float DamageAmount);
 
 	/**
-	 * Records RequestAttack; if TargetLabel resolves to a ShockPawn, applies authored damage.
-	 * Returns true when the request was recorded (damage is best-effort).
+	 * UC execute(): first alive TargetLabel pawn, then each alive AILabel AI gets
+	 * ScriptedAttackTarget or AddTargetToAttackOnSight. Returns how many AIs were ordered.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
-	bool RequestAttackInWorld(UWorld* World, float DamageAmount = 1.0f);
+	int32 ApplyInWorld(UWorld* World);
+
+	/** @deprecated Use ApplyInWorld. Kept so older Python still binds. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool RequestAttackInWorld(UWorld* World, float DamageAmount = 0.0f);
 };

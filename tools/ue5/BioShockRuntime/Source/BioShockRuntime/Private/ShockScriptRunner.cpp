@@ -695,7 +695,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		{
 			World = OuterActor->GetWorld();
 		}
-		Attack->RequestAttackInWorld(World);
+		Attack->ApplyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
