@@ -160,7 +160,16 @@ before a working slice multiplies that class of problem by 21 maps.
    each naming its `Cubemap`).
 4. **Lighting.** 465+ lights per map already export with colour and brightness. **Mapped 25 Aug
    2026:** authored brightness as a scale (inverse-square off), authored radius as attenuation
-   radius, missing radius dropped. Not candelas, not `* 1000`. Falloff exponent still `UNKNOWN`.
+   radius, missing radius dropped. Not candelas, not `* 1000`.
+   **Falloff exponent — resolved 28 Aug 2026: there is no authored one.** A BioShock `Light` actor
+   carries `LightColor` / `LightBrightness` / `LightRadius` / `LightEffect` / `LightPeriod` /
+   `LightCone` / `LightType` and no spatial-falloff field (`properties 0-Lighthouse --class Light`,
+   and Nyko's SDK §C.6 lists the same set). UE2.5 point lights use an engine-fixed falloff, so
+   matching it in UE5 is a render-fidelity A/B against the running game, not a decode — and it is
+   dominated by lightmaps for the static look anyway. Recharacterised from `UNKNOWN` decode to
+   deferred render-match. **What *is* an open decode gap: `LightCone` (spot half-angle, 0–255),
+   `LightType`, and `LightEffect`+`LightPeriod` (flicker/waver animation) are not read yet** — see
+   §9, "Light decode is colour/brightness/radius only".
 
 ### Phase 2 — Build Layer B, the data layer (highest-value unbuilt work)
 
@@ -464,6 +473,24 @@ square off, unitless. Lights with no radius are not spawned. Verified on `1-Medi
 PointLights, 28 dropped, 0 errors.** `LightFalloffExponent` remains UE5's default 8 (`UNKNOWN`
 vs the game). This is not a claim that the level looks like BioShock — static look is still
 lightmaps.
+
+### Light decode is colour/brightness/radius only — gap found 28 Aug 2026
+
+Claude Code lane. `LevelLightReader` reads `LightColor`, `LightBrightness`, `LightRadius` and
+nothing else. Real `Light` actors (`properties 0-Lighthouse --class Light`) also carry:
+
+- **`LightCone`** — byte, spot cone half-angle (0–255 ≈ 0–180°). Seen 15, 220, 240 on three
+  Lighthouse lights alone. Every one of these imports to UE5 as an isotropic `PointLight` today —
+  every spotlight in the game loses its cone.
+- **`LightType`** — byte enum (`ELightType`). Unpinned against the reference.
+- **`LightEffect` + `LightPeriod`** — byte enum + byte (`ELightEffect`: torch waver, fire waver,
+  searchlight, pulse…) and its timing. BioShock's atmospheric flickering lights. Not read.
+
+**Falloff exponent is *not* on this list** — the game has no such field (see §5 Phase 1.4). This
+gap is the real Phase 1 lighting work: extend `LevelLightReader` + `LevelLightDocument` to carry
+cone/type/effect, pin the two enums against `bioshock1-bsm.md` / UModel, census the distribution,
+and give `import_level.py` enough to spawn `SpotLight`s and drive flicker. Manifest schema bump —
+coordinate the `LevelLightDocument` change with the Cursor lane's importer.
 
 ### Phase 0 vertical slice, asset half — done and saved to disk, 26 Aug 2026
 
