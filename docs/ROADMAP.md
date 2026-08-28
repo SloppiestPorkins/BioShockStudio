@@ -56,24 +56,24 @@ biggest risk right now isn't a missing decode — it's process debt accumulated 
 (UE5, audio, lightmaps, and soon bytecode) ran at once with two AI agents in one working tree. None
 of this is theoretical: every item below already caused a real incident this cycle.
 
-**0.1 — First thing to do: classify the 7 failing tests.** `DocumentedFiguresTests` and
-`DiagnosticsTests.AReportSaysHowMuchItExamined` are failing because the whole-game `diagnose`
-sweep's live counts have drifted from what `QUALITY.md` has written down — in code the lightmap and
-audio work this cycle both touch. This is exactly the failure mode `DocumentedFiguresTests` exists
-to catch, and the project has a documented history of this exact drift going unnoticed for a whole
-session when nobody looked (the "73.9%" figure, wrong in three places at once). Per
-`ENGINEERING_RULES.md` §24: find out whether the counts moved because something regressed or
-because something correctly improved, *before* touching either the code or the figure. Do this
-before starting anything in Part 2 — an unclassified red test is exactly the kind of thing that's
-easy to keep stepping around until it's unclear which of six weeks of changes caused it.
+~~**0.1 — First thing to do: classify the 7 failing tests.**~~ **Done — classified as a real
+regression and fixed, in two parts; see "Test health" below.** `DocumentedFiguresTests` (4 checks)
+and `DiagnosticsTests.AReportSaysHowMuchItExamined` were failing because the whole-game `diagnose`
+sweep silently examined 0 textures (`AssetDiagnostics.ScanExport` checked `IsMaterialClass` before
+the texture check, so every `Texture` fell into the Materials bucket) and, separately, always saw
+empty `geometry.Sections` on skeletal meshes (`ScanMesh` called the byte-only overload). Both fixed;
+`QUALITY.md` and `README.md` figures updated to what the sweep now correctly measures (base-colour
+coverage 96.4% → **96.8%**). The "Test health" verification stamp is the live record — read it
+before running anything. Per `ENGINEERING_RULES.md` §24, the classification (regression vs correct
+improvement) was done before either the code or the figures were touched.
 
-**0.2 — Commit in small, reviewed chunks instead of one running diff.** A single ~57-file, ~2,800
-insertion diff sat uncommitted in the working tree for over a week, spanning audio, lightmaps, UE5
-and GUI work simultaneously. `HANDOFF.md` already says "commit as you go in logical groups"; the
-practice hasn't matched it. No rollback point exists inside that week if something goes wrong —
-a bad `git clean`, an accidental hard reset, a crash mid-edit. Break the current backlog into
-logical commits (by track: audio, lightmaps, UE5 tooling, GUI) and keep future work landing that
-way rather than accumulating.
+**0.2 — Commit in small, reviewed chunks instead of one running diff.** **Standing practice, mostly
+held now.** The original incident: a ~57-file, ~2,800-insertion diff sat uncommitted for over a
+week. Since then work has landed in logical commits — the 28 Aug 2026 Cursor backlog (a ~1,000-line
+diff across UE5 tooling + import policy + one C# material fix) was split into six by-track commits
+the same session. Keep it that way: stage by filename, never `git add -A`, commit per track. The
+one recurring slip is `git add`-ing broadly enough to sweep another agent's in-progress edit into
+your commit — `ENGINEERING_RULES.md` §61 and the `HANDOFF.md` claim table exist to bound that.
 
 ~~**0.3 — Give the two concurrent agents (this session and ChatGPT) lanes.**~~ **Done, 19 Aug
 2026.** Went with the lighter option rather than a branch-per-track workflow: a branch scheme only
