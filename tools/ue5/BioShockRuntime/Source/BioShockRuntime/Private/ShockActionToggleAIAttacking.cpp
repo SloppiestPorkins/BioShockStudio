@@ -1,5 +1,7 @@
 #include "ShockActionToggleAIAttacking.h"
 
+#include "BaseShockAI.h"
+
 UShockActionToggleAIAttacking::UShockActionToggleAIAttacking()
 {
 	ActionClassName = TEXT("ActionToggleAIAttacking");
@@ -19,4 +21,19 @@ bool UShockActionToggleAIAttacking::RequestToggle()
 	}
 	LastAILabel = AILabel;
 	return true;
+}
+
+int32 UShockActionToggleAIAttacking::ApplyInWorld(UWorld* World)
+{
+	if (!RequestToggle())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->bCanAttack = bCanAttack;
+		++Applied;
+	}
+	return Applied;
 }

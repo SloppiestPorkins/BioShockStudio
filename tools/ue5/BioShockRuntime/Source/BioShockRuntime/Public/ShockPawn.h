@@ -3,6 +3,8 @@
 #include "GameFramework/Character.h"
 #include "ShockPawn.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ShockPawn` (super `VPawn`). Capsule radius, walk speed, jump and standing
  * collision height come from the Phase 2 schema JSON at apply-time — they are not authored in
@@ -39,6 +41,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bInvincible = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bPhysicsDisabled = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bRootMotionWhenPhysicsDisabled = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	void SetInvincible(bool bInInvincible) { bInvincible = bInInvincible; }
 
@@ -61,4 +69,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	bool IsDead() const { return bIsDead; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	void SetScriptedPhysicsDisabled(bool bDisable, bool bRootMotion);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	bool IsPhysicsDisabled() const { return bPhysicsDisabled; }
+
+	/** Editor actor label, or BaseShockAI ScriptLabel. C++ action helper only. */
+	static TArray<AShockPawn*> CollectLabeled(UWorld* World, FName Label);
 };

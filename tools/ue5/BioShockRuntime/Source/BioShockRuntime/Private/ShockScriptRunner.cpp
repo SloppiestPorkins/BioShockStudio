@@ -46,6 +46,7 @@
 #include "ShockActionRunConsoleCommand.h"
 #include "ShockActionChangeStaticMesh.h"
 #include "ShockActionSetAIState.h"
+#include "ShockActionToggleAIAttacking.h"
 #include "ShockActionRagdoll.h"
 #include "ShockActionSpawnPickup.h"
 #include "ShockActionSpawnTurret.h"
@@ -817,7 +818,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionRemoveItemsFromPlayer* Remove = Cast<UShockActionRemoveItemsFromPlayer>(Action))
 	{
-		Remove->RequestRemove();
+		Remove->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -910,7 +911,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionForcePlayerCrouch* Crouch = Cast<UShockActionForcePlayerCrouch>(Action))
 	{
-		Crouch->RequestCrouch();
+		Crouch->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -918,7 +919,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionDisablePlayerMovement* DisableMove = Cast<UShockActionDisablePlayerMovement>(Action))
 	{
-		DisableMove->RequestSet();
+		DisableMove->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -984,7 +985,15 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetAIState* AIState = Cast<UShockActionSetAIState>(Action))
 	{
-		AIState->RequestSet();
+		AIState->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionToggleAIAttacking* ToggleAttack = Cast<UShockActionToggleAIAttacking>(Action))
+	{
+		ToggleAttack->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1215,7 +1224,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionDisableOrEnableConcept* Concept = Cast<UShockActionDisableOrEnableConcept>(Action))
 	{
-		Concept->RequestToggle();
+		Concept->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1319,7 +1328,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionChangePawnPhysics* PawnPhysics = Cast<UShockActionChangePawnPhysics>(Action))
 	{
-		PawnPhysics->RequestChange();
+		PawnPhysics->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

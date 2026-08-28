@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetAIState.generated.h"
 
-/** UnrealScript `ActionSetAIState`. AIState kept as shipped ordinal (schema default 2). */
+class UWorld;
+
+/** UnrealScript `ActionSetAIState`. ApplyInWorld stores the ordinal on labeled BaseShockAI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetAIState : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

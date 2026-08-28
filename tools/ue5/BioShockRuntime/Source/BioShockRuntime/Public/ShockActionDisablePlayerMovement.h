@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionDisablePlayerMovement.generated.h"
 
-/** UnrealScript `ActionDisablePlayerMovement`. Records DisableMovement; no input gate yet. */
+class UWorld;
+
+/** UnrealScript `ActionDisablePlayerMovement`. ApplyInWorld disables CharacterMovement. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDisablePlayerMovement : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

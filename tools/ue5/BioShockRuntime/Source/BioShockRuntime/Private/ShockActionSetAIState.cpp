@@ -1,5 +1,7 @@
 #include "ShockActionSetAIState.h"
 
+#include "BaseShockAI.h"
+
 UShockActionSetAIState::UShockActionSetAIState()
 {
 	ActionClassName = TEXT("ActionSetAIState");
@@ -20,4 +22,19 @@ bool UShockActionSetAIState::RequestSet()
 	}
 	LastAILabel = AILabel;
 	return true;
+}
+
+int32 UShockActionSetAIState::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->ScriptedAIState = AIState;
+		++Applied;
+	}
+	return Applied;
 }

@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionChangePawnPhysics.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionChangePawnPhysics`: enable/disable pawn physics (+ root motion flag).
- * First slice records the request; no Physics mode change yet.
+ * ApplyInWorld sets CharacterMovement to MOVE_None when disabled.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionChangePawnPhysics : public UShockAction
@@ -38,4 +40,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestChange();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

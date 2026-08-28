@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionToggleAIAttacking.generated.h"
 
-/** UnrealScript `ActionToggleAIAttacking`. Records AILabel + bCanAttack; no combat yet. */
+class UWorld;
+
+/** UnrealScript `ActionToggleAIAttacking`. ApplyInWorld writes bCanAttack on labeled BaseShockAI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionToggleAIAttacking : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestToggle();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

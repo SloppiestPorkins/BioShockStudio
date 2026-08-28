@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionDisableOrEnableConcept.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDisableOrEnableConcept : public UShockAction
 {
@@ -34,4 +36,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestToggle();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

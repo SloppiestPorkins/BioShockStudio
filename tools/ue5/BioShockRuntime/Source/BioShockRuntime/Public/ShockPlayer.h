@@ -58,7 +58,28 @@ public:
 	int32 AddStackToInventory(FName ItemClass, int32 StackSize);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	int32 RemoveStackFromInventory(FName ItemClass, int32 StackSize);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	int32 GetInventoryStack(FName ItemClass) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetForcedCrouch(bool bShouldCrouch);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsForcedCrouch() const { return bForcedCrouch; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetMovementDisabled(bool bDisable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsMovementDisabled() const { return bMovementDisabled; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetConceptEnabled(FName ConceptName, bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsConceptEnabled(FName ConceptName) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetTipPriority(FName TipName, int32 Priority);
@@ -84,4 +105,13 @@ private:
 
 	UPROPERTY()
 	TMap<FName, int32> TipPriorities;
+
+	UPROPERTY()
+	TMap<FName, bool> ConceptEnabled;
+
+	UPROPERTY()
+	bool bForcedCrouch = false;
+
+	UPROPERTY()
+	bool bMovementDisabled = false;
 };

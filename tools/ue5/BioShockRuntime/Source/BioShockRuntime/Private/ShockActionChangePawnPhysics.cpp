@@ -1,5 +1,7 @@
 #include "ShockActionChangePawnPhysics.h"
 
+#include "ShockPawn.h"
+
 UShockActionChangePawnPhysics::UShockActionChangePawnPhysics()
 {
 	ActionClassName = TEXT("ActionChangePawnPhysics");
@@ -20,4 +22,19 @@ bool UShockActionChangePawnPhysics::RequestChange()
 	}
 	LastTargetLabel = TargetLabel;
 	return true;
+}
+
+int32 UShockActionChangePawnPhysics::ApplyInWorld(UWorld* World)
+{
+	if (!RequestChange())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (AShockPawn* Pawn : AShockPawn::CollectLabeled(World, TargetLabel))
+	{
+		Pawn->SetScriptedPhysicsDisabled(bDisablePhysics, bEnableRootMotionWhenPhysicsDisabled);
+		++Applied;
+	}
+	return Applied;
 }

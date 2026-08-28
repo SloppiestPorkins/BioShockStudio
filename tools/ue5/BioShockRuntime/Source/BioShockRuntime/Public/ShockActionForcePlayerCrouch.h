@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionForcePlayerCrouch.generated.h"
 
-/** UnrealScript `ActionForcePlayerCrouch`. Records crouch flag; no player duck yet. */
+class UWorld;
+
+/** UnrealScript `ActionForcePlayerCrouch`. ApplyInWorld calls Crouch/UnCrouch on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionForcePlayerCrouch : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestCrouch();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

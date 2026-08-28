@@ -48,6 +48,12 @@ public:
 	bool bToldToWait = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bCanAttack = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 ScriptedAIState = 2;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName PatrolName;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
@@ -100,6 +106,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	bool IsToldToWait() const { return bToldToWait; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool CanAttack() const { return bCanAttack; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	int32 GetScriptedAIState() const { return ScriptedAIState; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FName GetPatrolName() const { return PatrolName; }

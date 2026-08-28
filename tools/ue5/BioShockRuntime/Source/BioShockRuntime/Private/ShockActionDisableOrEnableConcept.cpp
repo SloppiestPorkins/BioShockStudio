@@ -1,5 +1,7 @@
 #include "ShockActionDisableOrEnableConcept.h"
 
+#include "ShockPlayer.h"
+
 UShockActionDisableOrEnableConcept::UShockActionDisableOrEnableConcept()
 {
 	ActionClassName = TEXT("ActionDisableOrEnableConcept");
@@ -20,4 +22,19 @@ bool UShockActionDisableOrEnableConcept::RequestToggle()
 	LastConceptName = ConceptName;
 	bLastEnable = bEnable;
 	return true;
+}
+
+int32 UShockActionDisableOrEnableConcept::ApplyInWorld(UWorld* World)
+{
+	if (!RequestToggle())
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetConceptEnabled(ConceptName, bEnable);
+	return 1;
 }

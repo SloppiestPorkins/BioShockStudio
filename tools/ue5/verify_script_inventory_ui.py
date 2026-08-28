@@ -77,11 +77,13 @@ def main(out):
         f.append("no ShockPlayer")
     else:
         stack = int(player.get_inventory_stack("Item.Ammo"))
-        if stack != 3:
+        if stack != 2:
             f.append("inventory stack %s" % stack)
         report["ammo_stack"] = stack
     if int(give.get_last_applied_count()) != 1:
         f.append("give applied %s" % give.get_last_applied_count())
+    if int(remove.get_last_applied_count()) != 1:
+        f.append("remove applied %s" % remove.get_last_applied_count())
     report["inventory_ui"] = "ok"
 
     if player:

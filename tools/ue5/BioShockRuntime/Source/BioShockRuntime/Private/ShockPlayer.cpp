@@ -118,7 +118,7 @@ void AShockPlayer::HandleFireInput()
 
 void AShockPlayer::MoveForward(float Value)
 {
-	if (Value == 0.0f || Controller == nullptr)
+	if (Value == 0.0f || Controller == nullptr || bMovementDisabled)
 	{
 		return;
 	}
@@ -128,7 +128,7 @@ void AShockPlayer::MoveForward(float Value)
 
 void AShockPlayer::MoveRight(float Value)
 {
-	if (Value == 0.0f || Controller == nullptr)
+	if (Value == 0.0f || Controller == nullptr || bMovementDisabled)
 	{
 		return;
 	}
@@ -157,6 +157,21 @@ int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 	return Count;
 }
 
+int32 AShockPlayer::RemoveStackFromInventory(FName ItemClass, int32 StackSize)
+{
+	if (ItemClass.IsNone() || StackSize <= 0)
+	{
+		return 0;
+	}
+	int32* Count = InventoryStacks.Find(ItemClass);
+	if (!Count)
+	{
+		return 0;
+	}
+	Count[0] = FMath::Max(0, Count[0] - StackSize);
+	return Count[0];
+}
+
 int32 AShockPlayer::GetInventoryStack(FName ItemClass) const
 {
 	if (const int32* Count = InventoryStacks.Find(ItemClass))
@@ -164,6 +179,61 @@ int32 AShockPlayer::GetInventoryStack(FName ItemClass) const
 		return *Count;
 	}
 	return 0;
+}
+
+void AShockPlayer::SetForcedCrouch(bool bShouldCrouch)
+{
+	bForcedCrouch = bShouldCrouch;
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->GetNavAgentPropertiesRef().bCanCrouch = true;
+	}
+	if (bShouldCrouch)
+	{
+		Crouch();
+	}
+	else
+	{
+		UnCrouch();
+	}
+}
+
+void AShockPlayer::SetMovementDisabled(bool bDisable)
+{
+	bMovementDisabled = bDisable;
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		if (bDisable)
+		{
+			Move->DisableMovement();
+		}
+		else
+		{
+			Move->SetMovementMode(MOVE_Walking);
+		}
+	}
+}
+
+void AShockPlayer::SetConceptEnabled(FName ConceptName, bool bEnable)
+{
+	if (ConceptName.IsNone())
+	{
+		return;
+	}
+	ConceptEnabled.FindOrAdd(ConceptName) = bEnable;
+}
+
+bool AShockPlayer::IsConceptEnabled(FName ConceptName) const
+{
+	if (ConceptName.IsNone())
+	{
+		return false;
+	}
+	if (const bool* Value = ConceptEnabled.Find(ConceptName))
+	{
+		return *Value;
+	}
+	return true;
 }
 
 void AShockPlayer::SetTipPriority(FName TipName, int32 Priority)
