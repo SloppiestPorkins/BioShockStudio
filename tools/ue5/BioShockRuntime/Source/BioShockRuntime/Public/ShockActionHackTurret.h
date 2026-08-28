@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionHackTurret.generated.h"
 
-/** UnrealScript `ActionHackTurret`. Records TurretLabel + SetHacked; no turret state yet. */
+class UWorld;
+
+/** UnrealScript `ActionHackTurret`. ApplyInWorld stores hacked flag on ShockPlayer by turret label. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionHackTurret : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestHack();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -3,9 +3,13 @@
 #include "ShockAction.h"
 #include "ShockActionSpawnPickup.generated.h"
 
+class AActor;
+class UWorld;
+
 /**
  * UnrealScript `ActionSpawnPickup` (via ActionSpawnActorAtActorLocation).
- * Records class / labels / stack; no pickup spawn yet.
+ * RequestSpawn records class / labels / stack. SpawnInWorld places a TargetPoint
+ * stand-in at the labeled actor — not a real pickup mesh or item grant.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSpawnPickup : public UShockAction
@@ -36,6 +40,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName LastTargetActorLabel;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TWeakObjectPtr<AActor> LastSpawnedActor;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(
 		FName InActorLabel,
@@ -52,5 +59,14 @@ public:
 	int32 GetStackSize() const { return StackSize; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* GetLastSpawnedActor() const { return LastSpawnedActor.Get(); }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSpawn();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* SpawnAtLocation(UObject* WorldContextObject, FVector Location);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	AActor* SpawnInWorld(UWorld* World);
 };

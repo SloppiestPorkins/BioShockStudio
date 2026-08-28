@@ -1,5 +1,7 @@
 #include "ShockActionHackTurret.h"
 
+#include "ShockPlayer.h"
+
 UShockActionHackTurret::UShockActionHackTurret()
 {
 	ActionClassName = TEXT("ActionHackTurret");
@@ -19,4 +21,19 @@ bool UShockActionHackTurret::RequestHack()
 	}
 	LastTurretLabel = TurretLabel;
 	return true;
+}
+
+int32 UShockActionHackTurret::ApplyInWorld(UWorld* World)
+{
+	if (!RequestHack() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetTurretHacked(TurretLabel, bSetHacked);
+	return 1;
 }

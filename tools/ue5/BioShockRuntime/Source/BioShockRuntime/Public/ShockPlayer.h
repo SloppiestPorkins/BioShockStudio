@@ -219,6 +219,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	float GetMaterialSwitchIndex(FName MaterialSwitch) const;
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetSecurityHacked(bool bHacked, float ShutdownTime);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsSecurityHacked() const { return bSecurityHacked; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetSecurityHackShutdownTime() const { return SecurityHackShutdownTime; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetTurretHacked(FName Turret, bool bHacked);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsTurretHacked(FName Turret) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetDoorBroken(FName Door, bool bBroken);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsDoorBroken(FName Door) const;
+
 	/** Possessed ShockPlayer, or the first placed one (editor/headless). */
 	static AShockPlayer* FindLocalOrFirst(UWorld* World);
 
@@ -315,4 +336,16 @@ private:
 
 	UPROPERTY()
 	TMap<FName, float> MaterialSwitchIndex;
+
+	UPROPERTY()
+	bool bSecurityHacked = false;
+
+	UPROPERTY()
+	float SecurityHackShutdownTime = 0.0f;
+
+	UPROPERTY()
+	TMap<FName, bool> TurretHacked;
+
+	UPROPERTY()
+	TMap<FName, bool> DoorBroken;
 };

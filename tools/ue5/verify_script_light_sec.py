@@ -118,10 +118,26 @@ def main(out):
         mat_index = float(player.get_material_switch_index("SwitchMat"))
         if mat_index != 2.0:
             f.append("player mat %s" % mat_index)
+        door_broken = bool(player.is_door_broken("DoorA"))
+        if not door_broken:
+            f.append("door not broken")
+        turret_hacked = bool(player.is_turret_hacked("TurretA"))
+        if not turret_hacked:
+            f.append("turret not hacked")
+        security_hacked = bool(player.is_security_hacked())
+        if not security_hacked:
+            f.append("security not hacked")
+        shutdown = float(player.get_security_hack_shutdown_time())
+        if abs(shutdown - 15.0) > 0.01:
+            f.append("security shutdown %s" % shutdown)
         report["alarm_on"] = alarm_on
         report["alarm_target"] = last_target
         report["hud_playing"] = hud_playing
         report["mat_index"] = mat_index
+        report["door_broken"] = door_broken
+        report["turret_hacked"] = turret_hacked
+        report["security_hacked"] = security_hacked
+        report["security_shutdown"] = shutdown
     report["light_sec"] = "ok"
 
     if player:

@@ -1,5 +1,7 @@
 #include "ShockActionSetDoorBrokenState.h"
 
+#include "ShockPlayer.h"
+
 UShockActionSetDoorBrokenState::UShockActionSetDoorBrokenState()
 {
 	ActionClassName = TEXT("ActionSetDoorBrokenState");
@@ -19,4 +21,19 @@ bool UShockActionSetDoorBrokenState::RequestSet()
 	}
 	LastDoorLabel = DoorLabel;
 	return true;
+}
+
+int32 UShockActionSetDoorBrokenState::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetDoorBroken(DoorLabel, bIsBroken);
+	return 1;
 }

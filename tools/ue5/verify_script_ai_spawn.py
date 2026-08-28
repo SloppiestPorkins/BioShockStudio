@@ -34,6 +34,14 @@ def main(out):
         unreal.StaticMeshActor, unreal.Vector(0, 0, 80), unreal.Rotator(0, 0, 0)
     )
     rag_target.set_actor_label("RagdollAI")
+    spawn_here = subsystem.spawn_actor_from_class(
+        unreal.TargetPoint, unreal.Vector(150, 0, 80), unreal.Rotator(0, 0, 0)
+    )
+    spawn_here.set_actor_label("SpawnHere")
+    turret_spawner = subsystem.spawn_actor_from_class(
+        unreal.TargetPoint, unreal.Vector(200, 0, 80), unreal.Rotator(0, 0, 0)
+    )
+    turret_spawner.set_actor_label("TurretSpawner")
 
     state = unreal.new_object(state_cls)
     state.configure("SomeAI", 3)
@@ -68,8 +76,26 @@ def main(out):
         f.append("ragdoll %s" % ragdoll.get_last_ai_label())
     if str(pickup.get_last_target_actor_label()) != "SpawnHere":
         f.append("pickup %s" % pickup.get_last_target_actor_label())
+    spawned_pickup = pickup.get_last_spawned_actor()
+    if spawned_pickup is None:
+        f.append("no spawned pickup")
+    else:
+        report["pickup_label"] = spawned_pickup.get_actor_label()
+        if report["pickup_label"] != "PickupA":
+            f.append("pickup label %s" % report["pickup_label"])
+        pickup_loc = spawned_pickup.get_actor_location()
+        if abs(float(pickup_loc.x) - 150.0) > 1.0:
+            f.append("pickup loc %s" % pickup_loc)
     if str(turret.get_last_spawner_label()) != "TurretSpawner":
         f.append("turret %s" % turret.get_last_spawner_label())
+    spawned_turret = turret.get_last_spawned_actor()
+    if spawned_turret is None:
+        f.append("no spawned turret")
+    else:
+        turret_loc = spawned_turret.get_actor_location()
+        if abs(float(turret_loc.x) - 200.0) > 1.0:
+            f.append("turret loc %s" % turret_loc)
+        report["turret_spawned"] = True
     if str(assert_f.get_last_slot1()) != "Quest":
         f.append("assert %s" % assert_f.get_last_slot1())
     if str(retract_f.get_last_slot1()) != "Quest":
@@ -82,6 +108,14 @@ def main(out):
         f.append("continue %s" % cont_ai.get_last_ai_label())
     report["ai_spawn"] = "ok"
 
+    spawned_pickup = pickup.get_last_spawned_actor()
+    if spawned_pickup:
+        subsystem.destroy_actor(spawned_pickup)
+    spawned_turret = turret.get_last_spawned_actor()
+    if spawned_turret:
+        subsystem.destroy_actor(spawned_turret)
+    subsystem.destroy_actor(turret_spawner)
+    subsystem.destroy_actor(spawn_here)
     subsystem.destroy_actor(rag_target)
     subsystem.destroy_actor(script)
 

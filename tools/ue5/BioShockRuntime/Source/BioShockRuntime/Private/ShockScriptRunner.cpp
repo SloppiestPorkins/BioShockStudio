@@ -1014,7 +1014,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSpawnPickup* Pickup = Cast<UShockActionSpawnPickup>(Action))
 	{
-		Pickup->RequestSpawn();
+		Pickup->SpawnInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1022,7 +1022,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSpawnTurret* Turret = Cast<UShockActionSpawnTurret>(Action))
 	{
-		Turret->RequestSpawn();
+		Turret->SpawnInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1112,7 +1112,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetDoorBrokenState* DoorBroken = Cast<UShockActionSetDoorBrokenState>(Action))
 	{
-		DoorBroken->RequestSet();
+		DoorBroken->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1120,7 +1120,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionHackTurret* HackTurret = Cast<UShockActionHackTurret>(Action))
 	{
-		HackTurret->RequestHack();
+		HackTurret->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1128,7 +1128,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionHackSecuritySystem* HackSec = Cast<UShockActionHackSecuritySystem>(Action))
 	{
-		HackSec->RequestHack();
+		HackSec->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

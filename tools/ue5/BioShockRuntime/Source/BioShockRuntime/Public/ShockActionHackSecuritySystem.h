@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionHackSecuritySystem.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionHackSecuritySystem : public UShockAction
 {
@@ -17,4 +19,6 @@ public:
 	float GetShutdownTime() const { return ShutdownTime; }
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestHack();
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

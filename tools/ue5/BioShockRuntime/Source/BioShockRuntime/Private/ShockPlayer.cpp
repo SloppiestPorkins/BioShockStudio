@@ -537,6 +537,48 @@ float AShockPlayer::GetMaterialSwitchIndex(FName MaterialSwitch) const
 	return -1.0f;
 }
 
+void AShockPlayer::SetSecurityHacked(bool bHacked, float ShutdownTime)
+{
+	bSecurityHacked = bHacked;
+	SecurityHackShutdownTime = bHacked ? ShutdownTime : 0.0f;
+}
+
+void AShockPlayer::SetTurretHacked(FName Turret, bool bHacked)
+{
+	if (Turret.IsNone())
+	{
+		return;
+	}
+	TurretHacked.FindOrAdd(Turret) = bHacked;
+}
+
+bool AShockPlayer::IsTurretHacked(FName Turret) const
+{
+	if (const bool* Value = TurretHacked.Find(Turret))
+	{
+		return *Value;
+	}
+	return false;
+}
+
+void AShockPlayer::SetDoorBroken(FName Door, bool bBroken)
+{
+	if (Door.IsNone())
+	{
+		return;
+	}
+	DoorBroken.FindOrAdd(Door) = bBroken;
+}
+
+bool AShockPlayer::IsDoorBroken(FName Door) const
+{
+	if (const bool* Value = DoorBroken.Find(Door))
+	{
+		return *Value;
+	}
+	return false;
+}
+
 AShockPlayer* AShockPlayer::FindLocalOrFirst(UWorld* World)
 {
 	if (!World)

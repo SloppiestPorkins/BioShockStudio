@@ -28,7 +28,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
-**Recently released:** quests/timers/HUD/alarms/spawn-zone/spotlight/mesh in-world (`fd107ec`, `run_script_world_state.py`, FindKey state 2 / OtherQuest fail 3 / ammo 2 / timer stopped / alarm off / `ShockMesh_SomeMesh`, `Success - 0 error(s)` 28 Aug 2026). sequence/goal/facts batch. player/AI control batch. AI-state batch. Give/RemoveItems. AttackTarget. Game-mode possess on 1-Medical.
+**Recently released:** SpawnPickup / SpawnTurret TargetPoint stand-ins + HackTurret / HackSecurity / SetDoorBrokenState on ShockPlayer (`run_script_ai_spawn.py` PickupA at SpawnHere, turret spawned; `run_script_light_sec.py` DoorA broken / TurretA hacked / security hacked 15s; `Success - 0 error(s)` 28 Aug 2026). quests/timers/HUD/alarms/spawn-zone/spotlight/mesh in-world (`fd107ec`). sequence/goal/facts batch. player/AI control batch. AI-state batch. Give/RemoveItems. AttackTarget. Game-mode possess on 1-Medical.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — world-AI
 runner; movement/goal. Older rows cleared.
