@@ -25,7 +25,8 @@ OUT = os.environ.get(
     r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\slice_report.json")
 
 # Phase 0's "one enemy archetype": the splicer `1-Medical` places most of. Every other skeletal
-# asset falls back to its bind-pose static mesh. Set to an empty string for every rig the level
+# asset falls back to its bind-pose static mesh unless it is a corpse — dead-body rigs are always
+# unioned in by import_level (see import_policy.py). Set to an empty string for every rig the level
 # places -- that is the honest whole-level run. A first import of an unstamped rig still pays
 # the animation cost; a second import of the same export reuses (`import_bioshock`).
 RIGS = os.environ.get("BIOSHOCK_SLICE_RIGS", "Agg_BabyJane")

@@ -27,6 +27,7 @@ import unreal
 
 import import_bioshock
 import import_level
+import import_policy
 
 # The arch this project already uses as its handedness canary: four abutting panels measure ~2422
 # units across when assembled and ~4295 when mirrored apart. Actor bounds are a looser proxy than
@@ -37,6 +38,7 @@ ARCH_ASSEMBLED_MAX_DIAGONAL = 3500.0
 # A scratch level to switch to before loading the saved one back. Without leaving the level first,
 # a "reload" would just hand back the in-memory actors this run spawned, which proves nothing.
 SCRATCH_MAP = "/Game/BioShockSlice/_Scratch"
+SCRATCH_PARENT = "/Game/BioShockSlice"
 
 
 def _log(message):
@@ -67,40 +69,86 @@ def _level_subsystem():
     return unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 
 
-def _place_weapon(rig_directory, content_root, report):
-    """Import one weapon rig and stand it in the level, tagged so the reload can find it.
+def _import_weapon_assets(rig_directory, content_root, report):
+    """Import one weapon rig into the content browser — do not spawn level actors at the origin.
 
-    The rig path is `import_bioshock.main` unchanged — the same one the pistol and TommyGun slices
-    already pass `verify_bioshock_import.py` on. What is new is only that the result is placed as an
-    actor in a level that then gets saved.
+    Earlier slices placed TommyGun/hand SkeletalMeshActors at (0,0) in the saved level, which is
+  what PIE showed as floating arms in the void. The GameMode equips the weapon on possess instead.
     """
     imported = import_bioshock.main(rig_directory, content_root=content_root)
     if not imported:
         raise RuntimeError("weapon rig %s imported no skeletal mesh" % rig_directory)
 
-    # Idempotent for the same reason import_level is: a second run into the saved level must update
-    # its own actors, not stack another copy of the weapon beside them.
-    existing = {}
+    meshes = [{"name": name, "asset": mesh.get_path_name()} for name, mesh in sorted(imported.items())]
+    report["weapon"] = {"directory": rig_directory, "meshes": meshes}
+    _log("weapon rig %s: %d mesh(es) imported to content" % (os.path.basename(rig_directory), len(meshes)))
+
+
+def _corpse_static_mesh_misuse(by_key, manifest):
+    """Corpse placements that reloaded as StaticMeshActor instead of SkeletalMeshActor."""
+    actor_classes = import_level._manifest_actor_classes(manifest)
+    asset_names = import_level._manifest_asset_names(manifest)
+    misuse = []
+    for key, actor in by_key.items():
+        if not key.startswith("instance:"):
+            continue
+        _, actor_key, asset = key.split(":", 2)
+        if not import_policy.requires_skeletal_rig(
+                actor_classes.get(actor_key, ""), asset_names.get(asset, "")):
+            continue
+        if isinstance(actor, unreal.StaticMeshActor):
+            misuse.append(key)
+    return misuse
+
+
+def _misplaced_non_drawn_meshes(by_key, manifest):
+    """Mesh actors that should not exist under the default non-drawn import policy."""
+    actor_classes = import_level._manifest_actor_classes(manifest)
+    asset_kinds = import_level._manifest_asset_kinds(manifest)
+    misplaced = []
+    for key, actor in by_key.items():
+        if not key.startswith("instance:"):
+            continue
+        _, actor_key, asset = key.split(":", 2)
+        if import_level._should_place_instance(
+                actor_classes.get(actor_key, ""), asset_kinds.get(asset, "")):
+            continue
+        if isinstance(actor, (unreal.StaticMeshActor, unreal.SkeletalMeshActor)):
+            misplaced.append(key)
+    return misplaced
+
+
+def _remove_stale_slice_weapon_actors():
+    """Drop weapon mesh actors a previous verify run saved at the world origin."""
+    removed = 0
     for actor in import_level._actor_subsystem().get_all_level_actors():
-        name = _tag_value(actor, "BioShockSliceWeapon=")
-        if name is not None:
-            existing[name] = actor
+        if _tag_value(actor, "BioShockSliceWeapon=") is not None:
+            import_level._actor_subsystem().destroy_actor(actor)
+            removed += 1
+    if removed:
+        _log("removed %d stale BioShockSliceWeapon actor(s) from the level" % removed)
 
-    placed = []
-    for offset, (name, mesh) in enumerate(sorted(imported.items())):
-        actor = existing.get(name)
-        if actor is None or not isinstance(actor, unreal.SkeletalMeshActor):
-            actor = import_level._actor_subsystem().spawn_actor_from_class(
-                unreal.SkeletalMeshActor, unreal.Vector(0.0, offset * 150.0, 0.0))
-        if actor is None:
-            raise RuntimeError("could not spawn a SkeletalMeshActor for weapon mesh %s" % name)
-        actor.skeletal_mesh_component.set_skeletal_mesh_asset(mesh)
-        actor.set_actor_label("BioShockSlice_%s" % name)
-        actor.tags = [unreal.Name("BioShockSliceWeapon=" + name)]
-        placed.append({"name": name, "asset": mesh.get_path_name()})
 
-    report["weapon"] = {"directory": rig_directory, "meshes": placed}
-    _log("weapon rig %s: %d mesh(es) placed" % (os.path.basename(rig_directory), len(placed)))
+def _ensure_content_folder(path):
+    """`new_level` fails when the parent `/Game/...` folder does not exist yet."""
+    if unreal.EditorAssetLibrary.does_directory_exist(path):
+        return
+    if not unreal.EditorAssetLibrary.make_directory(path):
+        raise RuntimeError("could not create content folder %s" % path)
+
+
+def _switch_to_scratch():
+    """Leave the slice level so the next `load_level` is a real disk round-trip."""
+    _ensure_content_folder(SCRATCH_PARENT)
+    level = _level_subsystem()
+    if unreal.EditorAssetLibrary.does_asset_exist(SCRATCH_MAP):
+        if level.load_level(SCRATCH_MAP):
+            return
+    if not level.new_level(SCRATCH_MAP):
+        raise RuntimeError(
+            "could not switch away to %s; the reload would prove nothing" % SCRATCH_MAP)
+    if not level.save_current_level():
+        _log("warning: scratch map %s did not save" % SCRATCH_MAP)
 
 
 def _open_slice_level(map_path):
@@ -111,6 +159,7 @@ def _open_slice_level(map_path):
     would throw that away and re-measure a first run every time.
     """
     level = _level_subsystem()
+    _ensure_content_folder(SCRATCH_PARENT)
     if unreal.EditorAssetLibrary.does_asset_exist(map_path):
         if not level.load_level(map_path):
             raise RuntimeError("existing level %s did not load" % map_path)
@@ -127,9 +176,7 @@ def _reloaded_actors(map_path):
     checked, because a `new_level` that quietly failed would turn this whole function into a
     self-fulfilling one.
     """
-    level = _level_subsystem()
-    if not level.new_level(SCRATCH_MAP):
-        raise RuntimeError("could not switch away to %s; the reload would prove nothing" % SCRATCH_MAP)
+    _switch_to_scratch()
 
     stranded = [actor for actor in import_level._actor_subsystem().get_all_level_actors()
                 if _tag_value(actor, import_level.KEY_TAG_PREFIX) is not None]
@@ -138,6 +185,7 @@ def _reloaded_actors(map_path):
             "%d imported actor(s) still present after switching levels; the editor did not leave "
             "the slice level" % len(stranded))
 
+    level = _level_subsystem()
     if not level.load_level(map_path):
         raise RuntimeError("saved level %s did not load back" % map_path)
     return import_level._actor_subsystem().get_all_level_actors()
@@ -257,16 +305,19 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
 
     level = _level_subsystem()
     _open_slice_level(map_path)
+    _remove_stale_slice_weapon_actors()
 
     # The weapon goes first because it is the cheap half. A stale weapon export (one predating
     # manifest texture intent, say) raises, and doing it after the level import means paying 24
     # minutes to reach the failure — which is exactly what happened the first time this ran.
     if weapon_directory:
-        _place_weapon(weapon_directory, weapon_content_root, report)
+        _import_weapon_assets(weapon_directory, weapon_content_root, report)
 
     report["import"] = import_level.main(
         manifest_path, content_root=content_root,
         character_content_root=character_content_root, rig_names=rig_names)
+    if report["import"].get("rigsRequested"):
+        report["rigsRequested"] = report["import"]["rigsRequested"]
 
     before_save, _, _ = _census(import_level._actor_subsystem().get_all_level_actors())
     report["beforeSave"] = before_save
@@ -282,6 +333,11 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
     report["skeletalSample"] = _skeletal_sample(by_key.values())
     report["arch"] = _arch_diagonal(by_key, manifest)
     report["weaponActorsAfterReload"] = len(weapon_actors)
+    report["misplacedNonDrawnMeshes"] = _misplaced_non_drawn_meshes(by_key, manifest)
+    report["corpseStaticMeshMisuse"] = _corpse_static_mesh_misuse(by_key, manifest)
+    report["volumeActorsAfterReload"] = sum(
+        by_class.get(name, 0)
+        for name in ("TriggerBox", "TriggerVolume", "BlockingVolume", "PhysicsVolume"))
 
     failures = []
 
@@ -306,9 +362,9 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
     if by_class.get("StaticMeshActor", 0) <= 0:
         failures.append("no StaticMeshActor survived the reload")
 
-    # The weapon is a SkeletalMeshActor too, so counting the class alone would pass on a level
-    # whose every character silently fell back to a bind-pose static mesh.
-    level_skeletal = by_class.get("SkeletalMeshActor", 0) - report["weaponActorsAfterReload"]
+    # The weapon is no longer spawned as a level actor (GameMode equips it on possess). Count only
+    # level-placed skeletal meshes when checking character coverage.
+    level_skeletal = by_class.get("SkeletalMeshActor", 0)
     report["levelSkeletalActors"] = level_skeletal
     if level_skeletal <= 0:
         failures.append("no level character reloaded as a SkeletalMeshActor")
@@ -326,8 +382,33 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
         failures.append("ceiling arch diagonal %.1f > %.1f — placement is mirrored, not assembled"
                         % (diagonal, ARCH_ASSEMBLED_MAX_DIAGONAL))
 
-    if weapon_directory and report["weaponActorsAfterReload"] <= 0:
-        failures.append("the weapon rig did not survive the reload")
+    if weapon_directory and not (report.get("weapon") or {}).get("meshes"):
+        failures.append("the weapon rig did not import any meshes into content")
+
+    misplaced = report["misplacedNonDrawnMeshes"]
+    if misplaced:
+        failures.append("%d non-drawn instance(s) still placed as mesh actors (e.g. %s)"
+                        % (len(misplaced), misplaced[0]))
+
+    corpse_misuse = report["corpseStaticMeshMisuse"]
+    if corpse_misuse:
+        failures.append("%d corpse placement(s) reloaded as StaticMeshActor (e.g. %s)"
+                        % (len(corpse_misuse), corpse_misuse[0]))
+
+    import_report = report.get("import") or {}
+    corpses_with_physics = import_report.get("corpsesWithPhysics", 0)
+    report["corpsesWithPhysics"] = corpses_with_physics
+    if corpses_with_physics <= 0:
+        failures.append("no DeadBodyContainer reloaded with corpse physics enabled")
+
+    expected_volumes = len([
+        actor for actor in (manifest.get("actors") or [])
+        if import_level._is_non_drawn_volume(actor.get("className") or "")
+        and not (actor.get("className") or "").endswith("ZoneInfo")])
+    report["expectedVolumes"] = expected_volumes
+    if report["volumeActorsAfterReload"] < min(expected_volumes, 1):
+        failures.append("no UE5 volume actors survived reload (expected up to %d)"
+                        % expected_volumes)
 
     report["failures"] = failures
     os.makedirs(os.path.dirname(os.path.abspath(report_path)), exist_ok=True)
