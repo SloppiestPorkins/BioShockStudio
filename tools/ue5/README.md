@@ -225,7 +225,8 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 ```
 
 **Measured live UE5.7, 27 Aug 2026 — `Success - 0 error(s)`.** ShockPlayer at MedicalStart
-(XY < 1 uu), `playable=1`. Editor viewport Play is still the human check for WASD/look/Fire feel.
+(XY < 1 uu), `playable=1`. **28 Aug:** also logs `BIOSHOCK_SLICE_OK` (BabyJane mesh on,
+hitscan 100→75). Editor viewport Play is still the human check for WASD/look/Fire feel.
 
 ## Script runner (Phase 4 execution head)
 

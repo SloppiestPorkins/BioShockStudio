@@ -3,6 +3,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "ShockGameMode.generated.h"
 
+class ABaseShockAI;
 class AShockPlayer;
 
 UCLASS()
@@ -20,4 +21,6 @@ public:
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
 	void EquipStarterWeapon(AShockPlayer* Player);
+	ABaseShockAI* SpawnSliceEnemy(AShockPlayer* Player, AActor* StartSpot);
+	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 };

@@ -34,7 +34,9 @@ bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direct
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponFire), false, InstigatorActor);
 	Params.AddIgnoredActor(this);
 
-	if (!World->LineTraceSingleByChannel(Hit, Start, End, ECC_Pawn, Params))
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	if (!World->LineTraceSingleByObjectType(Hit, Start, End, ObjectParams, Params))
 	{
 		return false;
 	}

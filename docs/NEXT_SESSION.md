@@ -39,24 +39,23 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Cursor lane, on main (push as you go). Item 0 landed at 4d2247e. AttackTarget,
-Give/RemoveItems, AI-state, player/AI control, sequence/goal/facts,
-quests/timers/HUD/alarms/spawn-zone/spotlight/mesh, and spawn-pickup/turret +
-hack/door-broken batches in-world landed 28 Aug (live Success - 0 error(s);
-world-state at fd107ec; pickup PickupA / turret spawned / DoorA / TurretA /
-security 15s this session).
+Cursor lane, on main (push as you go). Item 0 landed at 4d2247e.
+Phase 0 mechanical fire landed 28 Aug: ShockGameMode spawns SliceBabyJane
+(Agg_BabyJane mesh) 250 uu along MedicalStart +Y (`BIOSHOCK_SLICE_SPAWN`
+player Y=1272 → loc Y=1522); hitscan 100→75 (`BIOSHOCK_SLICE_OK fire=1`).
+Possess-prep `Rotator(0,90,0)` was roll/pitch/yaw (pitch=90); GameMode remaps
+that and `verify_possess.py` now uses named kwargs. TommyGun equipped (weapon=1).
+Human PIE feel is still the remaining Phase 0 bar — WASD/look/Fire in the
+editor viewport. Log evidence is not enough for that.
 The action census is COMPLETE — do NOT run more census batches.
 PlayAnimation (#12) still only records LastPlayedAnimation — skip until imported
-AnimSequences exist (Gate 5). ChangeCollision (#17) already ApplyInWorld.
-Skip Open/Close/Lock/UnlockDoor until door actors exist; skip ChangeSkin /
-CinematicFade / AISpeech until those systems exist. Skip ChangeLevel (dangerous).
-UnHackSecurity / SpawnSecurityBot still Request* only (not in the remaining-stub list).
-Next: Phase 0 human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon
-firing, one enemy that spawns and takes damage). Log evidence is not enough.
-Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
-Rebuild: UBT against BioShockUE5.uproject (PluginBuild/HostProject is currently missing;
-tools/ue5/rebuild_runtime_fast.ps1 will throw until it is re-seeded with RunUAT BuildPlugin).
-Lane split + interface contract: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
+AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors
+exist; skip ChangeSkin / CinematicFade / AISpeech; skip ChangeLevel (dangerous).
+Hitscan is pawn-object-type only (world static does not block). Not real ammo
+or fire anims.
+Rebuild: UBT against BioShockUE5.uproject (PluginBuild/HostProject is currently
+missing; tools/ue5/rebuild_runtime_fast.ps1 will throw until re-seeded).
+Lane split: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
 ```
 
 **What wastes time here**

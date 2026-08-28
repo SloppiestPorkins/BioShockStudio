@@ -51,12 +51,11 @@ has landed). Work items in order:
    them back via the claim table, rather than folding them into a UE5 commit.
 
 1. **Close Phase 0 — the playable slice.** The asset half is done (26 Aug 2026: `1-Medical` +
-   `Agg_BabyJane` + TommyGun into a saved `.umap`, verified from the reloaded level). The playable
-   half is not. Needed: a **human PIE check on `1-Medical`** — WASD / look / Fire feel, starter
-   weapon equipped and firing, one enemy archetype that spawns and takes damage. Log evidence
-   (`Success - 0 error(s)`, `run_game_possess.py`) is not enough here — [`ROADMAP.md`](ROADMAP.md)
-   Part 0.5 and this project's six-faults-in-one-session history are the argument for looking at the
-   screen.
+   `Agg_BabyJane` + TommyGun into a saved `.umap`, verified from the reloaded level). Mechanical
+   fire landed 28 Aug (GameMode spawns `SliceBabyJane`, hitscan 100→75). Remaining: a **human PIE
+   check on `1-Medical`** — WASD / look / Fire feel. Log evidence (`BIOSHOCK_SLICE_OK`,
+   `run_game_possess.py`) is not enough here — [`ROADMAP.md`](ROADMAP.md) Part 0.5 and this
+   project's six-faults-in-one-session history are the argument for looking at the screen.
 
 2. **Phase 4 execution wiring.** The census is **complete** — every `Action*` class referenced in
    the 21-map probe has a first-slice `UShockAction` (params + schema defaults + request-record),

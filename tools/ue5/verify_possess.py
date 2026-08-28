@@ -76,7 +76,8 @@ def _ensure_player_start():
     existing = _find_medical_player_start()
     if existing is not None:
         existing.set_actor_location(MEDICAL_START, False, True)
-        existing.set_actor_rotation(unreal.Rotator(0.0, MEDICAL_START_YAW, 0.0), False)
+        existing.set_actor_rotation(
+            unreal.Rotator(pitch=0.0, yaw=MEDICAL_START_YAW, roll=0.0), False)
         tags = list(existing.tags)
         if unreal.Name(PLAYER_START_TAG) not in tags:
             tags.append(unreal.Name(PLAYER_START_TAG))
@@ -86,7 +87,8 @@ def _ensure_player_start():
     start = _actors().spawn_actor_from_class(unreal.PlayerStart, MEDICAL_START)
     if start is None:
         raise RuntimeError("could not spawn PlayerStart")
-    start.set_actor_rotation(unreal.Rotator(0.0, MEDICAL_START_YAW, 0.0), False)
+    start.set_actor_rotation(
+        unreal.Rotator(pitch=0.0, yaw=MEDICAL_START_YAW, roll=0.0), False)
     start.set_actor_label("BioShock_MedicalStart")
     start.tags = [unreal.Name(PLAYER_START_TAG)]
     return start, True
@@ -143,7 +145,8 @@ def _spawn_apply_and_pilot(schema_path, report):
     pawn = subsystem.spawn_actor_from_class(player_class, MEDICAL_START)
     if pawn is None:
         raise RuntimeError("spawn ShockPlayer failed")
-    pawn.set_actor_rotation(unreal.Rotator(0.0, MEDICAL_START_YAW, 0.0), False)
+    pawn.set_actor_rotation(
+        unreal.Rotator(pitch=0.0, yaw=MEDICAL_START_YAW, roll=0.0), False)
 
     raw = unreal.ShockSchemaLibrary.apply_class_defaults(pawn, apply_schema, "ShockPlayer")
     apply = json.loads(raw) if isinstance(raw, str) else {"ok": False, "error": str(raw)}

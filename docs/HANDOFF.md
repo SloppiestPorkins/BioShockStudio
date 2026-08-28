@@ -24,8 +24,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor | **Phase 0 playable half:** spawn one Agg_BabyJane on 1-Medical at GameMode PostLogin; hitscan Fire must drop her health (`-bioshockverifypossess` log). Human PIE feel still required after this. | `tools/ue5/BioShockRuntime/**` (`ShockGameMode`), `tools/ue5/verify_game_possess.py`, `docs/NEXT_SESSION.md` | 28 Aug 2026 |
-| Claude Code | Light decode + additive manifest fields — **landed, released**. See interface note below. | `src/.../Level/LevelLight.cs`, `src/.../Export/LevelSceneExporter.cs`, `tests/` | 28 Aug 2026 |
+| Cursor | **Phase 0 human PIE** on `1-Medical`: WASD / look / Fire feel. Mechanical spawn+hitscan is in the working tree (this session), not a human-feel claim. | `tools/ue5/BioShockRuntime/**`, `docs/NEXT_SESSION.md` | 28 Aug 2026 |
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
@@ -37,7 +36,7 @@ means no row is currently claimed, not that no one is working ? always check the
 > change on that side first. A non-zero `cone` means "spawn a SpotLight"; `type`/`effect`/`period`
 > are raw bytes with low confidence — do not map them to UE enums without pinning first.
 
-**Recently released:** SpawnPickup / SpawnTurret TargetPoint stand-ins + HackTurret / HackSecurity / SetDoorBrokenState on ShockPlayer (`run_script_ai_spawn.py` PickupA at SpawnHere, turret spawned; `run_script_light_sec.py` DoorA broken / TurretA hacked / security hacked 15s; `Success - 0 error(s)` 28 Aug 2026). quests/timers/HUD/alarms/spawn-zone/spotlight/mesh in-world (`fd107ec`). sequence/goal/facts batch. player/AI control batch. AI-state batch. Give/RemoveItems. AttackTarget. Game-mode possess on 1-Medical.
+**Recently released:** Phase 0 mechanical fire on 1-Medical — GameMode spawns `SliceBabyJane` (Agg_BabyJane mesh) 250 uu along +Y (Y=1272→1522) and hitscan drops health 100→75 (`BIOSHOCK_SLICE_OK fire=1`, `-game -bioshockverifypossess`, 28 Aug 2026). Human PIE feel still open. SpawnPickup / SpawnTurret / HackTurret / HackSecurity / SetDoorBrokenState (`0292b99`). quests/timers/HUD/alarms (`fd107ec`). Possess at MedicalStart.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — world-AI
 runner; movement/goal. Older rows cleared.

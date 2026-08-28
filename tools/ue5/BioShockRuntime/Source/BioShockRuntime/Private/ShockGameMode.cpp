@@ -1,8 +1,10 @@
 #include "ShockGameMode.h"
+#include "BaseShockAI.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
 
 #include "Camera/CameraComponent.h"
+#include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -13,6 +15,23 @@
 #include "GameFramework/PlayerStart.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
+
+namespace
+{
+FRotator PlayableStartRotation(const AActor* Start)
+{
+	FRotator Look = Start ? Start->GetActorRotation() : FRotator::ZeroRotator;
+	// Python unreal.Rotator(0, 90, 0) is roll/pitch/yaw, so possess prep stored pitch=90.
+	if (FMath::IsNearlyZero(Look.Yaw, 1.0f)
+		&& FMath::IsNearlyEqual(FMath::Abs(Look.Pitch), 90.0f, 1.0f))
+	{
+		Look.Yaw = 90.0f;
+	}
+	Look.Pitch = 0.0f;
+	Look.Roll = 0.0f;
+	return Look;
+}
+}
 
 AShockGameMode::AShockGameMode()
 {
@@ -67,7 +86,7 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 
 	UWorld* World = Pawn->GetWorld();
 	FVector Loc = Start->GetActorLocation();
-	const FRotator Rot = Start->GetActorRotation();
+	const FRotator Rot = PlayableStartRotation(Start);
 
 	if (ACharacter* Character = Cast<ACharacter>(Pawn))
 	{
@@ -128,6 +147,110 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->EquipWeapon(Weapon);
 }
 
+ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* StartSpot)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		return nullptr;
+	}
+
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceBabyJane")))
+		{
+			return *It;
+		}
+	}
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+
+	FVector SpawnLoc = Player->GetActorLocation() + Forward * 250.0f;
+	SpawnLoc.Z = Player->GetActorLocation().Z;
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(
+		ABaseShockAI::StaticClass(),
+		SpawnLoc,
+		(-Forward).Rotation(),
+		Params);
+	if (!AI)
+	{
+		return nullptr;
+	}
+
+	AI->ConfigureIdentity(FName(TEXT("Agg_BabyJane")), FName(TEXT("SliceBabyJane")));
+	AI->EnsureHealthInitialized();
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_SPAWN loc=%s player=%s"),
+		*AI->GetActorLocation().ToString(),
+		*Player->GetActorLocation().ToString());
+	if (UCapsuleComponent* Capsule = AI->GetCapsuleComponent())
+	{
+		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		Capsule->SetCollisionObjectType(ECC_Pawn);
+		Capsule->SetCollisionResponseToAllChannels(ECR_Ignore);
+		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		Capsule->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		Capsule->SetCollisionResponseToChannel(ECC_Camera, ECR_Block);
+	}
+#if WITH_EDITOR
+	AI->SetActorLabel(TEXT("SliceBabyJane"));
+#endif
+
+	if (USkeletalMesh* MeshAsset = LoadObject<USkeletalMesh>(
+			nullptr,
+			TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
+	{
+		if (USkeletalMeshComponent* Body = AI->GetMesh())
+		{
+			Body->SetSkeletalMesh(MeshAsset);
+			Body->SetHiddenInGame(false);
+			Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+
+	return AI;
+}
+
+void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
+{
+	if (!Player || !Enemy)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_SLICE_FAIL reason=missing_actor"));
+		return;
+	}
+
+	const bool bMesh = Enemy->GetMesh() && Enemy->GetMesh()->GetSkeletalMeshAsset() != nullptr;
+	const float HealthBefore = Enemy->GetCurrentHealth();
+
+	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+	{
+		const FVector ToEnemy = Enemy->GetActorLocation() - Player->GetActorLocation();
+		PC->SetControlRotation(ToEnemy.Rotation());
+	}
+
+	const bool bFired = Player->TryFireEquippedWeapon();
+	const float HealthAfter = Enemy->GetCurrentHealth();
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_OK enemy=SliceBabyJane mesh=%d health_before=%.1f health_after=%.1f fire=%d"),
+		bMesh ? 1 : 0,
+		HealthBefore,
+		HealthAfter,
+		bFired ? 1 : 0);
+}
+
 void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
@@ -138,8 +261,19 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		if (AActor* Start = ChoosePlayerStart_Implementation(NewPlayer))
 		{
 			SnapPawnToStart(Pawn, Start);
+			NewPlayer->SetControlRotation(PlayableStartRotation(Start));
+			if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
+			{
+				EquipStarterWeapon(Player);
+				NewPlayer->SetViewTarget(Player);
+				ABaseShockAI* Enemy = SpawnSliceEnemy(Player, Start);
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
+				{
+					VerifySliceFire(Player, Enemy);
+				}
+			}
 		}
-		if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
+		else if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
 		{
 			EquipStarterWeapon(Player);
 			NewPlayer->SetViewTarget(Player);

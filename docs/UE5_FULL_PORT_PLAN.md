@@ -139,8 +139,10 @@ archetype has such a block, and they extract cleanly.
 are cheap.
 
 **The asset half is done, 26 Aug 2026** — `1-Medical` + `Agg_BabyJane` + the TommyGun, imported in
-one pass into a saved `.umap` and verified from the reloaded level; see §9's entry. *Playable* is
-untouched: it needs Phase 3's runtime, and nothing here is a claim about behaviour.
+one pass into a saved `.umap` and verified from the reloaded level; see §9's entry. **Mechanical
+fire landed 28 Aug 2026** (GameMode spawns `SliceBabyJane`, hitscan 100→75). Human PIE feel
+(WASD / look / Fire in the editor viewport) is still the remaining Phase 0 bar — log evidence is
+not enough.
 
 This project's own history is the argument. Every UE5 item worked on so far had a defect that only
 appeared when the pipeline was actually run: a manifest that did not carry texture intent, an
@@ -996,6 +998,18 @@ AxisMappings into the throwaway project's `DefaultInput.ini`. Live
 `ShockGameMode` chooses tagged `MedicalStart`, snaps pawn in `PostLogin`. Live
 `Success - 0 error(s)` — ShockPlayer at MedicalStart (XY < 1 uu), `playable=1`.
 Editor viewport Play remains the human check for WASD/look/Fire feel.
+
+### Phase 0 mechanical fire — spawn + hitscan, 28 Aug 2026
+
+`ShockGameMode::PostLogin` equips the TommyGun and spawns `SliceBabyJane` (`Agg_BabyJane` mesh)
+~250 uu along MedicalStart's flattened yaw (`AlwaysSpawn`). Possess-prep used to write
+`unreal.Rotator(0, 90, 0)` (roll/pitch/yaw), which stored pitch=90 and spawned the enemy
+on top of the player after Z was flattened; GameMode now remaps that to yaw 90, and
+`verify_possess.py` uses named kwargs. Hitscan is pawn-object-type only so BSP /
+BlockingVolumes do not eat the shot. Live `-game -bioshockverifypossess`:
+`BIOSHOCK_SLICE_OK enemy=SliceBabyJane mesh=1 health_before=100.0 health_after=75.0 fire=1`.
+Spawn offset re-verified the same run: `BIOSHOCK_SLICE_SPAWN` loc Y=1521.997 vs player
+Y=1271.997 (250 uu along +Y). Not ammo, not fire anims, not a human PIE claim.
 
 ### Phase 4 runner DealDamageInRadius / ApplyImpulse + timer / console / mesh — done, 27 Aug 2026
 

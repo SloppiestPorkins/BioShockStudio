@@ -9,7 +9,8 @@ class USkeletalMeshComponent;
 /**
  * UnrealScript class `Weapon` (super `Holdable`).
  * Playable-slice stand-in: hitscan FireAt that damages AShockPawn.CurrentHealth.
- * Not ammo, not projectile classes, not TommyGun mesh fire anims.
+ * Trace is pawn-object-type only (world static does not eat the shot). Not ammo,
+ * not projectile classes, not TommyGun mesh fire anims.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockWeapon : public AActor
