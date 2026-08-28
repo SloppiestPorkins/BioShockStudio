@@ -45,6 +45,40 @@ public sealed record LevelLight
     /// <summary><c>LightRadius</c>, in world units.</summary>
     public required float? Radius { get; init; }
 
+    /// <summary>
+    /// <c>LightCone</c>, a byte. Present on ~1/3 of the game's lights — a spotlight parameter: a
+    /// light that writes it casts a cone rather than a sphere. The byte-to-angle mapping is
+    /// <c>PLAUSIBLE</c> stock UE2.5 (aperture scaled to 0–255) but not pinned against BioShock's
+    /// own renderer, so this layer surfaces the raw byte and lets a consumer decide the angle.
+    /// Null when absent — an omnidirectional light.
+    /// </summary>
+    public byte? Cone { get; init; }
+
+    /// <summary>
+    /// <c>LightType</c>, a byte. Only written when it is not the class default (<c>LT_Steady</c>);
+    /// ~9% of lights write it. The observed values across the whole game — 0, 2, 3, 4, 5, 7, 9,
+    /// with 4 the most common — fit stock UE2.5 <c>ELightType</c> (the animated modes: pulse,
+    /// blink, flicker, strobe, subtle-pulse, texture-palette-loop), so a stock reading is
+    /// <c>PLAUSIBLE</c>; the enum is not confirmed against BioShock's own <c>Engine.U</c> (which
+    /// this project's decompiler cannot read). Raw byte, no name asserted.
+    /// </summary>
+    public byte? Type { get; init; }
+
+    /// <summary>
+    /// <c>LightEffect</c>, a byte. Written by ~1/5 of lights and — unlike a 20-value enum would be —
+    /// almost always exactly <c>2</c> (1,925 of 2,038 across the game; the rest are 1 or 3). The
+    /// stock UE2.5 <c>ELightEffect</c> reading (2 = <c>LE_FireWaver</c>) is contradicted by that
+    /// distribution, so the semantic is <c>UNKNOWN</c> — value 2 is most likely Vengeance's
+    /// repurposed "normal" light path. Surfaced raw so the fact that it is near-constant is visible.
+    /// </summary>
+    public byte? Effect { get; init; }
+
+    /// <summary>
+    /// <c>LightPeriod</c>, a byte. The timing/rate parameter for whichever animated <see cref="Type"/>
+    /// is set; spread across the full 0–255 range. Raw byte, <c>PLAUSIBLE</c> stock semantics.
+    /// </summary>
+    public byte? Period { get; init; }
+
     /// <summary>The actor's class — <c>Light</c>, <c>BathLight_8</c>, <c>DynamicLight_Camera</c>, …</summary>
     public string ClassName => Source.ClassName;
 
@@ -52,7 +86,11 @@ public sealed record LevelLight
         $"{ClassName} {Source.ObjectName} at {Location:0.#}"
         + (Color is { } c ? $" {c}" : "")
         + (Brightness is { } b ? $" ×{b:0.##}" : "")
-        + (Radius is { } r ? $" r{r:0}" : "");
+        + (Radius is { } r ? $" r{r:0}" : "")
+        + (Cone is { } cone ? $" cone{cone}" : "")
+        + (Type is { } t ? $" type{t}" : "")
+        + (Effect is { } e ? $" fx{e}" : "")
+        + (Period is { } p ? $" period{p}" : "");
 }
 
 /// <summary>A light's colour, as the eight-bit BGRA the game stores.</summary>
@@ -75,10 +113,11 @@ public static class LevelLightReader
     public static readonly IReadOnlySet<string> Properties = new HashSet<string>(StringComparer.Ordinal)
     {
         "LightColor", "LightBrightness", "LightRadius",
+        "LightCone", "LightType", "LightEffect", "LightPeriod",
     };
 
     /// <summary>
-    /// Builds a light from an actor, or null when the actor carries none of the three properties.
+    /// Builds a light from an actor, or null when the actor carries none of the light properties.
     /// </summary>
     /// <remarks>
     /// <b>Presence of a property, not the class name, decides.</b> The game ships many light classes
@@ -91,8 +130,13 @@ public static class LevelLightReader
         var color = actor.Properties.FirstOrDefault(p => p.Name == "LightColor");
         var brightness = actor.Properties.FirstOrDefault(p => p.Name == "LightBrightness");
         var radius = actor.Properties.FirstOrDefault(p => p.Name == "LightRadius");
+        var cone = actor.Properties.FirstOrDefault(p => p.Name == "LightCone");
+        var type = actor.Properties.FirstOrDefault(p => p.Name == "LightType");
+        var effect = actor.Properties.FirstOrDefault(p => p.Name == "LightEffect");
+        var period = actor.Properties.FirstOrDefault(p => p.Name == "LightPeriod");
 
-        if (color is null && brightness is null && radius is null) return null;
+        if (color is null && brightness is null && radius is null
+            && cone is null && type is null && effect is null && period is null) return null;
 
         return new LevelLight
         {
@@ -101,8 +145,20 @@ public static class LevelLightReader
             Color = color is not null ? ReadColor(color) : null,
             Brightness = brightness is not null ? ReadFloat(brightness) : null,
             Radius = radius is not null ? ReadFloat(radius) : null,
+            Cone = ReadByte(cone),
+            Type = ReadByte(type),
+            Effect = ReadByte(effect),
+            Period = ReadByte(period),
         };
     }
+
+    /// <summary>
+    /// A <c>Byte</c> tagged property, or null. A non-<c>Byte</c> type here means the package writes
+    /// some other encoding than the one seen across all 21 maps, and is reported as absent rather
+    /// than reinterpreted — the same rule <see cref="ReadFloat"/> applies to the float parameters.
+    /// </summary>
+    private static byte? ReadByte(UnrealProperty? property) =>
+        property is { Type: UnrealPropertyType.Byte, Value.Length: > 0 } ? property.Value[0] : null;
 
     /// <summary>
     /// An <c>FColor</c>: four bytes, <b>B G R A</b> in that order.

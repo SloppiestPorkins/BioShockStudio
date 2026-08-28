@@ -149,15 +149,21 @@ before a working slice multiplies that class of problem by 21 maps.
 
 ### Phase 1 — Finish Layer A (assets)
 
-1. **Level geometry as real UE5 meshes.** Today the BSP world exports as OBJ and the level importer
-   places `TargetPoint` placeholders where geometry should be. The single biggest visible gap.
-2. **Materials as UE5 material instances (rig slice verified).** The manifest v2 rig path now
-   generates authored-material parents and instances, binds base colour/normal textures, preserves
-   raw material provenance, and assigns them to the UE LOD section's actual slot index. Visually
-   verified on `WP_Pistol` in UE5.7. **Still open:** carry the same graph/instance path onto level
-   geometry; this is not evidence that BSP/static-mesh materials are finished.
-3. **Cubemaps as reflection captures**, using the `CubemapProbe` actors' positions (281 of them,
-   each naming its `Cubemap`).
+**Status as of 28 Aug 2026: Layer A is substantially done.** The item list below is the original
+plan; each item's real state is in §9's dated entries (`Phase 1.1`, `Phase 1.1 continued`,
+`Level-placed characters…`, the light entries). What genuinely remains is small and noted per item.
+
+1. **Level geometry as real UE5 meshes.** ~~OBJ + `TargetPoint` placeholders.~~ **Done** (§9
+   `Phase 1.1`, 24 Aug): the BSP world and placed static meshes import as real geometry with UV
+   mapping and per-section material groups, placement handedness fixed, verified live on `1-Medical`.
+2. **Materials as UE5 material instances.** ~~Rig slice only.~~ **Done for level geometry too** (§9
+   `Phase 1.1 continued`, 24 Aug): `LevelSceneExporter` resolves every distinct material a level's
+   sections use (455 materials / 1,179 bindings / 958 PNGs on `1-Medical`); `import_level.py` builds
+   real `MaterialInstanceConstant`s. **Still open:** a UE5 material *graph* (panner/timeline/switch
+   nodes) — the animator/sequence/switch values copy onto the manifest but nothing drives them yet.
+3. **Cubemaps as reflection captures.** **Mostly done** (§9, 25 Aug): 281 probes →
+   `SphereReflectionCapture`, face PNGs as `Texture2D`, live UE5.7 import clean. **Still open:** no
+   `TextureCube` assembly (face order `UNKNOWN`); influence radius is the engine default.
 4. **Lighting.** 465+ lights per map already export with colour and brightness. **Mapped 25 Aug
    2026:** authored brightness as a scale (inverse-square off), authored radius as attenuation
    radius, missing radius dropped. Not candelas, not `* 1000`.
@@ -167,9 +173,9 @@ before a working slice multiplies that class of problem by 21 maps.
    and Nyko's SDK §C.6 lists the same set). UE2.5 point lights use an engine-fixed falloff, so
    matching it in UE5 is a render-fidelity A/B against the running game, not a decode — and it is
    dominated by lightmaps for the static look anyway. Recharacterised from `UNKNOWN` decode to
-   deferred render-match. **What *is* an open decode gap: `LightCone` (spot half-angle, 0–255),
-   `LightType`, and `LightEffect`+`LightPeriod` (flicker/waver animation) are not read yet** — see
-   §9, "Light decode is colour/brightness/radius only".
+   deferred render-match. **`LightCone` / `LightType` / `LightEffect` / `LightPeriod` are now
+   decoded** (raw bytes, low confidence — `docs/research/lights.md`); the manifest still needs to
+   carry them so `import_level.py` can spawn `SpotLight`s. See §9.
 
 ### Phase 2 — Build Layer B, the data layer (highest-value unbuilt work)
 
@@ -474,23 +480,27 @@ PointLights, 28 dropped, 0 errors.** `LightFalloffExponent` remains UE5's defaul
 vs the game). This is not a claim that the level looks like BioShock — static look is still
 lightmaps.
 
-### Light decode is colour/brightness/radius only — gap found 28 Aug 2026
+### Light decode extended to cone/type/effect/period — decode half done 28 Aug 2026
 
-Claude Code lane. `LevelLightReader` reads `LightColor`, `LightBrightness`, `LightRadius` and
-nothing else. Real `Light` actors (`properties 0-Lighthouse --class Light`) also carry:
+Claude Code lane. `LevelLightReader` read `LightColor` / `LightBrightness` / `LightRadius` only;
+every spotlight and every flickering light in the game was importing as a plain isotropic
+`PointLight`. Now reads four more, as raw bytes with confidence deliberately low — full evidence and
+census in **`docs/research/lights.md`**, pinned by `LevelLightFieldTests` (Sweep):
 
-- **`LightCone`** — byte, spot cone half-angle (0–255 ≈ 0–180°). Seen 15, 220, 240 on three
-  Lighthouse lights alone. Every one of these imports to UE5 as an isotropic `PointLight` today —
-  every spotlight in the game loses its cone.
-- **`LightType`** — byte enum (`ELightType`). Unpinned against the reference.
-- **`LightEffect` + `LightPeriod`** — byte enum + byte (`ELightEffect`: torch waver, fire waver,
-  searchlight, pulse…) and its timing. BioShock's atmospheric flickering lights. Not read.
+- **`LightCone`** — 3,343 of 10,917 lights write a non-zero value (+22 an explicit `0`). "This is a
+  spotlight" is a solid signal; the byte→angle formula is `PLAUSIBLE` stock, not pinned.
+- **`LightType`** — 940 lights; values 0/2/3/4/5/7/9, all inside stock `ELightType`, never the
+  default `1`. Stock enum `PLAUSIBLE`, not confirmed (`Engine.U` won't decompile).
+- **`LightEffect`** — 2,040 lights, **1,927 write exactly `2`**. The near-constant rules out the
+  stock 20-value enum; semantic `UNKNOWN`.
+- **`LightPeriod`** — 1,085 lights, full 0–255 spread; animation timing, `PLAUSIBLE` stock.
 
-**Falloff exponent is *not* on this list** — the game has no such field (see §5 Phase 1.4). This
-gap is the real Phase 1 lighting work: extend `LevelLightReader` + `LevelLightDocument` to carry
-cone/type/effect, pin the two enums against `bioshock1-bsm.md` / UModel, census the distribution,
-and give `import_level.py` enough to spawn `SpotLight`s and drive flicker. Manifest schema bump —
-coordinate the `LevelLightDocument` change with the Cursor lane's importer.
+**Falloff exponent** was never on this list — the game has no such field (§5 Phase 1.4), now
+recorded as resolved.
+
+**Still to do (not decode):** the manifest half. `LevelLightDocument` still exports
+colour/brightness/radius only. Adding cone/type/effect/period is a schema bump — **coordinate with
+the Cursor lane's `import_level.py`**, which would then spawn `SpotLight`s and drive flicker.
 
 ### Phase 0 vertical slice, asset half — done and saved to disk, 26 Aug 2026
 

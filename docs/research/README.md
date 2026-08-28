@@ -33,6 +33,7 @@ Every claim in these documents carries a confidence label:
 | [effects.md](effects.md) | Particle emitters — the whole-game template census Gate 4 item 3's Niagara mapping has to be built against. |
 | [interaction.md](interaction.md) | Movers, doors and trigger wiring — `TriggeredBy` as the interaction object graph, door state, and what's deliberately deferred (keyframe paths, `TriggerOnlyByLabels`, plasmid/weapon effects). |
 | [bsp.md](bsp.md) | `Model` / `Polys` — the source brushes (decoded) and the built world (documented, not implemented). |
+| [lights.md](lights.md) | Placed `Light` actors — the seven parameters each carries, the whole-game census, and why the "falloff exponent" was a non-question. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [reference-comparison.md](reference-comparison.md) | **What each reference project says about the structures we read, field by field, and where they disagree.** Read before deriving anything from bytes. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |
