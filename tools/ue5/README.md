@@ -503,17 +503,18 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 
 ## ActionTweakAIVision / ActionTweakAIHearing (Phase 4 census #18–19)
 
-ShockAI.U sense toggles by AILabel. `RequestTweak` records on/off; no SetVisionState /
-SetHearingState yet.
+ShockAI.U sense toggles by AILabel. `ApplyInWorld` writes `bVisionOn` / `bHearingOn` /
+`bAlwaysSeePlayer` on labeled `BaseShockAI`. Same runner path now also mutes, waits/continues,
+sets patrol + movement-goal dest, toggles hit-reaction bytes, and gates `ApplyAuthoredDamage`
+when SetPawn/PlayerInvincibility is on. Fade / ChangeSkin / AISpeech still record-only.
 
 ```bash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
-    -script=tools\ue5\run_action_tweak_vision.py -unattended -nopause -nosplash
-UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
-    -script=tools\ue5\run_action_tweak_hearing.py -unattended -nopause -nosplash
+    -script=tools\ue5\run_script_ai_tweak.py -unattended -nopause -nosplash
 ```
 
-**Measured live UE5.7, 26 Aug 2026 — `Success - 0 error(s)`.**
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** Report
+`pawn_health` stayed 100 after 40 authored damage on an invincible splicer.
 
 ## Phase 4 census batches (through batch3)
 

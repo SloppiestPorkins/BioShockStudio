@@ -39,14 +39,17 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Cursor lane, on main (push as you go). Item 0 landed at 4d2247e. ActionAttackTarget and
-ActionGiveItemsToPlayer in-world landed 28 Aug (live Success - 0 error(s)).
+Cursor lane, on main (push as you go). Item 0 landed at 4d2247e. AttackTarget,
+GiveItems, and the AI-state batch (vision/hearing/mute/wait/patrol/goal/reactions/
+invinc/tip) in-world landed 28 Aug (live Success - 0 error(s)).
 The action census is COMPLETE — do NOT run more census batches.
 Next: execution wiring. PlayAnimation (#12) still only records LastPlayedAnimation — skip
 until imported AnimSequences exist (Gate 5). ChangeCollision (#17) already ApplyInWorld.
-Next stub: ActionTweakAIVision (#18), then TweakAIHearing (#19). Then Phase 0 human PIE
-check on 1-Medical (WASD/look/Fire feel, starter weapon firing, one enemy that spawns and
-takes damage).
+Next stubs: ActionRemoveItemsFromPlayer (inverse of GiveItems), then DisableOrEnableConcept
+(#29), ControlScriptedSequence (#30), WaitForGoal (#33). Skip Open/Close/Lock/UnlockDoor
+until door actors exist; skip ChangeSkin / CinematicFade / AISpeech until those systems exist.
+Then Phase 0 human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon firing,
+one enemy that spawns and takes damage).
 Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
 Rebuild: UBT against BioShockUE5.uproject (PluginBuild/HostProject is currently missing;
 tools/ue5/rebuild_runtime_fast.ps1 will throw until it is re-seeded with RunUAT BuildPlugin).
