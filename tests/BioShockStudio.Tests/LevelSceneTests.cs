@@ -643,6 +643,21 @@ public sealed class LevelSceneTests(GameFixture game)
             Assert.All(document.Lights, light =>
                 Assert.Contains(document.Actors, actor => actor.Key == light.Key
                                                        && actor.ExportIndex == light.ExportIndex));
+
+            // The four spot/animation fields survive the JSON round trip. Lighthouse has plenty of
+            // cone lights, so a zero count here means the exporter dropped them, not that the map
+            // lacks them.
+            Assert.Equal(
+                scene.Lights.Count(l => l.Cone is not null),
+                document.Lights.Count(l => l.Cone is not null));
+            Assert.Contains(document.Lights, l => l.Cone is > 0);
+            Assert.All(document.Lights.Zip(scene.Lights), pair =>
+            {
+                Assert.Equal(pair.Second.Cone, pair.First.Cone);
+                Assert.Equal(pair.Second.Type, pair.First.Type);
+                Assert.Equal(pair.Second.Effect, pair.First.Effect);
+                Assert.Equal(pair.Second.Period, pair.First.Period);
+            });
             Assert.NotEmpty(document.ActorCoverage);
             Assert.Equal(scene.Coverage!.ActorCount, document.ActorCoverage.Sum(row => row.ActorCount));
             var assetKinds = document.Assets.ToDictionary(asset => asset.Key, asset => asset.Kind);

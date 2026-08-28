@@ -24,9 +24,18 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude Code | **Phase 2.3 audit: what does the level manifest already carry vs the ask (script graph / spawner config / zone membership / archetype refs)?** Then reconcile ROADMAP Part 0.1 test stamp. | `docs/UE5_FULL_PORT_PLAN.md`, `docs/ROADMAP.md`, read-only across `src/BioShockStudio.Core/Export/LevelSceneExporter.cs` + `Level/` | 28 Aug 2026 |
+| Cursor | **Phase 0 playable half:** spawn one Agg_BabyJane on 1-Medical at GameMode PostLogin; hitscan Fire must drop her health (`-bioshockverifypossess` log). Human PIE feel still required after this. | `tools/ue5/BioShockRuntime/**` (`ShockGameMode`), `tools/ue5/verify_game_possess.py`, `docs/NEXT_SESSION.md` | 28 Aug 2026 |
+| Claude Code | Light decode + additive manifest fields — **landed, released**. See interface note below. | `src/.../Level/LevelLight.cs`, `src/.../Export/LevelSceneExporter.cs`, `tests/` | 28 Aug 2026 |
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
+
+> **Interface note — 28 Aug 2026, additive, non-breaking.** `LevelLightDocument` gained four
+> optional fields (`cone`, `type`, `effect`, `period`) from the new light decode
+> (`docs/research/lights.md`). **`LevelManifestVersion` is unchanged (still 4)** — the fields are
+> purely additive and `import_level.py`'s `version != SUPPORTED_FORMAT_VERSION` check still passes.
+> The Cursor lane can pick them up whenever it does `SpotLight` / flicker import; nothing needs to
+> change on that side first. A non-zero `cone` means "spawn a SpotLight"; `type`/`effect`/`period`
+> are raw bytes with low confidence — do not map them to UE enums without pinning first.
 
 **Recently released:** SpawnPickup / SpawnTurret TargetPoint stand-ins + HackTurret / HackSecurity / SetDoorBrokenState on ShockPlayer (`run_script_ai_spawn.py` PickupA at SpawnHere, turret spawned; `run_script_light_sec.py` DoorA broken / TurretA hacked / security hacked 15s; `Success - 0 error(s)` 28 Aug 2026). quests/timers/HUD/alarms/spawn-zone/spotlight/mesh in-world (`fd107ec`). sequence/goal/facts batch. player/AI control batch. AI-state batch. Give/RemoveItems. AttackTarget. Game-mode possess on 1-Medical.
 

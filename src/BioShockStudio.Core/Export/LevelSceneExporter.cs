@@ -523,6 +523,10 @@ public static class LevelSceneExporter
                 Color = l.Color is { } c ? [c.R, c.G, c.B, c.A] : null,
                 Brightness = l.Brightness,
                 Radius = l.Radius,
+                Cone = l.Cone,
+                Type = l.Type,
+                Effect = l.Effect,
+                Period = l.Period,
             })
             .ToList(),
         ActorCoverage = scene.Coverage?.Classes
@@ -1603,6 +1607,21 @@ public sealed record LevelLightDocument
     public int[]? Color { get; init; }
     public float? Brightness { get; init; }
     public float? Radius { get; init; }
+
+    /// <summary>
+    /// <c>LightCone</c> — a non-null value means the light casts a cone (a spotlight); the
+    /// byte→angle mapping is not pinned, see <c>docs/research/lights.md</c>. Null: omnidirectional.
+    /// </summary>
+    public byte? Cone { get; init; }
+
+    /// <summary><c>LightType</c> raw byte — <c>PLAUSIBLE</c> stock <c>ELightType</c>, not confirmed.</summary>
+    public byte? Type { get; init; }
+
+    /// <summary><c>LightEffect</c> raw byte — near-constant 2 across the game, semantic <c>UNKNOWN</c>.</summary>
+    public byte? Effect { get; init; }
+
+    /// <summary><c>LightPeriod</c> raw byte — animation timing for whichever <see cref="Type"/> is set.</summary>
+    public byte? Period { get; init; }
 }
 
 public sealed record LevelActorCoverageDocument
