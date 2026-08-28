@@ -14,4 +14,8 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+
+private:
+	void SnapPawnToStart(APawn* Pawn, AActor* Start);
+	void EquipStarterWeapon(AShockPlayer* Player);
 };

@@ -15,15 +15,63 @@ AShockPlayer::AShockPlayer()
 	bUseControllerRotationRoll = false;
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
 
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCapsuleRadius(34.0f);
+		Capsule->SetCapsuleHalfHeight(68.0f);
+	}
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->MaxWalkSpeed = 450.0f;
+		Movement->JumpZVelocity = 525.0f;
+	}
+	if (USkeletalMeshComponent* BodyMesh = GetMesh())
+	{
+		BodyMesh->SetHiddenInGame(true);
+		BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->bUsePawnControlRotation = true;
 }
 
+void AShockPlayer::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	if (USkeletalMeshComponent* BodyMesh = GetMesh())
+	{
+		BodyMesh->SetHiddenInGame(true);
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(NewController))
+	{
+		PC->SetViewTarget(this);
+	}
+}
+
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 {
 	EquippedWeapon = Weapon;
+	if (!Weapon)
+	{
+		return;
+	}
+
+	if (FirstPersonCamera)
+	{
+		Weapon->AttachToComponent(
+			FirstPersonCamera,
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		Weapon->SetActorHiddenInGame(false);
+		if (USkeletalMeshComponent* WeaponMesh = Weapon->FindComponentByClass<USkeletalMeshComponent>())
+		{
+			WeaponMesh->SetOnlyOwnerSee(true);
+			WeaponMesh->SetCastShadow(false);
+		}
+	}
 }
 
 void AShockPlayer::EnablePlayableInput(bool bEnable)

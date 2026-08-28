@@ -1,7 +1,14 @@
 #include "ShockGameMode.h"
 #include "ShockPlayer.h"
+#include "ShockWeapon.h"
 
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "HAL/PlatformMisc.h"
@@ -51,30 +58,100 @@ AActor* AShockGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
-void AShockGameMode::PostLogin(APlayerController* NewPlayer)
+void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 {
-	Super::PostLogin(NewPlayer);
-
-	if (NewPlayer && NewPlayer->GetPawn())
-	{
-		if (AActor* Start = ChoosePlayerStart_Implementation(NewPlayer))
-		{
-			APawn* Pawn = NewPlayer->GetPawn();
-			Pawn->SetActorLocationAndRotation(
-				Start->GetActorLocation(),
-				Start->GetActorRotation(),
-				false,
-				nullptr,
-				ETeleportType::TeleportPhysics);
-		}
-	}
-
-	if (!FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
+	if (!Pawn || !Start)
 	{
 		return;
 	}
 
+	UWorld* World = Pawn->GetWorld();
+	FVector Loc = Start->GetActorLocation();
+	const FRotator Rot = Start->GetActorRotation();
+
+	if (ACharacter* Character = Cast<ACharacter>(Pawn))
+	{
+		const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		const float HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 88.0f;
+
+		if (World)
+		{
+			const FVector TraceStart = Loc + FVector(0.0f, 0.0f, 400.0f);
+			const FVector TraceEnd = Loc - FVector(0.0f, 0.0f, 1200.0f);
+			FHitResult Hit;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockSnapSpawn), false, Pawn);
+			if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, Params))
+			{
+				Loc.Z = Hit.Location.Z + HalfHeight + 2.0f;
+			}
+		}
+	}
+
+	Pawn->SetActorLocationAndRotation(Loc, Rot, false, nullptr, ETeleportType::TeleportPhysics);
+}
+
+void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
+{
+	if (!Player || Player->GetEquippedWeapon())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = Player;
+	Params.Instigator = Player;
+	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
+		AShockWeapon::StaticClass(),
+		Player->GetActorLocation(),
+		Player->GetActorRotation(),
+		Params);
+	if (!Weapon)
+	{
+		return;
+	}
+
+	Weapon->ConfigureHitscan(25.0f, 10000.0f);
+
+	if (USkeletalMesh* TommyGun = LoadObject<USkeletalMesh>(
+			nullptr,
+			TEXT("/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun")))
+	{
+		Weapon->Mesh->SetSkeletalMesh(TommyGun);
+	}
+
+	Player->EquipWeapon(Weapon);
+}
+
+void AShockGameMode::PostLogin(APlayerController* NewPlayer)
+{
+	Super::PostLogin(NewPlayer);
+
 	APawn* Pawn = NewPlayer ? NewPlayer->GetPawn() : nullptr;
+	if (Pawn && NewPlayer)
+	{
+		if (AActor* Start = ChoosePlayerStart_Implementation(NewPlayer))
+		{
+			SnapPawnToStart(Pawn, Start);
+		}
+		if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
+		{
+			EquipStarterWeapon(Player);
+			NewPlayer->SetViewTarget(Player);
+		}
+	}
+
+	const bool bVerifyPossess = FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"));
+	if (!bVerifyPossess)
+	{
+		return;
+	}
+
 	if (!Pawn)
 	{
 		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_POSSESS_FAIL reason=no_pawn"));
@@ -82,16 +159,19 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 	else
 	{
 		const FVector Loc = Pawn->GetActorLocation();
-		const bool bPlayable = Cast<AShockPlayer>(Pawn) && Cast<AShockPlayer>(Pawn)->IsPlayableInputEnabled();
+		const AShockPlayer* Player = Cast<AShockPlayer>(Pawn);
+		const bool bPlayable = Player && Player->IsPlayableInputEnabled();
+		const bool bWeapon = Player && Player->GetEquippedWeapon() != nullptr;
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("BIOSHOCK_POSSESS_OK class=%s x=%.2f y=%.2f z=%.2f playable=%d"),
+			TEXT("BIOSHOCK_POSSESS_OK class=%s x=%.2f y=%.2f z=%.2f playable=%d weapon=%d"),
 			*Pawn->GetClass()->GetName(),
 			Loc.X,
 			Loc.Y,
 			Loc.Z,
-			bPlayable ? 1 : 0);
+			bPlayable ? 1 : 0,
+			bWeapon ? 1 : 0);
 	}
 
 	FGenericPlatformMisc::RequestExit(false);

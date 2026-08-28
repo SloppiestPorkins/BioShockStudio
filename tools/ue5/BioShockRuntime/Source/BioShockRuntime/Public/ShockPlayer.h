@@ -48,6 +48,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryFireEquippedWeapon();
 
+	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
