@@ -1,5 +1,7 @@
 #include "ShockActionFailQuest.h"
 
+#include "ShockPlayer.h"
+
 UShockActionFailQuest::UShockActionFailQuest()
 {
 	ActionClassName = TEXT("ActionFailQuest");
@@ -20,4 +22,19 @@ bool UShockActionFailQuest::RequestFail()
 	}
 	LastQuestName = QuestName;
 	return true;
+}
+
+int32 UShockActionFailQuest::ApplyInWorld(UWorld* World)
+{
+	if (!RequestFail() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->FailQuest(QuestName);
+	return 1;
 }

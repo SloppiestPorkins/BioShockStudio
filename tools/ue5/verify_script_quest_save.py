@@ -26,10 +26,15 @@ def main(out):
     fail_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionFailQuest")
     save_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionAutoSave")
 
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
+
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
     )
     script.configure("QuestSaveScript", "")
+    player = subsystem.spawn_actor_from_class(
+        player_cls, unreal.Vector(40, 0, 100), unreal.Rotator(0, 0, 0)
+    )
 
     init_q = unreal.new_object(init_cls)
     init_q.configure("FindKey", True, True, "New quest")
@@ -60,8 +65,28 @@ def main(out):
         f.append("fail %s" % fail_q.get_last_quest_name())
     if str(save.get_last_saved_command()) != "savegame autosave":
         f.append("save %s" % save.get_last_saved_command())
+    if player is None:
+        f.append("no ShockPlayer")
+    else:
+        find_state = int(player.get_quest_state("FindKey"))
+        if find_state != 2:
+            f.append("FindKey state %s" % find_state)
+        obj_count = int(player.get_quest_objective_count("FindKey"))
+        if obj_count != 1:
+            f.append("FindKey objectives %s" % obj_count)
+        fail_state = int(player.get_quest_state("OtherQuest"))
+        if fail_state != 3:
+            f.append("OtherQuest state %s" % fail_state)
+        cmd = str(player.get_auto_save_command())
+        if cmd != "savegame autosave":
+            f.append("player autosave %s" % cmd)
+        report["find_key_state"] = find_state
+        report["find_key_objectives"] = obj_count
+        report["other_quest_state"] = fail_state
     report["quest_save"] = "ok"
 
+    if player:
+        subsystem.destroy_actor(player)
     subsystem.destroy_actor(script)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

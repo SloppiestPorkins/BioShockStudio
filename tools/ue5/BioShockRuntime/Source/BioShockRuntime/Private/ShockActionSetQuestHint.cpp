@@ -1,5 +1,7 @@
 #include "ShockActionSetQuestHint.h"
 
+#include "ShockPlayer.h"
+
 UShockActionSetQuestHint::UShockActionSetQuestHint()
 {
 	// Matches shipped class name casing from ActionUsageCensus.
@@ -20,4 +22,19 @@ bool UShockActionSetQuestHint::RequestSet()
 	}
 	LastHintName = HintName;
 	return true;
+}
+
+int32 UShockActionSetQuestHint::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetQuestHint(QuestName, HintName);
+	return 1;
 }

@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionStopTimer.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionStopTimer`. Records scriptLabel; no timer clear yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStopTimer : public UShockAction
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStop();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

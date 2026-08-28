@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionSetQuestHint.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `actionSetQuestHint` (lowercase class name in ShockGame.U).
  * Records QuestName + HintName; no quest UI yet.
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -34,11 +34,15 @@ def main(out):
     mat_cls = unreal.load_class(
         None, "/Script/BioShockRuntime.ShockActionSetMaterialSwitchIndex"
     )
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
 
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
     )
     script.configure("LightSecScript", "")
+    player = subsystem.spawn_actor_from_class(
+        player_cls, unreal.Vector(40, 0, 100), unreal.Rotator(0, 0, 0)
+    )
 
     light_actor = subsystem.spawn_actor_from_class(
         unreal.PointLight, unreal.Vector(0, 0, 120), unreal.Rotator(0, 0, 0)
@@ -99,8 +103,29 @@ def main(out):
         f.append("stop hud")
     if float(mat.get_last_index()) != 2.0:
         f.append("mat %s" % mat.get_last_index())
+    if player is None:
+        f.append("no ShockPlayer")
+    else:
+        alarm_on = bool(player.is_security_alarm_on())
+        if alarm_on:
+            f.append("alarm still on")
+        last_target = str(player.get_last_alarm_target())
+        if last_target != "Player":
+            f.append("alarm target %s" % last_target)
+        hud_playing = bool(player.is_hud_playing())
+        if hud_playing:
+            f.append("hud still playing")
+        mat_index = float(player.get_material_switch_index("SwitchMat"))
+        if mat_index != 2.0:
+            f.append("player mat %s" % mat_index)
+        report["alarm_on"] = alarm_on
+        report["alarm_target"] = last_target
+        report["hud_playing"] = hud_playing
+        report["mat_index"] = mat_index
     report["light_sec"] = "ok"
 
+    if player:
+        subsystem.destroy_actor(player)
     subsystem.destroy_actor(light_actor)
     subsystem.destroy_actor(coll_actor)
     subsystem.destroy_actor(script)

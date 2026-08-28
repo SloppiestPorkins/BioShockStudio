@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionPlayHUD.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionPlayHUD`. Records play request; no Flash HUD yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPlayHUD : public UShockAction
@@ -20,4 +22,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestPlay();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -1,5 +1,7 @@
 #include "ShockActionStartSecurityAlarm.h"
 
+#include "ShockPlayer.h"
+
 UShockActionStartSecurityAlarm::UShockActionStartSecurityAlarm()
 {
 	ActionClassName = TEXT("ActionStartSecurityAlarm");
@@ -28,4 +30,19 @@ bool UShockActionStartSecurityAlarm::RequestStart()
 	}
 	LastTargetLabel = TargetLabel;
 	return true;
+}
+
+int32 UShockActionStartSecurityAlarm::ApplyInWorld(UWorld* World)
+{
+	if (!RequestStart() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetSecurityAlarmOn(true, TargetLabel);
+	return 1;
 }

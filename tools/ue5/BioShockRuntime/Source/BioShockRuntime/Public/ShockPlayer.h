@@ -117,6 +117,108 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool HasFact(FName Slot1, const FString& Slot2, const FString& Slot3) const;
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void InitiateQuest(FName QuestName, bool bSetActive);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void CompleteQuestObjective(FName QuestName, int32 Count);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void CompleteQuest(FName QuestName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void FailQuest(FName QuestName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	int32 GetQuestState(FName QuestName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	int32 GetQuestObjectiveCount(FName QuestName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetActiveQuest() const { return ActiveQuest; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetQuestHint(FName QuestName, FName HintName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetQuestHint(FName QuestName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetAutoSaveCommand(const FString& Command);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FString GetAutoSaveCommand() const { return LastAutoSaveCommand; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetPendingTimerSeconds(float Seconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetPendingTimerSeconds() const { return PendingTimerSeconds; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void StopTimerForScript(FName ScriptLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetStoppedTimerLabel() const { return StoppedTimerLabel; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetMapHUDRegion(const FString& Description);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FString GetMapHUDRegion() const { return LastMapHUDRegion; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetClientMessage(const FString& Text);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FString GetClientMessage() const { return LastClientMessage; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetHUDPlaying(bool bPlaying);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsHUDPlaying() const { return bHUDPlaying; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetSecurityAlarmOn(bool bOn, FName TargetLabel);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsSecurityAlarmOn() const { return bSecurityAlarmOn; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetLastAlarmTarget() const { return LastAlarmTarget; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetSpawnZoneRepopulation(FName Zone, uint8 Aggressor, uint8 Protector);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	uint8 GetSpawnZoneAggressor(FName Zone) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetSpotlightTarget(FName Spotlight, FName Target);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetSpotlightTarget(FName Spotlight) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetSpotlightOn(FName Spotlight, bool bOn);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsSpotlightOn(FName Spotlight) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetQuestLogWait(FName QuestLogClass);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetLastQuestLogWait() const { return LastQuestLogWait; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetMaterialSwitchIndex(FName MaterialSwitch, float Index);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetMaterialSwitchIndex(FName MaterialSwitch) const;
+
 	/** Possessed ShockPlayer, or the first placed one (editor/headless). */
 	static AShockPlayer* FindLocalOrFirst(UWorld* World);
 
@@ -159,4 +261,58 @@ private:
 
 	UPROPERTY()
 	TSet<FString> Facts;
+
+	UPROPERTY()
+	TMap<FName, uint8> QuestState;
+
+	UPROPERTY()
+	TMap<FName, int32> QuestObjectiveCount;
+
+	UPROPERTY()
+	FName ActiveQuest;
+
+	UPROPERTY()
+	TMap<FName, FName> QuestHints;
+
+	UPROPERTY()
+	FString LastAutoSaveCommand;
+
+	UPROPERTY()
+	float PendingTimerSeconds = 0.0f;
+
+	UPROPERTY()
+	FName StoppedTimerLabel;
+
+	UPROPERTY()
+	FString LastMapHUDRegion;
+
+	UPROPERTY()
+	FString LastClientMessage;
+
+	UPROPERTY()
+	bool bHUDPlaying = false;
+
+	UPROPERTY()
+	bool bSecurityAlarmOn = false;
+
+	UPROPERTY()
+	FName LastAlarmTarget;
+
+	UPROPERTY()
+	TMap<FName, uint8> SpawnZoneAggressor;
+
+	UPROPERTY()
+	TMap<FName, uint8> SpawnZoneProtector;
+
+	UPROPERTY()
+	TMap<FName, FName> SpotlightTarget;
+
+	UPROPERTY()
+	TMap<FName, bool> SpotlightOn;
+
+	UPROPERTY()
+	FName LastQuestLogWait;
+
+	UPROPERTY()
+	TMap<FName, float> MaterialSwitchIndex;
 };

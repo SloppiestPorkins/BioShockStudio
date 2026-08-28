@@ -1,5 +1,7 @@
 #include "ShockActionAutoSave.h"
 
+#include "ShockPlayer.h"
+
 UShockActionAutoSave::UShockActionAutoSave()
 {
 	ActionClassName = TEXT("ActionAutoSave");
@@ -17,4 +19,19 @@ bool UShockActionAutoSave::RequestSave()
 	}
 	LastSavedCommand = Command;
 	return true;
+}
+
+int32 UShockActionAutoSave::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSave() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetAutoSaveCommand(Command);
+	return 1;
 }

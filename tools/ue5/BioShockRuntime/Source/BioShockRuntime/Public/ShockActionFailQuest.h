@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionFailQuest.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionFailQuest` (ActionQuestBase).
  * First slice records QuestName + FailQuestMessage; no quests yet.
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestFail();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

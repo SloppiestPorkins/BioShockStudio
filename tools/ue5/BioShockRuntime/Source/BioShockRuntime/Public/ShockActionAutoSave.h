@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionAutoSave.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionAutoSave : public UShockAction
 {
@@ -21,4 +23,7 @@ public:
 	FString GetLastSavedCommand() const { return LastSavedCommand; }
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSave();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

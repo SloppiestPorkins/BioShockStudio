@@ -1,5 +1,7 @@
 #include "ShockActionSetMovableSpotlightTarget.h"
 
+#include "ShockPlayer.h"
+
 UShockActionSetMovableSpotlightTarget::UShockActionSetMovableSpotlightTarget()
 {
 	ActionClassName = TEXT("ActionSetMovableSpotlightTarget");
@@ -20,4 +22,19 @@ bool UShockActionSetMovableSpotlightTarget::RequestSetTarget()
 	LastSpotlightLabel = SpotlightLabel;
 	LastTargetActorLabel = TargetActorLabel;
 	return true;
+}
+
+int32 UShockActionSetMovableSpotlightTarget::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSetTarget() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetSpotlightTarget(SpotlightLabel, TargetActorLabel);
+	return 1;
 }

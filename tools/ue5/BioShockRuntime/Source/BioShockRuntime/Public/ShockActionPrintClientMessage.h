@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionPrintClientMessage.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPrintClientMessage : public UShockAction
 {
@@ -21,4 +23,7 @@ public:
 	FString GetLastPrintedText() const { return LastPrintedText; }
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestPrint();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

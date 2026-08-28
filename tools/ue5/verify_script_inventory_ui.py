@@ -80,6 +80,15 @@ def main(out):
         if stack != 2:
             f.append("inventory stack %s" % stack)
         report["ammo_stack"] = stack
+        region = str(player.get_map_hud_region())
+        if region != "Medical Pavilion":
+            f.append("map hud %s" % region)
+        msg = str(player.get_client_message())
+        if msg != "hello client":
+            f.append("client msg %s" % msg)
+        hint = str(player.get_quest_hint("FindKey"))
+        if hint != "LookNearDoor":
+            f.append("quest hint %s" % hint)
     if int(give.get_last_applied_count()) != 1:
         f.append("give applied %s" % give.get_last_applied_count())
     if int(remove.get_last_applied_count()) != 1:

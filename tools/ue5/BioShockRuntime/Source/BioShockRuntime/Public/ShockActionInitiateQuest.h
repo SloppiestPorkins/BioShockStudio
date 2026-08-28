@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionInitiateQuest.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionInitiateQuest` (ActionQuestBase): QuestName + HUD + SetAsActiveQuest.
  * First slice records the initiate request; no quest system yet.
@@ -41,4 +43,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestInitiate();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

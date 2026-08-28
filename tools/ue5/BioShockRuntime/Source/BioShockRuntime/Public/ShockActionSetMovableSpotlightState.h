@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionSetMovableSpotlightState.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionSetMovableSpotlightState`. Records on/off; no spotlight yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetMovableSpotlightState : public UShockAction
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSetState();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

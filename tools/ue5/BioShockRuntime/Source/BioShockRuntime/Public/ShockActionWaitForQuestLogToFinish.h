@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionWaitForQuestLogToFinish.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionWaitForQuestLogToFinish` (ActionWaitForCriticalMessage).
  * First slice records QuestLog class name + TimeoutSeconds; no audio wait yet.
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestWait();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

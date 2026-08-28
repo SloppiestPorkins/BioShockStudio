@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionDisplayMapHUDRegion.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionDisplayMapHUDRegion`. Holds description; no HUD ClientMessage yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDisplayMapHUDRegion : public UShockAction
@@ -23,4 +25,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDisplay();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

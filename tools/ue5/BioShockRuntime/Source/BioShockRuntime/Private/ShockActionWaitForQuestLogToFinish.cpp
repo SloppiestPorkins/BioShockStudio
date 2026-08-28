@@ -1,5 +1,7 @@
 #include "ShockActionWaitForQuestLogToFinish.h"
 
+#include "ShockPlayer.h"
+
 UShockActionWaitForQuestLogToFinish::UShockActionWaitForQuestLogToFinish()
 {
 	ActionClassName = TEXT("ActionWaitForQuestLogToFinish");
@@ -19,4 +21,19 @@ bool UShockActionWaitForQuestLogToFinish::RequestWait()
 	}
 	LastQuestLogClassName = QuestLogClassName;
 	return true;
+}
+
+int32 UShockActionWaitForQuestLogToFinish::ApplyInWorld(UWorld* World)
+{
+	if (!RequestWait() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetQuestLogWait(QuestLogClassName);
+	return 1;
 }

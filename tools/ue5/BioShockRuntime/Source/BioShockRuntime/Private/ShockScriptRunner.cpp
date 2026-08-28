@@ -826,7 +826,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionDisplayMapHUDRegion* MapHud = Cast<UShockActionDisplayMapHUDRegion>(Action))
 	{
-		MapHud->RequestDisplay();
+		MapHud->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -834,7 +834,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionPrintClientMessage* PrintMsg = Cast<UShockActionPrintClientMessage>(Action))
 	{
-		PrintMsg->RequestPrint();
+		PrintMsg->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -842,7 +842,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetQuestHint* QuestHint = Cast<UShockActionSetQuestHint>(Action))
 	{
-		QuestHint->RequestSet();
+		QuestHint->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -850,7 +850,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionInitiateQuest* InitQuest = Cast<UShockActionInitiateQuest>(Action))
 	{
-		InitQuest->RequestInitiate();
+		InitQuest->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -858,7 +858,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionCompleteQuestObjective* CompleteObj = Cast<UShockActionCompleteQuestObjective>(Action))
 	{
-		CompleteObj->RequestComplete();
+		CompleteObj->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -866,7 +866,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionCompleteQuest* CompleteQuest = Cast<UShockActionCompleteQuest>(Action))
 	{
-		CompleteQuest->RequestComplete();
+		CompleteQuest->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -874,7 +874,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionFailQuest* FailQuest = Cast<UShockActionFailQuest>(Action))
 	{
-		FailQuest->RequestFail();
+		FailQuest->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -882,7 +882,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionAutoSave* AutoSave = Cast<UShockActionAutoSave>(Action))
 	{
-		AutoSave->RequestSave();
+		AutoSave->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -953,7 +953,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionStartTimer* StartTimer = Cast<UShockActionStartTimer>(Action))
 	{
-		StartTimer->RequestStart();
+		StartTimer->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -961,7 +961,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionStopTimer* StopTimer = Cast<UShockActionStopTimer>(Action))
 	{
-		StopTimer->RequestStop();
+		StopTimer->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -977,7 +977,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionChangeStaticMesh* ChangeMesh = Cast<UShockActionChangeStaticMesh>(Action))
 	{
-		ChangeMesh->RequestChange();
+		ChangeMesh->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1096,7 +1096,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionStartSecurityAlarm* StartAlarm = Cast<UShockActionStartSecurityAlarm>(Action))
 	{
-		StartAlarm->RequestStart();
+		StartAlarm->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1104,7 +1104,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionStopSecurityAlarm* StopAlarm = Cast<UShockActionStopSecurityAlarm>(Action))
 	{
-		StopAlarm->RequestStop();
+		StopAlarm->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1136,7 +1136,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionPlayHUD* PlayHud = Cast<UShockActionPlayHUD>(Action))
 	{
-		PlayHud->RequestPlay();
+		PlayHud->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1144,7 +1144,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionStopHUD* StopHud = Cast<UShockActionStopHUD>(Action))
 	{
-		StopHud->RequestStop();
+		StopHud->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1152,7 +1152,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetMaterialSwitchIndex* MatSwitch = Cast<UShockActionSetMaterialSwitchIndex>(Action))
 	{
-		MatSwitch->RequestSet();
+		MatSwitch->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1264,7 +1264,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionManipulateSpawnZoneRepopulation* SpawnZone = Cast<UShockActionManipulateSpawnZoneRepopulation>(Action))
 	{
-		SpawnZone->RequestManipulate();
+		SpawnZone->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1272,7 +1272,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetMovableSpotlightTarget* SpotlightTarget = Cast<UShockActionSetMovableSpotlightTarget>(Action))
 	{
-		SpotlightTarget->RequestSetTarget();
+		SpotlightTarget->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1280,7 +1280,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetMovableSpotlightState* SpotlightState = Cast<UShockActionSetMovableSpotlightState>(Action))
 	{
-		SpotlightState->RequestSetState();
+		SpotlightState->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1288,7 +1288,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionWaitForQuestLogToFinish* QuestLogWait = Cast<UShockActionWaitForQuestLogToFinish>(Action))
 	{
-		QuestLogWait->RequestWait();
+		QuestLogWait->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

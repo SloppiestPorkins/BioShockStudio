@@ -1,5 +1,7 @@
 #include "ShockActionDisplayMapHUDRegion.h"
 
+#include "ShockPlayer.h"
+
 UShockActionDisplayMapHUDRegion::UShockActionDisplayMapHUDRegion()
 {
 	ActionClassName = TEXT("ActionDisplayMapHUDRegion");
@@ -14,4 +16,19 @@ bool UShockActionDisplayMapHUDRegion::RequestDisplay()
 {
 	bRequested = true;
 	return true;
+}
+
+int32 UShockActionDisplayMapHUDRegion::ApplyInWorld(UWorld* World)
+{
+	if (!RequestDisplay() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetMapHUDRegion(MapHUDRegionDescription);
+	return 1;
 }

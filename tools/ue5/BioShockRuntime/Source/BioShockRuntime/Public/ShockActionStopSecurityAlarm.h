@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionStopSecurityAlarm.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionStopSecurityAlarm`. Records stop + dormancy flag; no alarm system yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStopSecurityAlarm : public UShockAction
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStop();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

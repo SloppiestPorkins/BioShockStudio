@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionManipulateSpawnZoneRepopulation.generated.h"
 
+class UWorld;
+
 UENUM(BlueprintType)
 enum class EShockSpawnZoneRepopulationState : uint8
 {
@@ -46,4 +48,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestManipulate();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

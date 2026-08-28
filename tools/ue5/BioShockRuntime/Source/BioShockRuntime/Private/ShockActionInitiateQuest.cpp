@@ -1,5 +1,7 @@
 #include "ShockActionInitiateQuest.h"
 
+#include "ShockPlayer.h"
+
 UShockActionInitiateQuest::UShockActionInitiateQuest()
 {
 	ActionClassName = TEXT("ActionInitiateQuest");
@@ -24,4 +26,19 @@ bool UShockActionInitiateQuest::RequestInitiate()
 	}
 	LastQuestName = QuestName;
 	return true;
+}
+
+int32 UShockActionInitiateQuest::ApplyInWorld(UWorld* World)
+{
+	if (!RequestInitiate() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->InitiateQuest(QuestName, bSetAsActiveQuest);
+	return 1;
 }

@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionSetMovableSpotlightTarget.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionSetMovableSpotlightTarget`. Records track request; no spotlight yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetMovableSpotlightTarget : public UShockAction
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSetTarget();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

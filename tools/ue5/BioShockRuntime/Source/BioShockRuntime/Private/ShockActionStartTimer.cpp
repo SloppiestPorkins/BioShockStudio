@@ -1,5 +1,7 @@
 #include "ShockActionStartTimer.h"
 
+#include "ShockPlayer.h"
+
 UShockActionStartTimer::UShockActionStartTimer()
 {
 	ActionClassName = TEXT("ActionStartTimer");
@@ -18,4 +20,19 @@ bool UShockActionStartTimer::RequestStart()
 	}
 	LastSeconds = Seconds;
 	return true;
+}
+
+int32 UShockActionStartTimer::ApplyInWorld(UWorld* World)
+{
+	if (!RequestStart() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetPendingTimerSeconds(Seconds);
+	return 1;
 }

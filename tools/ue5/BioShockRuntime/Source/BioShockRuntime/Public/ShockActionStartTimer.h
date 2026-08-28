@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionStartTimer.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionStartTimer`. Records Seconds; no script timer yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStartTimer : public UShockAction
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStart();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

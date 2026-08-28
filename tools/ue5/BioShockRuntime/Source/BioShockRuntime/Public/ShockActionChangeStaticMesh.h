@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionChangeStaticMesh.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionChangeStaticMesh`. StaticMesh object stored as FName. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionChangeStaticMesh : public UShockAction
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestChange();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

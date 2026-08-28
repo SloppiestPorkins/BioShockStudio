@@ -343,6 +343,200 @@ bool AShockPlayer::HasFact(FName Slot1, const FString& Slot2, const FString& Slo
 	return Facts.Contains(MakeFactKey(Slot1, Slot2, Slot3));
 }
 
+void AShockPlayer::InitiateQuest(FName QuestName, bool bSetActive)
+{
+	if (QuestName.IsNone())
+	{
+		return;
+	}
+	QuestState.FindOrAdd(QuestName) = 1;
+	if (bSetActive)
+	{
+		ActiveQuest = QuestName;
+	}
+}
+
+void AShockPlayer::CompleteQuestObjective(FName QuestName, int32 Count)
+{
+	if (QuestName.IsNone() || Count <= 0)
+	{
+		return;
+	}
+	QuestObjectiveCount.FindOrAdd(QuestName) += Count;
+}
+
+void AShockPlayer::CompleteQuest(FName QuestName)
+{
+	if (QuestName.IsNone())
+	{
+		return;
+	}
+	QuestState.FindOrAdd(QuestName) = 2;
+}
+
+void AShockPlayer::FailQuest(FName QuestName)
+{
+	if (QuestName.IsNone())
+	{
+		return;
+	}
+	QuestState.FindOrAdd(QuestName) = 3;
+}
+
+int32 AShockPlayer::GetQuestState(FName QuestName) const
+{
+	if (const uint8* Value = QuestState.Find(QuestName))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+int32 AShockPlayer::GetQuestObjectiveCount(FName QuestName) const
+{
+	if (const int32* Value = QuestObjectiveCount.Find(QuestName))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+void AShockPlayer::SetQuestHint(FName QuestName, FName HintName)
+{
+	if (QuestName.IsNone())
+	{
+		return;
+	}
+	QuestHints.FindOrAdd(QuestName) = HintName;
+}
+
+FName AShockPlayer::GetQuestHint(FName QuestName) const
+{
+	if (const FName* Value = QuestHints.Find(QuestName))
+	{
+		return *Value;
+	}
+	return NAME_None;
+}
+
+void AShockPlayer::SetAutoSaveCommand(const FString& Command)
+{
+	LastAutoSaveCommand = Command;
+}
+
+void AShockPlayer::SetPendingTimerSeconds(float Seconds)
+{
+	PendingTimerSeconds = Seconds;
+}
+
+void AShockPlayer::StopTimerForScript(FName InScriptLabel)
+{
+	StoppedTimerLabel = InScriptLabel;
+	PendingTimerSeconds = 0.0f;
+}
+
+void AShockPlayer::SetMapHUDRegion(const FString& Description)
+{
+	LastMapHUDRegion = Description;
+}
+
+void AShockPlayer::SetClientMessage(const FString& Text)
+{
+	LastClientMessage = Text;
+}
+
+void AShockPlayer::SetHUDPlaying(bool bPlaying)
+{
+	bHUDPlaying = bPlaying;
+}
+
+void AShockPlayer::SetSecurityAlarmOn(bool bOn, FName TargetLabel)
+{
+	bSecurityAlarmOn = bOn;
+	if (!TargetLabel.IsNone())
+	{
+		LastAlarmTarget = TargetLabel;
+	}
+}
+
+void AShockPlayer::SetSpawnZoneRepopulation(FName Zone, uint8 Aggressor, uint8 Protector)
+{
+	if (Zone.IsNone())
+	{
+		return;
+	}
+	SpawnZoneAggressor.FindOrAdd(Zone) = Aggressor;
+	SpawnZoneProtector.FindOrAdd(Zone) = Protector;
+}
+
+uint8 AShockPlayer::GetSpawnZoneAggressor(FName Zone) const
+{
+	if (const uint8* Value = SpawnZoneAggressor.Find(Zone))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+void AShockPlayer::SetSpotlightTarget(FName Spotlight, FName Target)
+{
+	if (Spotlight.IsNone())
+	{
+		return;
+	}
+	SpotlightTarget.FindOrAdd(Spotlight) = Target;
+}
+
+FName AShockPlayer::GetSpotlightTarget(FName Spotlight) const
+{
+	if (const FName* Value = SpotlightTarget.Find(Spotlight))
+	{
+		return *Value;
+	}
+	return NAME_None;
+}
+
+void AShockPlayer::SetSpotlightOn(FName Spotlight, bool bOn)
+{
+	if (Spotlight.IsNone())
+	{
+		return;
+	}
+	SpotlightOn.FindOrAdd(Spotlight) = bOn;
+}
+
+bool AShockPlayer::IsSpotlightOn(FName Spotlight) const
+{
+	if (const bool* Value = SpotlightOn.Find(Spotlight))
+	{
+		return *Value;
+	}
+	return false;
+}
+
+void AShockPlayer::SetQuestLogWait(FName QuestLogClass)
+{
+	LastQuestLogWait = QuestLogClass;
+}
+
+void AShockPlayer::SetMaterialSwitchIndex(FName MaterialSwitch, float Index)
+{
+	if (MaterialSwitch.IsNone())
+	{
+		return;
+	}
+	MaterialSwitchIndex.FindOrAdd(MaterialSwitch) = Index;
+}
+
+float AShockPlayer::GetMaterialSwitchIndex(FName MaterialSwitch) const
+{
+	if (const float* Value = MaterialSwitchIndex.Find(MaterialSwitch))
+	{
+		return *Value;
+	}
+	return -1.0f;
+}
+
 AShockPlayer* AShockPlayer::FindLocalOrFirst(UWorld* World)
 {
 	if (!World)

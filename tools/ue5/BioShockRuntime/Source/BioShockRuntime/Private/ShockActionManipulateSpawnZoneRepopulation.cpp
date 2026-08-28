@@ -1,5 +1,7 @@
 #include "ShockActionManipulateSpawnZoneRepopulation.h"
 
+#include "ShockPlayer.h"
+
 UShockActionManipulateSpawnZoneRepopulation::UShockActionManipulateSpawnZoneRepopulation()
 {
 	ActionClassName = TEXT("ActionManipulateSpawnZoneRepopulation");
@@ -23,4 +25,22 @@ bool UShockActionManipulateSpawnZoneRepopulation::RequestManipulate()
 	}
 	LastSpawnZoneName = SpawnZoneName;
 	return true;
+}
+
+int32 UShockActionManipulateSpawnZoneRepopulation::ApplyInWorld(UWorld* World)
+{
+	if (!RequestManipulate() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetSpawnZoneRepopulation(
+		SpawnZoneName,
+		static_cast<uint8>(AggressorState),
+		static_cast<uint8>(ProtectorState));
+	return 1;
 }

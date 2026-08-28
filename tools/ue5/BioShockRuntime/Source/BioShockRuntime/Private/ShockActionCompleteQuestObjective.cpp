@@ -1,5 +1,7 @@
 #include "ShockActionCompleteQuestObjective.h"
 
+#include "ShockPlayer.h"
+
 UShockActionCompleteQuestObjective::UShockActionCompleteQuestObjective()
 {
 	ActionClassName = TEXT("ActionCompleteQuestObjective");
@@ -22,4 +24,19 @@ bool UShockActionCompleteQuestObjective::RequestComplete()
 	}
 	LastQuestName = QuestName;
 	return true;
+}
+
+int32 UShockActionCompleteQuestObjective::ApplyInWorld(UWorld* World)
+{
+	if (!RequestComplete() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->CompleteQuestObjective(QuestName, NumberOfObjectivesCompleted);
+	return 1;
 }

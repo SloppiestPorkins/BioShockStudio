@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionStartSecurityAlarm.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionStartSecurityAlarm`. Records alarm request; no bot spawn yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStartSecurityAlarm : public UShockAction
@@ -41,4 +43,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStart();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

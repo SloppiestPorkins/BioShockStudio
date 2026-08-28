@@ -1,5 +1,7 @@
 #include "ShockActionSetMaterialSwitchIndex.h"
 
+#include "ShockPlayer.h"
+
 UShockActionSetMaterialSwitchIndex::UShockActionSetMaterialSwitchIndex()
 {
 	ActionClassName = TEXT("ActionSetMaterialSwitchIndex");
@@ -19,4 +21,19 @@ bool UShockActionSetMaterialSwitchIndex::RequestSet()
 	}
 	LastIndex = Index;
 	return true;
+}
+
+int32 UShockActionSetMaterialSwitchIndex::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetMaterialSwitchIndex(MaterialSwitchName, Index);
+	return 1;
 }

@@ -44,10 +44,15 @@ def main(out):
         None, "/Script/BioShockRuntime.ShockActionSetAINormalLODOverrideTime"
     )
 
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
+
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
     )
     script.configure("WorldAiScript", "")
+    player = subsystem.spawn_actor_from_class(
+        player_cls, unreal.Vector(40, 0, 100), unreal.Rotator(0, 0, 0)
+    )
 
     spawn = unreal.new_object(spawn_cls)
     spawn.configure(
@@ -128,8 +133,27 @@ def main(out):
         f.append("pawn inv %s" % pawn_inv.get_last_pawn_label())
     if str(lod.get_last_ai_label()) != "SplicerA":
         f.append("lod %s" % lod.get_last_ai_label())
+    if player is None:
+        f.append("no ShockPlayer")
+    else:
+        aggressor = int(player.get_spawn_zone_aggressor("MedicalZone"))
+        if aggressor != 1:
+            f.append("spawn aggressor %s" % aggressor)
+        spot = str(player.get_spotlight_target("Spot_A"))
+        if spot != "PlayerPawn":
+            f.append("spotlight target %s" % spot)
+        if not bool(player.is_spotlight_on("Spot_A")):
+            f.append("spotlight off")
+        wait_class = str(player.get_last_quest_log_wait())
+        if wait_class != "QuestLog_Medical":
+            f.append("quest log wait %s" % wait_class)
+        report["spawn_aggressor"] = aggressor
+        report["spotlight_target"] = spot
+        report["quest_log_wait"] = wait_class
     report["world_ai"] = "ok"
 
+    if player:
+        subsystem.destroy_actor(player)
     subsystem.destroy_actor(script)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

@@ -29,11 +29,15 @@ def main(out):
         None, "/Script/BioShockRuntime.ShockActionChangeStaticMesh"
     )
     pawn_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPawn")
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
 
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
     )
     script.configure("PhysTimerScript", "")
+    player = subsystem.spawn_actor_from_class(
+        player_cls, unreal.Vector(40, 0, 100), unreal.Rotator(0, 0, 0)
+    )
 
     source = subsystem.spawn_actor_from_class(
         unreal.TargetPoint, unreal.Vector(0, 0, 100), unreal.Rotator(0, 0, 0)
@@ -96,11 +100,26 @@ def main(out):
         f.append("console %s" % console.get_last_command())
     if str(mesh.get_last_target_label()) != "ImpulseBox":
         f.append("mesh %s" % mesh.get_last_target_label())
+    if player is None:
+        f.append("no ShockPlayer")
+    else:
+        pending = float(player.get_pending_timer_seconds())
+        if pending != 0.0:
+            f.append("pending timer %s" % pending)
+        stopped = str(player.get_stopped_timer_label())
+        if stopped != "MyTimerScript":
+            f.append("stopped timer %s" % stopped)
+        report["pending_timer"] = pending
+        report["stopped_timer"] = stopped
+    tags = [str(t) for t in box.tags]
+    if "ShockMesh_SomeMesh" not in tags:
+        f.append("mesh tag %s" % tags)
     report["physics_timer"] = "ok"
     report["near_damage"] = before_near - after_near
 
-    for a in (source, near, far, box, script):
-        subsystem.destroy_actor(a)
+    for a in (player, source, near, far, box, script):
+        if a:
+            subsystem.destroy_actor(a)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:

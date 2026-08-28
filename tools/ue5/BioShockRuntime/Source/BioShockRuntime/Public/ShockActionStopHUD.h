@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionStopHUD.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionStopHUD`. Records stop request; no Flash HUD yet. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStopHUD : public UShockAction
@@ -20,4 +22,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStop();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

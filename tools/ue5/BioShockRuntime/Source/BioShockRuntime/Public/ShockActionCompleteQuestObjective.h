@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionCompleteQuestObjective.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionCompleteQuestObjective` (ActionQuestBase).
  * Records QuestName + NumberOfObjectivesCompleted (default 1).
@@ -38,4 +40,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestComplete();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

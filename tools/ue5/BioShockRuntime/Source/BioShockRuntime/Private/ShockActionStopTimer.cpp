@@ -1,5 +1,7 @@
 #include "ShockActionStopTimer.h"
 
+#include "ShockPlayer.h"
+
 UShockActionStopTimer::UShockActionStopTimer()
 {
 	ActionClassName = TEXT("ActionStopTimer");
@@ -18,4 +20,19 @@ bool UShockActionStopTimer::RequestStop()
 	}
 	LastScriptLabel = ScriptLabel;
 	return true;
+}
+
+int32 UShockActionStopTimer::ApplyInWorld(UWorld* World)
+{
+	if (!RequestStop() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->StopTimerForScript(ScriptLabel);
+	return 1;
 }
