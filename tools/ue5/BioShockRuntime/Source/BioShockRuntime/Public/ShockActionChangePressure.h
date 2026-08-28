@@ -3,10 +3,12 @@
 #include "ShockAction.h"
 #include "ShockActionChangePressure.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionChangePressure`: SetPressureForRegion(RegionName, DesiredPressure).
  * DesiredPressure is Engine.Actor.EPressureLevel — stored as uint8 until Engine.U enum is pinned.
- * First slice records the request; no pressure regions yet.
+ * ApplyInWorld writes the value on the local ShockPlayer region map.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionChangePressure : public UShockAction
@@ -36,4 +38,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestChange();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

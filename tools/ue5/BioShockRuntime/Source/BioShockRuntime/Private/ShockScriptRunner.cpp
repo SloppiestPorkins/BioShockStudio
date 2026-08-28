@@ -969,7 +969,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionRunConsoleCommand* Console = Cast<UShockActionRunConsoleCommand>(Action))
 	{
-		Console->RequestRun();
+		Console->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1030,7 +1030,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionAssertFact* Assert = Cast<UShockActionAssertFact>(Action))
 	{
-		Assert->RequestAssert();
+		Assert->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1038,7 +1038,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionRetractFact* Retract = Cast<UShockActionRetractFact>(Action))
 	{
-		Retract->RequestRetract();
+		Retract->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1046,7 +1046,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionForcePlayerMove* ForceMove = Cast<UShockActionForcePlayerMove>(Action))
 	{
-		ForceMove->RequestMove();
+		ForceMove->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1232,7 +1232,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionControlScriptedSequence* ScriptedSeq = Cast<UShockActionControlScriptedSequence>(Action))
 	{
-		ScriptedSeq->RequestControl();
+		ScriptedSeq->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1240,7 +1240,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionWaitForGoal* WaitGoal = Cast<UShockActionWaitForGoal>(Action))
 	{
-		WaitGoal->RequestWait();
+		WaitGoal->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1248,7 +1248,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetOrUnsetInputContext* InputCtx = Cast<UShockActionSetOrUnsetInputContext>(Action))
 	{
-		InputCtx->RequestContext();
+		InputCtx->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1256,7 +1256,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionChangePressure* Pressure = Cast<UShockActionChangePressure>(Action))
 	{
-		Pressure->RequestChange();
+		Pressure->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1304,7 +1304,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionDisplayOnScreenDebugMessage* DebugMsg = Cast<UShockActionDisplayOnScreenDebugMessage>(Action))
 	{
-		DebugMsg->RequestDisplay();
+		DebugMsg->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1344,7 +1344,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetAINormalLODOverrideTime* LODOverride = Cast<UShockActionSetAINormalLODOverrideTime>(Action))
 	{
-		LODOverride->RequestSet();
+		LODOverride->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

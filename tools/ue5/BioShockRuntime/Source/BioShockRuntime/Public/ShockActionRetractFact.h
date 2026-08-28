@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionRetractFact.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionRetractFact` (ActionFact): set fact false via Slot_1/2/3.
- * First slice records the pattern; no FactDatabase yet.
+ * ApplyInWorld removes the key from the local ShockPlayer fact set.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionRetractFact : public UShockAction
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestRetract();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

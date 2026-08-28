@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionForcePlayerMove.generated.h"
 
-/** UnrealScript `ActionForcePlayerMove`. Records marker + rates; no latent move yet. */
+class UWorld;
+
+/** UnrealScript `ActionForcePlayerMove`. ApplyInWorld snaps the player to the marker (not latent). */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionForcePlayerMove : public UShockAction
 {
@@ -41,4 +43,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestMove();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionSetOrUnsetInputContext.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionSetOrUnsetInputContext`: PUSH/POPINPUTCONTEXT console commands.
- * First slice records Context + Unset; no console / input stack yet.
+ * ApplyInWorld writes CurrentInputContext on the local ShockPlayer.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetOrUnsetInputContext : public UShockAction
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestContext();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

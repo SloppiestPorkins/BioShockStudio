@@ -77,6 +77,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	uint8 QuickHitReactions = 0;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float LODOverrideTime = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 ScriptedSequenceRunNow = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bWaitForGoalSatisfied = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
 
@@ -127,6 +136,18 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	uint8 GetQuickHitReactions() const { return QuickHitReactions; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	float GetLODOverrideTime() const { return LODOverrideTime; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	int32 GetScriptedSequenceRunNow() const { return ScriptedSequenceRunNow; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsWaitForGoalSatisfied() const { return bWaitForGoalSatisfied; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	FString GetMovementGoalName() const { return MovementGoalName; }
 
 	/** Editor actor label or ScriptLabel. Not a UFunction — C++ action helpers only. */
 	static TArray<ABaseShockAI*> CollectLabeled(UWorld* World, FName Label);

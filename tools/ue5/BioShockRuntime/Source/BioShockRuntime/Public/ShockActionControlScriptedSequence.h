@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionControlScriptedSequence.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionControlScriptedSequence : public UShockAction
 {
@@ -34,4 +36,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestControl();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

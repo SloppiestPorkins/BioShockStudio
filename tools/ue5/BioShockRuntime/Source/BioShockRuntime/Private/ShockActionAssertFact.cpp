@@ -1,5 +1,7 @@
 #include "ShockActionAssertFact.h"
 
+#include "ShockPlayer.h"
+
 UShockActionAssertFact::UShockActionAssertFact()
 {
 	ActionClassName = TEXT("ActionAssertFact");
@@ -20,4 +22,19 @@ bool UShockActionAssertFact::RequestAssert()
 	}
 	LastSlot1 = Slot1;
 	return true;
+}
+
+int32 UShockActionAssertFact::ApplyInWorld(UWorld* World)
+{
+	if (!RequestAssert())
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->AssertFact(Slot1, Slot2, Slot3);
+	return 1;
 }

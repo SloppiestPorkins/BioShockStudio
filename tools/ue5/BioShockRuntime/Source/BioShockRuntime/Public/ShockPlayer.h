@@ -87,6 +87,36 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	int32 GetTipPriority(FName TipName) const;
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetScriptedSequenceRunNow(FName SequenceLabel, int32 RunNow);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	int32 GetScriptedSequenceRunNow(FName SequenceLabel) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetInputContext(FName Context, bool bUnset);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetCurrentInputContext() const { return CurrentInputContext; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetLastInputContext() const { return LastInputContext; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetRegionPressure(FName RegionName, uint8 Pressure);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	uint8 GetRegionPressure(FName RegionName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void AssertFact(FName Slot1, const FString& Slot2, const FString& Slot3);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void RetractFact(FName Slot1, const FString& Slot2, const FString& Slot3);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool HasFact(FName Slot1, const FString& Slot2, const FString& Slot3) const;
+
 	/** Possessed ShockPlayer, or the first placed one (editor/headless). */
 	static AShockPlayer* FindLocalOrFirst(UWorld* World);
 
@@ -114,4 +144,19 @@ private:
 
 	UPROPERTY()
 	bool bMovementDisabled = false;
+
+	UPROPERTY()
+	TMap<FName, int32> ScriptedSequenceRunNow;
+
+	UPROPERTY()
+	FName CurrentInputContext;
+
+	UPROPERTY()
+	FName LastInputContext;
+
+	UPROPERTY()
+	TMap<FName, uint8> RegionPressure;
+
+	UPROPERTY()
+	TSet<FString> Facts;
 };

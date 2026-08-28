@@ -1,5 +1,7 @@
 #include "ShockActionSetOrUnsetInputContext.h"
 
+#include "ShockPlayer.h"
+
 UShockActionSetOrUnsetInputContext::UShockActionSetOrUnsetInputContext()
 {
 	ActionClassName = TEXT("ActionSetOrUnsetInputContext");
@@ -19,4 +21,19 @@ bool UShockActionSetOrUnsetInputContext::RequestContext()
 	}
 	LastContext = Context;
 	return true;
+}
+
+int32 UShockActionSetOrUnsetInputContext::ApplyInWorld(UWorld* World)
+{
+	if (!RequestContext())
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetInputContext(Context, bUnset);
+	return 1;
 }

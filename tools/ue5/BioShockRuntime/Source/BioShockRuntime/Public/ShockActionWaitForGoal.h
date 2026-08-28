@@ -3,9 +3,12 @@
 #include "ShockAction.h"
 #include "ShockActionWaitForGoal.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionWaitForGoal`: wait for named AI goal (optional TimeOut).
- * First slice records the wait request; no Tyrion goal notifications yet.
+ * ApplyInWorld completes immediately when the labeled AI already has that MovementGoalName
+ * posted (no pathing / Tyrion arrival).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionWaitForGoal : public UShockAction
@@ -30,6 +33,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString LastGoalName;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bLastSatisfied = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InTarget, const FString& InGoalName, float InTimeOut);
 
@@ -43,5 +49,11 @@ public:
 	FString GetLastGoalName() const { return LastGoalName; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool GetLastSatisfied() const { return bLastSatisfied; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestWait();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

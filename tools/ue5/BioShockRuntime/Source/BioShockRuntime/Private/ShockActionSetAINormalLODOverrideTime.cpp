@@ -1,5 +1,7 @@
 #include "ShockActionSetAINormalLODOverrideTime.h"
 
+#include "BaseShockAI.h"
+
 UShockActionSetAINormalLODOverrideTime::UShockActionSetAINormalLODOverrideTime()
 {
 	ActionClassName = TEXT("ActionSetAINormalLODOverrideTime");
@@ -19,4 +21,19 @@ bool UShockActionSetAINormalLODOverrideTime::RequestSet()
 	}
 	LastAILabel = AILabel;
 	return true;
+}
+
+int32 UShockActionSetAINormalLODOverrideTime::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->LODOverrideTime = LODOverrideTime;
+		++Applied;
+	}
+	return Applied;
 }

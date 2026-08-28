@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionRunConsoleCommand.generated.h"
 
-/** UnrealScript `ActionRunConsoleCommand` (debug). Records Command; does not execute console. */
+class UWorld;
+
+/** UnrealScript `ActionRunConsoleCommand` (debug). ApplyInWorld calls GEngine->Exec. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionRunConsoleCommand : public UShockAction
 {
@@ -18,6 +20,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString LastCommand;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bLastExecuted = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(const FString& InCommand);
 
@@ -28,5 +33,11 @@ public:
 	FString GetLastCommand() const { return LastCommand; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool GetLastExecuted() const { return bLastExecuted; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestRun();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

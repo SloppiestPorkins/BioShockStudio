@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionDisplayOnScreenDebugMessage.generated.h"
 
-/** UnrealScript `ActionDisplayOnScreenDebugMessage`. Records Message; no ClientMessage yet. */
+class UWorld;
+
+/** UnrealScript `ActionDisplayOnScreenDebugMessage`. ApplyInWorld calls AddOnScreenDebugMessage. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDisplayOnScreenDebugMessage : public UShockAction
 {
@@ -18,6 +20,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString LastMessage;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bLastDisplayed = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(const FString& InMessage);
 
@@ -28,5 +33,11 @@ public:
 	FString GetLastMessage() const { return LastMessage; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool GetLastDisplayed() const { return bLastDisplayed; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDisplay();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

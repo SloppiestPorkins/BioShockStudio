@@ -254,6 +254,95 @@ int32 AShockPlayer::GetTipPriority(FName TipName) const
 	return 0;
 }
 
+namespace
+{
+	FString MakeFactKey(FName Slot1, const FString& Slot2, const FString& Slot3)
+	{
+		return Slot1.ToString() + TEXT("|") + Slot2 + TEXT("|") + Slot3;
+	}
+}
+
+void AShockPlayer::SetScriptedSequenceRunNow(FName SequenceLabel, int32 RunNow)
+{
+	if (SequenceLabel.IsNone())
+	{
+		return;
+	}
+	ScriptedSequenceRunNow.FindOrAdd(SequenceLabel) = RunNow;
+}
+
+int32 AShockPlayer::GetScriptedSequenceRunNow(FName SequenceLabel) const
+{
+	if (const int32* Value = ScriptedSequenceRunNow.Find(SequenceLabel))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+void AShockPlayer::SetInputContext(FName Context, bool bUnset)
+{
+	if (Context.IsNone())
+	{
+		return;
+	}
+	LastInputContext = Context;
+	if (bUnset)
+	{
+		if (CurrentInputContext == Context)
+		{
+			CurrentInputContext = NAME_None;
+		}
+		return;
+	}
+	CurrentInputContext = Context;
+}
+
+void AShockPlayer::SetRegionPressure(FName RegionName, uint8 Pressure)
+{
+	if (RegionName.IsNone())
+	{
+		return;
+	}
+	RegionPressure.FindOrAdd(RegionName) = Pressure;
+}
+
+uint8 AShockPlayer::GetRegionPressure(FName RegionName) const
+{
+	if (const uint8* Value = RegionPressure.Find(RegionName))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+void AShockPlayer::AssertFact(FName Slot1, const FString& Slot2, const FString& Slot3)
+{
+	if (Slot1.IsNone())
+	{
+		return;
+	}
+	Facts.Add(MakeFactKey(Slot1, Slot2, Slot3));
+}
+
+void AShockPlayer::RetractFact(FName Slot1, const FString& Slot2, const FString& Slot3)
+{
+	if (Slot1.IsNone())
+	{
+		return;
+	}
+	Facts.Remove(MakeFactKey(Slot1, Slot2, Slot3));
+}
+
+bool AShockPlayer::HasFact(FName Slot1, const FString& Slot2, const FString& Slot3) const
+{
+	if (Slot1.IsNone())
+	{
+		return false;
+	}
+	return Facts.Contains(MakeFactKey(Slot1, Slot2, Slot3));
+}
+
 AShockPlayer* AShockPlayer::FindLocalOrFirst(UWorld* World)
 {
 	if (!World)

@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetAINormalLODOverrideTime.generated.h"
 
-/** UnrealScript `ActionSetAINormalLODOverrideTime`. Records AILabel + time; no LOD yet. */
+class UWorld;
+
+/** UnrealScript `ActionSetAINormalLODOverrideTime`. ApplyInWorld stores the time on labeled BaseShockAI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetAINormalLODOverrideTime : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
