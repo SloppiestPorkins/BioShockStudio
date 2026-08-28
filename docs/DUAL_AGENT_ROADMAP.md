@@ -87,47 +87,35 @@ sweep tier Cursor also depends on.
 
 ## Claude Code lane — extraction, the data layer, decode residuals
 
-Detail: [`ROADMAP.md`](ROADMAP.md) Part 2 and [`UE5_FULL_PORT_PLAN.md`](UE5_FULL_PORT_PLAN.md) §5
-Phases 1–2. Work items in order:
+**Status as of 28 Aug 2026: this lane is nearly out of independent runway.** A session working it
+end to end found that almost every open item was either already built-but-untracked or blocked:
 
-1. **Reconcile Part 0 with reality (small, first).** [`ROADMAP.md`](ROADMAP.md) Part 0.1 still reads
-   *"classify the 7 failing tests"*; the four failures from the 23 Aug red stamp were fixed and
-   confirmed green at `9cb53b2` (550/550), and the cause was stale bucket totals in the tests, not
-   a decoder regression (see "Test health" → verification stamp). Update Part 0.1 and 0.2 to match —
-   this is a Part 0.6 documentation-consolidation task, not a test emergency.
+| Item | Outcome, 28 Aug |
+|---|---|
+| Part 0.1 / 0.2 reconcile | **Done** — 0.1 was stale; verification stamp moved to **599/599 GREEN** (`76f40e0`). |
+| Phase 2.3 — level-manifest data layer | **Audit done** (`09b0f9b`, `614a5c4`). Built, not unbuilt: zone membership + spawner config pinned by tests; script graph Medical-complete via the sidecar. Two gaps: non-Medical sidecar coverage (verification); the AI-archetype system (undecoded — separate research track, `research/interaction.md` §4). |
+| Phase 1.1–1.2 — level geometry + materials | **Already done** 24 Aug (§9), plan text was stale — reconciled. |
+| Phase 1.3 — cubemaps | **Mostly done** 25 Aug; open: `TextureCube` assembly (face order `UNKNOWN`), influence radius. |
+| Phase 1.4 — lighting | Falloff exponent **resolved** (no such field). `LightCone`/`Type`/`Effect`/`Period` **now decoded** (`research/lights.md`, `LevelLightFieldTests`). Open: the `LevelLightDocument` manifest bump (needs Cursor coordination) and pinning the `LightType`/`LightEffect` enums (needs `Engine.U` to decompile). |
+| Gate 2 — Havok physics | **Already fully decoded** (`CONFIRMED_BYTES` — capsules, bodies, mass, inertia, velocities, constraints); only joint limits, licence-blocked. |
+| Gate 1 kDOP, Gate 3 | Deferred by design / mostly done. |
+| Gate 4 audio | Closed by the user. Do not resume. |
 
-2. **Phase 1 — finish Layer A (assets):**
-   - **Level-geometry materials.** The authored material graph/instance path (parents + instances,
-     base-colour/normal binding, correct LOD slot index) is verified on the `WP_Pistol` **rig**
-     slice only. Carry the same path onto **BSP and static-mesh level geometry**. This is explicitly
-     *not* evidence that BSP/static-mesh materials are finished
-     ([`UE5_FULL_PORT_PLAN.md`](UE5_FULL_PORT_PLAN.md) §5 Phase 1.2).
-   - **Cubemaps → reflection captures.** 281 `CubemapProbe` actors, each naming its `Cubemap`.
-     `CubemapProbe → SphereReflectionCapture` exists in `import_level.py` as of 25 Aug 2026 but is
-     **not visually confirmed**.
-   - **Lighting falloff exponent.** Brightness-as-scale and authored-radius-as-attenuation are
-     mapped (25 Aug 2026); the falloff exponent is still `UNKNOWN`. Resolve it against game data.
+**What actually remains for this lane, in rough priority:**
 
-3. **Phase 2 — the data layer (highest-value unbuilt work, and the interface Cursor needs).** Extend
-   the level manifest to carry: the **script graph**, **AI spawner configuration**, **zone
-   membership** (`Actor.Region`, already decoded), and **archetype references**. Phase 2.1 (class-
-   schema exporter) and 2.2 (action-usage census) are done; this third piece is what Cursor's
-   Phase 3/4 consumes. Prioritise it over the Gate residuals below.
+1. **The `LevelLightDocument` manifest bump** — carry `Cone`/`Type`/`Effect`/`Period` so
+   `import_level.py` can spawn `SpotLight`s and drive flicker. Schema change → coordinate with the
+   Cursor lane's importer; do it when its Phase 4 batch settles.
+2. **Non-Medical script-sidecar coverage** — run `export-script-actions` + import over the other 20
+   maps, record `nested_unmapped` per map. Export half is this lane, import half is Cursor's.
+3. **On-demand decode support** — whatever Cursor's Phase 3/4 runtime work turns out to need from
+   the data side (a new manifest field, a decode gap, an enum).
+4. **Part 0.6 consolidation** (ongoing) — collapse parallel status tables into `ROADMAP.md`.
+5. **Optional research tracks** (need user scoping): the AI-archetype system; the `LightType`/
+   `LightEffect` enums; `TextureCube` face order.
 
-4. **Gate residuals, in [`ROADMAP.md`](ROADMAP.md) Part 2 order:**
-   - **Gate 2 physics** — Havok capsule/body/mass decode for the Chaos mapping. Cursor's Phase 3
-     needs this; coordinate timing.
-   - **Gate 1 kDOP collision tail** — deferred *by design* until a concrete UE5 collision/navigation
-     target is chosen. If Cursor picks one, this unblocks; until then leave it (the game already
-     declares collision intent in plain properties — `NeverCollide`, `UseSimpleBoxCollision`, etc. —
-     which a bridge can carry without decoding the tree).
-   - **Gate 3** — remaining UE2 actor systems as they come up.
-   - **Gate 4 (audio) stays closed** — user instruction, [`ENGINEERING_RULES.md`](ENGINEERING_RULES.md)
-     §60. Do not resume unless asked.
-
-5. **Part 0.6 — status-doc consolidation** (ongoing, low priority). Collapse the parallel status
-   tables in `README.md`, `HANDOFF.md` and `NEXT_SESSION.md` into [`ROADMAP.md`](ROADMAP.md); leave
-   `QUALITY.md` and `research/*.md` as the evidence record.
+Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
+wide margin"). This lane's role is now support, not a parallel workstream.
 
 **Do not** edit `tools/ue5/**` — that is Cursor's lane.
 
