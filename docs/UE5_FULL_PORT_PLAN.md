@@ -1077,10 +1077,13 @@ already carries all four, at varying completeness. Item-by-item:
 **Verdict:** Phase 2 item 3 moves from "unbuilt" to **"built for three of four asks; archetype
 resolution is a separate open investigation"**:
 
-1. **Script-graph sidecar coverage on the 20 non-Medical maps** — run `export-script-actions` +
-   the import over each, record `nested_unmapped` and top-level `unmapped_classes` per map. The
-   export half is the Claude lane (`src/BioShockStudio.Cli`), the import half is Cursor's
-   (`tools/ue5/import_scripts.py`); coordinate. This is verification.
+1. **Script-graph sidecar coverage on the 20 non-Medical maps.** **Export half done, 28 Aug 2026:**
+   `export-script-actions` run over all 21 maps — **0 skipped on every map**, ~4,878 scripts /
+   ~39,690 unique exports / ~13,232 nested enqueued total (biggest is `4-Recreation`: 438 scripts,
+   5,876 exports, 2,804 nested; `Entry` and `museum` carry no scripts). The exporter is map-agnostic
+   with no map-specific decode gap. **Import half still open** — Cursor's `import_scripts.py` +
+   `run_import_scripts.py` need to be run per map with `nested_unmapped` / `unmapped_classes`
+   recorded; that is a `tools/ue5/**` + UE5 task for the Cursor lane.
 2. **The AI-archetype system** — decode what an archetype name (`Spawner.*AiTypes`,
    `OverriddenAiArchetypeNames`, `TriggerOnlyByLabels`) actually points at: a class, a data object,
    an `.ini` table, something else. `interaction.md` §4 is the existing lead. This is research, not

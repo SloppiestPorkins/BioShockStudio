@@ -106,8 +106,9 @@ end to end found that almost every open item was either already built-but-untrac
 1. **The `LevelLightDocument` manifest bump** — carry `Cone`/`Type`/`Effect`/`Period` so
    `import_level.py` can spawn `SpotLight`s and drive flicker. Schema change → coordinate with the
    Cursor lane's importer; do it when its Phase 4 batch settles.
-2. **Non-Medical script-sidecar coverage** — run `export-script-actions` + import over the other 20
-   maps, record `nested_unmapped` per map. Export half is this lane, import half is Cursor's.
+2. **Non-Medical script-sidecar coverage** — **export half done 28 Aug**: all 21 maps export with
+   0 skipped, no map-specific decode gap (§9). Import half (`nested_unmapped` per map) is a Cursor
+   `tools/ue5` + UE5 task.
 3. **On-demand decode support** — whatever Cursor's Phase 3/4 runtime work turns out to need from
    the data side (a new manifest field, a decode gap, an enum).
 4. **Part 0.6 consolidation** (ongoing) — collapse parallel status tables into `ROADMAP.md`.
