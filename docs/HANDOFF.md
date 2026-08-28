@@ -24,8 +24,9 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Claude Code | **Phase 2 data layer: extend level manifest (script graph / spawner config / zone membership / archetype refs)** — read-only recon until Cursor lands item 0, then implementation | `src/BioShockStudio.Core/Level/`, `src/BioShockStudio.Core/Assets/`, manifest exporter, `tests/` | 28 Aug 2026 |
-| Cursor (this session) | **Item 0: land uncommitted backlog** | working-tree diff | 28 Aug 2026 |
+| Claude Code | **Phase 2.3 audit: what does the level manifest already carry vs the ask (script graph / spawner config / zone membership / archetype refs)?** Then reconcile ROADMAP Part 0.1 test stamp. | `docs/UE5_FULL_PORT_PLAN.md`, `docs/ROADMAP.md`, read-only across `src/BioShockStudio.Core/Export/LevelSceneExporter.cs` + `Level/` | 28 Aug 2026 |
+
+**Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
 **Recently released:** Game-mode possess on 1-Medical (`run_game_possess.py`).
 

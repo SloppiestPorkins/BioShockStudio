@@ -39,11 +39,8 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Cursor lane, on main (push as you go). FIRST: land the uncommitted backlog — split the working-tree
-diff into logical commits by track (level import / vertical slice / runtime / import policy),
-Fast tier green, commit; C#-lane files (MaterialExporter.cs, MaterialClassTests.cs,
-LevelImportPolicyTests.cs) go in their own commit. See DUAL_AGENT_ROADMAP.md Cursor item 0.
-Then: the action census is COMPLETE — every Action* class has a first-slice UShockAction
+Cursor lane, on main (push as you go). Item 0 (uncommitted backlog) landed at 4d2247e.
+The action census is COMPLETE — every Action* class has a first-slice UShockAction
 (params + schema defaults + request-record). Do NOT run more census batches.
 Next: execution wiring — move each stub from record-the-request to do-it-in-world, most-used
 first per the Phase 2.2 census, verifying each against the game. Then close the Phase 0
