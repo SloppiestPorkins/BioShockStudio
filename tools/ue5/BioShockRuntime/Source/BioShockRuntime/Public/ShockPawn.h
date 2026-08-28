@@ -35,6 +35,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bIsDead = false;
 
+	/** Playable-slice god-mode flag for ActionSetPawnInvincibility / SetPlayerInvincibility. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bInvincible = false;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	void SetInvincible(bool bInInvincible) { bInvincible = bInInvincible; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
+	bool IsInvincible() const { return bInvincible; }
+
 	/** Seeds CurrentHealth from AuthoredMaxHealth (or AuthoredHealth). Idempotent if already > 0. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	void EnsureHealthInitialized();

@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionTweakAIVision.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionTweakAIVision`: SetVisionState / SetPlayerVisionState / SetAlwaysSeePlayer
- * on AIs by label. First slice records the tweak request; no AI sense wiring yet.
+ * on AIs by label. ApplyInWorld writes the flags on labeled BaseShockAI (no perception component).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTweakAIVision : public UShockAction
@@ -51,4 +53,7 @@ public:
 	/** Records the vision tweak. Returns false if AILabel is None. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestTweak();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

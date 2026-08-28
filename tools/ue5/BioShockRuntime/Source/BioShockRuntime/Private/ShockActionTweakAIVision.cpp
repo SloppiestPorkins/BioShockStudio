@@ -1,5 +1,7 @@
 #include "ShockActionTweakAIVision.h"
 
+#include "BaseShockAI.h"
+
 UShockActionTweakAIVision::UShockActionTweakAIVision()
 {
 	ActionClassName = TEXT("ActionTweakAIVision");
@@ -27,4 +29,21 @@ bool UShockActionTweakAIVision::RequestTweak()
 	LastTweakedAILabel = AILabel;
 	bLastTurnVisionOn = bTurnVisionOn;
 	return true;
+}
+
+int32 UShockActionTweakAIVision::ApplyInWorld(UWorld* World)
+{
+	if (!RequestTweak())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->bVisionOn = bTurnVisionOn;
+		AI->bAffectVisionOfPlayerOnly = bAffectVisionOfPlayerOnly;
+		AI->bAlwaysSeePlayer = bAlwaysSeePlayer;
+		++Applied;
+	}
+	return Applied;
 }

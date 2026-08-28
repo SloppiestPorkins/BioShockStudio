@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionTweakAIHearing.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionTweakAIHearing`: turn AI hearing on/off by label.
- * First slice records the request; no sense wiring yet.
+ * ApplyInWorld writes bHearingOn on labeled BaseShockAI (no hearing component).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTweakAIHearing : public UShockAction
@@ -44,4 +46,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestTweak();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

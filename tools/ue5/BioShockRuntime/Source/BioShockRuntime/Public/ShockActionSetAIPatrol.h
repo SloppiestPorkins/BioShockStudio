@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetAIPatrol.generated.h"
 
-/** UnrealScript `ActionSetAIPatrol`. Records patrol request; no patrol system yet. */
+class UWorld;
+
+/** UnrealScript `ActionSetAIPatrol`. ApplyInWorld stores PatrolName on labeled BaseShockAI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetAIPatrol : public UShockAction
 {
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSetPatrol();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

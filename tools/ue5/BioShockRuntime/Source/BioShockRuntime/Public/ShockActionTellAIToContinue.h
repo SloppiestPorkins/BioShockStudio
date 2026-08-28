@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionTellAIToContinue.generated.h"
 
-/** UnrealScript `ActionTellAIToContinue`. Records AILabel; no Tyrion continue yet. */
+class UWorld;
+
+/** UnrealScript `ActionTellAIToContinue`. ApplyInWorld clears bToldToWait. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTellAIToContinue : public UShockAction
 {
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestContinue();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

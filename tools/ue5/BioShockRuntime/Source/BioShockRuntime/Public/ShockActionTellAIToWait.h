@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionTellAIToWait.generated.h"
 
-/** UnrealScript `ActionTellAIToWait`. Records AILabel; no Tyrion wait goal yet. */
+class UWorld;
+
+/** UnrealScript `ActionTellAIToWait`. ApplyInWorld sets bToldToWait; no Tyrion wait goal. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTellAIToWait : public UShockAction
 {
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestWait();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -3,9 +3,11 @@
 #include "ShockAction.h"
 #include "ShockActionPostMovementGoal.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `ActionPostMovementGoal`: post CharacterMoveToGoal on AI Target toward
- * DestinationLabel. First slice records the goal request; no Tyrion goal stack yet.
+ * DestinationLabel. ApplyInWorld stores dest label + actor location; no Tyrion goal stack.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPostMovementGoal : public UShockAction
@@ -50,4 +52,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestPost();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetTipPriority.generated.h"
 
-/** UnrealScript `ActionSetTipPriority`: SetTipPriority(TipName, Priority). */
+class UWorld;
+
+/** UnrealScript `ActionSetTipPriority`: writes TipName → Priority on the local ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetTipPriority : public UShockAction
 {
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

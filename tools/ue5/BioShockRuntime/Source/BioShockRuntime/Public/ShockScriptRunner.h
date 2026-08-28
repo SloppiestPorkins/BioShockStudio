@@ -10,6 +10,7 @@ class UShockActionWait;
 class UShockScriptRegistry;
 class UShockScriptRunner;
 class UShockVariableScope;
+class UWorld;
 
 /**
  * First-slice stand-in for UnrealScript `Script` action execution.
@@ -186,4 +187,5 @@ private:
 	int32 InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert);
 	void TickSpawnedChildren(float WorldTimeSeconds);
 	bool AnySpawnedChildExecuting() const;
+	UWorld* GetOuterWorld() const;
 };

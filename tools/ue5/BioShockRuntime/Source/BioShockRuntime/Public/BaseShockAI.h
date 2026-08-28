@@ -3,6 +3,8 @@
 #include "ShockPawn.h"
 #include "BaseShockAI.generated.h"
 
+class UWorld;
+
 /**
  * UnrealScript `BaseShockAI`. No states — playable-slice home for a spawnable AI pawn.
  * ScriptLabel mirrors level actor labels for Action* lookups (not a full label system).
@@ -21,12 +23,53 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName AITypeName;
 
-	/** Last pawn passed to ScriptedAttackTarget. Not a combat state machine. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<AShockPawn> CurrentScriptedAttackTarget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TArray<FName> AttackOnSightLabels;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bVisionOn = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bHearingOn = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bAlwaysSeePlayer = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bAffectVisionOfPlayerOnly = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bMuted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bToldToWait = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName PatrolName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName MovementDestinationLabel;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString MovementGoalName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 MovementGoalPriority = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bMovementShouldRun = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FVector MovementGoalLocation = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	uint8 FullBodyHitReactions = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	uint8 QuickHitReactions = 0;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
@@ -34,11 +77,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FName GetScriptLabel() const { return ScriptLabel; }
 
-	/** UnrealScript `ShockAI.ScriptedAttackTarget` — stores the target; no pathing/weapons yet. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ScriptedAttackTarget(AShockPawn* Target);
 
-	/** UnrealScript `ShockAI.AddTargetToAttackOnSight` — records the label; no sight cone yet. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void AddTargetToAttackOnSight(FName InTargetLabel);
 
@@ -47,4 +88,34 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	bool HasAttackOnSightLabel(FName InTargetLabel) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsVisionOn() const { return bVisionOn; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsHearingOn() const { return bHearingOn; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsMuted() const { return bMuted; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsToldToWait() const { return bToldToWait; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	FName GetPatrolName() const { return PatrolName; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	FName GetMovementDestinationLabel() const { return MovementDestinationLabel; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool GetAlwaysSeePlayer() const { return bAlwaysSeePlayer; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	uint8 GetFullBodyHitReactions() const { return FullBodyHitReactions; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	uint8 GetQuickHitReactions() const { return QuickHitReactions; }
+
+	/** Editor actor label or ScriptLabel. Not a UFunction — C++ action helpers only. */
+	static TArray<ABaseShockAI*> CollectLabeled(UWorld* World, FName Label);
 };

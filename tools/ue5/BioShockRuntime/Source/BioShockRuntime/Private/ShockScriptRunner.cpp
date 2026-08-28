@@ -225,6 +225,15 @@ void UShockScriptRunner::FinishExecution()
 	TryDequeueAndStart();
 }
 
+UWorld* UShockScriptRunner::GetOuterWorld() const
+{
+	if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+	{
+		return OuterActor->GetWorld();
+	}
+	return nullptr;
+}
+
 bool UShockScriptRunner::TryDequeueAndStart()
 {
 	if (MessageQueue.Num() == 0 || !bEnabled)
@@ -1036,7 +1045,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionTellAIToWait* WaitAI = Cast<UShockActionTellAIToWait>(Action))
 	{
-		WaitAI->RequestWait();
+		WaitAI->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1044,7 +1053,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionTellAIToContinue* ContinueAI = Cast<UShockActionTellAIToContinue>(Action))
 	{
-		ContinueAI->RequestContinue();
+		ContinueAI->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1142,7 +1151,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionTweakAIVision* TweakVision = Cast<UShockActionTweakAIVision>(Action))
 	{
-		TweakVision->RequestTweak();
+		TweakVision->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1150,7 +1159,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionTweakAIHearing* TweakHearing = Cast<UShockActionTweakAIHearing>(Action))
 	{
-		TweakHearing->RequestTweak();
+		TweakHearing->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1158,7 +1167,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetTipPriority* TipPriority = Cast<UShockActionSetTipPriority>(Action))
 	{
-		TipPriority->RequestSet();
+		TipPriority->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1166,7 +1175,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionMuteAI* MuteAI = Cast<UShockActionMuteAI>(Action))
 	{
-		MuteAI->RequestMute();
+		MuteAI->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1198,7 +1207,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionPostMovementGoal* PostGoal = Cast<UShockActionPostMovementGoal>(Action))
 	{
-		PostGoal->RequestPost();
+		PostGoal->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1278,7 +1287,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionToggleAIReactions* ToggleReactions = Cast<UShockActionToggleAIReactions>(Action))
 	{
-		ToggleReactions->RequestToggle();
+		ToggleReactions->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1294,7 +1303,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetPlayerInvincibility* PlayerInv = Cast<UShockActionSetPlayerInvincibility>(Action))
 	{
-		PlayerInv->RequestSet();
+		PlayerInv->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1302,7 +1311,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetAIPatrol* AIPatrol = Cast<UShockActionSetAIPatrol>(Action))
 	{
-		AIPatrol->RequestSetPatrol();
+		AIPatrol->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -1318,7 +1327,7 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionSetPawnInvincibility* PawnInv = Cast<UShockActionSetPawnInvincibility>(Action))
 	{
-		PawnInv->RequestSet();
+		PawnInv->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

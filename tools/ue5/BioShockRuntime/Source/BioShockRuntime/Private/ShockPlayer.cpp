@@ -4,8 +4,10 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 
 AShockPlayer::AShockPlayer()
 {
@@ -162,6 +164,47 @@ int32 AShockPlayer::GetInventoryStack(FName ItemClass) const
 		return *Count;
 	}
 	return 0;
+}
+
+void AShockPlayer::SetTipPriority(FName TipName, int32 Priority)
+{
+	if (TipName.IsNone())
+	{
+		return;
+	}
+	TipPriorities.FindOrAdd(TipName) = Priority;
+}
+
+int32 AShockPlayer::GetTipPriority(FName TipName) const
+{
+	if (const int32* Value = TipPriorities.Find(TipName))
+	{
+		return *Value;
+	}
+	return 0;
+}
+
+AShockPlayer* AShockPlayer::FindLocalOrFirst(UWorld* World)
+{
+	if (!World)
+	{
+		return nullptr;
+	}
+	if (APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (AShockPlayer* Possessed = Cast<AShockPlayer>(PC->GetPawn()))
+		{
+			return Possessed;
+		}
+	}
+	for (TActorIterator<AShockPlayer> It(World); It; ++It)
+	{
+		if (*It)
+		{
+			return *It;
+		}
+	}
+	return nullptr;
 }
 
 void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

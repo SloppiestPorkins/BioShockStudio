@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetPlayerInvincibility.generated.h"
 
-/** UnrealScript `ActionSetPlayerInvincibility`. Records bInvincible; no god-mode wiring yet. */
+class UWorld;
+
+/** UnrealScript `ActionSetPlayerInvincibility`. ApplyInWorld sets the local ShockPlayer invincible. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetPlayerInvincibility : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

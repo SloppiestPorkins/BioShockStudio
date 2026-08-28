@@ -6,6 +6,7 @@
 class AShockWeapon;
 class UCameraComponent;
 class UInputComponent;
+class UWorld;
 
 /** UnrealScript `ShockPlayer`. CollisionRadius=34 is on this class's own defaults, not the parent. */
 UCLASS()
@@ -59,6 +60,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	int32 GetInventoryStack(FName ItemClass) const;
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetTipPriority(FName TipName, int32 Priority);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	int32 GetTipPriority(FName TipName) const;
+
+	/** Possessed ShockPlayer, or the first placed one (editor/headless). */
+	static AShockPlayer* FindLocalOrFirst(UWorld* World);
+
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -71,4 +81,7 @@ private:
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;
+
+	UPROPERTY()
+	TMap<FName, int32> TipPriorities;
 };

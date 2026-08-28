@@ -20,7 +20,7 @@ void AShockPawn::EnsureHealthInitialized()
 float AShockPawn::ApplyAuthoredDamage(float Damage)
 {
 	EnsureHealthInitialized();
-	if (bIsDead || Damage <= 0.0f)
+	if (bIsDead || bInvincible || Damage <= 0.0f)
 	{
 		return CurrentHealth;
 	}

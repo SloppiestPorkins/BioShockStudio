@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionMuteAI.generated.h"
 
-/** UnrealScript `ActionMuteAI`: MuteAI(bShouldMuteAI) on AIs by label. */
+class UWorld;
+
+/** UnrealScript `ActionMuteAI`: MuteAI(bShouldMuteAI) on labeled BaseShockAI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionMuteAI : public UShockAction
 {
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestMute();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

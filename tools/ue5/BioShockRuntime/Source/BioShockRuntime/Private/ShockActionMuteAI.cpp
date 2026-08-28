@@ -1,5 +1,7 @@
 #include "ShockActionMuteAI.h"
 
+#include "BaseShockAI.h"
+
 UShockActionMuteAI::UShockActionMuteAI()
 {
 	ActionClassName = TEXT("ActionMuteAI");
@@ -20,4 +22,19 @@ bool UShockActionMuteAI::RequestMute()
 	LastMutedAILabel = AILabel;
 	bLastMuted = bShouldMuteAI;
 	return true;
+}
+
+int32 UShockActionMuteAI::ApplyInWorld(UWorld* World)
+{
+	if (!RequestMute())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->bMuted = bShouldMuteAI;
+		++Applied;
+	}
+	return Applied;
 }

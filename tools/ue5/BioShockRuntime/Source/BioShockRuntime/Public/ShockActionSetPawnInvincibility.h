@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetPawnInvincibility.generated.h"
 
-/** UnrealScript `ActionSetPawnInvincibility`. Records PawnLabel + flag; no damage gate yet. */
+class UWorld;
+
+/** UnrealScript `ActionSetPawnInvincibility`. ApplyInWorld sets ShockPawn::bInvincible. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetPawnInvincibility : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

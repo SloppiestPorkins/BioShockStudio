@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionToggleAIReactions.generated.h"
 
+class UWorld;
+
 UENUM(BlueprintType)
 enum class EShockToggleHitReactions : uint8
 {
@@ -12,8 +14,8 @@ enum class EShockToggleHitReactions : uint8
 };
 
 /**
- * UnrealScript `ActionToggleAIReactions`. First slice records AILabel + reaction toggles;
- * no AI reaction wiring yet.
+ * UnrealScript `ActionToggleAIReactions`. ApplyInWorld stores full-body/quick reaction
+ * bytes on labeled BaseShockAI. No montage playback.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionToggleAIReactions : public UShockAction
@@ -52,4 +54,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestToggle();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
