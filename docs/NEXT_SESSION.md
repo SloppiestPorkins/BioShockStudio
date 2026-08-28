@@ -39,15 +39,17 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Cursor lane, on main (push as you go). Item 0 (uncommitted backlog) landed at 4d2247e.
-The action census is COMPLETE — every Action* class has a first-slice UShockAction
-(params + schema defaults + request-record). Do NOT run more census batches.
-Next: execution wiring — move each stub from record-the-request to do-it-in-world, most-used
-first per the Phase 2.2 census, verifying each against the game. Then close the Phase 0
-playable slice: human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon firing,
+Cursor lane, on main (push as you go). Item 0 landed at 4d2247e. ActionAttackTarget in-world
+landed 28 Aug (ScriptedAttackTarget / AddTargetToAttackOnSight; live Success - 0 error(s)).
+The action census is COMPLETE — do NOT run more census batches.
+Next: execution wiring, most-used stub that can change the world without imported anims.
+PlayAnimation (#12) still only records LastPlayedAnimation — real playback needs AnimSequences
+(Gate 5); skip until that exists. Next: ActionGiveItemsToPlayer (#16). Then TweakAIVision (#18).
+Then Phase 0 human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon firing,
 one enemy that spawns and takes damage).
 Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
-Rebuild: tools/ue5/rebuild_runtime_fast.ps1.
+Rebuild: UBT against BioShockUE5.uproject (PluginBuild/HostProject is currently missing;
+tools/ue5/rebuild_runtime_fast.ps1 will throw until it is re-seeded with RunUAT BuildPlugin).
 Lane split + interface contract: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
 ```
 

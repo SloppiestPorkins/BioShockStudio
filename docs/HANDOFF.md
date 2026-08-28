@@ -28,7 +28,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
-**Recently released:** Game-mode possess on 1-Medical (`run_game_possess.py`).
+**Recently released:** ActionAttackTarget in-world (`run_script_spawn_attack.py`, `Success - 0 error(s)` 28 Aug 2026). Game-mode possess on 1-Medical (`run_game_possess.py`).
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — world-AI
 runner; movement/goal. Older rows cleared.
