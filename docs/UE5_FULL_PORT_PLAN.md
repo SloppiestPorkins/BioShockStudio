@@ -171,10 +171,12 @@ before a working slice multiplies that class of problem by 21 maps.
    maps' `Script` actors. This orders Phase 4.
 3. **Extend the level manifest** to carry the script graph, AI spawner configuration, zone
    membership (already decoded via `Actor.Region`) and archetype references.
-   **Substantially done — audit 28 Aug 2026, see §9.** Spawner config and zone membership are in the
-   v4 manifest and pinned by tests; the script graph travels as action identities in the manifest
-   plus the full parameter tree in the `export-script-actions` sidecar; archetype references are
-   carried by name. Remaining gaps are verification, not construction — §9.
+   **Manifest half substantially done — audit 28 Aug 2026, see §9.** Spawner config and zone
+   membership are in the v4 manifest and pinned by tests; the script graph travels as action
+   identities in the manifest plus the full parameter tree in the `export-script-actions` sidecar
+   (Medical-complete, 20 maps unrun). Archetype references are carried as raw names — **what they
+   resolve to is `UNKNOWN`** and is a separate open investigation (`research/interaction.md` §4),
+   not a Phase 2.3 loose end. See §9.
 
 ### Phase 3 — A runtime skeleton in UE5 C++
 
@@ -1033,18 +1035,21 @@ already carries all four, at varying completeness. Item-by-item:
 | **Zone membership** | `LevelActorDocument.Region` → `LevelRegionDocument { Leaf, ZoneNumber }`; full zone properties in `LevelZoneActorDocument` (ambient/fog/reverb/SpawnZones/EffectsContexts) | **`CONFIRMED_BYTES`, done.** `ActorRegionTests.EveryActorsZoneAgreesWithTheLeafItNames` censuses all 21 maps: >95% of >10,000 placed actors carry a parseable `Region`, and `ZoneNumber` agrees with `Leaves[iLeaf].Zone` for >99.5% of the checkable ones. Pinned, Sweep tier. |
 | **AI spawner configuration** | `LevelActorDocument.Spawner` → `LevelSpawnerActorDocument` (global/initial/repopulation AI types + patrols, `InitialLabel`, `SpawnZones`, `Complete`) | **Done for the proven surface.** `SpawnerActorSchemaTests` asserts every Medical `AggressorSpawner` (19) exports a `Complete` typed population declaration with non-empty `SpawnZones` and AI types, and that it round-trips through the manifest export. Other maps not separately pinned. |
 | **Script graph** | Manifest: `LevelScriptActionsDocument.Actions` (action-export identities only) + `LevelScriptedSequenceDocument`. Full per-instance parameter tree, nested If/Loop/For bodies, `testsOr`, `TriggeredBy`, message triggers: the `bioshock-tool export-script-actions` sidecar (`bySourceKey`), which `tools/ue5/import_scripts.py` consumes. | **Split by design, Medical-complete.** The 256-byte inline cap in `LevelPropertyDocument.ValueHex` is why large script payloads deliberately do not live in the manifest. Full `1-Medical`: 300 scripts, 1,463 actions mapped, nested true/else/loop/for/tests 331/37/10/3/114, `nested_unmapped = 0` (§9, 27 Aug 2026). **Gap:** the sidecar's graph coverage is proven on Medical only; the other 20 maps are unrun. |
-| **Archetype references** | `LevelSpawnerActorDocument.OverriddenAiArchetypeNames` + the `*AiTypes` lists (name strings); resolution to a Phase 2.1 `--schema` class entry is by-name at import. | **Names carried; resolution unverified.** No census yet confirms every spawner archetype name resolves to a class in the Phase 2.1 schema JSON (1,410 classes). Same by-name pattern as script actions — low risk, but currently `PLAUSIBLE` not `CONFIRMED`. |
+| **Archetype references** | `LevelSpawnerActorDocument.OverriddenAiArchetypeNames` + the `*AiTypes` lists — raw name strings from the package name table. | **Names carried; what they resolve to is `UNKNOWN`.** `docs/research/interaction.md` §4 already records that AI-archetype / character-identity names (`Steinman`, `Cohen`, `BerserkDude1`, …) seen on `TriggerOnlyByLabels` resolve through "a system this project hasn't decoded" — not a placed-actor lookup, and not shown to be a Phase 2.1 class either. The spawner archetype names are the same shape of reference. The manifest carries them faithfully; the resolution target is an unopened investigation, not a by-name lookup that just needs a census. |
 
-**Verdict:** Phase 2 item 3 moves from "unbuilt" to **"built, two verification gaps"**:
+**Verdict:** Phase 2 item 3 moves from "unbuilt" to **"built for three of four asks; archetype
+resolution is a separate open investigation"**:
 
 1. **Script-graph sidecar coverage on the 20 non-Medical maps** — run `export-script-actions` +
    the import over each, record `nested_unmapped` and top-level `unmapped_classes` per map. The
    export half is the Claude lane (`src/BioShockStudio.Cli`), the import half is Cursor's
-   (`tools/ue5/import_scripts.py`); coordinate.
-2. **Archetype-name → schema resolution census** — a Fast-or-Sweep test that every
-   `Spawner.OverriddenAiArchetypeNames` / `*AiTypes` entry across 21 maps names a class present in
-   the Phase 2.1 schema. Pure Claude lane.
+   (`tools/ue5/import_scripts.py`); coordinate. This is verification.
+2. **The AI-archetype system** — decode what an archetype name (`Spawner.*AiTypes`,
+   `OverriddenAiArchetypeNames`, `TriggerOnlyByLabels`) actually points at: a class, a data object,
+   an `.ini` table, something else. `interaction.md` §4 is the existing lead. This is research, not
+   a pin, and it is arguably its own track rather than a Phase 2.3 loose end — flag for the user
+   before starting.
 
-Neither is "build the data layer". The plan's framing of item 3 as the highest-value *unbuilt* work
-is stale — it was largely built incrementally under `feat:` commits (`0d03b75`, `2e20188`,
+Neither is "build the manifest". The plan's framing of item 3 as the highest-value *unbuilt* work
+is stale — the manifest half was built incrementally under `feat:` commits (`0d03b75`, `2e20188`,
 `d25155f`, the `Region`/`Spawner` decoders) without being tracked against this item.
