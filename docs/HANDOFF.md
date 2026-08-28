@@ -28,7 +28,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
-**Recently released:** player/AI control batch (`run_script_player_ai_control.py`, ammo stack 3→2, `Success - 0 error(s)` 28 Aug 2026) — RemoveItems, ForcePlayerCrouch, DisablePlayerMovement, DisableOrEnableConcept, SetAIState, ToggleAIAttacking, ChangePawnPhysics. AI-state batch in-world (`run_script_ai_tweak.py`, invincible pawn health 100→100). ActionGiveItemsToPlayer in-world. ActionAttackTarget in-world. Game-mode possess on 1-Medical (`run_game_possess.py`).
+**Recently released:** sequence/goal/facts batch (`run_script_movement.py`, WaitForGoal satisfied after MoveToPoint, player X=300, `Success - 0 error(s)` 28 Aug 2026) — ControlScriptedSequence, WaitForGoal, AssertFact, ForcePlayerMove, RunConsoleCommand, DebugMessage, InputContext, ChangePressure, LOD override. player/AI control batch. AI-state batch. Give/RemoveItems. AttackTarget. Game-mode possess on 1-Medical.
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — world-AI
 runner; movement/goal. Older rows cleared.

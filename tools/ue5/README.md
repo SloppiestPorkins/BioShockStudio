@@ -516,6 +516,21 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 **Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** Report
 `pawn_health` stayed 100 after 40 authored damage on an invincible splicer.
 
+## ActionControlScriptedSequence / ActionWaitForGoal
+
+WaitForGoal completes immediately when the labeled AI already has that `MovementGoalName`
+posted (no pathing). Sequence RunNow, input context, region pressure, and facts live on
+the local ShockPlayer. ForcePlayerMove snaps to the marker. `stat fps` is Exec'd;
+headless commandlet returned false for that command.
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_script_movement.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 28 Aug 2026 — `Success - 0 error(s)`.** WaitForGoal satisfied after
+PostMovementGoal `MoveToPoint`; player snapped to MoveMarker X=300.
+
 ## Phase 4 census batches (through batch3)
 
 Later census head landed in batches to cut editor launches: BlockingExecuteScript through

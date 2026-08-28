@@ -40,14 +40,14 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Cursor lane, on main (push as you go). Item 0 landed at 4d2247e. AttackTarget,
-GiveItems/RemoveItems, AI-state batch, and player/AI control batch (crouch, disable-move,
-concept, SetAIState, ToggleAIAttacking, ChangePawnPhysics) in-world landed 28 Aug
-(live Success - 0 error(s)).
+Give/RemoveItems, AI-state, player/AI control, and sequence/goal/facts batches
+in-world landed 28 Aug (live Success - 0 error(s)).
 The action census is COMPLETE — do NOT run more census batches.
 Next: execution wiring. PlayAnimation (#12) still only records LastPlayedAnimation — skip
 until imported AnimSequences exist (Gate 5). ChangeCollision (#17) already ApplyInWorld.
-Next stubs: ControlScriptedSequence (#30), WaitForGoal (#33). Skip Open/Close/Lock/UnlockDoor
-until door actors exist; skip ChangeSkin / CinematicFade / AISpeech until those systems exist.
+Skip Open/Close/Lock/UnlockDoor until door actors exist; skip ChangeSkin / CinematicFade /
+AISpeech until those systems exist. Remaining Request* stubs are mostly quests, timers,
+HUD, alarms, spawn-zone/spotlight, ChangeStaticMesh, ChangeLevel.
 Then Phase 0 human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon firing,
 one enemy that spawns and takes damage).
 Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
