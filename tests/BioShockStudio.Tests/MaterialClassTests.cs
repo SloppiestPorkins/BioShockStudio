@@ -1,3 +1,4 @@
+using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
 using Xunit;
@@ -118,6 +119,31 @@ public sealed class MaterialClassTests(GameFixture game)
         }
 
         Assert.Equal(2, water.Textures.Count);
+    }
+
+    [RequiresGameFact]
+    public void AFluidShaderExportMapsWaterDiffuseIntoSceneDiffuse()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var export = package.Exports
+            .Where(e => package.GetClassName(e) == "FluidShader"
+                        && string.Equals(e.ObjectName, "WaterSpreadA", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(export);
+
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-fluid-{Guid.NewGuid():N}");
+        try
+        {
+            var scene = MaterialExporter.ResolveMaterial(package, export, directory);
+            Assert.NotNull(scene);
+            Assert.NotNull(scene.Diffuse);
+            Assert.True(File.Exists(Path.Combine(directory, scene.Diffuse.Replace('/', Path.DirectorySeparatorChar))),
+                $"water diffuse '{scene.Diffuse}' was not written");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     /// <summary>
