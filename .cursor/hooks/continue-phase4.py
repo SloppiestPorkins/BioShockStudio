@@ -10,9 +10,10 @@ import sys
 MAX_LOOPS = 25
 
 DEFAULT_FOLLOWUP = (
-    "Keep going on Phase 4 census. Read docs/NEXT_SESSION.md resume block, "
-    "implement the next action batch, verify live, commit, update docs. "
-    "No status pauses."
+    "Keep going on the Cursor lane (docs/DUAL_AGENT_ROADMAP.md). The action census is COMPLETE "
+    "- do NOT run more census batches. Read the docs/NEXT_SESSION.md resume block, take the next "
+    "Phase 4 execution-wiring item (move one stub from record-the-request to do-it-in-world, "
+    "most-used first per the Phase 2.2 census), verify live, commit, update docs. No status pauses."
 )
 
 
@@ -29,7 +30,8 @@ def _resume_from_next_session(repo_root: str) -> str:
     if not m:
         return DEFAULT_FOLLOWUP
     block = m.group(1).strip()
-    if not block or "Continue Phase 4" not in block:
+    # A well-formed resume block starts with the paste-ready "@docs/..." context line.
+    if not block or "@docs/" not in block:
         return DEFAULT_FOLLOWUP
     return block
 

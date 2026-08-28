@@ -26,6 +26,10 @@ See [docs/research/](docs/research/) for the byte-level evidence behind every cl
 pinned by a test, and [docs/research/open-questions.md](docs/research/open-questions.md) for what is
 still unknown.
 
+Two AI agents work this repo concurrently — [docs/DUAL_AGENT_ROADMAP.md](docs/DUAL_AGENT_ROADMAP.md)
+splits the remaining work by file ownership: Cursor drives the UE5 runtime (`tools/ue5/**`), Claude
+Code drives the C# extraction tool (`src/**`).
+
 ## Building
 
 ```bash

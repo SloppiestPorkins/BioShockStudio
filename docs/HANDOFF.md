@@ -5,8 +5,10 @@
 
 ## Active work ? check and update this before touching a shared file
 
-Two AI agents (this session's assistant and a separate ChatGPT session) work in this repository
+Two AI agents (Claude Code and a separate Cursor session) work in this repository
 concurrently, on one branch, with no other coordination mechanism between them. This table is it.
+Work is split by file ownership - see `docs/DUAL_AGENT_ROADMAP.md` (Cursor owns `tools/ue5/**`,
+Claude Code owns `src/**` / `tests/**`). The claim table still governs any shared file.
 **Before starting work, add a row. Before touching a file another row claims, check with the user
 first** ? they're the one relaying between both sessions and can say whether it's stale or still
 live. Remove your row when the track lands (committed) or you stop working on it. An empty table
@@ -22,9 +24,9 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
+| Cursor (this session) | **Item 0: land uncommitted backlog** | working-tree diff | 28 Aug 2026 |
 
-**Recently released:** Game-mode possess on 1-Medical (`run_game_possess.py`, ShockPlayer at
-MedicalStart, playable=1). Editor PIE still human for viewport feel.
+**Recently released:** Game-mode possess on 1-Medical (`run_game_possess.py`).
 
 **Recently released (do not re-claim as live):** Cursor Phase 4 through 27 Aug 2026 — world-AI
 runner; movement/goal. Older rows cleared.

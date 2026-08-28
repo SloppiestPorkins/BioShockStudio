@@ -606,6 +606,31 @@ deferred items in that note are deferred, not queued: do not resume audio work u
 
 ---
 
+## 61. Two-agent lane split — added 28 Aug 2026
+
+**Canonical text: [`docs/DUAL_AGENT_ROADMAP.md`](DUAL_AGENT_ROADMAP.md).** This entry only points
+at it so the rule is not rediscovered.
+
+Cursor and Claude Code both work `main` with the `docs/HANDOFF.md` claim table as the only lock, so
+the two are kept apart by **file ownership**, not by turn-taking:
+
+- **Cursor owns `tools/ue5/**`** — the Python import/verify scripts and the `BioShockRuntime/` C++
+  plugin. It drives the UE5 runtime and the playable slice (UE5 plan Phases 0, 3, 4-execution).
+- **Claude Code owns `src/**`, `tests/**`, `docs/research/**`, `docs/QUALITY.md`** — the C#
+  extraction tool. It finishes the asset layer and builds the data layer the runtime consumes
+  (UE5 plan Phases 1–2, ROADMAP Gate residuals).
+
+**The export format is a contract.** Changing a manifest or script-action sidecar schema is a
+breaking change for the other lane: announce it in `docs/HANDOFF.md`, bump the manifest version,
+keep the old reader working until the consuming lane has migrated.
+
+**Status docs are lane-scoped.** Cursor updates `docs/UE5_FULL_PORT_PLAN.md` §9 and its
+`docs/NEXT_SESSION.md` resume block; Claude updates `docs/ROADMAP.md` Parts 1–2 and
+`docs/QUALITY.md`. Neither edits the other's entries. §60 "Roadmap discipline", "Cursor session
+start" and "Test-run economy" apply to both agents unchanged.
+
+---
+
 ## Master operating principle
 
 Be curious enough to discover the truth, disciplined enough not to chase every discovery, and

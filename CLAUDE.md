@@ -8,6 +8,10 @@ this file is the entry point, and it is deliberately short so the two cannot dri
 tier only, claim table before touching shared files. Full rule: `ENGINEERING_RULES.md` §60
 "Cursor session start".
 
+**Two agents, split by file.** `docs/DUAL_AGENT_ROADMAP.md` (`ENGINEERING_RULES.md` §61): Cursor
+owns `tools/ue5/**` and the UE5 runtime; Claude Code owns `src/**` / `tests/**` and the C# tool.
+Stay in your lane; the `docs/HANDOFF.md` claim table still governs any shared file.
+
 ## The rules that get broken most often
 
 

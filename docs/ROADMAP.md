@@ -84,6 +84,12 @@ track lands. `ENGINEERING_RULES.md` §60 points at it. The existing git-hygiene 
 filename, never `git add -A`, small logical commits — 0.2 above) remains the safety net under this
 for whenever the table is stale or unchecked.
 
+**Updated 28 Aug 2026:** the second agent is now a Cursor session, and the split is formalised by
+**file ownership** in [`DUAL_AGENT_ROADMAP.md`](DUAL_AGENT_ROADMAP.md) (`ENGINEERING_RULES.md` §61) —
+Cursor owns `tools/ue5/**` and the UE5 runtime (UE5 plan Phases 0/3/4), Claude Code owns `src/**`
+and the C# tool (UE5 plan Phases 1–2, the Gate residuals below). The claim table still governs any
+shared file, and the export formats between the two lanes are a versioned contract.
+
 **0.4 — Finish one track before starting the next.** UE5 import, audio, and lightmaps are all
 mid-flight, and Track B (bytecode decoding) is about to become a fourth. UE5 import is the
 project's own stated end goal and the closest of the four to actually done (Gates 0–5 above) — it

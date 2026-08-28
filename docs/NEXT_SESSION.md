@@ -10,11 +10,16 @@ repository; this file only tells it where to look and what not to re-derive.
 **The efficient pattern is a narrow prompt + one Gate item.** Do not open with "look through this
 and start working" — that burns a turn re-reading the whole handoff/roadmap before any code moves.
 
+**Which lane** — `docs/DUAL_AGENT_ROADMAP.md` splits work by file ownership between Cursor
+(`tools/ue5/**`, the UE5 runtime) and Claude Code (`src/**`, the C# tool). Cursor's default lane is
+UE5 plan Phases 0/3/4; stay in it unless the user says otherwise.
+
 **Best opening for a new chat**
 
-1. `@docs/NEXT_SESSION.md` and `@docs/ROADMAP.md` (or paste this file's body).
-2. Name one concrete ask from Part 2 / the resume block, e.g. nested If/Loop script import, or
-   `Gate 4 item 4: DecoyHumanAbility.TargetIndicatorClassString`.
+1. `@docs/NEXT_SESSION.md` and `@docs/DUAL_AGENT_ROADMAP.md` (and `@docs/ROADMAP.md` for C#-lane
+   work, or `@docs/UE5_FULL_PORT_PLAN.md` for UE5-lane work).
+2. Name one concrete ask from the resume block / your lane's item list, e.g. "wire ActionSpawnAI
+   execution in-world" or `Gate 4 item 4: DecoyHumanAbility.TargetIndicatorClassString`.
 3. Optionally `@` the research note for that area (`docs/research/interaction.md`, `audio.md`, …).
 
 **What the agent should do then**
@@ -33,21 +38,20 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ### Resume here (keep current; wipe when the named item lands)
 
 ```
-@docs/NEXT_SESSION.md @docs/ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Phase 4 on main (push as you go): Medical Script import clean; runner Hide/SetProperty/
-Destroy/PlayEffect/StopEffect/SpawnAI/AttackTarget/PlayAnimation/Log/OpenCloseLockUnlockDoor/
-Teleport/Freeze/SetActorLabel/GiveRemoveItems/DisplayMap/Print/SetQuestHint/
-InitiateCompleteFailQuest/AutoSave/DealDamage/ChangeLevel/Crouch/DisableMove/
-DealDamageInRadius/ApplyImpulse/StartStopTimer/Console/ChangeMesh/
-SetAIState/Ragdoll/SpawnPickup/SpawnTurret/AssertRetractFact/ForceMove/TellAI/
-SetLightProperties/ChangeCollision/SecurityAlarm/HUD/Hack/MaterialSwitch/
-TweakAIVision/Hearing/SetTipPriority/MuteAI/CinematicFade/ChangeSkin/AISpeech/
-PostMovementGoal/Concept/ScriptedSequence/WaitForGoal/InputContext/ChangePressure/
-SpawnZoneRepopulation/SpotlightTarget+State/QuestLogWait/ToggleAIReactions/
-DisplayDebug/Player+PawnInvincibility/SetAIPatrol/ChangePawnPhysics/LODOverride by label.
+@docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
+Cursor lane, on main (push as you go). FIRST: land the uncommitted backlog — split the working-tree
+diff into logical commits by track (level import / vertical slice / runtime / import policy),
+Fast tier green, commit; C#-lane files (MaterialExporter.cs, MaterialClassTests.cs,
+LevelImportPolicyTests.cs) go in their own commit. See DUAL_AGENT_ROADMAP.md Cursor item 0.
+Then: the action census is COMPLETE — every Action* class has a first-slice UShockAction
+(params + schema defaults + request-record). Do NOT run more census batches.
+Next: execution wiring — move each stub from record-the-request to do-it-in-world, most-used
+first per the Phase 2.2 census, verifying each against the game. Then close the Phase 0
+playable slice: human PIE check on 1-Medical (WASD/look/Fire feel, starter weapon firing,
+one enemy that spawns and takes damage).
 Possess verified (`run_game_possess.py`): ShockPlayer at MedicalStart, playable input on.
 Rebuild: tools/ue5/rebuild_runtime_fast.ps1.
-Branch: main only.
+Lane split + interface contract: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
 ```
 
 **What wastes time here**
