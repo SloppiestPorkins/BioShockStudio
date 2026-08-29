@@ -1020,14 +1020,15 @@ Causes, all measured:
   from the start with an upward-normal test. Live `-game`: pawn `Z=7856` (78 uu above
   authored 7778, on the floor, not the hull).
 - TommyGun was `SnapToTarget` on the camera at identity (`R_grip` inside the near clip)
-  plus `SetOnlyOwnerSee`. Slice stand-in offset `(28, 10, -14)`; collision off.
+  plus `SetOnlyOwnerSee`. Hands mesh `NEWPlayerHands` now attaches to the camera; the gun
+  hangs off the `TommyGun` socket (fallback `R_Grip`); grip framed at camera-relative
+  `(28, 10, -14)`. Idle `FidgetTommygun`. Not the game camera transform.
 - Static mesh actors default to Static; lighting is unbuilt, so PIE has no Lightmass
-  and the editor's preview fill does not exist. PostLogin flips 4250 meshes Movable
-  (`BIOSHOCK_SLICE_LIGHTING movable=4250`) and `import_level.py` now authors that
-  mobility for later imports.
+  and the editor's preview fill does not exist. PostLogin flips 4250 meshes Movable,
+  spawns a tagged directional+sky fill, and the camera uses manual exposure.
 
-Not a claim that PIE feels good — needs another human Play (restart the editor so the
-new DLL loads).
+Not a claim that PIE feels good — needs another human Play. The plugin DLL was locked
+by a running UnrealEditor at build time; quit the editor so the new binary can link.
 
 ### Phase 4 runner DealDamageInRadius / ApplyImpulse + timer / console / mesh — done, 27 Aug 2026
 

@@ -1,9 +1,13 @@
 #include "ShockPlayer.h"
 
 #include "ShockWeapon.h"
+#include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/Scene.h"
+#include "Engine/SkeletalMesh.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
@@ -37,6 +41,17 @@ AShockPlayer::AShockPlayer()
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->bUsePawnControlRotation = true;
+	FirstPersonCamera->PostProcessBlendWeight = 1.0f;
+	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureMethod = true;
+	FirstPersonCamera->PostProcessSettings.AutoExposureMethod = AEM_Manual;
+	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureBias = true;
+	FirstPersonCamera->PostProcessSettings.AutoExposureBias = 0.0f;
+
+	ViewHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ViewHands"));
+	ViewHands->SetupAttachment(FirstPersonCamera);
+	ViewHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ViewHands->SetCastShadow(false);
+	ViewHands->SetHiddenInGame(true);
 }
 
 void AShockPlayer::PossessedBy(AController* NewController)
@@ -54,6 +69,51 @@ void AShockPlayer::PossessedBy(AController* NewController)
 	}
 }
 
+void AShockPlayer::EnsureViewHands()
+{
+	if (!ViewHands || ViewHands->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
+	USkeletalMesh* Hands = LoadObject<USkeletalMesh>(
+		nullptr,
+		TEXT("/Game/BioShockWeapons/NEWPlayerHands/NEWPlayerHands.NEWPlayerHands"));
+	if (!Hands)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_VIEWMODEL hands=0"));
+		return;
+	}
+
+	ViewHands->SetSkeletalMesh(Hands);
+	ViewHands->SetHiddenInGame(false);
+	ViewHands->SetOnlyOwnerSee(false);
+	ViewHands->SetOwnerNoSee(false);
+
+	if (UAnimSequence* Idle = LoadObject<UAnimSequence>(
+			nullptr,
+			TEXT("/Game/BioShockWeapons/NEWPlayerHands/Animations/FidgetTommygun.FidgetTommygun")))
+	{
+		ViewHands->PlayAnimation(Idle, true);
+	}
+}
+
+void AShockPlayer::FrameViewmodel(FName GripSocket)
+{
+	if (!FirstPersonCamera || !ViewHands)
+	{
+		return;
+	}
+
+	const FVector DesiredLocal(28.0f, 10.0f, -14.0f);
+	const FVector SocketWorld = GripSocket.IsNone()
+		? (EquippedWeapon ? EquippedWeapon->GetActorLocation() : ViewHands->GetComponentLocation())
+		: ViewHands->GetSocketLocation(GripSocket);
+	const FVector DesiredWorld =
+		FirstPersonCamera->GetComponentTransform().TransformPosition(DesiredLocal);
+	ViewHands->AddWorldOffset(DesiredWorld - SocketWorld);
+}
+
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 {
 	EquippedWeapon = Weapon;
@@ -63,22 +123,50 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	}
 
 	Weapon->SetOwner(this);
-	if (FirstPersonCamera)
+	EnsureViewHands();
+
+	FName GripSocket = NAME_None;
+	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
+	{
+		static const FName Candidates[] = {
+			TEXT("TommyGun"), TEXT("R_Grip"), TEXT("R_grip")};
+		for (const FName Candidate : Candidates)
+		{
+			if (ViewHands->DoesSocketExist(Candidate))
+			{
+				GripSocket = Candidate;
+				break;
+			}
+		}
+		Weapon->AttachToComponent(
+			ViewHands,
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+			GripSocket);
+		FrameViewmodel(GripSocket);
+	}
+	else if (FirstPersonCamera)
 	{
 		Weapon->AttachToComponent(
 			FirstPersonCamera,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		// Slice stand-in: R_grip at the camera is inside the near clip. Not the game camera.
 		Weapon->SetActorRelativeLocation(FVector(28.0f, 10.0f, -14.0f));
-		Weapon->SetActorHiddenInGame(false);
-		if (USkeletalMeshComponent* WeaponMesh = Weapon->FindComponentByClass<USkeletalMeshComponent>())
-		{
-			WeaponMesh->SetOnlyOwnerSee(false);
-			WeaponMesh->SetOwnerNoSee(false);
-			WeaponMesh->SetCastShadow(false);
-			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
 	}
+
+	Weapon->SetActorHiddenInGame(false);
+	if (USkeletalMeshComponent* WeaponMesh = Weapon->FindComponentByClass<USkeletalMeshComponent>())
+	{
+		WeaponMesh->SetOnlyOwnerSee(false);
+		WeaponMesh->SetOwnerNoSee(false);
+		WeaponMesh->SetCastShadow(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s"),
+		(ViewHands && ViewHands->GetSkeletalMeshAsset()) ? 1 : 0,
+		*GripSocket.ToString());
 }
 
 void AShockPlayer::EnablePlayableInput(bool bEnable)

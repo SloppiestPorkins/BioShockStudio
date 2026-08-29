@@ -41,12 +41,10 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Cursor lane, on main (push as you go). Item 0 landed at 4d2247e.
 Phase 0 mechanical fire landed 28 Aug. PIE on 29 Aug was awful: roof spawn,
-gun not in view, wall textures broken. Fixes in the working tree (rebuild the
-plugin, restart the editor): floor snap no longer starts 400 uu up (pawn Z
-7856 not 8248); TommyGun offset in front of the camera; 4250 Static meshes
-flipped Movable so unbuilt lighting can light them in PIE.
-Human PIE feel is still the remaining Phase 0 bar — WASD/look/Fire in the
-editor viewport. Close UnrealEditor and reopen so it loads the new DLL.
+gun not in view, wall textures broken. Roof snap is fixed (Z=7856). Next PIE
+needs a **full editor restart** after this commit: hands+TommyGun on the
+`TommyGun` socket, manual exposure, and an editor-style directional/sky fill.
+Human PIE feel is still the remaining Phase 0 bar.
 The action census is COMPLETE — do NOT run more census batches.
 PlayAnimation (#12) still only records LastPlayedAnimation — skip until imported
 AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors

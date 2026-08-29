@@ -8,10 +8,14 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/DirectionalLight.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkyLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#include "Components/LightComponent.h"
+#include "Components/SkyLightComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
@@ -57,7 +61,49 @@ void EnableDynamicLighting(UWorld* World)
 			}
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d"), Converted);
+
+	const FName FillTag(TEXT("BioShockSliceFill"));
+	bool bHasFill = false;
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (It->Tags.Contains(FillTag))
+		{
+			bHasFill = true;
+			break;
+		}
+	}
+	if (!bHasFill)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(
+				ADirectionalLight::StaticClass(),
+				FVector::ZeroVector,
+				FRotator(-46.0f, -35.0f, 0.0f),
+				Params))
+		{
+			Sun->Tags.Add(FillTag);
+			Sun->SetMobility(EComponentMobility::Movable);
+			if (ULightComponent* Light = Sun->GetLightComponent())
+			{
+				Light->SetIntensity(12.0f);
+			}
+		}
+		if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(
+				ASkyLight::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, Params))
+		{
+			Sky->Tags.Add(FillTag);
+			if (USkyLightComponent* SkyComp = Sky->GetLightComponent())
+			{
+				SkyComp->SetMobility(EComponentMobility::Movable);
+				SkyComp->SetIntensity(1.0f);
+				SkyComp->SetRealTimeCaptureEnabled(true);
+				SkyComp->RecaptureSky();
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d fill=%d"), Converted, bHasFill ? 0 : 1);
 }
 }
 

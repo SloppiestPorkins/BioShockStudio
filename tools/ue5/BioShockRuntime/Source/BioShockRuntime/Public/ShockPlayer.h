@@ -6,6 +6,7 @@
 class AShockWeapon;
 class UCameraComponent;
 class UInputComponent;
+class USkeletalMeshComponent;
 class UWorld;
 
 /** UnrealScript `ShockPlayer`. CollisionRadius=34 is on this class's own defaults, not the parent. */
@@ -22,6 +23,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
+	TObjectPtr<USkeletalMeshComponent> ViewHands;
 
 	/**
 	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
@@ -252,6 +256,8 @@ private:
 	void MoveRight(float Value);
 	void TurnAtRate(float Value);
 	void LookUpAtRate(float Value);
+	void EnsureViewHands();
+	void FrameViewmodel(FName GripSocket);
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;
