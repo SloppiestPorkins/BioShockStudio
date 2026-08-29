@@ -40,11 +40,19 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Cursor lane, on main (push as you go). Item 0 landed at 4d2247e.
-Phase 0 mechanical fire landed 28 Aug. PIE on 29 Aug was awful: roof spawn,
-gun not in view, wall textures broken. Roof snap is fixed (Z=7856). Next PIE
-needs a **full editor restart** after this commit: hands+TommyGun on the
-`TommyGun` socket, manual exposure, and an editor-style directional/sky fill.
-Human PIE feel is still the remaining Phase 0 bar.
+Phase 0 mechanical fire landed 28 Aug. Human PIE 29 Aug: roof spawn +
+viewmodel were the other tracks; **wall textures** diagnosed 29 Aug as (a)
+not (b)/(c): 176 masters under BioShockSlice Content/Materials/Masters had
+NULL Normal TextureSampleParameter2D defaults
+(`Found NULL, requires Texture2D` → Default Material in game).
+CONFIRMED_BYTES from BioShockUE5.log + audit_level_materials.py.
+Repaired 176/176 via repair_null_master_textures.py; import_bioshock now
+loads Engine defaults with unreal.load_object (EditorAssetLibrary misses
+DefaultNormal) and re-repairs on reuse. Re-audit: nullTextureMasterCount=0.
+54 unresolved door slots remain (separate, PLAUSIBLE). PIE/screenshot
+headless still impossible (AV) — human Play to confirm walls look right.
+Lighting fill/movable still in ShockGameMode PostLogin (movable=4250 in
+that PIE log); no LIGHTING NEEDS TO BE REBUILT lines.
 The action census is COMPLETE — do NOT run more census batches.
 PlayAnimation (#12) still only records LastPlayedAnimation — skip until imported
 AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors

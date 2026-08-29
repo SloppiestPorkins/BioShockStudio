@@ -24,7 +24,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor | **Phase 0 PIE fixes:** roof spawn, viewmodel in camera, unbuilt-lighting walls. | `tools/ue5/BioShockRuntime/**` (`ShockGameMode`, `ShockPlayer`, `ShockWeapon`), `import_level.py`, `docs/NEXT_SESSION.md` | 29 Aug 2026 |
+| Cursor | **Phase 0 wall textures (diagnosed+repaired):** cause (a) NULL Normal on 176 `M_BioShock_*` masters → compile fail → Default Material. NOT unbuilt-Lightmass-only (b): PIE log had `BIOSHOCK_SLICE_LIGHTING movable=4250` and 0× `LIGHTING NEEDS TO BE REBUILT`. Fix in `import_bioshock.py` + `repair_null_master_textures.py` (176 repaired, re-audit null=0). Human PIE confirm still open. Remaining: 54 unresolved door slots (PLAUSIBLE, separate). | `tools/ue5/import_bioshock.py`, `audit_level_materials.py`, `repair_null_master_textures.py`, `capture_pie_shot.py`, `docs/NEXT_SESSION.md` | 29 Aug 2026 |
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 

@@ -339,6 +339,88 @@ def _load_if_exists(path):
     return unreal.EditorAssetLibrary.load_asset(path) if _existed(path) else None
 
 
+def _load_engine_texture(*paths):
+    """Load a known Engine Texture2D without EditorAssetLibrary.load_asset.
+
+    `EditorAssetLibrary.load_asset` / `does_asset_exist` miss Engine content under
+    -run=pythonscript (measured UE 5.7: DefaultNormal logs
+    'LoadAsset failed: The AssetData ... could not be found' and counts as a
+    commandlet error). `unreal.load_object` resolves the same package path.
+    A prior import that used `_load_if_exists` for these defaults left Normal
+    TextureSampleParameter2D nodes as NULL → 'Found NULL, requires Texture2D'
+    → Default Material in game.
+    """
+    last = None
+    for path in paths:
+        # Soft-object path forms: "/Engine/.../Name" and "/Engine/.../Name.Name"
+        candidates = [path]
+        if "." not in path.rsplit("/", 1)[-1]:
+            name = path.rsplit("/", 1)[-1]
+            candidates.append("%s.%s" % (path, name))
+        for candidate in candidates:
+            texture = unreal.load_object(None, candidate)
+            if texture is not None:
+                return texture
+            last = candidate
+    raise RuntimeError(
+        "could not load any Engine Texture2D from %s (last=%r)" % (list(paths), last))
+
+
+def _default_base_color_texture():
+    return _load_engine_texture(
+        "/Engine/EngineResources/WhiteSquareTexture",
+        "/Engine/EngineMaterials/DefaultDiffuse",
+    )
+
+
+def _default_normal_texture():
+    return _load_engine_texture(
+        "/Engine/EngineMaterials/DefaultNormal",
+        "/Engine/EngineMaterials/DefaultNormal_Uncompressed",
+        "/Engine/EngineMaterials/BaseFlattenNormalMap",
+    )
+
+
+def _repair_null_texture_parameters(master):
+    """Fill NULL TextureSampleParameter2D defaults so the master can compile.
+
+    Returns the number of parameters repaired. No-op when every sample already has a texture.
+    Uses GetMaterialPropertyInputNode — MaterialEditingLibrary has no expression-list getter.
+    """
+    if master is None or not isinstance(master, unreal.Material):
+        return 0
+    edit = unreal.MaterialEditingLibrary
+    repaired = 0
+    checks = (
+        (unreal.MaterialProperty.MP_BASE_COLOR, False),
+        (unreal.MaterialProperty.MP_EMISSIVE_COLOR, False),
+        (unreal.MaterialProperty.MP_OPACITY, False),
+        (unreal.MaterialProperty.MP_OPACITY_MASK, False),
+        (unreal.MaterialProperty.MP_NORMAL, True),
+    )
+    seen = set()
+    for prop, is_normal in checks:
+        node = edit.get_material_property_input_node(master, prop)
+        if node is None or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if not isinstance(node, unreal.MaterialExpressionTextureSampleParameter2D):
+            continue
+        if node.get_editor_property("texture") is not None:
+            continue
+        if is_normal:
+            node.set_editor_property("texture", _default_normal_texture())
+            node.set_editor_property(
+                "sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+        else:
+            node.set_editor_property("texture", _default_base_color_texture())
+        repaired += 1
+    if repaired:
+        edit.recompile_material(master)
+        unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return repaired
+
+
 def _material_texture_bindings(material, rig):
     """Resolve diffuse/normal paths, including class-specific shader slots the JSON may omit."""
     name = material["name"]
@@ -438,6 +520,9 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     path = "%s/Materials/Masters/%s" % (content_root, name)
     existing = _load_if_exists(path)
     if existing is not None:
+        # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
+        # as-is — UE then falls back to Default Material in game (wall textures "broken").
+        _repair_null_texture_parameters(existing)
         return existing
 
     factory = unreal.MaterialFactoryNew()
@@ -450,6 +535,13 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     if master is None:
         raise RuntimeError("could not create master material %s" % path)
 
+    # Partial-create path: package existed but graph was empty / NULL-textured. Repair rather
+    # than stack a second set of expressions on a broken master.
+    edit = unreal.MaterialEditingLibrary
+    if (_repair_null_texture_parameters(master)
+            and edit.get_num_material_expressions(master) >= 2):
+        return master
+
     master.set_editor_property("two_sided", two_sided)
     master.set_editor_property("used_with_skeletal_mesh", True)
     master.set_editor_property("used_with_static_mesh", True)
@@ -457,11 +549,13 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     if blend_mode != unreal.BlendMode.BLEND_OPAQUE:
         master.set_editor_property("blend_mode", blend_mode)
 
-    edit = unreal.MaterialEditingLibrary
+    # Wipe a partial empty master before wiring — otherwise we accumulate orphan expressions.
+    if edit.get_num_material_expressions(master) > 0:
+        edit.delete_all_material_expressions(master)
+
     base = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, -150)
     base.set_editor_property("parameter_name", "BaseColor")
-    base.set_editor_property(
-        "texture", diffuse_texture or _load_if_exists("/Engine/EngineResources/WhiteSquareTexture"))
+    base.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
     if kind == "additive":
         edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
         edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY)
@@ -474,8 +568,7 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
 
     normal = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 50)
     normal.set_editor_property("parameter_name", "Normal")
-    normal.set_editor_property(
-        "texture", normal_texture or _load_if_exists("/Engine/EngineMaterials/DefaultNormal"))
+    normal.set_editor_property("texture", normal_texture or _default_normal_texture())
     normal.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
     edit.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
 

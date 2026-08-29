@@ -68,3 +68,7 @@ coverage*.xml
 # OUTSIDE the repo (../BioShockHavok-agent-*) so they need no rule here.
 /tools/agents/runs/
 /tools/agents/.local.lock
+
+# UE5 Python audit/repair reports and PIE/editor screenshots — local evidence, not source.
+/tools/ue5/_reports/
+/tools/ue5/_shots/
