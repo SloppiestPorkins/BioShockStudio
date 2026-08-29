@@ -12,10 +12,14 @@ public sealed record BioShockCubemap
     /// </summary>
     /// <remarks>
     /// <b>Declaration order, not a cube-face mapping.</b> Which index is +X, -X, +Y and so on is
-    /// <c>UNKNOWN</c>: the game names them only <c>_Face_0</c> to <c>_Face_5</c> and nothing read so
-    /// far states the convention. The order is preserved exactly as serialised so that a consumer
-    /// which does know the convention can apply it, rather than this reader guessing at one and
-    /// baking a wrong rotation into every reflection.
+    /// <c>UNKNOWN</c>: the game names them only <c>_Face_0</c> to <c>_Face_5</c>, the <c>Cubemap</c>
+    /// object carries no orientation data (only <c>Faces</c>, <c>Palette</c>, <c>InternalTime</c>),
+    /// and nothing read so far states the convention. <c>PLAUSIBLE</c> default for a D3D9-era engine
+    /// is <c>D3DCUBEMAP_FACES</c> order — 0 +X, 1 −X, 2 +Y, 3 −Y, 4 +Z, 5 −Z — but that is a
+    /// platform-standard guess, not confirmed for Vengeance, and needs a visual A/B against the
+    /// running game. The order is preserved exactly as serialised so a consumer which does know the
+    /// convention can apply it, rather than this reader guessing at one and baking a wrong rotation
+    /// into every reflection.
     /// </remarks>
     public required IReadOnlyList<BioShockTexture> Faces { get; init; }
 
