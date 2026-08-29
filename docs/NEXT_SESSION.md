@@ -59,8 +59,8 @@ AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors
 exist; skip ChangeSkin / CinematicFade / AISpeech; skip ChangeLevel (dangerous).
 Hitscan is pawn-object-type only (world static does not block). Not real ammo
 or fire anims.
-Rebuild: UBT against BioShockUE5.uproject (PluginBuild/HostProject is currently
-missing; tools/ue5/rebuild_runtime_fast.ps1 will throw until re-seeded).
+Rebuild: tools/ue5/rebuild_runtime_fast.ps1 (HostProject re-seeded via
+tools/ue5/seed_hostproject.ps1 when PluginBuild is wiped).
 Lane split: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
 ```
 

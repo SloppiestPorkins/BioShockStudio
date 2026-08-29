@@ -11,7 +11,7 @@
 #   -CleanModule:      ~50s    (all BioShockRuntime TUs)
 #   RunUAT BuildPlugin: ~10min (do NOT use for daily C++ tweaks)
 #
-# First-time / wiped PluginBuild: run BuildPlugin once to seed HostProject, then this script.
+# First-time / wiped PluginBuild: run tools/ue5/seed_hostproject.ps1, then this script.
 
 param(
   [switch]$CleanModule
@@ -30,7 +30,7 @@ $DotNet = Join-Path $EngineRoot 'Engine\Binaries\ThirdParty\DotNet\8.0.412\win-x
 
 if (-not (Test-Path $Ubt)) { throw "UBT missing: $Ubt" }
 if (-not (Test-Path $HostProject)) {
-  throw "HostProject missing at $HostProject - run RunUAT BuildPlugin once, then use this script."
+  throw "HostProject missing at $HostProject - run tools/ue5/seed_hostproject.ps1, then use this script."
 }
 
 # Refuse to run if a leftover BuildPlugin still owns HostProject (causes hung file copies).

@@ -168,6 +168,28 @@ The run leaves a small `_Scratch.umap` beside the level. That is the mechanism, 
 editor has to actually leave the slice level before loading it, or the "reload" would hand back the
 same in-memory actors the run just spawned. Leaving is asserted too.
 
+## Fast C++ rebuild (BioShockRuntime)
+
+Day-to-day C++ iteration uses `rebuild_runtime_fast.ps1` (incremental UBT against a warm
+`PluginBuild\BioShockRuntime\HostProject`, usually tens of seconds). That HostProject is
+created by a one-time `RunUAT BuildPlugin` with `-NoDeleteHostProject`.
+
+If `rebuild_runtime_fast.ps1` throws "HostProject missing", or you wiped
+`C:\Users\Jack\Documents\BioShockUE5\PluginBuild\`, reseed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/seed_hostproject.ps1
+```
+
+Idempotent: exits 0 immediately when HostProject is warm and Source matches the repo plugin.
+Use `-Force` to rebuild the seed from scratch. Then:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+```
+
+Do **not** re-run full BuildPlugin for every `.cpp` tweak — only to (re)seed HostProject.
+
 ## Runtime skeleton (Phase 3)
 
 `BioShockRuntime/` is a **runtime** plugin (not editor-only). Copy it into the UE project's
