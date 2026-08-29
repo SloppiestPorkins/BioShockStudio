@@ -38,12 +38,6 @@ decompiled struct fields carry):
 | `MaxBurningEfficacy`, `bDoNotDoBurningBehavior`, `bDoNotDoBurningAnimations`, … | float / bool | Status-effect tuning. |
 | `CheckpointTypePadding` | int | The `structdefaultproperties` padding constant, on every record. Ignore. |
 
-`AiArchetypeCatalog` surfaces `AIType`, `Mesh`, `Health`, `FrozenHealth`, `DamageResistanceSetName`,
-`CollisionHeight`, the two name arrays, and the loadout slots **with their contents resolved** —
-each entry is `{ name, chance, replacement? }` (`AggDoctorRimShader` @ 100, `GrenadeBox` @ 100,
-weapon swaps). Not yet extracted: the resistance table `DamageResistanceSetName` keys, and the
-status-effect tuning fields (`MaxBurningEfficacy`, the `bDoNotDo*` bools).
-
 ## The reader gap this exposed
 
 The loadout slots are `array<struct>` where each element is a nested property list
@@ -91,22 +85,22 @@ Two cross-checks against the shipped exports, whole-game:
 
 The 10 script misses are one name — `PlayerEscortedGathererDLCCombat`, in `ChallengeRoomCombat` and
 `ChallengeRoomElectric` only. It is in `SpawningManager.ArchetypeNames` (a real archetype) but ships
-as no export in those two DLC maps; runtime loads it from `Spawning.ini`. Everything else the game
-actually spawns is in hand. `Spawning.ini` (declared in `Default.ini` as `PerObjIniFile`, not
-shipped as a loose file — `PopulateArchetypes()` sources it somewhere native) only matters for that
-one DLC archetype and the ~46 `ArchetypeNames` entries no map references at all.
+as no export in those two DLC maps. **It — and the ~45 other unreferenced names — are in
+`Spawning.ini`**, which is inside `ContentBaked/pc/ConfigINI.IBF` (`docs/research/config.md`), not a
+loose file. `IniBundle` reads it. The `AiArchetypeCatalog` decode of the 267 shipped exports is
+validated byte-for-byte against those ini sections (`IniBundleTests`).
 
-## Still open
+## The resistance table — resolved via the config bundle
 
-- **The resistance table.** `AIArchetype.DamageResistanceSetName` / `ShockPawn.DamageResistanceSetName`
-  name a `DamageResistanceSet` (`MedicalMeleeThugResistanceSet`, `DefaultResistanceSet`). The set
-  itself is **not in the packages** — no `DamageResistanceSet` export anywhere, no class in Shock*/
-  VengeanceShared (it is in `Engine.U`, which the decompiler cannot read, or purely native), and
-  `ShockPawn.GetResistanceSet()` is a native function. Same shape as `Spawning.ini`: config/native
-  data. The name is recoverable (and surfaced); the resistance values are not.
-- **`PlayerEscortedGathererDLCCombat`** — the one referenced archetype with no shipped export.
+`AIArchetype.DamageResistanceSetName` names a `[<name>ResistanceSet]` section in `Weapons.ini`
+(inside `ConfigINI.IBF`), one `Resistance=(Type=STIMULUS_*,AmountModification=,ChanceModification=)`
+line per stimulus. `[DefaultResistanceSet]` is all-1.0; `[SteinmanResistanceSet]` zeroes every
+direct-fire stimulus. `IniBundleTests` pins the schema. No `DamageResistanceSet` package export
+exists and `ShockPawn.GetResistanceSet()` is native — the values only ever lived in config.
 
-Now extracted: the elemental-efficacy caps (`MaxBurningEfficacy` / `MaxFrozenEfficacy` /
-`MaxShockedEfficacy`), the fire-immunity flag (`bDoNotDoBurningBehavior` — set on grenadiers holding
-live grenades), `bCanRunAway`, `bCannotBeShattered`, and the burning/frozen decay timers. On the
-manifest too.
+## Everything from the archetype exports is extracted
+
+`AiArchetypeCatalog` surfaces: `AIType`, `Mesh`, `Health`, `FrozenHealth`, `CollisionHeight`,
+`DamageResistanceSetName`, the animation/voice name arrays, the loadout slots **with resolved
+contents** (`{ name, chance, replacement? }`), the elemental-efficacy caps, `bDoNotDoBurningBehavior`,
+`bCanRunAway`, `bCannotBeShattered`, and the burn/frozen decay timers — on the level manifest too.

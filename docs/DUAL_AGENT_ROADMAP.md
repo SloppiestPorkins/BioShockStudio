@@ -92,7 +92,7 @@ end to end found that almost every open item was either already built-but-untrac
 | Item | Outcome, 28 Aug |
 |---|---|
 | Part 0.1 / 0.2 reconcile | **Done** — 0.1 was stale; verification stamp moved to **599/599 GREEN** (`76f40e0`). |
-| Phase 2.3 — level-manifest data layer | **Audit done** (`09b0f9b`, `614a5c4`); all four asks built. Zone membership + spawner config pinned by tests; script graph Medical-complete via the sidecar, **export half now verified clean on all 21 maps** (`fb06c52`); **AI-archetype system decoded** — `AiArchetypeCatalog` + `research/spawning.md`, closes `interaction.md` §4. Tails: non-Medical sidecar *import* (Cursor); `Spawning.ini` values for non-shipped archetypes. |
+| Phase 2.3 — level-manifest data layer | **Audit done** (`09b0f9b`, `614a5c4`); all four asks built. Zone membership + spawner config pinned by tests; script graph Medical-complete via the sidecar, **export half now verified clean on all 21 maps** (`fb06c52`); **AI-archetype system decoded** — `AiArchetypeCatalog` + `research/spawning.md`, closes `interaction.md` §4. Tail: non-Medical sidecar *import* (Cursor). Spawning.ini + resistance sets now read via IniBundle (`research/config.md`). |
 | Phase 1.1–1.2 — level geometry + materials | **Already done** 24 Aug (§9), plan text was stale — reconciled. |
 | Phase 1.3 — cubemaps | **Mostly done** 25 Aug; open: `TextureCube` assembly (face order `UNKNOWN`), influence radius. |
 | Phase 1.4 — lighting | Falloff exponent **resolved** (no such field). `LightCone`/`Type`/`Effect`/`Period` **now decoded** (`research/lights.md`, `LevelLightFieldTests`). Open: the `LevelLightDocument` manifest bump (needs Cursor coordination) and pinning the `LightType`/`LightEffect` enums (needs `Engine.U` to decompile). |
@@ -116,12 +116,15 @@ end to end found that almost every open item was either already built-but-untrac
    (done), Cursor owns the UE5 side.
 2. **On-demand decode support** — whatever Cursor's runtime work needs from the data side.
 3. **Part 0.6 consolidation** (ongoing).
-4. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
-   decompile to pin the light enums; `TextureCube` face-order A/B; `Spawning.ini` values for
-   non-shipped archetypes; the resistance-set values (config/native, like `Spawning.ini`). The
-   shared `UnrealPropertyReader` `array<struct>` size fix is **closed** — §24 pass done 29 Aug,
-   three attempts all regress texture/emitter figures identically (`research/spawning.md`). It needs
-   schema-driven parsing, a different architecture. The archetype reader's scoped copy stands.
+4. **The config bundle now opens a lot** — `IniBundle` reads `ConfigINI.IBF` (`research/config.md`):
+   `Spawning.ini`, `Weapons.ini` + resistance sets, `LootTables.ini`, `Ai.ini`, `Plasmids.ini`,
+   `Difficulty.ini`. Wiring these into the manifest / feeding them to Phase 3 is real remaining
+   work — resistance values onto the archetypes, loot tables onto pickups, weapon/plasmid stats.
+5. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
+   decompile to pin the light enums; `TextureCube` face-order A/B. The shared `UnrealPropertyReader`
+   `array<struct>` size fix is **closed** — §24 pass done 29 Aug, three attempts all regress
+   texture/emitter figures identically (`research/spawning.md`); it needs schema-driven parsing, a
+   different architecture. The archetype reader's scoped copy stands.
 
 Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
 wide margin"). This lane's role is now support, not a parallel workstream.
