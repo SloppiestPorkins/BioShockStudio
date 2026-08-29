@@ -577,6 +577,57 @@ bool AShockPlayer::IsResurrectionStationActivated(FName Station) const
 	return false;
 }
 
+void AShockPlayer::SetResurrectionStationEnabled(FName Station, bool bEnabled)
+{
+	if (Station.IsNone())
+	{
+		return;
+	}
+	ResurrectionStationEnabled.FindOrAdd(Station) = bEnabled;
+}
+
+bool AShockPlayer::IsResurrectionStationEnabled(FName Station) const
+{
+	if (const bool* Value = ResurrectionStationEnabled.Find(Station))
+	{
+		return *Value;
+	}
+	return true;
+}
+
+void AShockPlayer::UnlockBathysphereDestination(FName System, FName MapName)
+{
+	if (System.IsNone() || MapName.IsNone())
+	{
+		return;
+	}
+	UnlockedBathysphereDestinations.Add(FString::Printf(TEXT("%s|%s"), *System.ToString(), *MapName.ToString()));
+}
+
+bool AShockPlayer::IsBathysphereDestinationUnlocked(FName System, FName MapName) const
+{
+	if (System.IsNone() || MapName.IsNone())
+	{
+		return false;
+	}
+	return UnlockedBathysphereDestinations.Contains(
+		FString::Printf(TEXT("%s|%s"), *System.ToString(), *MapName.ToString()));
+}
+
+void AShockPlayer::RemoveAvailableHoldable(FName HoldableClass)
+{
+	if (HoldableClass.IsNone())
+	{
+		return;
+	}
+	RemovedHoldables.Add(HoldableClass);
+}
+
+bool AShockPlayer::IsHoldableRemoved(FName HoldableClass) const
+{
+	return RemovedHoldables.Contains(HoldableClass);
+}
+
 void AShockPlayer::SetClientMessage(const FString& Text)
 {
 	LastClientMessage = Text;

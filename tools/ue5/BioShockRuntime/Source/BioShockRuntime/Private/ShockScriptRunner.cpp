@@ -99,6 +99,11 @@
 #include "ShockActionSetHUDDisplayState.h"
 #include "ShockActionToggleAIWeaponVisibility.h"
 #include "ShockActionEnableOrDisableLevelSwitching.h"
+#include "ShockActionUnlockBathysphereDestination.h"
+#include "ShockActionStartAIHeadTracking.h"
+#include "ShockActionSetCollisionAvoidance.h"
+#include "ShockActionDisableOrEnableResurrectionStation.h"
+#include "ShockActionRemoveAvailableHoldable.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1435,6 +1440,46 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionEnableOrDisableLevelSwitching* LevelSwitch = Cast<UShockActionEnableOrDisableLevelSwitching>(Action))
 	{
 		LevelSwitch->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionUnlockBathysphereDestination* BathyUnlock = Cast<UShockActionUnlockBathysphereDestination>(Action))
+	{
+		BathyUnlock->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionStartAIHeadTracking* HeadTrack = Cast<UShockActionStartAIHeadTracking>(Action))
+	{
+		HeadTrack->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetCollisionAvoidance* CollisionAvoid = Cast<UShockActionSetCollisionAvoidance>(Action))
+	{
+		CollisionAvoid->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDisableOrEnableResurrectionStation* ResEnable = Cast<UShockActionDisableOrEnableResurrectionStation>(Action))
+	{
+		ResEnable->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRemoveAvailableHoldable* RemoveHoldable = Cast<UShockActionRemoveAvailableHoldable>(Action))
+	{
+		RemoveHoldable->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

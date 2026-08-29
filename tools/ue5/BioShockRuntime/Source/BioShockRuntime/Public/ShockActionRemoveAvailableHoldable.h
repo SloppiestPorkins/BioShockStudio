@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionRemoveAvailableHoldable.generated.h"
 
-/** UnrealScript `ActionRemoveAvailableHoldable`. Records HoldableClass; no inventory yet. */
+class UWorld;
+
+/** UnrealScript `ActionRemoveAvailableHoldable`. ApplyInWorld removes holdable from ShockPlayer store. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionRemoveAvailableHoldable : public UShockAction
 {
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestRemove();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

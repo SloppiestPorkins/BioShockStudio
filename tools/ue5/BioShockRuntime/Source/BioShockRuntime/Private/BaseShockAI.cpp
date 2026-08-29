@@ -66,6 +66,20 @@ void ABaseShockAI::SetWeaponVisible(bool bVisible)
 	bWeaponVisible = bVisible;
 }
 
+void ABaseShockAI::SetCollisionAvoidanceEnabled(bool bEnabled)
+{
+	bUseCollisionAvoidance = bEnabled;
+}
+
+void ABaseShockAI::BeginHeadTracking(FName TargetLabel, bool bQuickLook, float InDuration, FVector InOffset)
+{
+	bHeadTracking = true;
+	HeadTrackTargetLabel = TargetLabel;
+	bHeadTrackingQuickLook = bQuickLook;
+	HeadTrackDuration = InDuration;
+	HeadTrackOffset = InOffset;
+}
+
 TArray<ABaseShockAI*> ABaseShockAI::CollectLabeled(UWorld* World, FName Label)
 {
 	TArray<ABaseShockAI*> Out;

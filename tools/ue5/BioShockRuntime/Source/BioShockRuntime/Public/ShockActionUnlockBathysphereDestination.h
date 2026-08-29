@@ -3,10 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionUnlockBathysphereDestination.generated.h"
 
-/**
- * UnrealScript `ActionUnlockBathysphereDestination`.
- * Records MapName + BathysphereSystem (default BioshockBathyspheres).
- */
+class UWorld;
+
+/** UnrealScript `ActionUnlockBathysphereDestination`. ApplyInWorld stores unlock on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionUnlockBathysphereDestination : public UShockAction
 {
@@ -32,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestUnlock();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

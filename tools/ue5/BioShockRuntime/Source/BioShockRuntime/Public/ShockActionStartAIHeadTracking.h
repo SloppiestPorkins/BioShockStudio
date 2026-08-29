@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionStartAIHeadTracking.generated.h"
 
-/** UnrealScript `ActionStartAIHeadTracking`. Records head-track request; no look-at yet. */
+class UWorld;
+
+/** UnrealScript `ActionStartAIHeadTracking`. ApplyInWorld stores head-track state on labeled AI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionStartAIHeadTracking : public UShockAction
 {
@@ -38,4 +40,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestStart();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

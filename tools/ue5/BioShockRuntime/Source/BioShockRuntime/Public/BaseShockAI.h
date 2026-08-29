@@ -104,6 +104,24 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bWeaponVisible = true;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bUseCollisionAvoidance = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bHeadTracking = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName HeadTrackTargetLabel;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bHeadTrackingQuickLook = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float HeadTrackDuration = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FVector HeadTrackOffset = FVector::ZeroVector;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
 
@@ -191,6 +209,27 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	bool IsWeaponVisible() const { return bWeaponVisible; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SetCollisionAvoidanceEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsCollisionAvoidanceEnabled() const { return bUseCollisionAvoidance; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void BeginHeadTracking(FName TargetLabel, bool bQuickLook, float InDuration, FVector InOffset);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsHeadTracking() const { return bHeadTracking; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	FName GetHeadTrackTargetLabel() const { return HeadTrackTargetLabel; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsHeadTrackingQuickLook() const { return bHeadTrackingQuickLook; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	float GetHeadTrackDuration() const { return HeadTrackDuration; }
 
 	/** Editor actor label or ScriptLabel. Not a UFunction — C++ action helpers only. */
 	static TArray<ABaseShockAI*> CollectLabeled(UWorld* World, FName Label);

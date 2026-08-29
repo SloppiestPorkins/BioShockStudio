@@ -212,6 +212,24 @@ public:
 	bool IsResurrectionStationActivated(FName Station) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetResurrectionStationEnabled(FName Station, bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsResurrectionStationEnabled(FName Station) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void UnlockBathysphereDestination(FName System, FName MapName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsBathysphereDestinationUnlocked(FName System, FName MapName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void RemoveAvailableHoldable(FName HoldableClass);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsHoldableRemoved(FName HoldableClass) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetClientMessage(const FString& Text);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
@@ -414,4 +432,13 @@ private:
 
 	UPROPERTY()
 	TMap<FName, bool> ResurrectionStationActivated;
+
+	UPROPERTY()
+	TMap<FName, bool> ResurrectionStationEnabled;
+
+	UPROPERTY()
+	TSet<FString> UnlockedBathysphereDestinations;
+
+	UPROPERTY()
+	TSet<FName> RemovedHoldables;
 };

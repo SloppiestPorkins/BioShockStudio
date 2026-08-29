@@ -1,5 +1,7 @@
 #include "ShockActionUnlockBathysphereDestination.h"
 
+#include "ShockPlayer.h"
+
 UShockActionUnlockBathysphereDestination::UShockActionUnlockBathysphereDestination()
 {
 	ActionClassName = TEXT("ActionUnlockBathysphereDestination");
@@ -20,4 +22,19 @@ bool UShockActionUnlockBathysphereDestination::RequestUnlock()
 	}
 	LastMapName = MapName;
 	return true;
+}
+
+int32 UShockActionUnlockBathysphereDestination::ApplyInWorld(UWorld* World)
+{
+	if (!RequestUnlock() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->UnlockBathysphereDestination(BathysphereSystem, MapName);
+	return 1;
 }

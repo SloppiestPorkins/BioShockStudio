@@ -1,4 +1,4 @@
-"""Runner batch1+batch2 world-state exec: player/AI stores via ApplyInWorld."""
+"""Runner batch1+batch2+batch3 world-state exec: player/AI stores via ApplyInWorld."""
 
 import json
 import os
@@ -55,6 +55,21 @@ def main(out):
     level_switch_cls = unreal.load_class(
         None, "/Script/BioShockRuntime.ShockActionEnableOrDisableLevelSwitching"
     )
+    bathy_unlock_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionUnlockBathysphereDestination"
+    )
+    head_track_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionStartAIHeadTracking"
+    )
+    collision_avoid_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionSetCollisionAvoidance"
+    )
+    res_enable_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionDisableOrEnableResurrectionStation"
+    )
+    remove_holdable_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionRemoveAvailableHoldable"
+    )
 
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
@@ -95,6 +110,16 @@ def main(out):
     weapon_vis.configure("SplicerA", False)
     level_switch = unreal.new_object(level_switch_cls)
     level_switch.configure(True)
+    bathy_unlock = unreal.new_object(bathy_unlock_cls)
+    bathy_unlock.configure("Medical", "BioshockBathyspheres")
+    head_track = unreal.new_object(head_track_cls)
+    head_track.configure("SplicerA", "GoalMarker", True, 2.5, unreal.Vector(0, 0, 10))
+    collision_avoid = unreal.new_object(collision_avoid_cls)
+    collision_avoid.configure("SplicerA", True)
+    res_enable = unreal.new_object(res_enable_cls)
+    res_enable.configure("VitaChamber_Medical", False)
+    remove_holdable = unreal.new_object(remove_holdable_cls)
+    remove_holdable.configure("TommyGun")
 
     runner = script.get_runner()
     actions = (
@@ -109,6 +134,11 @@ def main(out):
         hud_state,
         weapon_vis,
         level_switch,
+        bathy_unlock,
+        head_track,
+        collision_avoid,
+        res_enable,
+        remove_holdable,
     )
     for action in actions:
         runner.add_action(action)
@@ -139,6 +169,16 @@ def main(out):
         f.append("weapon vis record %s" % weapon_vis.get_last_ai_label())
     if bool(level_switch.get_last_disable_level_switching()) is not True:
         f.append("level switch record")
+    if str(bathy_unlock.get_last_map_name()) != "Medical":
+        f.append("bathy unlock record %s" % bathy_unlock.get_last_map_name())
+    if str(head_track.get_last_ai_label()) != "SplicerA":
+        f.append("head track record %s" % head_track.get_last_ai_label())
+    if str(collision_avoid.get_last_ai_label()) != "SplicerA":
+        f.append("collision avoid record %s" % collision_avoid.get_last_ai_label())
+    if str(res_enable.get_last_station_label()) != "VitaChamber_Medical":
+        f.append("res enable record %s" % res_enable.get_last_station_label())
+    if str(remove_holdable.get_last_holdable_class()) != "TommyGun":
+        f.append("holdable record %s" % remove_holdable.get_last_holdable_class())
 
     if player is None:
         f.append("no ShockPlayer")
@@ -159,6 +199,18 @@ def main(out):
             f.append("in-world HUD still enabled")
         if not _flag(player.is_level_switching_disabled):
             f.append("in-world level switching still enabled")
+        if not _flag(
+            lambda: player.is_bathysphere_destination_unlocked(
+                "BioshockBathyspheres", "Medical"
+            )
+        ):
+            f.append("in-world bathysphere Medical not unlocked")
+        if not _flag(
+            lambda: not player.is_resurrection_station_enabled("VitaChamber_Medical")
+        ):
+            f.append("in-world res station still enabled")
+        if not _flag(lambda: player.is_holdable_removed("TommyGun")):
+            f.append("in-world TommyGun holdable not removed")
 
     if ai is None:
         f.append("no BaseShockAI")
@@ -176,6 +228,14 @@ def main(out):
             f.append("in-world attachment Hat not hidden")
         if _flag(ai.is_weapon_visible):
             f.append("in-world weapon still visible")
+        if not _flag(ai.is_collision_avoidance_enabled):
+            f.append("in-world collision avoidance not enabled")
+        if not _flag(ai.is_head_tracking):
+            f.append("in-world head tracking not started")
+        if str(ai.get_head_track_target_label()) != "GoalMarker":
+            f.append("in-world head track target %s" % ai.get_head_track_target_label())
+        if not _flag(ai.is_head_tracking_quick_look):
+            f.append("in-world head track not quick look")
 
     report["world_state_exec"] = "ok" if not f else "fail"
 

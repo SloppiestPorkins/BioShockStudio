@@ -1094,6 +1094,16 @@ Census shortlist skipped here: SpawnReactiveActor (spawn infra). **~46% of scrip
 references now execute in-world** (`PLAUSIBLE`: prior ~45% + this batch's 153 refs over
 21,752 total).
 
+### Phase 4 runner world-state batch 3 — done, 30 Aug 2026
+
+UnlockBathysphereDestination, StartAIHeadTracking, SetCollisionAvoidance,
+DisableOrEnableResurrectionStation, RemoveAvailableHoldable `ApplyInWorld` wired on
+`UShockScriptRunner` (player bathysphere/res-station/holdable stores; AI head-track +
+collision-avoidance flags). Live `run_script_world_state_exec.py`, `Success - 0 error(s)`.
+Census shortlist skipped here: PlayScriptedHandAnimation / AssassinTeleport (animation or
+teleport infra). **~46% of scripted behaviour references now execute in-world**
+(`PLAUSIBLE`: prior ~46% + this batch's 88 refs over 21,752 total).
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's
