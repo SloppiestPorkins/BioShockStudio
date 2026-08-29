@@ -33,12 +33,14 @@ byte[]         content         // the .ini text, single-byte, CRLF
 
 ## What this unblocks
 
-- **AI archetypes** — `Spawning.ini` carries the full record for all 313 names.
-  `AiArchetypeCatalog` decodes the 267 that ship as package exports (validated byte-for-byte
-  against these ini sections); the rest — one referenced (`PlayerEscortedGathererDLCCombat`) plus
-  ~45 unreferenced — are here only. Section keys match the export property names exactly:
-  `AIType`, `Mesh`, `Health`, `DamageResistanceSetName`, `MaterialSlot`, `AttachmentSlot1..4`,
-  `MaxBurningEfficacy`, `bDoNotDoBurningBehavior`, …
+- **AI archetypes** — `Spawning.ini` carries the full record for all **312** archetype sections
+  (the ~25 other sections are patrol/goal definitions with no `AIType`). `AiArchetypeConfig.Read`
+  parses them into the same `AiArchetype` record `AiArchetypeCatalog` produces from package exports.
+  `AiArchetypeCatalog` decodes the 267 that ship as exports byte-exact; `AiArchetypeConfig` covers
+  all 312 including the one referenced archetype with no export
+  (`PlayerEscortedGathererDLCCombat`) and the ~45 unreferenced. Section keys match the export
+  property names exactly; `IniBundleTests` cross-validates the two decodes agree on Medical's
+  shipped archetypes (the ini and the name table only differ in case — `...PISTOL` vs `...Pistol`).
 
 - **Resistance sets** — **88** `[<name>ResistanceSet]` sections in `Weapons.ini`, 27 `Resistance=`
   lines each: `(Type=STIMULUS_Heat,AmountModification=3.0,ChanceModification=1.0)`. Stimulus types

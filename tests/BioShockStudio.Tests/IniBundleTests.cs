@@ -1,5 +1,7 @@
+using BioShockStudio.Core.Assets;
 using BioShockStudio.Core.Config;
 using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Packages;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -68,6 +70,36 @@ public sealed class IniBundleTests(GameFixture game)
             .Select(IniSection.ParseStruct)
             .First(f => f.Any(p => p.Key == "Type" && p.Value == "STIMULUS_Heat"));
         Assert.Equal("0.0", heat.First(p => p.Key == "AmountModification").Value);
+    }
+
+    [RequiresGameFact]
+    public void EveryArchetypeInSpawningIniParsesAndMatchesItsPackageExport()
+    {
+        var config = AiArchetypeConfig.Read(Bundle()["Spawning.ini"]!)
+            .ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
+
+        // All 312 archetype sections (the ~25 non-archetype sections carry no AIType).
+        Assert.InRange(config.Count, 300, 320);
+        Assert.All(config.Values, a => Assert.NotNull(a.AiType));
+
+        // The one referenced archetype that ships as no package export is here.
+        Assert.True(config.ContainsKey("PlayerEscortedGathererDLCCombat"));
+
+        // Where a map does ship the export, the two decodes agree on the fields that matter.
+        using var medical = BioShockPackage.Open(game.MedicalPackage);
+        int checvar = 0;
+        foreach (var fromPackage in AiArchetypeCatalog.Read(medical))
+        {
+            if (!config.TryGetValue(fromPackage.Name, out var fromIni)) continue;
+            checvar++;
+            // The ini and the name table disagree on case (SpawnedRangedAggressorPISTOL vs
+            // ...Pistol) — same class, so compare case-insensitively.
+            Assert.Equal(fromPackage.AiType, fromIni.AiType, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(fromPackage.Mesh, fromIni.Mesh, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(fromPackage.Health, fromIni.Health);
+            Assert.Equal(fromPackage.MaterialSlots.Count, fromIni.MaterialSlots.Count);
+        }
+        Assert.True(checvar > 15, $"only {checvar} archetypes cross-checked");
     }
 
     [RequiresGameFact]

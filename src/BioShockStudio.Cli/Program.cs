@@ -1311,10 +1311,20 @@ static int Characters(string root, string[] args)
 
 static int Archetypes(string root, string[] args)
 {
-    if (args.Length < 2) { Console.Error.WriteLine("usage: archetypes <package>"); return 1; }
+    if (args.Length < 2) { Console.Error.WriteLine("usage: archetypes <package>|--all"); return 1; }
 
-    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
-    var entries = AiArchetypeCatalog.Read(package);
+    IReadOnlyList<BioShockStudio.Core.Assets.AiArchetype> entries;
+    if (args[1] is "--all" or "all")
+    {
+        var bundle = BioShockStudio.Core.Config.IniBundle.Load(
+            BioShockStudio.Core.Game.GameLocator.ConfigBundle(root));
+        entries = BioShockStudio.Core.Config.AiArchetypeConfig.Read(bundle["Spawning.ini"]!);
+    }
+    else
+    {
+        using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+        entries = AiArchetypeCatalog.Read(package);
+    }
 
     Console.WriteLine($"{"archetype",-38} {"AIType",-26} {"mesh",-22} {"hp",5} {"frz",5}  slots(mat/att/wpn)  anim/voice");
     foreach (var e in entries.OrderBy(a => a.Name, StringComparer.Ordinal))
