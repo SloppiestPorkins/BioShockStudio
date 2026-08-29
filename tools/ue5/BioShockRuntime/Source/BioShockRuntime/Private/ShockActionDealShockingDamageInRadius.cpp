@@ -1,5 +1,7 @@
 #include "ShockActionDealShockingDamageInRadius.h"
 
+#include "ShockDamageLibrary.h"
+
 UShockActionDealShockingDamageInRadius::UShockActionDealShockingDamageInRadius()
 {
 	ActionClassName = TEXT("ActionDealShockingDamageInRadius");
@@ -41,4 +43,26 @@ bool UShockActionDealShockingDamageInRadius::RequestDeal()
 	}
 	LastSourceActorLabel = SourceActorLabel;
 	return true;
+}
+
+int32 UShockActionDealShockingDamageInRadius::ApplyInWorld(UWorld* World)
+{
+	if (!RequestDeal() || !World || DamageAmount <= 0.0f || OuterRadius <= 0)
+	{
+		return 0;
+	}
+	AActor* Source = UShockDamageLibrary::FindActorByLabel(World, SourceActorLabel);
+	if (!Source)
+	{
+		return 0;
+	}
+	const FName TypeName = DamageType != 0 ? FName(*FString::Printf(TEXT("DamageType_%d"), DamageType)) : NAME_None;
+	return UShockDamageLibrary::ApplyRadialDamage(
+		World,
+		Source->GetActorLocation(),
+		static_cast<float>(OuterRadius),
+		DamageAmount,
+		Source,
+		TypeName,
+		static_cast<float>(InnerRadius));
 }

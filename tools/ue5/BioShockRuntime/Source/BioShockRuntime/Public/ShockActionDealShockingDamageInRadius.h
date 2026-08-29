@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionDealShockingDamageInRadius.generated.h"
 
-/** UnrealScript `ActionDealShockingDamageInRadius`. Records Tesla radius params; no stim set yet. */
+class UWorld;
+
+/** UnrealScript `ActionDealShockingDamageInRadius`. ApplyInWorld uses UShockDamageLibrary radial falloff. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDealShockingDamageInRadius : public UShockAction
 {
@@ -65,4 +67,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDeal();
+
+	/** Radial shocking damage with linear falloff between InnerRadius and OuterRadius. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

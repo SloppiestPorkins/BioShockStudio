@@ -1,6 +1,7 @@
 #include "ShockPawn.h"
 
 #include "BaseShockAI.h"
+#include "ShockDamageLibrary.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -24,16 +25,7 @@ void AShockPawn::EnsureHealthInitialized()
 
 float AShockPawn::ApplyAuthoredDamage(float Damage)
 {
-	EnsureHealthInitialized();
-	if (bIsDead || bInvincible || Damage <= 0.0f)
-	{
-		return CurrentHealth;
-	}
-	CurrentHealth = FMath::Max(0.0f, CurrentHealth - Damage);
-	if (CurrentHealth <= 0.0f)
-	{
-		bIsDead = true;
-	}
+	UShockDamageLibrary::ApplyDamage(this, Damage, nullptr, NAME_None);
 	return CurrentHealth;
 }
 

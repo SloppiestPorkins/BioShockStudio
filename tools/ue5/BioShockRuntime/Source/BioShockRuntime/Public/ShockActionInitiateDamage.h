@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionInitiateDamage.generated.h"
 
-/** UnrealScript `ActionInitiateDamage`. Records damage request; no combat yet. */
+class UWorld;
+
+/** UnrealScript `ActionInitiateDamage`. ApplyInWorld applies stand-in damage via UShockDamageLibrary. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionInitiateDamage : public UShockAction
 {
@@ -30,6 +32,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName LastTargetLabel;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 LastAppliedCount = 0;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InDamager, FName InSource, FName InTarget, FName InDamageClass, float InVelocity);
 
@@ -37,5 +42,12 @@ public:
 	FName GetLastTargetLabel() const { return LastTargetLabel; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 GetLastAppliedCount() const { return LastAppliedCount; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestDamage();
+
+	/** Resolves TargetLabel and applies stand-in damage (no damage-class lookup yet). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

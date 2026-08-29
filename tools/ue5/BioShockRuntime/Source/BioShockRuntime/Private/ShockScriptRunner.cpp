@@ -40,6 +40,8 @@
 #include "ShockActionForcePlayerCrouch.h"
 #include "ShockActionDisablePlayerMovement.h"
 #include "ShockActionDealDamageInRadius.h"
+#include "ShockActionDealShockingDamageInRadius.h"
+#include "ShockActionInitiateDamage.h"
 #include "ShockActionApplyImpulse.h"
 #include "ShockActionStartTimer.h"
 #include "ShockActionStopTimer.h"
@@ -948,6 +950,32 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		RadiusDmg->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionDealShockingDamageInRadius* ShockRadius = Cast<UShockActionDealShockingDamageInRadius>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		ShockRadius->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionInitiateDamage* InitDmg = Cast<UShockActionInitiateDamage>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		InitDmg->ApplyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

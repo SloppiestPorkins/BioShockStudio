@@ -1,35 +1,6 @@
 #include "ShockActionDealDamageInRadius.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
-#include "ShockPawn.h"
-
-namespace
-{
-	AActor* FindActorByEditorLabel(UWorld* World, const FName& Label)
-	{
-		if (!World || Label.IsNone())
-		{
-			return nullptr;
-		}
-		const FString Want = Label.ToString();
-		for (TActorIterator<AActor> It(World); It; ++It)
-		{
-			AActor* Actor = *It;
-			if (!Actor)
-			{
-				continue;
-			}
-#if WITH_EDITOR
-			if (Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-			{
-				return Actor;
-			}
-#endif
-		}
-		return nullptr;
-	}
-}
+#include "ShockDamageLibrary.h"
 
 UShockActionDealDamageInRadius::UShockActionDealDamageInRadius()
 {
@@ -64,28 +35,18 @@ int32 UShockActionDealDamageInRadius::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	AActor* Source = FindActorByEditorLabel(World, SourceActorLabel);
+	AActor* Source = UShockDamageLibrary::FindActorByLabel(World, SourceActorLabel);
 	if (!Source)
 	{
 		return 0;
 	}
-	const FVector Origin = Source->GetActorLocation();
-	const float RadiusSq = static_cast<float>(OuterRadius) * static_cast<float>(OuterRadius);
-	int32 Applied = 0;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AShockPawn* Pawn = Cast<AShockPawn>(*It);
-		if (!Pawn)
-		{
-			continue;
-		}
-		if (FVector::DistSquared(Origin, Pawn->GetActorLocation()) > RadiusSq)
-		{
-			continue;
-		}
-		Pawn->EnsureHealthInitialized();
-		Pawn->ApplyAuthoredDamage(DamageAmount);
-		++Applied;
-	}
-	return Applied;
+	const FName TypeName = DamageType != 0 ? FName(*FString::Printf(TEXT("DamageType_%d"), DamageType)) : NAME_None;
+	return UShockDamageLibrary::ApplyRadialDamage(
+		World,
+		Source->GetActorLocation(),
+		static_cast<float>(OuterRadius),
+		DamageAmount,
+		Source,
+		TypeName,
+		static_cast<float>(InnerRadius));
 }

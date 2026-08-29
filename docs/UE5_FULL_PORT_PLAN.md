@@ -1104,6 +1104,14 @@ Census shortlist skipped here: PlayScriptedHandAnimation / AssassinTeleport (ani
 teleport infra). **~46% of scripted behaviour references now execute in-world**
 (`PLAUSIBLE`: prior ~46% + this batch's 88 refs over 21,752 total).
 
+### Phase 4 shared damage path — done, 30 Aug 2026
+
+`UShockDamageLibrary::ApplyDamage` / `ApplyRadialDamage` (invincibility, AI `bVulnerable` /
+`bCannotDie`, death at 0). `ShockWeapon` hitscan refactored onto the same path (slice
+`BIOSHOCK_SLICE_OK` 100→75 unchanged). `ActionInitiateDamage`, `ActionDealDamage`,
+`ActionDealDamageInRadius`, `ActionDealShockingDamageInRadius` `ApplyInWorld` wired on
+`UShockScriptRunner`. Live `run_script_damage_exec.py`, `Success - 0 error(s)`.
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's

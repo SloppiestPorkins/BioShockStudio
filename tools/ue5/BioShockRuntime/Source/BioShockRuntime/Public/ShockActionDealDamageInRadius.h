@@ -5,7 +5,7 @@
 
 class UWorld;
 
-/** UnrealScript `ActionDealDamageInRadius`. Records radii + damage; no stim set yet. */
+/** UnrealScript `ActionDealDamageInRadius`. ApplyInWorld uses UShockDamageLibrary radial falloff. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionDealDamageInRadius : public UShockAction
 {

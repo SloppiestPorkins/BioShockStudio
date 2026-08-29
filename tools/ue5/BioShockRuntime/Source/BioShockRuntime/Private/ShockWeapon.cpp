@@ -1,5 +1,6 @@
 #include "ShockWeapon.h"
 
+#include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
@@ -50,7 +51,7 @@ bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direct
 		return false;
 	}
 
-	Victim->ApplyAuthoredDamage(HitscanDamage);
+	UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
 	LastHitPawn = Victim;
 	return true;
 }

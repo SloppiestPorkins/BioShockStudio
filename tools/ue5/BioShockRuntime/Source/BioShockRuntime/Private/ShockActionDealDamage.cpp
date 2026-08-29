@@ -1,7 +1,6 @@
 #include "ShockActionDealDamage.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
+#include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 
 UShockActionDealDamage::UShockActionDealDamage()
@@ -31,8 +30,7 @@ bool UShockActionDealDamage::RequestDamage()
 
 int32 UShockActionDealDamage::ApplyInWorld(UWorld* World)
 {
-	int32 Applied = 0;
-	if (!World || TargetLabel.IsNone() || DamageAmount <= 0.0f)
+	if (!RequestDamage() || !World)
 	{
 		return 0;
 	}
@@ -40,28 +38,15 @@ int32 UShockActionDealDamage::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = TargetLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	int32 Applied = 0;
+	for (AShockPawn* Pawn : AShockPawn::CollectLabeled(World, TargetLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
+		if (UShockDamageLibrary::ApplyDamage(Pawn, DamageAmount, nullptr, NAME_None) > 0.0f)
 		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
-		if (AShockPawn* Pawn = Cast<AShockPawn>(Actor))
-		{
-			Pawn->EnsureHealthInitialized();
-			Pawn->ApplyAuthoredDamage(DamageAmount);
 			LastTargetLabel = TargetLabel;
 			LastDamageAmount = DamageAmount;
 			++Applied;
 		}
-#endif
 	}
 	return Applied;
 }
