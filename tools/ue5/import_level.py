@@ -901,6 +901,9 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
                 report["corpseSkeletalOnly"] = report.get("corpseSkeletalOnly", 0) + 1
         else:
             actor.static_mesh_component.set_static_mesh(static_mesh)
+            # Same as lights: Movable so PIE/game lighting works without a Lightmass build.
+            actor.static_mesh_component.set_editor_property(
+                "mobility", unreal.ComponentMobility.MOVABLE)
         actor.set_actor_scale3d(scale)
         actor.set_actor_label(instance.get("label") or instance.get("actor") or key)
         actor.tags = [unreal.Name(KEY_TAG_PREFIX + key)]

@@ -62,16 +62,21 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 		return;
 	}
 
+	Weapon->SetOwner(this);
 	if (FirstPersonCamera)
 	{
 		Weapon->AttachToComponent(
 			FirstPersonCamera,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		// Slice stand-in: R_grip at the camera is inside the near clip. Not the game camera.
+		Weapon->SetActorRelativeLocation(FVector(28.0f, 10.0f, -14.0f));
 		Weapon->SetActorHiddenInGame(false);
 		if (USkeletalMeshComponent* WeaponMesh = Weapon->FindComponentByClass<USkeletalMeshComponent>())
 		{
-			WeaponMesh->SetOnlyOwnerSee(true);
+			WeaponMesh->SetOnlyOwnerSee(false);
+			WeaponMesh->SetOwnerNoSee(false);
 			WeaponMesh->SetCastShadow(false);
+			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
 }

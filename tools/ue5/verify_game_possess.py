@@ -144,6 +144,11 @@ def main(schema_path, report_path, map_path=MAP_PATH):
         report["xyDistanceFromMedicalStart"] = xy
         if xy > 250.0:
             failures.append("pawn %.0f units XY from MedicalStart" % xy)
+        z_delta = abs(parsed["z"] - float(MEDICAL_START.z))
+        report["zDistanceFromMedicalStart"] = z_delta
+        if z_delta > 200.0:
+            failures.append("pawn Z %.0f (roof snap? MedicalStart is %.0f)" % (
+                parsed["z"], float(MEDICAL_START.z)))
         if parsed["playable"] != 1:
             failures.append("playable input not enabled")
         if slice_ok is None:

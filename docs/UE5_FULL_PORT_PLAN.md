@@ -1011,6 +1011,24 @@ BlockingVolumes do not eat the shot. Live `-game -bioshockverifypossess`:
 Spawn offset re-verified the same run: `BIOSHOCK_SLICE_SPAWN` loc Y=1521.997 vs player
 Y=1271.997 (250 uu along +Y). Not ammo, not fire anims, not a human PIE claim.
 
+### Phase 0 PIE — roof spawn / viewmodel / unbuilt lighting, 29 Aug 2026
+
+Human Play on `1-Medical` was unusable: pawn in the sky, no gun in view, walls broken.
+Causes, all measured:
+
+- Floor snap started 400 uu above MedicalStart and took the roof (`Z=8248`). Now traces
+  from the start with an upward-normal test. Live `-game`: pawn `Z=7856` (78 uu above
+  authored 7778, on the floor, not the hull).
+- TommyGun was `SnapToTarget` on the camera at identity (`R_grip` inside the near clip)
+  plus `SetOnlyOwnerSee`. Slice stand-in offset `(28, 10, -14)`; collision off.
+- Static mesh actors default to Static; lighting is unbuilt, so PIE has no Lightmass
+  and the editor's preview fill does not exist. PostLogin flips 4250 meshes Movable
+  (`BIOSHOCK_SLICE_LIGHTING movable=4250`) and `import_level.py` now authors that
+  mobility for later imports.
+
+Not a claim that PIE feels good — needs another human Play (restart the editor so the
+new DLL loads).
+
 ### Phase 4 runner DealDamageInRadius / ApplyImpulse + timer / console / mesh — done, 27 Aug 2026
 
 `DealDamageInRadius.ApplyInWorld` damages labeled-source-radius ShockPawns;

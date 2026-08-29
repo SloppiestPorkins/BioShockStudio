@@ -10,6 +10,9 @@ AShockWeapon::AShockWeapon()
 	PrimaryActorTick.bCanEverTick = false;
 	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
 	SetRootComponent(Mesh);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Mesh->SetCastShadow(false);
 }
 
 void AShockWeapon::ConfigureHitscan(float InDamage, float InRange)

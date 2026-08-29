@@ -24,7 +24,7 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor | **Phase 0 human PIE** on `1-Medical`: WASD / look / Fire feel. Mechanical spawn+hitscan is in the working tree (this session), not a human-feel claim. | `tools/ue5/BioShockRuntime/**`, `docs/NEXT_SESSION.md` | 28 Aug 2026 |
+| Cursor | **Phase 0 PIE fixes:** roof spawn, viewmodel in camera, unbuilt-lighting walls. | `tools/ue5/BioShockRuntime/**` (`ShockGameMode`, `ShockPlayer`, `ShockWeapon`), `import_level.py`, `docs/NEXT_SESSION.md` | 29 Aug 2026 |
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 

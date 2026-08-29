@@ -40,13 +40,13 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 ```
 @docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
 Cursor lane, on main (push as you go). Item 0 landed at 4d2247e.
-Phase 0 mechanical fire landed 28 Aug: ShockGameMode spawns SliceBabyJane
-(Agg_BabyJane mesh) 250 uu along MedicalStart +Y (`BIOSHOCK_SLICE_SPAWN`
-player Y=1272 → loc Y=1522); hitscan 100→75 (`BIOSHOCK_SLICE_OK fire=1`).
-Possess-prep `Rotator(0,90,0)` was roll/pitch/yaw (pitch=90); GameMode remaps
-that and `verify_possess.py` now uses named kwargs. TommyGun equipped (weapon=1).
+Phase 0 mechanical fire landed 28 Aug. PIE on 29 Aug was awful: roof spawn,
+gun not in view, wall textures broken. Fixes in the working tree (rebuild the
+plugin, restart the editor): floor snap no longer starts 400 uu up (pawn Z
+7856 not 8248); TommyGun offset in front of the camera; 4250 Static meshes
+flipped Movable so unbuilt lighting can light them in PIE.
 Human PIE feel is still the remaining Phase 0 bar — WASD/look/Fire in the
-editor viewport. Log evidence is not enough for that.
+editor viewport. Close UnrealEditor and reopen so it loads the new DLL.
 The action census is COMPLETE — do NOT run more census batches.
 PlayAnimation (#12) still only records LastPlayedAnimation — skip until imported
 AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors

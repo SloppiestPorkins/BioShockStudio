@@ -7,8 +7,11 @@
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "GameFramework/WorldSettings.h"
 #include "EngineUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
@@ -30,6 +33,31 @@ FRotator PlayableStartRotation(const AActor* Start)
 	Look.Pitch = 0.0f;
 	Look.Roll = 0.0f;
 	return Look;
+}
+
+void EnableDynamicLighting(UWorld* World)
+{
+	if (!World)
+	{
+		return;
+	}
+	if (AWorldSettings* Settings = World->GetWorldSettings())
+	{
+		Settings->bForceNoPrecomputedLighting = true;
+	}
+	int32 Converted = 0;
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		if (UStaticMeshComponent* Mesh = It->GetStaticMeshComponent())
+		{
+			if (Mesh->Mobility == EComponentMobility::Static)
+			{
+				Mesh->SetMobility(EComponentMobility::Movable);
+				++Converted;
+			}
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d"), Converted);
 }
 }
 
@@ -88,18 +116,20 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 	FVector Loc = Start->GetActorLocation();
 	const FRotator Rot = PlayableStartRotation(Start);
 
+	// PlayerStart is the authored capsule center. A downward trace that begins above the
+	// room hits the roof first (MedicalStart +400 uu landed at Z=8248 — the hull top).
 	if (ACharacter* Character = Cast<ACharacter>(Pawn))
 	{
 		const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 		const float HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 88.0f;
-
 		if (World)
 		{
-			const FVector TraceStart = Loc + FVector(0.0f, 0.0f, 400.0f);
-			const FVector TraceEnd = Loc - FVector(0.0f, 0.0f, 1200.0f);
+			const FVector TraceStart = Loc + FVector(0.0f, 0.0f, 8.0f);
+			const FVector TraceEnd = Loc - FVector(0.0f, 0.0f, HalfHeight + 40.0f);
 			FHitResult Hit;
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockSnapSpawn), false, Pawn);
-			if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, Params))
+			if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, Params)
+				&& Hit.ImpactNormal.Z > 0.5f)
 			{
 				Loc.Z = Hit.Location.Z + HalfHeight + 2.0f;
 			}
@@ -254,6 +284,8 @@ void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
+
+	EnableDynamicLighting(GetWorld());
 
 	APawn* Pawn = NewPlayer ? NewPlayer->GetPawn() : nullptr;
 	if (Pawn && NewPlayer)
