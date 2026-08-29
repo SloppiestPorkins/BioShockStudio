@@ -100,6 +100,9 @@ one DLC archetype and the ~46 `ArchetypeNames` entries no map references at all.
   VengeanceShared (it is in `Engine.U`, which the decompiler cannot read, or purely native), and
   `ShockPawn.GetResistanceSet()` is a native function. Same shape as `Spawning.ini`: config/native
   data. The name is recoverable (and surfaced); the resistance values are not.
-- **Status-effect tuning fields** on the archetype (`MaxBurningEfficacy`, the `bDoNotDo*` bools) —
-  present in the bytes, not extracted.
 - **`PlayerEscortedGathererDLCCombat`** — the one referenced archetype with no shipped export.
+
+Now extracted: the elemental-efficacy caps (`MaxBurningEfficacy` / `MaxFrozenEfficacy` /
+`MaxShockedEfficacy`), the fire-immunity flag (`bDoNotDoBurningBehavior` — set on grenadiers holding
+live grenades), `bCanRunAway`, `bCannotBeShattered`, and the burning/frozen decay timers. On the
+manifest too.

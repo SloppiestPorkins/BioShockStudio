@@ -165,6 +165,11 @@ public static class LevelSceneExporter
                 FrozenHealth = a.FrozenHealth,
                 CollisionHeight = a.CollisionHeight,
                 DamageResistanceSetName = a.DamageResistanceSetName,
+                MaxBurningEfficacy = a.MaxBurningEfficacy,
+                MaxFrozenEfficacy = a.MaxFrozenEfficacy,
+                MaxShockedEfficacy = a.MaxShockedEfficacy,
+                DoNotDoBurningBehavior = a.DoNotDoBurningBehavior,
+                CanRunAway = a.CanRunAway,
                 RequiredAnimationGroups = a.RequiredAnimationGroups.ToList(),
                 VoiceTypes = a.VoiceTypes.ToList(),
                 MaterialSlots = a.MaterialSlots.Select(ChanceDocument).ToList(),
@@ -1667,6 +1672,13 @@ public sealed record LevelArchetypeDocument
     public float? FrozenHealth { get; init; }
     public float? CollisionHeight { get; init; }
     public string? DamageResistanceSetName { get; init; }
+
+    /// <summary>Elemental efficacy caps and the fire-immunity flag — status-effect tuning.</summary>
+    public float? MaxBurningEfficacy { get; init; }
+    public float? MaxFrozenEfficacy { get; init; }
+    public float? MaxShockedEfficacy { get; init; }
+    public bool? DoNotDoBurningBehavior { get; init; }
+    public bool? CanRunAway { get; init; }
 
     public required List<string> RequiredAnimationGroups { get; init; }
     public required List<string> VoiceTypes { get; init; }

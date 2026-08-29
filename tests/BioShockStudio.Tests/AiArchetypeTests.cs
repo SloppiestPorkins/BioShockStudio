@@ -90,9 +90,12 @@ public sealed class AiArchetypeTests(GameFixture game)
         Assert.NotEmpty(babyJane.MaterialSlots);
         Assert.All(babyJane.MaterialSlots, s => Assert.InRange(s.Chance, 0f, 100f));
 
-        // The grenadier carries the grenade box as an attachment, resolved to a real class name.
-        var grenadierSlots = byName["MedicalDoctorGrenadier"].AttachmentSlots;
-        Assert.Contains(grenadierSlots, s => s.Name == "GrenadeBox");
+        // The grenadier carries the grenade box as an attachment, resolved to a real class name,
+        // and — holding a live grenade — is scripted not to catch fire.
+        var grenadierArchetype = byName["MedicalDoctorGrenadier_NoBurningAnims"];
+        Assert.Contains(grenadierArchetype.AttachmentSlots, s => s.Name == "GrenadeBox");
+        Assert.True(grenadierArchetype.DoNotDoBurningBehavior);
+        Assert.Equal(36f, grenadierArchetype.MaxBurningEfficacy);
 
         // A base (unprefixed) archetype: class + mesh + loadout, but no authored Health — it takes
         // the AIType class's own default. Not a decode miss; the property is genuinely absent.

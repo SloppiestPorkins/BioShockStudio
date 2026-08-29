@@ -49,6 +49,20 @@ public sealed record AiArchetype
 
     public bool? ShouldGoRagdollOnDeath { get; init; }
     public bool? ShouldBeHarvested { get; init; }
+    public bool? CanRunAway { get; init; }
+    public bool? CannotBeShattered { get; init; }
+
+    /// <summary>Elemental efficacy caps — how far burning / frozen / shocked can progress (0–100).</summary>
+    public float? MaxBurningEfficacy { get; init; }
+    public float? MaxFrozenEfficacy { get; init; }
+    public float? MaxShockedEfficacy { get; init; }
+
+    public float? BurningTimeout { get; init; }
+    public float? FrozenHealthDecayPerSecond { get; init; }
+    public float? ShatteredDamageAmount { get; init; }
+
+    /// <summary>Set on the enemies scripted not to catch fire (e.g. grenadiers holding live grenades).</summary>
+    public bool? DoNotDoBurningBehavior { get; init; }
 
     public required IReadOnlyList<string> RequiredAnimationGroups { get; init; }
     public required IReadOnlyList<string> VoiceTypes { get; init; }
@@ -176,6 +190,15 @@ public static class AiArchetypeCatalog
                 DamageResistanceSetName = Name("DamageResistanceSetName"),
                 ShouldGoRagdollOnDeath = Bool("bShouldGoRagdollOnDeath"),
                 ShouldBeHarvested = Bool("bShouldBeHarvested"),
+                CanRunAway = Bool("bCanRunAway"),
+                CannotBeShattered = Bool("bCannotBeShattered"),
+                MaxBurningEfficacy = Float("MaxBurningEfficacy"),
+                MaxFrozenEfficacy = Float("MaxFrozenEfficacy"),
+                MaxShockedEfficacy = Float("MaxShockedEfficacy"),
+                BurningTimeout = Float("BurningTimeout"),
+                FrozenHealthDecayPerSecond = Float("FrozenHealthDecayPerSecond"),
+                ShatteredDamageAmount = Float("ShatteredDamageAmount"),
+                DoNotDoBurningBehavior = Bool("bDoNotDoBurningBehavior"),
                 RequiredAnimationGroups = Names("RequiredAnimationGroups"),
                 VoiceTypes = Names("VoiceTypes"),
                 MaterialSlots = Slots("AIMaterial", "MaterialSlot"),
