@@ -1,5 +1,7 @@
 #include "ShockActionFadeVolumeOverride.h"
 
+#include "ShockPlayer.h"
+
 UShockActionFadeVolumeOverride::UShockActionFadeVolumeOverride()
 {
 	ActionClassName = TEXT("ActionFadeVolumeOverride");
@@ -15,4 +17,19 @@ bool UShockActionFadeVolumeOverride::RequestFade()
 {
 	LastVolume = Volume;
 	return true;
+}
+
+int32 UShockActionFadeVolumeOverride::ApplyInWorld(UWorld* World)
+{
+	if (!RequestFade())
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetFadeVolumeOverride(Volume, Duration);
+	return 1;
 }

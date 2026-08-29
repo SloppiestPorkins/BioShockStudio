@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionEnableOrDisableLevelSaving.generated.h"
 
-/** UnrealScript `ActionEnableOrDisableLevelSaving`. Records DisableLevelSaving; no save gate yet. */
+class UWorld;
+
+/** UnrealScript `ActionEnableOrDisableLevelSaving`. ApplyInWorld sets the save gate on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionEnableOrDisableLevelSaving : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

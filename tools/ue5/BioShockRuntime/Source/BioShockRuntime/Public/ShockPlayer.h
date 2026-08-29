@@ -173,6 +173,27 @@ public:
 	FString GetMapHUDRegion() const { return LastMapHUDRegion; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetTrainingMessage(FName MessageName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	FName GetTrainingMessage() const { return LastTrainingMessage; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetFadeVolumeOverride(float Volume, float Duration);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetFadeVolumeOverride() const { return FadeVolumeOverride; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetFadeVolumeDuration() const { return FadeVolumeDuration; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetLevelSavingDisabled(bool bDisable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsLevelSavingDisabled() const { return bLevelSavingDisabled; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetClientMessage(const FString& Text);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
@@ -312,6 +333,18 @@ private:
 
 	UPROPERTY()
 	FString LastMapHUDRegion;
+
+	UPROPERTY()
+	FName LastTrainingMessage;
+
+	UPROPERTY()
+	float FadeVolumeOverride = 1.0f;
+
+	UPROPERTY()
+	float FadeVolumeDuration = 0.0f;
+
+	UPROPERTY()
+	bool bLevelSavingDisabled = false;
 
 	UPROPERTY()
 	FString LastClientMessage;

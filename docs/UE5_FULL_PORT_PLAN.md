@@ -1074,6 +1074,16 @@ ChangePawnPhysics, SetPawnInvincibility, SetAINormalLODOverrideTime Request* wir
 
 Params + RequestDisplay; nested Medical unmapped cleared to 0 on limit-70 sample.
 
+### Phase 4 runner world-state batch — done, 29 Aug 2026
+
+RemoveGoal, ShowTrainingMessage, FadeVolumeOverride, EnableOrDisableLevelSaving,
+SetAIVulnerability `ApplyInWorld` wired on `UShockScriptRunner` (player/AI state stores;
+RemoveGoal clears a matching `MovementGoalName` on labeled AI). Live
+`run_script_world_state_exec.py`, `Success - 0 error(s)`. Census shortlist skipped here:
+InitiateDamage / TriggerHavokForceActor / ChangeQuestArrowActor (need damage, Havok force,
+quest-arrow infra). **~45% of scripted behaviour references now execute in-world**
+(`PLAUSIBLE`: prior ~44% + this batch's 232 refs over 21,752 total).
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's

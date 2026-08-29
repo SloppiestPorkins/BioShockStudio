@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionRemoveGoal.generated.h"
 
-/** UnrealScript `ActionRemoveGoal`. Records Target + goalName; no Tyrion goal stack yet. */
+class UWorld;
+
+/** UnrealScript `ActionRemoveGoal`. ApplyInWorld clears a matching movement goal on labeled AI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionRemoveGoal : public UShockAction
 {
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestRemove();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

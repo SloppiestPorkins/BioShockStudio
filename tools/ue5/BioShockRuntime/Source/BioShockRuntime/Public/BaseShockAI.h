@@ -51,6 +51,15 @@ public:
 	bool bCanAttack = true;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bVulnerable = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bCannotDie = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bCannotBecomeUnconscious = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	int32 ScriptedAIState = 2;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
@@ -118,6 +127,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	bool CanAttack() const { return bCanAttack; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsVulnerable() const { return bVulnerable; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool CannotDie() const { return bCannotDie; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool CannotBecomeUnconscious() const { return bCannotBecomeUnconscious; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	int32 GetScriptedAIState() const { return ScriptedAIState; }

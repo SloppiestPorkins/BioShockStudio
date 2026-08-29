@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionFadeVolumeOverride.generated.h"
 
-/** UnrealScript `ActionFadeVolumeOverride`. Records Volume/Duration; no audio fade yet. */
+class UWorld;
+
+/** UnrealScript `ActionFadeVolumeOverride`. ApplyInWorld stores volume/duration on the ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionFadeVolumeOverride : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestFade();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

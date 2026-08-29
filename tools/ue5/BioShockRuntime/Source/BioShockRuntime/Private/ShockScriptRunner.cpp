@@ -89,6 +89,11 @@
 #include "ShockActionChangePawnPhysics.h"
 #include "ShockActionSetPawnInvincibility.h"
 #include "ShockActionSetAINormalLODOverrideTime.h"
+#include "ShockActionRemoveGoal.h"
+#include "ShockActionShowTrainingMessage.h"
+#include "ShockActionFadeVolumeOverride.h"
+#include "ShockActionEnableOrDisableLevelSaving.h"
+#include "ShockActionSetAIVulnerability.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1345,6 +1350,46 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionSetAINormalLODOverrideTime* LODOverride = Cast<UShockActionSetAINormalLODOverrideTime>(Action))
 	{
 		LODOverride->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionRemoveGoal* RemoveGoal = Cast<UShockActionRemoveGoal>(Action))
+	{
+		RemoveGoal->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionShowTrainingMessage* Training = Cast<UShockActionShowTrainingMessage>(Action))
+	{
+		Training->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionFadeVolumeOverride* FadeVol = Cast<UShockActionFadeVolumeOverride>(Action))
+	{
+		FadeVol->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionEnableOrDisableLevelSaving* LevelSave = Cast<UShockActionEnableOrDisableLevelSaving>(Action))
+	{
+		LevelSave->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetAIVulnerability* Vulnerability = Cast<UShockActionSetAIVulnerability>(Action))
+	{
+		Vulnerability->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

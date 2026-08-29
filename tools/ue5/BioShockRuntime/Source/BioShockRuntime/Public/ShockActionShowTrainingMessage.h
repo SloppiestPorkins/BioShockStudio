@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionShowTrainingMessage.generated.h"
 
-/** UnrealScript `ActionShowTrainingMessage`. Records MessageName; no training UI yet. */
+class UWorld;
+
+/** UnrealScript `ActionShowTrainingMessage`. ApplyInWorld stores the message on the ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionShowTrainingMessage : public UShockAction
 {
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestShow();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

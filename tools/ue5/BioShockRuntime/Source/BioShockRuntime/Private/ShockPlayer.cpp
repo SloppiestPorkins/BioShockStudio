@@ -533,6 +533,22 @@ void AShockPlayer::SetMapHUDRegion(const FString& Description)
 	LastMapHUDRegion = Description;
 }
 
+void AShockPlayer::SetTrainingMessage(FName MessageName)
+{
+	LastTrainingMessage = MessageName;
+}
+
+void AShockPlayer::SetFadeVolumeOverride(float Volume, float Duration)
+{
+	FadeVolumeOverride = Volume;
+	FadeVolumeDuration = Duration;
+}
+
+void AShockPlayer::SetLevelSavingDisabled(bool bDisable)
+{
+	bLevelSavingDisabled = bDisable;
+}
+
 void AShockPlayer::SetClientMessage(const FString& Text)
 {
 	LastClientMessage = Text;
