@@ -78,16 +78,22 @@ verified against all 267.
 
 ## Coverage — the shipped exports are enough for the port
 
-**Every `Spawner.OverriddenAiArchetypeNames` reference in the game (36 across the 21 maps) resolves
-to a shipped `AIArchetype` export in the same map — 0 unresolved.** So the archetype data a spawner
-actually names is fully in hand. `Spawning.ini` (declared in `Default.ini` as `PerObjIniFile`, not
-shipped as a loose file — `PopulateArchetypes()` sources it somewhere native) would only matter for
-the ~46 names in `SpawningManager.ArchetypeNames` that no map references (DLC / cut content).
+Two cross-checks against the shipped exports, whole-game:
+
+| Consumer | References | Resolve to a shipped export in the same map |
+|---|---|---|
+| `Spawner.OverriddenAiArchetypeNames` (placed actors) | 36 | **36 / 36** |
+| `ActionSpawn*.Overridden*ArchetypeNames` (scripts) | 326 | **316 / 326** |
+
+The 10 script misses are one name — `PlayerEscortedGathererDLCCombat`, in `ChallengeRoomCombat` and
+`ChallengeRoomElectric` only. It is in `SpawningManager.ArchetypeNames` (a real archetype) but ships
+as no export in those two DLC maps; runtime loads it from `Spawning.ini`. Everything else the game
+actually spawns is in hand. `Spawning.ini` (declared in `Default.ini` as `PerObjIniFile`, not
+shipped as a loose file — `PopulateArchetypes()` sources it somewhere native) only matters for that
+one DLC archetype and the ~46 `ArchetypeNames` entries no map references at all.
 
 ## Still open
 
-- **Script-driven spawns** — `ActionSpawnAI.OverriddenAIArchetypeNames` (from the script-actions
-  sidecar) not cross-checked against the shipped exports the way the placed spawners were. Same
-  names expected.
 - **The resistance table** (`DamageResistanceSetName` keys) and status-effect tuning fields on the
   archetype — surfaced by name / not yet, respectively.
+- **`PlayerEscortedGathererDLCCombat`** — the one referenced archetype with no shipped export.
