@@ -118,6 +118,18 @@ function Get-WorkerSpec {
     param([string]$Worker, [string]$Worktree)
 
     $codexCommon = @('exec', '--cd', $Worktree, '--skip-git-repo-check', '--color', 'never')
+
+    function Resolve-CursorAgent {
+        $cmd = Join-Path $env:LOCALAPPDATA 'cursor-agent\cursor-agent.cmd'
+        if (Test-Path $cmd) { return $cmd }
+        $g = Get-Command 'cursor-agent.cmd', 'cursor-agent' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($g) { return $g.Source }
+        foreach ($p in ([Environment]::GetEnvironmentVariable('PATH', 'User') -split ';')) {
+            $c = Join-Path $p 'cursor-agent.cmd'
+            if ($p -and (Test-Path $c)) { return $c }
+        }
+        throw "cursor-agent not found (looked in %LOCALAPPDATA%\cursor-agent and PATH). Install per tools/agents/README.md."
+    }
     # --approve-for-me implies the workspace-write sandbox and auto-clears approval prompts, so it
     # runs unattended without the edits escaping the worktree. It is mutually exclusive with an
     # explicit --sandbox. -Yolo swaps in full access + no sandbox (don't, unless you're watching).
@@ -142,7 +154,14 @@ function Get-WorkerSpec {
         'cursor' {
             # Standalone cursor-agent CLI. Install: see tools/agents/README.md. -p = print mode
             # (non-interactive), --force lets it edit without per-tool prompts.
-            @{ Exe = 'cursor-agent'; Args = @('--cwd', $Worktree, '-p', '--force', '--output-format', 'text'); Local = $false }
+            # Resolve the .cmd shim explicitly: the installer's dir (%LOCALAPPDATA%\cursor-agent)
+            # is on the *user* PATH but not necessarily this process's, and the bare name can
+            # resolve to cursor-agent.ps1 which Restricted execution policy blocks. The .cmd shim
+            # re-invokes the .ps1 with -ExecutionPolicy Bypass, so it always works.
+            $cursorExe = Resolve-CursorAgent
+            # cursor-agent 3.x: --workspace sets the root (no --cwd); --trust skips the
+            # workspace-trust prompt; -p --force = non-interactive with all tools allowed.
+            @{ Exe = $cursorExe; Args = @('--workspace', $Worktree, '--trust', '-p', '--force', '--output-format', 'text'); Local = $false }
         }
         default { throw "Unknown worker '$Worker' in task (want: chatgpt | qwen | qwen-big | cursor)" }
     }
@@ -210,7 +229,9 @@ $jobBody = {
         try {
             $prompt = "You are working in an isolated git worktree for the BioShock->UE5 project. " +
                       "Follow docs/ENGINEERING_RULES.md and CLAUDE.md. Make ONLY the change described below. " +
-                      "Do not commit, do not push, do not touch files outside the stated lane. When done, stop.`n`n" +
+                      "Do not commit, do not push, do not touch files outside the stated lane. When done, stop.`n" +
+                      "Write any scratch / build / export output to `$env:TEMP, NOT into the worktree -- " +
+                      "everything left in the worktree is captured as the review patch.`n`n" +
                       "LANE (stay inside): $($Task.Lane)`n`n--- TASK ---`n$($Task.Prompt)"
             Log "worker: $($WorkerSpec.Exe) $($WorkerSpec.Args -join ' ')"
             # codex writes its agent transcript to stdout and only diagnostics to stderr. Keep
@@ -228,12 +249,19 @@ $jobBody = {
         }
 
         # Capture everything the worker changed, including new files (-N = intent-to-add so they
-        # show in the diff and git apply can recreate them).
+        # show in the diff and git apply can recreate them). `--output=` makes git write the file
+        # itself -- piping through PS 5.1 re-encodes via the console codepage and mangles any
+        # non-ASCII (em-dash -> "ΓÇö"), which then applies as garbage.
         git -C $wt add -A -N 2>&1 | Out-Null
-        git -C $wt diff HEAD | Out-File -LiteralPath $patch -Encoding utf8
+        git -C $wt diff HEAD --output=$patch
         $diffStat = (git -C $wt diff --shortstat HEAD | Out-String).Trim()
         $changed  = (git -C $wt diff --name-only HEAD | Where-Object { $_ }).Count
         Log "changes: $diffStat"
+        $patchMB = [math]::Round((Get-Item $patch).Length / 1MB, 1)
+        if ($patchMB -ge 5) {
+            Log "WARNING: patch is ${patchMB} MB -- the worker likely wrote build/export output"
+            Log "         into the worktree. Review before apply; do NOT apply blind."
+        }
 
         if ($changed -eq 0) {
             $status = 'no-change'
@@ -290,8 +318,11 @@ function Invoke-Run {
 
     # Preflight: workers referenced must exist.
     $needCursor = $pending.Worker -contains 'cursor'
-    if ($needCursor -and -not (Get-Command cursor-agent -ErrorAction SilentlyContinue)) {
-        throw "A task wants worker 'cursor' but cursor-agent is not on PATH. See tools/agents/README.md to install it, or change the task's worker: line."
+    if ($needCursor) {
+        $cursorCmd = Join-Path $env:LOCALAPPDATA 'cursor-agent\cursor-agent.cmd'
+        if (-not (Test-Path $cursorCmd) -and -not (Get-Command cursor-agent.cmd, cursor-agent -ErrorAction SilentlyContinue)) {
+            throw "A task wants worker 'cursor' but cursor-agent was not found (%LOCALAPPDATA%\cursor-agent or PATH). See tools/agents/README.md."
+        }
     }
     if (($pending.Worker | Where-Object { $_ -ne 'cursor' }) -and -not (Get-Command codex -ErrorAction SilentlyContinue)) {
         throw "codex CLI not found on PATH."

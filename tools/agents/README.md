@@ -15,7 +15,7 @@ tree.
 | `chatgpt`  | `codex exec`, signed in with the machine's **ChatGPT account** | ChatGPT plan quota | full (cloud) | The "use ChatGPT as a worker" path. `codex login status` shows the account. Smoke-tested working. |
 | `qwen`     | `codex exec --oss --local-provider ollama -m qwen2.5-coder:14b` | free | one at a time | ~9 GB (fits the 12 GB card) **and** exposes tool-calling, which codex needs. The reliable local worker. |
 | `qwen-big` | `codex exec --oss --local-provider ollama -m qwen3-coder:30b` | free | one at a time | Stronger, but 18 GB on a 12 GB card — has hung 600 s+ before (`.aider.conf.yml`). Only with someone watching. |
-| `cursor`   | standalone `cursor-agent` CLI | Cursor plan quota | full (cloud) | **Not installed** — see below. The Cursor **GUI** is a separate lane and keeps running via `.cursor/hooks`. |
+| `cursor`   | standalone `cursor-agent` CLI | Cursor plan quota | full (cloud) | Installed at `%LOCALAPPDATA%\cursor-agent\` (3.x), logged in. The orchestrator resolves the `.cmd` shim directly (it is on the *user* PATH, not always this process's, and bypasses Restricted execution policy). The Cursor **GUI** is a separate lane via `.cursor/hooks`. |
 
 `deepseek-coder-v2:16b` is **not** an option here — it doesn't expose tools to codex. It still works
 via `tools/backup-agent/` (aider parses its own edit blocks).
@@ -23,15 +23,18 @@ via `tools/backup-agent/` (aider parses its own edit blocks).
 Local workers share one GPU, so the orchestrator serialises them with a lock regardless of
 `-Parallel`.
 
-### Enabling the `cursor` worker
+### The `cursor` worker
 
-Cursor's headless agent (`cursor-agent`) is a separate binary from the `cursor` editor launcher,
-which is all that's installed here (`cursor --help` shows only file/diff/merge options). Install
-`cursor-agent` per Cursor's current CLI docs, then `cursor-agent login`, and the `cursor` worker
-row lights up.
+Cursor's headless agent (`cursor-agent`, 3.x) is a separate binary from the `cursor` editor
+launcher. It is installed at `%LOCALAPPDATA%\cursor-agent\` and logged in. `Get-WorkerSpec`
+resolves `cursor-agent.cmd` by explicit path (the install dir is on the *user* PATH but not
+always the orchestrator process's, and the bare name can hit `cursor-agent.ps1` which Restricted
+execution policy blocks — the `.cmd` shim re-invokes it with `-ExecutionPolicy Bypass`).
+cursor-agent 3.x uses `--workspace <dir>` (not `--cwd`) and needs `--trust` for headless runs.
 
-Until then, tasks with `worker: cursor` are refused by `run` with a clear message. The Cursor
-desktop app needs nothing — it already loops on `.cursor/hooks/continue-phase4.py` as its own lane.
+If it is ever missing, `run` refuses `worker: cursor` tasks with a clear message; reinstall per
+Cursor's CLI docs and `cursor-agent login`. The Cursor desktop app is a separate lane
+(`.cursor/hooks/continue-phase4.py`) and needs nothing.
 
 ## Use
 
