@@ -1575,9 +1575,18 @@ not be "fixed" without replacing that signal. **`SoundActorSchemaTests` (345) is
 different reason**: its scope reads as genuinely ambiguous rather than accidental, so narrowing it
 would be a guess about intent.
 
-**Since the `fa2cb54` stamp:** Cursor's lane is committing steadily to `tools/ue5/**` (Phase 4
-execution wiring) plus its own docs. None of that reaches `src/**` or `tests/**`, so the 599/599
-holds until a C# commit lands — at which point run what the diff touched, not the whole sweep.
+**Since the `fa2cb54` stamp — Claude-lane C# commits, each verified by the classes its diff touched:**
+
+| Commit | Change | Verified |
+|---|---|---|
+| `1e98dd2` | `LevelLightReader` reads `LightCone`/`Type`/`Effect`/`Period` | Fast **269/269**; `LevelLightFieldTests` 1/1; `~Level`/`~Coverage`/`~DocumentedFigures`/`~Diagnostics`/`~ActorField` **95/95** |
+| `199e579` | `LevelLightDocument` carries the four fields (additive, no version bump) | Fast **269/269**; `LevelSceneTests` **15/15** |
+| `6e5ca20` | `AiArchetypeCatalog` — new; contained property walk, `UnrealPropertyReader` untouched | Fast **269/269**; `AiArchetypeTests` 2/2; `DocumentedFiguresTests` + `EmitterTemplateCensusTests` + `DiagnosticsTests` **18/18** |
+| `4092925`, doc commits | comments / research only | build clean |
+
+Net suite is now **269 Fast + ~333 Sweep** — `LevelLightFieldTests` (1) and `AiArchetypeTests` (2)
+are new Sweep-tier classes. No `UnrealPropertyReader` / shared-machinery change since the stamp, so
+a full re-run is not due; the stamp holds.
 
 The recipe, which is a standing user instruction rather than a shortcut — see
 `docs/ENGINEERING_RULES.md` §60 "Test-run economy":
