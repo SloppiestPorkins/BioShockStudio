@@ -118,10 +118,10 @@ end to end found that almost every open item was either already built-but-untrac
 3. **Part 0.6 consolidation** (ongoing).
 4. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
    decompile to pin the light enums; `TextureCube` face-order A/B; `Spawning.ini` values for
-   non-shipped archetypes. The shared `UnrealPropertyReader` `array<struct>` size fix is **not
-   viable as designed** — §24 pass done 29 Aug, both attempts regress texture/emitter figures
-   (`research/spawning.md`); it needs a tighter gate, real design work. The archetype reader's
-   scoped copy stands.
+   non-shipped archetypes; the resistance-set values (config/native, like `Spawning.ini`). The
+   shared `UnrealPropertyReader` `array<struct>` size fix is **closed** — §24 pass done 29 Aug,
+   three attempts all regress texture/emitter figures identically (`research/spawning.md`). It needs
+   schema-driven parsing, a different architecture. The archetype reader's scoped copy stands.
 
 Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
 wide margin"). This lane's role is now support, not a parallel workstream.

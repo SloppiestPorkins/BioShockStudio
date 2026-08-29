@@ -60,21 +60,25 @@ them. **All 267 archetypes across the 21 maps parse clean** — including the `E
 family whose 7-entry `MaterialSlot` under-declares by 6 bytes and made the shared reader throw
 outright ("Property 'Min' overruns").
 
-**Why it stays scoped to the archetype reader — §24 classification done, 29 Aug 2026.** Porting the
-same correction into `UnrealPropertyReader` was tried twice: first with a heuristic guard, then with
-the exact `measured == declared + sizeBytes` test above. **Both are a net regression.** With the
-exact test:
+**Why it stays scoped to the archetype reader — §24 classification done, 29 Aug 2026, CLOSED.**
+Porting the correction into `UnrealPropertyReader` was tried three times: a heuristic guard; the
+exact `measured == declared + sizeBytes` test; and that test *plus* bidirectional gates (the
+declared end must not begin a property, the corrected end must begin one / terminate the list).
+**All three produce the identical regression:**
 
 - `DiagnosticCodes.TextureUndecodable` **1 → 9** — eight textures that decoded fine no longer do.
 - `EmitterTemplateCensusTests` **1859 → 1858** — one emitter template no longer walks clean.
 - `TheDiagnosticTotalsStillHold` **333 → 341**, consistent with the eight broken textures.
 
-The equation `measured == declared + sizeBytes` balances **by coincidence** for some legitimately
-sized `array<struct>` in the texture and emitter payloads whose nested content the re-walk
-misreads. A viable shared fix needs a tighter gate — e.g. only correct when the *corrected* offset
-lands on a valid FName that the *declared* offset does not — which is real design work, not a quick
-port. The archetype reader's copy is safe because it only ever runs on `AIArchetype` payloads,
-verified against all 267.
+The bidirectional gates changed nothing, which is the tell: for those payloads the array is not
+`array<struct-proplist>` at all — it is `array<byte>` (mip data) or `array<atomic-struct>` (a
+`Range`) whose raw bytes happen to walk to a spurious `None`, and every gate that reasons from the
+walk is fed the same corrupted measurement. **A safe shared fix needs the class schema** — which
+properties are arrays, and of what — because UE2's tagged-property format does not self-describe
+array element types. That is a different parser architecture, not a patch. The archetype reader's
+copy is safe only because it runs on `AIArchetype` payloads exclusively, where the arrays are the
+known slot types (proplist) and two name arrays (which fail the proplist walk). Verified against all
+267.
 
 ## Coverage — the shipped exports are enough for the port
 
