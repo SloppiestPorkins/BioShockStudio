@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionToggleAIWeaponVisibility.generated.h"
 
-/** UnrealScript `ActionToggleAIWeaponVisibility`. Records show/hide; no weapon mesh yet. */
+class UWorld;
+
+/** UnrealScript `ActionToggleAIWeaponVisibility`. ApplyInWorld sets bWeaponVisible on labeled AI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionToggleAIWeaponVisibility : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestToggle();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

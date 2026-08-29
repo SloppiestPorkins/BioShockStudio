@@ -549,6 +549,34 @@ void AShockPlayer::SetLevelSavingDisabled(bool bDisable)
 	bLevelSavingDisabled = bDisable;
 }
 
+void AShockPlayer::SetLevelSwitchingDisabled(bool bDisable)
+{
+	bLevelSwitchingDisabled = bDisable;
+}
+
+void AShockPlayer::SetHUDEnabled(bool bEnable)
+{
+	bHUDEnabled = bEnable;
+}
+
+void AShockPlayer::SetResurrectionStationActivated(FName Station, bool bActivated)
+{
+	if (Station.IsNone())
+	{
+		return;
+	}
+	ResurrectionStationActivated.FindOrAdd(Station) = bActivated;
+}
+
+bool AShockPlayer::IsResurrectionStationActivated(FName Station) const
+{
+	if (const bool* Value = ResurrectionStationActivated.Find(Station))
+	{
+		return *Value;
+	}
+	return false;
+}
+
 void AShockPlayer::SetClientMessage(const FString& Text)
 {
 	LastClientMessage = Text;

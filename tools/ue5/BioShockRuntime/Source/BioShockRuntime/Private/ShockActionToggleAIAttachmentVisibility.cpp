@@ -1,5 +1,7 @@
 #include "ShockActionToggleAIAttachmentVisibility.h"
 
+#include "BaseShockAI.h"
+
 UShockActionToggleAIAttachmentVisibility::UShockActionToggleAIAttachmentVisibility()
 {
 	ActionClassName = TEXT("ActionToggleAIAttachmentVisibility");
@@ -20,4 +22,19 @@ bool UShockActionToggleAIAttachmentVisibility::RequestToggle()
 	}
 	LastAILabel = AILabel;
 	return true;
+}
+
+int32 UShockActionToggleAIAttachmentVisibility::ApplyInWorld(UWorld* World)
+{
+	if (!RequestToggle())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->SetAttachmentCategoryHidden(AttachmentCategory, bHideAttachments);
+		++Applied;
+	}
+	return Applied;
 }

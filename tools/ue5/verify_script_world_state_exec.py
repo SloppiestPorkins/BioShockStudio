@@ -1,4 +1,4 @@
-"""Runner RemoveGoal / ShowTrainingMessage / FadeVolume / LevelSaving / SetAIVulnerability."""
+"""Runner batch1+batch2 world-state exec: player/AI stores via ApplyInWorld."""
 
 import json
 import os
@@ -40,6 +40,21 @@ def main(out):
     vuln_cls = unreal.load_class(
         None, "/Script/BioShockRuntime.ShockActionSetAIVulnerability"
     )
+    res_station_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionActivateResurrectionStation"
+    )
+    attach_vis_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionToggleAIAttachmentVisibility"
+    )
+    hud_state_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionSetHUDDisplayState"
+    )
+    weapon_vis_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionToggleAIWeaponVisibility"
+    )
+    level_switch_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockActionEnableOrDisableLevelSwitching"
+    )
 
     script = subsystem.spawn_actor_from_class(
         script_cls, unreal.Vector(0, 0, 220), unreal.Rotator(0, 0, 0)
@@ -70,13 +85,36 @@ def main(out):
     save.configure(True)
     vuln = unreal.new_object(vuln_cls)
     vuln.configure("SplicerA", False, True, True)
+    res_station = unreal.new_object(res_station_cls)
+    res_station.configure("VitaChamber_Medical", True)
+    attach_vis = unreal.new_object(attach_vis_cls)
+    attach_vis.configure("SplicerA", "Hat", True)
+    hud_state = unreal.new_object(hud_state_cls)
+    hud_state.configure(False)
+    weapon_vis = unreal.new_object(weapon_vis_cls)
+    weapon_vis.configure("SplicerA", False)
+    level_switch = unreal.new_object(level_switch_cls)
+    level_switch.configure(True)
 
     runner = script.get_runner()
-    for action in (post_goal, remove_goal, training, fade, save, vuln):
+    actions = (
+        post_goal,
+        remove_goal,
+        training,
+        fade,
+        save,
+        vuln,
+        res_station,
+        attach_vis,
+        hud_state,
+        weapon_vis,
+        level_switch,
+    )
+    for action in actions:
         runner.add_action(action)
     if not runner.start_execution():
         f.append("StartExecution")
-    for _ in range(6):
+    for _ in range(len(actions) + 1):
         runner.tick_execution(0.0)
 
     if str(remove_goal.get_last_target_label()) != "SplicerA":
@@ -91,6 +129,16 @@ def main(out):
         f.append("level save record")
     if str(vuln.get_last_ai_label()) != "SplicerA":
         f.append("vuln label %s" % vuln.get_last_ai_label())
+    if str(res_station.get_last_station_label()) != "VitaChamber_Medical":
+        f.append("res station record %s" % res_station.get_last_station_label())
+    if str(attach_vis.get_last_ai_label()) != "SplicerA":
+        f.append("attach vis record %s" % attach_vis.get_last_ai_label())
+    if bool(hud_state.get_last_enable_hud()) is not False:
+        f.append("hud state record")
+    if str(weapon_vis.get_last_ai_label()) != "SplicerA":
+        f.append("weapon vis record %s" % weapon_vis.get_last_ai_label())
+    if bool(level_switch.get_last_disable_level_switching()) is not True:
+        f.append("level switch record")
 
     if player is None:
         f.append("no ShockPlayer")
@@ -103,6 +151,14 @@ def main(out):
             f.append("in-world fade duration %s" % player.get_fade_volume_duration())
         if not _flag(player.is_level_saving_disabled):
             f.append("in-world level saving still enabled")
+        if not _flag(
+            lambda: player.is_resurrection_station_activated("VitaChamber_Medical")
+        ):
+            f.append("in-world res station not activated")
+        if _flag(player.is_hud_enabled):
+            f.append("in-world HUD still enabled")
+        if not _flag(player.is_level_switching_disabled):
+            f.append("in-world level switching still enabled")
 
     if ai is None:
         f.append("no BaseShockAI")
@@ -116,6 +172,10 @@ def main(out):
             f.append("in-world can still die")
         if not _flag(ai.cannot_become_unconscious):
             f.append("in-world can still unconscious")
+        if not _flag(lambda: ai.is_attachment_category_hidden("Hat")):
+            f.append("in-world attachment Hat not hidden")
+        if _flag(ai.is_weapon_visible):
+            f.append("in-world weapon still visible")
 
     report["world_state_exec"] = "ok" if not f else "fail"
 
@@ -136,6 +196,6 @@ if __name__ == "__main__":
     main(
         os.environ.get(
             "BIOSHOCK_ACTION_OUT",
-            r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\script_world_state_exec_report.json",
+            os.path.join(os.environ.get("TEMP", "."), "script_world_state_exec_report.json"),
         )
     )

@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionSetHUDDisplayState.generated.h"
 
-/** UnrealScript `ActionSetHUDDisplayState`. Records EnableHUD; no HUD widget yet. */
+class UWorld;
+
+/** UnrealScript `ActionSetHUDDisplayState`. ApplyInWorld sets HUD enabled on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetHUDDisplayState : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

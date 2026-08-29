@@ -34,6 +34,29 @@ bool ABaseShockAI::HasAttackOnSightLabel(FName InTargetLabel) const
 	return AttackOnSightLabels.Contains(InTargetLabel);
 }
 
+void ABaseShockAI::SetAttachmentCategoryHidden(FName Category, bool bHideAttachments)
+{
+	if (Category.IsNone())
+	{
+		return;
+	}
+	HiddenAttachmentCategories.FindOrAdd(Category) = bHideAttachments;
+}
+
+bool ABaseShockAI::IsAttachmentCategoryHidden(FName Category) const
+{
+	if (const bool* Value = HiddenAttachmentCategories.Find(Category))
+	{
+		return *Value;
+	}
+	return false;
+}
+
+void ABaseShockAI::SetWeaponVisible(bool bVisible)
+{
+	bWeaponVisible = bVisible;
+}
+
 TArray<ABaseShockAI*> ABaseShockAI::CollectLabeled(UWorld* World, FName Label)
 {
 	TArray<ABaseShockAI*> Out;

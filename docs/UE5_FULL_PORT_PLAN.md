@@ -1084,6 +1084,16 @@ InitiateDamage / TriggerHavokForceActor / ChangeQuestArrowActor (need damage, Ha
 quest-arrow infra). **~45% of scripted behaviour references now execute in-world**
 (`PLAUSIBLE`: prior ~44% + this batch's 232 refs over 21,752 total).
 
+### Phase 4 runner world-state batch 2 — done, 30 Aug 2026
+
+ActivateResurrectionStation, ToggleAIAttachmentVisibility, SetHUDDisplayState,
+ToggleAIWeaponVisibility, EnableOrDisableLevelSwitching `ApplyInWorld` wired on
+`UShockScriptRunner` (player station/HUD/switching stores; AI attachment-category hide +
+weapon-visible flags). Live `run_script_world_state_exec.py`, `Success - 0 error(s)`.
+Census shortlist skipped here: SpawnReactiveActor (spawn infra). **~46% of scripted behaviour
+references now execute in-world** (`PLAUSIBLE`: prior ~45% + this batch's 153 refs over
+21,752 total).
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's

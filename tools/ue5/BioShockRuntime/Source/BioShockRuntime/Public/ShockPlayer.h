@@ -194,6 +194,24 @@ public:
 	bool IsLevelSavingDisabled() const { return bLevelSavingDisabled; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetLevelSwitchingDisabled(bool bDisable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsLevelSwitchingDisabled() const { return bLevelSwitchingDisabled; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetHUDEnabled(bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsHUDEnabled() const { return bHUDEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetResurrectionStationActivated(FName Station, bool bActivated);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool IsResurrectionStationActivated(FName Station) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetClientMessage(const FString& Text);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
@@ -347,7 +365,13 @@ private:
 	bool bLevelSavingDisabled = false;
 
 	UPROPERTY()
+	bool bLevelSwitchingDisabled = false;
+
+	UPROPERTY()
 	FString LastClientMessage;
+
+	UPROPERTY()
+	bool bHUDEnabled = true;
 
 	UPROPERTY()
 	bool bHUDPlaying = false;
@@ -387,4 +411,7 @@ private:
 
 	UPROPERTY()
 	TMap<FName, bool> DoorBroken;
+
+	UPROPERTY()
+	TMap<FName, bool> ResurrectionStationActivated;
 };

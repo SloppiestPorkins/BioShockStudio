@@ -1,5 +1,7 @@
 #include "ShockActionToggleAIWeaponVisibility.h"
 
+#include "BaseShockAI.h"
+
 UShockActionToggleAIWeaponVisibility::UShockActionToggleAIWeaponVisibility()
 {
 	ActionClassName = TEXT("ActionToggleAIWeaponVisibility");
@@ -19,4 +21,19 @@ bool UShockActionToggleAIWeaponVisibility::RequestToggle()
 	}
 	LastAILabel = AILabel;
 	return true;
+}
+
+int32 UShockActionToggleAIWeaponVisibility::ApplyInWorld(UWorld* World)
+{
+	if (!RequestToggle())
+	{
+		return 0;
+	}
+	int32 Applied = 0;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, AILabel))
+	{
+		AI->SetWeaponVisible(bShowWeapon);
+		++Applied;
+	}
+	return Applied;
 }

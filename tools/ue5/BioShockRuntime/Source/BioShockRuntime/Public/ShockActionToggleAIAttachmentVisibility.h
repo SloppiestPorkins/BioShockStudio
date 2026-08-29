@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionToggleAIAttachmentVisibility.generated.h"
 
-/** UnrealScript `ActionToggleAIAttachmentVisibility`. Records hide request; no attachments yet. */
+class UWorld;
+
+/** UnrealScript `ActionToggleAIAttachmentVisibility`. ApplyInWorld stores hide flag on labeled AI. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionToggleAIAttachmentVisibility : public UShockAction
 {
@@ -35,4 +37,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestToggle();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

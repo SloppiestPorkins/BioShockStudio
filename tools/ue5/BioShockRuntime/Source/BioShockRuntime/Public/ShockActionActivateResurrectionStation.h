@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionActivateResurrectionStation.generated.h"
 
-/** UnrealScript `ActionActivateResurrectionStation`. Records activate request only. */
+class UWorld;
+
+/** UnrealScript `ActionActivateResurrectionStation`. ApplyInWorld stores activation on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionActivateResurrectionStation : public UShockAction
 {
@@ -32,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestActivate();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

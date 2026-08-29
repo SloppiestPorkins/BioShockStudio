@@ -1,5 +1,7 @@
 #include "ShockActionActivateResurrectionStation.h"
 
+#include "ShockPlayer.h"
+
 UShockActionActivateResurrectionStation::UShockActionActivateResurrectionStation()
 {
 	ActionClassName = TEXT("ActionActivateResurrectionStation");
@@ -20,4 +22,19 @@ bool UShockActionActivateResurrectionStation::RequestActivate()
 	}
 	LastStationLabel = ResurrectionStationLabel;
 	return true;
+}
+
+int32 UShockActionActivateResurrectionStation::ApplyInWorld(UWorld* World)
+{
+	if (!RequestActivate() || !World)
+	{
+		return 0;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return 0;
+	}
+	Player->SetResurrectionStationActivated(ResurrectionStationLabel, bActivateStation);
+	return 1;
 }

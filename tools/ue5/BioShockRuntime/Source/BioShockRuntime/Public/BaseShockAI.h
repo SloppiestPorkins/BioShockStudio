@@ -95,6 +95,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bWaitForGoalSatisfied = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bWeaponVisible = true;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
 
@@ -167,6 +170,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FString GetMovementGoalName() const { return MovementGoalName; }
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SetAttachmentCategoryHidden(FName Category, bool bHideAttachments);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsAttachmentCategoryHidden(FName Category) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SetWeaponVisible(bool bVisible);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool IsWeaponVisible() const { return bWeaponVisible; }
+
 	/** Editor actor label or ScriptLabel. Not a UFunction — C++ action helpers only. */
 	static TArray<ABaseShockAI*> CollectLabeled(UWorld* World, FName Label);
+
+private:
+	UPROPERTY()
+	TMap<FName, bool> HiddenAttachmentCategories;
 };

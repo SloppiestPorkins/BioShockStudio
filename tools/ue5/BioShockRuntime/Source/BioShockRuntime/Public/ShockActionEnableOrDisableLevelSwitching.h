@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionEnableOrDisableLevelSwitching.generated.h"
 
-/** UnrealScript `ActionEnableOrDisableLevelSwitching`. Records DisableLevelSwitching. */
+class UWorld;
+
+/** UnrealScript `ActionEnableOrDisableLevelSwitching`. ApplyInWorld sets the switch gate on ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionEnableOrDisableLevelSwitching : public UShockAction
 {
@@ -29,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

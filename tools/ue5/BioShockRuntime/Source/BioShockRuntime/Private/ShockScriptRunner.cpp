@@ -94,6 +94,11 @@
 #include "ShockActionFadeVolumeOverride.h"
 #include "ShockActionEnableOrDisableLevelSaving.h"
 #include "ShockActionSetAIVulnerability.h"
+#include "ShockActionActivateResurrectionStation.h"
+#include "ShockActionToggleAIAttachmentVisibility.h"
+#include "ShockActionSetHUDDisplayState.h"
+#include "ShockActionToggleAIWeaponVisibility.h"
+#include "ShockActionEnableOrDisableLevelSwitching.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
@@ -1390,6 +1395,46 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionSetAIVulnerability* Vulnerability = Cast<UShockActionSetAIVulnerability>(Action))
 	{
 		Vulnerability->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionActivateResurrectionStation* ResStation = Cast<UShockActionActivateResurrectionStation>(Action))
+	{
+		ResStation->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionToggleAIAttachmentVisibility* AttachVis = Cast<UShockActionToggleAIAttachmentVisibility>(Action))
+	{
+		AttachVis->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionSetHUDDisplayState* HudState = Cast<UShockActionSetHUDDisplayState>(Action))
+	{
+		HudState->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionToggleAIWeaponVisibility* WeaponVis = Cast<UShockActionToggleAIWeaponVisibility>(Action))
+	{
+		WeaponVis->ApplyInWorld(GetOuterWorld());
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionEnableOrDisableLevelSwitching* LevelSwitch = Cast<UShockActionEnableOrDisableLevelSwitching>(Action))
+	{
+		LevelSwitch->ApplyInWorld(GetOuterWorld());
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
