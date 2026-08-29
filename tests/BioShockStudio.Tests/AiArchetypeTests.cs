@@ -87,7 +87,12 @@ public sealed class AiArchetypeTests(GameFixture game)
         Assert.Equal("SpawnedMeleeThug", babyJane.AiType);
         Assert.Equal("Agg_BabyJane", babyJane.Mesh);
         Assert.Equal(80f, babyJane.Health);
-        Assert.True(babyJane.MaterialSlotEntries > 0, "the material slot did not decode");
+        Assert.NotEmpty(babyJane.MaterialSlots);
+        Assert.All(babyJane.MaterialSlots, s => Assert.InRange(s.Chance, 0f, 100f));
+
+        // The grenadier carries the grenade box as an attachment, resolved to a real class name.
+        var grenadierSlots = byName["MedicalDoctorGrenadier"].AttachmentSlots;
+        Assert.Contains(grenadierSlots, s => s.Name == "GrenadeBox");
 
         // A base (unprefixed) archetype: class + mesh + loadout, but no authored Health — it takes
         // the AIType class's own default. Not a decode miss; the property is genuinely absent.
@@ -118,6 +123,7 @@ public sealed class AiArchetypeTests(GameFixture game)
         Assert.Equal("SpawnedGrenadier", grenadier.AiType);
         Assert.Equal("Agg_Doctor_Mesh", grenadier.Mesh);
         Assert.Equal(400f, grenadier.Health);
+        Assert.Contains(grenadier.AttachmentSlots, s => s.Name == "GrenadeBox" && s.Chance == 100f);
 
         // A no-package export carries no archetypes — a scope choice, stated by the empty list.
         Assert.Empty(LevelSceneExporter.ToDocument(scene).Archetypes);

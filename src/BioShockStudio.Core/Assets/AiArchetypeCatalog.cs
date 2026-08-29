@@ -53,14 +53,29 @@ public sealed record AiArchetype
     public required IReadOnlyList<string> RequiredAnimationGroups { get; init; }
     public required IReadOnlyList<string> VoiceTypes { get; init; }
 
-    /// <summary>Entries in the <c>MaterialSlot</c> chance array (skin variants).</summary>
-    public int MaterialSlotEntries { get; init; }
+    /// <summary>
+    /// <c>MaterialSlot</c> — skin variants, each with the chance it is picked. The material name
+    /// resolves against the package; <c>null</c> is an authored-empty slot.
+    /// </summary>
+    public required IReadOnlyList<ArchetypeChance> MaterialSlots { get; init; }
 
-    /// <summary>Entries across <c>AttachmentSlot1..4</c> (masks, held props).</summary>
-    public int AttachmentSlotEntries { get; init; }
+    /// <summary><c>AttachmentSlot1..4</c> flattened — masks, held props, and their chances.</summary>
+    public required IReadOnlyList<ArchetypeChance> AttachmentSlots { get; init; }
 
-    /// <summary>Entries across <c>WeaponSlot1..4</c> (weapon swaps).</summary>
-    public int WeaponSlotEntries { get; init; }
+    /// <summary>
+    /// <c>WeaponSlot1..4</c> flattened — a weapon swap replaces <see cref="ArchetypeChance.Name"/>
+    /// with <see cref="ArchetypeChance.Replacement"/> at the given chance.
+    /// </summary>
+    public required IReadOnlyList<ArchetypeChance> WeaponSlots { get; init; }
+
+    /// <summary>Entries in the <c>MaterialSlot</c> chance array.</summary>
+    public int MaterialSlotEntries => MaterialSlots.Count;
+
+    /// <summary>Entries across <c>AttachmentSlot1..4</c>.</summary>
+    public int AttachmentSlotEntries => AttachmentSlots.Count;
+
+    /// <summary>Entries across <c>WeaponSlot1..4</c>.</summary>
+    public int WeaponSlotEntries => WeaponSlots.Count;
 
     /// <summary>The property list ended on a clean terminator — nothing after it is invented.</summary>
     public required bool Complete { get; init; }
@@ -71,6 +86,12 @@ public sealed record AiArchetype
         + (Mesh is { } m ? $" {m}" : "")
         + (Health is { } h ? $" hp{h:0}" : "");
 }
+
+/// <summary>One chance-weighted slot entry: a material, attachment or weapon and how likely it is.</summary>
+/// <param name="Name">Resolved object name, or null for an authored-empty slot.</param>
+/// <param name="Chance">The authored chance (0–100).</param>
+/// <param name="Replacement">For a weapon slot, what <paramref name="Name"/> is swapped to; null otherwise.</param>
+public readonly record struct ArchetypeChance(string? Name, float Chance, string? Replacement = null);
 
 /// <summary>Reads every <c>AIArchetype</c> export in a package.</summary>
 public static class AiArchetypeCatalog
@@ -117,11 +138,31 @@ public static class AiArchetypeCatalog
             IReadOnlyList<string> Names(string name) =>
                 Find(name) is { Type: UnrealPropertyType.Array } p
                 && PropertyValues.TryAsNameArrayExact(p, package, out var values) ? values : [];
-            // The leading FCompactIndex count of each slot array — robust whether or not the array
-            // tag's declared size captured the whole value.
-            int SlotEntries(IEnumerable<string> slotNames) =>
-                slotNames.Sum(n =>
-                    Find(n) is { Type: UnrealPropertyType.Array, Value.Length: > 0 } p ? LeadingCount(p.Value) : 0);
+
+            // Each slot element is a nested { <ref>, float Chance, None? } list. The re-measured
+            // walk above captures the slot's full value, so TryAsStructArrayExact walks it exactly.
+            List<ArchetypeChance> Slots(string refField, params string[] slotNames)
+            {
+                var rows = new List<ArchetypeChance>();
+                foreach (var name in slotNames)
+                {
+                    if (Find(name) is not { Type: UnrealPropertyType.Array } p) continue;
+                    if (!PropertyValues.TryAsStructArrayExact(p, package, out var elements)) continue;
+                    foreach (var fields in elements)
+                    {
+                        string? Resolve(string f) =>
+                            fields.FirstOrDefault(x => x.Name == f) is { } fp
+                            && PropertyValues.AsReference(fp) is { } idx && !idx.IsNull
+                                ? package.ResolveName(idx)
+                                : null;
+                        float chance = fields.FirstOrDefault(x => x.Name == "Chance") is { Type: UnrealPropertyType.Float } cp
+                            ? cp.AsFloat() : 0f;
+                        rows.Add(new ArchetypeChance(Resolve(refField), chance,
+                            refField == "CurrentAIWeaponClass" ? Resolve("ReplacementAIWeaponClass") : null));
+                    }
+                }
+                return rows;
+            }
 
             result.Add(new AiArchetype
             {
@@ -137,9 +178,9 @@ public static class AiArchetypeCatalog
                 ShouldBeHarvested = Bool("bShouldBeHarvested"),
                 RequiredAnimationGroups = Names("RequiredAnimationGroups"),
                 VoiceTypes = Names("VoiceTypes"),
-                MaterialSlotEntries = SlotEntries(["MaterialSlot"]),
-                AttachmentSlotEntries = SlotEntries(AttachmentSlots),
-                WeaponSlotEntries = SlotEntries(WeaponSlots),
+                MaterialSlots = Slots("AIMaterial", "MaterialSlot"),
+                AttachmentSlots = Slots("AIAttachmentClass", AttachmentSlots),
+                WeaponSlots = Slots("CurrentAIWeaponClass", WeaponSlots),
                 Complete = complete,
             });
         }
@@ -335,24 +376,15 @@ public static class AiArchetypeCatalog
         return v;
     }
 
-    /// <summary>The leading <c>FCompactIndex</c> element count of an array property's value.</summary>
-    private static int LeadingCount(byte[] value)
-    {
-        try
-        {
-            int offset = 0;
-            int count = ReadCompact(value, ref offset);
-            return count is >= 0 and <= 4096 ? count : 0;
-        }
-        catch { return 0; }
-    }
-
     private static AiArchetype Unreadable(string name, string packageName) => new()
     {
         Name = name,
         PackageName = packageName,
         RequiredAnimationGroups = [],
         VoiceTypes = [],
+        MaterialSlots = [],
+        AttachmentSlots = [],
+        WeaponSlots = [],
         Complete = false,
     };
 }

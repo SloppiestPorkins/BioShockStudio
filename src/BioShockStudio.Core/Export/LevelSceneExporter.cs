@@ -167,9 +167,9 @@ public static class LevelSceneExporter
                 DamageResistanceSetName = a.DamageResistanceSetName,
                 RequiredAnimationGroups = a.RequiredAnimationGroups.ToList(),
                 VoiceTypes = a.VoiceTypes.ToList(),
-                MaterialSlotEntries = a.MaterialSlotEntries,
-                AttachmentSlotEntries = a.AttachmentSlotEntries,
-                WeaponSlotEntries = a.WeaponSlotEntries,
+                MaterialSlots = a.MaterialSlots.Select(ChanceDocument).ToList(),
+                AttachmentSlots = a.AttachmentSlots.Select(ChanceDocument).ToList(),
+                WeaponSlots = a.WeaponSlots.Select(ChanceDocument).ToList(),
                 Complete = a.Complete,
             })
             .ToList(),
@@ -906,6 +906,9 @@ public static class LevelSceneExporter
 
     private static float[] ToArray(Vector3 v) => [v.X, v.Y, v.Z];
 
+    private static LevelArchetypeChanceDocument ChanceDocument(ArchetypeChance c) =>
+        new() { Name = c.Name, Chance = c.Chance, Replacement = c.Replacement };
+
     /// <summary>A <c>Range</c> as <c>[Min, Max]</c>, or null when the field was not serialised.</summary>
     private static float[]? ToArray(FloatRange? range) =>
         range is { } r ? [r.Min, r.Max] : null;
@@ -1019,7 +1022,7 @@ public sealed record LevelDocument
     /// <summary>
     /// The <c>AIArchetype</c> records this map ships — the enemy roster a spawner or script names.
     /// Empty when no package was open. See <c>docs/research/spawning.md</c>; the chance-weighted
-    /// loadout slots are entry counts only for now.
+    /// loadout slots carry their resolved contents and pick chances.
     /// </summary>
     public List<LevelArchetypeDocument> Archetypes { get; init; } = [];
 
@@ -1668,12 +1671,25 @@ public sealed record LevelArchetypeDocument
     public required List<string> RequiredAnimationGroups { get; init; }
     public required List<string> VoiceTypes { get; init; }
 
-    public int MaterialSlotEntries { get; init; }
-    public int AttachmentSlotEntries { get; init; }
-    public int WeaponSlotEntries { get; init; }
+    /// <summary>Skin variants — resolved name and pick chance.</summary>
+    public required List<LevelArchetypeChanceDocument> MaterialSlots { get; init; }
+
+    /// <summary>Masks / held props — resolved class and chance.</summary>
+    public required List<LevelArchetypeChanceDocument> AttachmentSlots { get; init; }
+
+    /// <summary>Weapon swaps — <c>name</c> replaced by <c>replacement</c> at <c>chance</c>.</summary>
+    public required List<LevelArchetypeChanceDocument> WeaponSlots { get; init; }
 
     /// <summary>The record parsed to a clean terminator.</summary>
     public required bool Complete { get; init; }
+}
+
+/// <summary>One chance-weighted archetype slot entry.</summary>
+public sealed record LevelArchetypeChanceDocument
+{
+    public string? Name { get; init; }
+    public float Chance { get; init; }
+    public string? Replacement { get; init; }
 }
 
 public sealed record LevelActorCoverageDocument

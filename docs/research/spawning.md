@@ -39,9 +39,10 @@ decompiled struct fields carry):
 | `CheckpointTypePadding` | int | The `structdefaultproperties` padding constant, on every record. Ignore. |
 
 `AiArchetypeCatalog` surfaces `AIType`, `Mesh`, `Health`, `FrozenHealth`, `DamageResistanceSetName`,
-`CollisionHeight`, the two name arrays, and the loadout-slot **entry counts**. The
-class/mesh references *inside* the slot ChancePairs, and the resistance/status-tuning fields, are
-not yet extracted — a follow-up, not a blocker.
+`CollisionHeight`, the two name arrays, and the loadout slots **with their contents resolved** —
+each entry is `{ name, chance, replacement? }` (`AggDoctorRimShader` @ 100, `GrenadeBox` @ 100,
+weapon swaps). Not yet extracted: the resistance table `DamageResistanceSetName` keys, and the
+status-effect tuning fields (`MaxBurningEfficacy`, the `bDoNotDo*` bools).
 
 ## The reader gap this exposed
 
