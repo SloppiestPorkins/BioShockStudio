@@ -21,7 +21,8 @@ $ErrorActionPreference = 'Stop'
 
 $EngineRoot = 'G:\Games\UE_5.7'
 $UeProject = 'C:\Users\Jack\Documents\BioShockUE5'
-$RepoPlugin = 'C:\Users\Jack\Documents\BioshockHavok\tools\ue5\BioShockRuntime'
+# Resolve from this script so git worktrees sync their own BioShockRuntime, not a hardcoded main checkout.
+$RepoPlugin = Join-Path $PSScriptRoot 'BioShockRuntime'
 $LivePlugin = Join-Path $UeProject 'Plugins\BioShockRuntime'
 $HostProject = Join-Path $UeProject 'PluginBuild\BioShockRuntime\HostProject'
 $HostPlugin = Join-Path $HostProject 'Plugins\BioShockRuntime'

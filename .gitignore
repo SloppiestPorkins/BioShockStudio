@@ -72,3 +72,4 @@ coverage*.xml
 # UE5 Python audit/repair reports and PIE/editor screenshots — local evidence, not source.
 /tools/ue5/_reports/
 /tools/ue5/_shots/
+tools/ue5/BioShockRuntime/Config/
