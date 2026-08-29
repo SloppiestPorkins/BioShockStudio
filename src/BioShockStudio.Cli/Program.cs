@@ -54,6 +54,7 @@ try
         "archetypes" => Archetypes(root, args),
         "config" => ConfigDump(root, args),
         "weapons-config" => WeaponsConfig(root, args),
+        "loot-config" => LootConfig(root, args),
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
@@ -105,6 +106,7 @@ static int Usage()
           archetypes <package>          List AIArchetype records — the enemy roster with class, mesh, health and loadout.
           config [<file.ini> [section]] The baked config bundle (Spawning.ini, Weapons.ini, …): list files, or dump a section.
           weapons-config                Player weapons from Weapons.ini — magazine, fire rate, accuracy, and per-ammo damage.
+          loot-config [table]           Loot tables from LootTables.ini — list, or dump one table's chance entries.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
@@ -1342,6 +1344,29 @@ static int Archetypes(string root, string[] args)
     int complete = entries.Count(e => e.Complete);
     int withCore = entries.Count(e => e.AiType is not null && e.Mesh is not null && e.Health is not null);
     Console.WriteLine($"\n{entries.Count} archetypes, {complete} clean, {withCore} with class+mesh+health.");
+    return 0;
+}
+
+static int LootConfig(string root, string[] args)
+{
+    var bundle = BioShockStudio.Core.Config.IniBundle.Load(
+        BioShockStudio.Core.Game.GameLocator.ConfigBundle(root));
+    var tables = BioShockStudio.Core.Config.LootTableConfig.ReadAll(bundle["LootTables.ini"]!);
+
+    if (args.Length >= 2)
+    {
+        if (!tables.TryGetValue(args[1], out var one)) { Console.Error.WriteLine($"no loot table '{args[1]}'"); return 1; }
+        Console.WriteLine($"[{one.Name}]");
+        foreach (var s in one.Specs)
+            Console.WriteLine(s.SubTable is { } sub
+                ? $"  {s.Chance,5}%  → table {sub}"
+                : $"  {s.Chance,5}%  {s.ItemClass} x{s.MinStackSize}-{s.MaxStackSize}");
+        return 0;
+    }
+
+    foreach (var t in tables.Values.OrderBy(t => t.Name, StringComparer.Ordinal))
+        Console.WriteLine($"{t.Name,-40} {t.Specs.Count} entries");
+    Console.WriteLine($"\n{tables.Count} loot tables.");
     return 0;
 }
 

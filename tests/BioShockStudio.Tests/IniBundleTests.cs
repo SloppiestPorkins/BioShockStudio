@@ -103,6 +103,25 @@ public sealed class IniBundleTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void LootTablesResolveIntoChanceWeightedTreesOfItemsAndSubTables()
+    {
+        var tables = LootTableConfig.ReadAll(Bundle()["LootTables.ini"]!);
+
+        Assert.True(tables.Count > 100, $"only {tables.Count} loot tables");
+
+        // Every spec drops an item or rolls a sub-table, never neither.
+        Assert.All(tables.Values.SelectMany(t => t.Specs),
+            s => Assert.True(s.ItemClass is not null || s.SubTable is not null));
+
+        // A referenced sub-table exists.
+        var withSub = tables.Values.SelectMany(t => t.Specs).First(s => s.SubTable is not null);
+        Assert.True(tables.ContainsKey(withSub.SubTable!));
+
+        // Credits are the most common drop.
+        Assert.Contains(tables.Values.SelectMany(t => t.Specs), s => s.ItemClass == "Credits");
+    }
+
+    [RequiresGameFact]
     public void WeaponConfigResolvesTheWeaponAmmoDamageChain()
     {
         var weapons = WeaponConfig.ReadAll(Bundle()["Weapons.ini"]!);

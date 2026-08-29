@@ -62,7 +62,11 @@ byte[]         content         // the .ini text, single-byte, CRLF
   resource spawns), not a static "hard = 2× health" table. Behaviour config for a later phase, not
   data to wire.
 
-- **Loot tables, plasmids** — readable, not yet consumed.
+- **Loot tables** — `LootTableConfig.ReadAll` → 239 named tables, each an ordered list of
+  `LootSpec=(Chance=,ItemClass=,MinStackSize=,MaxStackSize=)` **or** `(Chance=,TableName=<sub>)`.
+  Tables reference sub-tables, so a drop is a tree roll. `bioshock-tool loot-config [table]`.
+
+- **Plasmids** — readable (`Plasmids.ini`, 112 sections), not yet a typed reader.
 
 ## Notes
 
