@@ -1178,6 +1178,11 @@ slots) is imported idempotently by `tools/ue5/import_ai_archetypes.py` into the 
 spawn (missing archetype → prior hand-authored fallback). Verified on `1-Medical` via
 `run_verify_ai_archetypes.py` (`Agg_BabyJane` mesh lookup → authored health 80).
 
+**Phase 3 depth — AI autonomous combat loop, 30 Aug 2026 (Cursor).** `ABaseShockAI` runs a
+minimal Idle/Chase/Attack tick FSM (direct `AddMovementInput`, throttled sight scan,
+`UShockDamageLibrary::ApplyDamage` melee). Verified headless via `run_ai_combat.py`
+(`Success - 0 error(s)`, 30 Aug 2026).
+
 The plan's framing of item 3 as the highest-value *unbuilt* work was stale — the manifest half was
 built incrementally under `feat:` commits (`0d03b75`, `2e20188`, `d25155f`, the `Region`/`Spawner`
 decoders); the archetype half landed 28 Aug.

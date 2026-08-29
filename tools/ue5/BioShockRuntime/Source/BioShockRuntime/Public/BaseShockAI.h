@@ -4,10 +4,20 @@
 #include "BaseShockAI.generated.h"
 
 class UWorld;
+class AShockPlayer;
+
+UENUM()
+enum class EShockAICombatState : uint8
+{
+	Idle,
+	Chase,
+	Attack
+};
 
 /**
- * UnrealScript `BaseShockAI`. No states — playable-slice home for a spawnable AI pawn.
+ * UnrealScript `BaseShockAI`. Playable-slice home for a spawnable AI pawn.
  * ScriptLabel mirrors level actor labels for Action* lookups (not a full label system).
+ * Minimal 3-state combat tick FSM (Idle / Chase / Attack) — not StateTree.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API ABaseShockAI : public AShockPawn
@@ -122,6 +132,27 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FVector HeadTrackOffset = FVector::ZeroVector;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float SightRadius = 2500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float MeleeRange = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float MeleeDamage = 15.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float MeleeCooldown = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float LoseTargetSeconds = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float PerceptionScanInterval = 0.25f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat")
+	bool bAggroOnDamage = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
 
@@ -234,7 +265,50 @@ public:
 	/** Editor actor label or ScriptLabel. Not a UFunction — C++ action helpers only. */
 	static TArray<ABaseShockAI*> CollectLabeled(UWorld* World, FName Label);
 
+	/** Called from UShockDamageLibrary when a ShockPlayer damages this AI. */
+	void NotifyAggroFromPlayer(AShockPawn* DamageInstigator);
+
+	/** Headless verify helper: runs Tick plus movement so AddMovementInput advances. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void AdvanceAutonomousCombat(float DeltaSeconds);
+
+	/** Switch to gravity-free flying — for headless verification / floorless test maps only.
+	 *  Real play keeps the default walking mode. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void EnableFloorlessMovement();
+
+	virtual void Tick(float DeltaSeconds) override;
+
 private:
 	UPROPERTY()
 	TMap<FName, bool> HiddenAttachmentCategories;
+
+	UPROPERTY()
+	TObjectPtr<AShockPawn> CombatTarget;
+
+	UPROPERTY()
+	TObjectPtr<AShockPawn> AggroInstigator;
+
+	UPROPERTY()
+	EShockAICombatState CombatState = EShockAICombatState::Idle;
+
+	UPROPERTY()
+	float PerceptionScanAccumulator = 0.0f;
+
+	UPROPERTY()
+	float MeleeCooldownRemaining = 0.0f;
+
+	UPROPERTY()
+	float OutOfSightTimer = 0.0f;
+
+	void TickCombat(float DeltaSeconds);
+	bool IsCombatLoopGated() const;
+	bool IsAliveTarget(const AShockPawn* Target) const;
+	void SetCombatTarget(AShockPawn* Target);
+	void ClearCombatTarget();
+	float DistanceToTarget(const AShockPawn* Target) const;
+	void FaceTargetYaw(const AShockPawn* Target);
+	bool CanPerceivePlayer(const AShockPlayer* Player) const;
+	bool TryAcquireTargetFromPerception();
+	FName GetPlayerPerceptionLabel(const AShockPlayer* Player) const;
 };

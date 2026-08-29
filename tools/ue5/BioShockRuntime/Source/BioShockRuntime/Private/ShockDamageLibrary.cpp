@@ -4,6 +4,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "ShockPawn.h"
+#include "ShockPlayer.h"
 
 AActor* UShockDamageLibrary::FindActorByLabel(UWorld* World, FName Label)
 {
@@ -38,7 +39,6 @@ AActor* UShockDamageLibrary::FindActorByLabel(UWorld* World, FName Label)
 
 float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Instigator, FName DamageType)
 {
-	(void)Instigator;
 	(void)DamageType;
 
 	AShockPawn* Pawn = Cast<AShockPawn>(Target);
@@ -53,11 +53,15 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 		return 0.0f;
 	}
 
-	if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
+	if (ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
 	{
 		if (!AI->IsVulnerable())
 		{
 			return 0.0f;
+		}
+		if (AShockPlayer* Player = Cast<AShockPlayer>(Instigator))
+		{
+			AI->NotifyAggroFromPlayer(Player);
 		}
 	}
 
