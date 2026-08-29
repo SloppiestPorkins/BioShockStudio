@@ -60,12 +60,21 @@ them. **All 267 archetypes across the 21 maps parse clean** — including the `E
 family whose 7-entry `MaterialSlot` under-declares by 6 bytes and made the shared reader throw
 outright ("Property 'Min' overruns").
 
-**Why not fix `UnrealPropertyReader` itself:** a first attempt did, and it shifted
-`DocumentedFiguresTests` (the diagnose sweep) and `EmitterTemplateCensusTests` — emitter templates
-carry `array<struct>` too, and correcting them there changes pinned figures. That correction is
-worth doing but needs the classify-before-touching pass (`ENGINEERING_RULES.md` §24) on those
-figures first. Scoped to the archetype reader for now; the slot arrays are only ever seen on
-archetypes.
+**Why it stays scoped to the archetype reader — §24 classification done, 29 Aug 2026.** Porting the
+same correction into `UnrealPropertyReader` was tried twice: first with a heuristic guard, then with
+the exact `measured == declared + sizeBytes` test above. **Both are a net regression.** With the
+exact test:
+
+- `DiagnosticCodes.TextureUndecodable` **1 → 9** — eight textures that decoded fine no longer do.
+- `EmitterTemplateCensusTests` **1859 → 1858** — one emitter template no longer walks clean.
+- `TheDiagnosticTotalsStillHold` **333 → 341**, consistent with the eight broken textures.
+
+The equation `measured == declared + sizeBytes` balances **by coincidence** for some legitimately
+sized `array<struct>` in the texture and emitter payloads whose nested content the re-walk
+misreads. A viable shared fix needs a tighter gate — e.g. only correct when the *corrected* offset
+lands on a valid FName that the *declared* offset does not — which is real design work, not a quick
+port. The archetype reader's copy is safe because it only ever runs on `AIArchetype` payloads,
+verified against all 267.
 
 ## Coverage — the shipped exports are enough for the port
 
