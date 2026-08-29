@@ -107,15 +107,14 @@ missing-material state an earlier screenshot in the same session briefly showed 
 grip and worn blued-steel texture rendering correctly. First human confirmation this project has
 had of any UE5-imported asset. Static pose only — animation playback in-editor still unconfirmed.
 
-**0.6 — Consolidate the status documents.** There are now six overlapping places project state gets
-written down (`ROADMAP.md`, `HANDOFF.md`, `HANDOFF_UE5_IMPORT.md`, `NEXT_SESSION.md`, `QUALITY.md`,
-`README.md`'s own status table), and they have already disagreed with each other at least once
-(`README.md` said lightmaps were "not started" after `docs/research/bsp.md` had already recorded
-the decode work). Pick one canonical status document — this file is a reasonable candidate, since
-it already exists to be the orientation layer — and have the others link into it rather than
-maintain their own parallel summary. `QUALITY.md` and the `research/*.md` files should stay as the
-detailed evidence record; the duplication to remove is the *status* tables scattered across
-`README.md`, `HANDOFF.md` and `NEXT_SESSION.md`.
+**0.6 — Consolidate the status documents.** **Substantially done.** This file is the canonical
+status doc; `README.md`, `HANDOFF.md` and `NEXT_SESSION.md` each dropped their own status table and
+now link here (`README.md` line 19, `HANDOFF.md` "Current state"). `QUALITY.md` and `research/*.md`
+stay as the evidence record. Gate 5's item-by-item detail moved wholesale into
+`UE5_FULL_PORT_PLAN.md` §9 (25 Aug). `HANDOFF_UE5_IMPORT.md` is a scoped historical record, marked
+"Superseded" at its head and linked as history from four places — kept deliberately, not a loose
+end. The recurring drift between §5 (plan) and §9 (record) in `UE5_FULL_PORT_PLAN.md` is handled by
+giving each §5 item a bold status marker pointing at its §9 entry (done for Phases 1–2, 28 Aug).
 
 **0.7 — Work Part 2's gate items in order, not by jumping around.** Added 22 Aug 2026, user
 instruction — `ENGINEERING_RULES.md` §60 "Roadmap discipline" is the canonical text. Take the next
