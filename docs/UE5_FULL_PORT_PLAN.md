@@ -1106,10 +1106,10 @@ tails"**:
    `docs/research/spawning.md`. **All 267 shipped archetype exports parse clean.** Also on the level
    manifest as `document.archetypes` (`b5a5520`). This closes `interaction.md` §4 (`Cohen`,
    `Steinman` on `TriggerOnlyByLabels` are archetype names). The loadout slots carry their resolved
-   contents (`AggDoctorRimShader` @ 100, `GrenadeBox` @ 100, weapon swaps). **Tail:** the
-   per-archetype `Spawning.ini` values for records that ship no export (file not located in the
-   Remastered install). This is what Phase 3 needs to populate `AShockAI` from data — build the UE5
-   `UDataAsset` against `document.archetypes`.
+   contents (`AggDoctorRimShader` @ 100, `GrenadeBox` @ 100, weapon swaps). **All 36
+   `Spawner.OverriddenAiArchetypeNames` references game-wide resolve to a shipped export** — the
+   port needs nothing from the unshipped `Spawning.ini`. This is what Phase 3 populates `AShockAI`
+   from — build the UE5 `UDataAsset` against `document.archetypes`.
 
 The plan's framing of item 3 as the highest-value *unbuilt* work was stale — the manifest half was
 built incrementally under `feat:` commits (`0d03b75`, `2e20188`, `d25155f`, the `Region`/`Spawner`

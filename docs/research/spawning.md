@@ -67,11 +67,18 @@ worth doing but needs the classify-before-touching pass (`ENGINEERING_RULES.md` 
 figures first. Scoped to the archetype reader for now; the slot arrays are only ever seen on
 archetypes.
 
+## Coverage — the shipped exports are enough for the port
+
+**Every `Spawner.OverriddenAiArchetypeNames` reference in the game (36 across the 21 maps) resolves
+to a shipped `AIArchetype` export in the same map — 0 unresolved.** So the archetype data a spawner
+actually names is fully in hand. `Spawning.ini` (declared in `Default.ini` as `PerObjIniFile`, not
+shipped as a loose file — `PopulateArchetypes()` sources it somewhere native) would only matter for
+the ~46 names in `SpawningManager.ArchetypeNames` that no map references (DLC / cut content).
+
 ## Still open
 
-- **The per-archetype `Spawning.ini` values** for archetypes that ship no export (or fields an
-  export omits) — the file is declared in `Default.ini` (`PerObjIniFile=Spawning.ini`) but not
-  present as a loose file in the Remastered install. The native `PopulateArchetypes()` sources them
-  somewhere this project's tooling has not located. The export data covers the 267 that ship one.
-- **The ChancePair inner references** (`AIMaterial`, `AIAttachmentClass`, weapon classes) — parse
-  as struct rows; the refs inside aren't resolved to names yet.
+- **Script-driven spawns** — `ActionSpawnAI.OverriddenAIArchetypeNames` (from the script-actions
+  sidecar) not cross-checked against the shipped exports the way the placed spawners were. Same
+  names expected.
+- **The resistance table** (`DamageResistanceSetName` keys) and status-effect tuning fields on the
+  archetype — surfaced by name / not yet, respectively.
