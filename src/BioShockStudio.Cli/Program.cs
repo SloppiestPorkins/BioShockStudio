@@ -52,6 +52,7 @@ try
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
         "archetypes" => Archetypes(root, args),
+        "config" => ConfigDump(root, args),
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
@@ -101,6 +102,7 @@ static int Usage()
           ue5-audit [out.json]            Decode-check asset containers required by the UE5 pipeline.
           characters <package>          List animated character assets in a package.
           archetypes <package>          List AIArchetype records — the enemy roster with class, mesh, health and loadout.
+          config [<file.ini> [section]] The baked config bundle (Spawning.ini, Weapons.ini, …): list files, or dump a section.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
@@ -1328,6 +1330,37 @@ static int Archetypes(string root, string[] args)
     int complete = entries.Count(e => e.Complete);
     int withCore = entries.Count(e => e.AiType is not null && e.Mesh is not null && e.Health is not null);
     Console.WriteLine($"\n{entries.Count} archetypes, {complete} clean, {withCore} with class+mesh+health.");
+    return 0;
+}
+
+static int ConfigDump(string root, string[] args)
+{
+    var bundle = BioShockStudio.Core.Config.IniBundle.Load(
+        BioShockStudio.Core.Game.GameLocator.ConfigBundle(root));
+
+    if (args.Length < 2)
+    {
+        Console.WriteLine($"{bundle.FileNames.Count} config files:");
+        foreach (string f in bundle.FileNames)
+            Console.WriteLine($"  {f,-20} {bundle[f]!.Sections.Count} sections");
+        return 0;
+    }
+
+    var doc = bundle[args[1]];
+    if (doc is null) { Console.Error.WriteLine($"no config file '{args[1]}' in the bundle"); return 1; }
+
+    if (args.Length < 3)
+    {
+        foreach (var s in doc.Sections) Console.WriteLine($"[{s.Name}]  ({s.Entries.Count} entries)");
+        Console.WriteLine($"\n{doc.Sections.Count} sections.");
+        return 0;
+    }
+
+    var section = doc[args[2]];
+    if (section is null) { Console.Error.WriteLine($"no section '[{args[2]}]' in {args[1]}"); return 1; }
+
+    Console.WriteLine($"[{section.Name}]");
+    foreach (var (k, v) in section.Entries) Console.WriteLine($"  {k}={v}");
     return 0;
 }
 

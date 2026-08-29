@@ -35,6 +35,7 @@ Every claim in these documents carries a confidence label:
 | [bsp.md](bsp.md) | `Model` / `Polys` — the source brushes (decoded) and the built world (documented, not implemented). |
 | [lights.md](lights.md) | Placed `Light` actors — the seven parameters each carries, the whole-game census, and why the "falloff exponent" was a non-question. |
 | [spawning.md](spawning.md) | AI archetypes — what a `Spawner.OverriddenAiArchetypeNames` / `TriggerOnlyByLabels` name points at: an `AIArchetype` record (class, mesh, health, loadout). |
+| [config.md](config.md) | `ConfigINI.IBF` — the baked bundle of all 21 game inis (`Spawning.ini`, `Weapons.ini` + resistance sets, `LootTables.ini`, `Ai.ini`, …). The data layer behind every by-name reference. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [reference-comparison.md](reference-comparison.md) | **What each reference project says about the structures we read, field by field, and where they disagree.** Read before deriving anything from bytes. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |

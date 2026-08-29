@@ -34,6 +34,13 @@ public static partial class GameLocator
         Path.Combine(gameRoot, "ContentBaked", "pc", "Maps");
 
     /// <summary>
+    /// The baked config bundle — every <c>PerObjIniFile</c> the game declares (<c>Spawning.ini</c>,
+    /// <c>Weapons.ini</c>, <c>LootTables.ini</c>, <c>Ai.ini</c>, …) concatenated into one file.
+    /// </summary>
+    public static string ConfigBundle(string gameRoot) =>
+        Path.Combine(gameRoot, "ContentBaked", "pc", "ConfigINI.IBF");
+
+    /// <summary>
     /// The directory holding the baked script packages. These are Unreal packages too, and they are
     /// where the first-person weapon viewmodels live — not in the map packages.
     /// </summary>
