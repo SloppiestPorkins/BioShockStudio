@@ -61,3 +61,10 @@ coverage*.xml
 # which matters across machines/sessions, not just on this one.
 /tools/backup-agent/logs/
 /tools/backup-agent/.run.lock
+
+# tools/agents parallel worker orchestration: scripts, README and the tasks/ queue (incl. *.done
+# markers) are tracked infrastructure; per-dispatch logs, patches and verify output under runs/ are
+# transient and machine-specific, and the GPU lock is a runtime artefact. Agent worktrees live
+# OUTSIDE the repo (../BioShockHavok-agent-*) so they need no rule here.
+/tools/agents/runs/
+/tools/agents/.local.lock
