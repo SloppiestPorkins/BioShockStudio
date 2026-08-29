@@ -155,6 +155,24 @@ public static class LevelSceneExporter
         Materials = materials?.Select(pair => MaterialDocument(pair.Id, pair.Material)).ToList() ?? [],
         Textures = textures?.ToList() ?? [],
         Cubemaps = cubemaps?.ToList() ?? [],
+        Archetypes = package is null ? [] : AiArchetypeCatalog.Read(package)
+            .Select(a => new LevelArchetypeDocument
+            {
+                Name = a.Name,
+                AiType = a.AiType,
+                Mesh = a.Mesh,
+                Health = a.Health,
+                FrozenHealth = a.FrozenHealth,
+                CollisionHeight = a.CollisionHeight,
+                DamageResistanceSetName = a.DamageResistanceSetName,
+                RequiredAnimationGroups = a.RequiredAnimationGroups.ToList(),
+                VoiceTypes = a.VoiceTypes.ToList(),
+                MaterialSlotEntries = a.MaterialSlotEntries,
+                AttachmentSlotEntries = a.AttachmentSlotEntries,
+                WeaponSlotEntries = a.WeaponSlotEntries,
+                Complete = a.Complete,
+            })
+            .ToList(),
         Assets = scene.Instances
             .GroupBy(i => i.Asset)
             .Select(g => new LevelAssetDocument
@@ -998,6 +1016,13 @@ public sealed record LevelDocument
     /// </summary>
     public List<LevelCubemapDocument> Cubemaps { get; init; } = [];
 
+    /// <summary>
+    /// The <c>AIArchetype</c> records this map ships — the enemy roster a spawner or script names.
+    /// Empty when no package was open. See <c>docs/research/spawning.md</c>; the chance-weighted
+    /// loadout slots are entry counts only for now.
+    /// </summary>
+    public List<LevelArchetypeDocument> Archetypes { get; init; } = [];
+
     public required List<LevelAssetDocument> Assets { get; init; }
     public required List<LevelInstanceDocument> Instances { get; init; }
     public required List<LevelActorDocument> Actors { get; init; }
@@ -1622,6 +1647,33 @@ public sealed record LevelLightDocument
 
     /// <summary><c>LightPeriod</c> raw byte — animation timing for whichever <see cref="Type"/> is set.</summary>
     public byte? Period { get; init; }
+}
+
+/// <summary>One <c>AIArchetype</c> record: class, mesh, stats and loadout for an enemy kind.</summary>
+public sealed record LevelArchetypeDocument
+{
+    public required string Name { get; init; }
+
+    /// <summary><c>AIType</c> — the <c>ShockAI</c> behaviour class name.</summary>
+    public string? AiType { get; init; }
+
+    /// <summary><c>Mesh</c> — the skeletal mesh name.</summary>
+    public string? Mesh { get; init; }
+
+    public float? Health { get; init; }
+    public float? FrozenHealth { get; init; }
+    public float? CollisionHeight { get; init; }
+    public string? DamageResistanceSetName { get; init; }
+
+    public required List<string> RequiredAnimationGroups { get; init; }
+    public required List<string> VoiceTypes { get; init; }
+
+    public int MaterialSlotEntries { get; init; }
+    public int AttachmentSlotEntries { get; init; }
+    public int WeaponSlotEntries { get; init; }
+
+    /// <summary>The record parsed to a clean terminator.</summary>
+    public required bool Complete { get; init; }
 }
 
 public sealed record LevelActorCoverageDocument

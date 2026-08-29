@@ -1,5 +1,8 @@
+using System.Text.Json;
 using BioShockStudio.Core.Assets;
+using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Game;
+using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Packages;
 using Xunit;
 
@@ -92,5 +95,31 @@ public sealed class AiArchetypeTests(GameFixture game)
         Assert.Equal("SpawnedMeleeThug", doctorMelee.AiType);
         Assert.Null(doctorMelee.Health);
         Assert.True(doctorMelee.Complete);
+    }
+
+    [RequiresGameFact]
+    public void TheArchetypesReachTheLevelManifestAndSurviveTheJsonRoundTrip()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
+
+        var document = LevelSceneExporter.ToDocument(scene, package: package);
+        Assert.NotEmpty(document.Archetypes);
+        Assert.Equal(
+            AiArchetypeCatalog.Read(package).Count,
+            document.Archetypes.Count);
+
+        string json = JsonSerializer.Serialize(document,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var back = JsonSerializer.Deserialize<LevelDocument>(json,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+
+        var grenadier = back.Archetypes.Single(a => a.Name == "MedicalDoctorGrenadier");
+        Assert.Equal("SpawnedGrenadier", grenadier.AiType);
+        Assert.Equal("Agg_Doctor_Mesh", grenadier.Mesh);
+        Assert.Equal(400f, grenadier.Health);
+
+        // A no-package export carries no archetypes — a scope choice, stated by the empty list.
+        Assert.Empty(LevelSceneExporter.ToDocument(scene).Archetypes);
     }
 }
