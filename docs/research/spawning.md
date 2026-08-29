@@ -94,6 +94,12 @@ one DLC archetype and the ~46 `ArchetypeNames` entries no map references at all.
 
 ## Still open
 
-- **The resistance table** (`DamageResistanceSetName` keys) and status-effect tuning fields on the
-  archetype — surfaced by name / not yet, respectively.
+- **The resistance table.** `AIArchetype.DamageResistanceSetName` / `ShockPawn.DamageResistanceSetName`
+  name a `DamageResistanceSet` (`MedicalMeleeThugResistanceSet`, `DefaultResistanceSet`). The set
+  itself is **not in the packages** — no `DamageResistanceSet` export anywhere, no class in Shock*/
+  VengeanceShared (it is in `Engine.U`, which the decompiler cannot read, or purely native), and
+  `ShockPawn.GetResistanceSet()` is a native function. Same shape as `Spawning.ini`: config/native
+  data. The name is recoverable (and surfaced); the resistance values are not.
+- **Status-effect tuning fields** on the archetype (`MaxBurningEfficacy`, the `bDoNotDo*` bools) —
+  present in the bytes, not extracted.
 - **`PlayerEscortedGathererDLCCombat`** — the one referenced archetype with no shipped export.
