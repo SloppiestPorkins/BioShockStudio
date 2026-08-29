@@ -69,4 +69,24 @@ public sealed class IniBundleTests(GameFixture game)
             .First(f => f.Any(p => p.Key == "Type" && p.Value == "STIMULUS_Heat"));
         Assert.Equal("0.0", heat.First(p => p.Key == "AmountModification").Value);
     }
+
+    [RequiresGameFact]
+    public void ResistanceSetReadsTheWeaponsIniIntoTypedModifiers()
+    {
+        var sets = ResistanceSet.ReadAll(Bundle()["Weapons.ini"]!);
+
+        Assert.True(sets.Count > 80, $"only {sets.Count} resistance sets");
+        Assert.False(sets["SteinmanResistanceSet"].IsNeutral);
+
+        // Default is neutral bar one entry — ElectricInWater is zeroed for everyone.
+        var def = sets["DefaultResistanceSet"];
+        Assert.Equal(1f, def.For("STIMULUS_Heat").Amount);
+        Assert.Equal(0f, def.For("STIMULUS_ElectricInWater").Amount);
+
+        // Steinman: 0× weapon heat damage, so a fireball does nothing until he's scripted killable.
+        Assert.Equal(0f, sets["SteinmanResistanceSet"].For("STIMULUS_Heat").Amount);
+        // An archetype's name resolves straight in.
+        var grenadier = Bundle()["Spawning.ini"]!["MedicalDoctorGrenadier"]!;
+        Assert.True(sets.ContainsKey(grenadier.Value("DamageResistanceSetName")!));
+    }
 }

@@ -40,11 +40,13 @@ byte[]         content         // the .ini text, single-byte, CRLF
   `AIType`, `Mesh`, `Health`, `DamageResistanceSetName`, `MaterialSlot`, `AttachmentSlot1..4`,
   `MaxBurningEfficacy`, `bDoNotDoBurningBehavior`, …
 
-- **Resistance sets** — `[<name>ResistanceSet]` in `Weapons.ini`, one `Resistance=` line per
-  stimulus: `(Type=STIMULUS_Heat,AmountModification=3.0,ChanceModification=1.0)`. ~30 stimulus
-  types (weapon damage × player/AI, plus `Shocked`/`Frozen`/`Burning`/`Diseased`/`Berserk` states
-  and specials). `[DefaultResistanceSet]` is all-1.0; `[SteinmanResistanceSet]` zeroes every
-  direct-fire stimulus (the scripted-invincible boss).
+- **Resistance sets** — **88** `[<name>ResistanceSet]` sections in `Weapons.ini`, 27 `Resistance=`
+  lines each: `(Type=STIMULUS_Heat,AmountModification=3.0,ChanceModification=1.0)`. Stimulus types
+  are weapon damage × player/AI, the `Shocked`/`Frozen`/`Burning`/`Diseased`/`Berserk` states, and
+  specials. `[DefaultResistanceSet]` is neutral bar `STIMULUS_ElectricInWater` (0 for everyone);
+  `[SteinmanResistanceSet]` zeroes every direct-fire stimulus (the scripted-invincible boss).
+  `ResistanceSet.ReadAll(bundle["Weapons.ini"])` gives them typed, keyed by the name an archetype's
+  `DamageResistanceSetName` uses.
 
 - **Loot, weapons, plasmids, difficulty** — not yet consumed, but readable.
 
