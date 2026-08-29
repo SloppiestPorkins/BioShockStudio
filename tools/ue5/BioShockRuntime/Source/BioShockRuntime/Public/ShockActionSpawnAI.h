@@ -11,7 +11,7 @@ class UWorld;
  * type, location label, spawned label, radii, mimic/force flags, etc.
  *
  * RequestSpawn records intent. SpawnAtLocation is a playable-slice stand-in that spawns
- * ABaseShockAI in a world — not SpawningManager, archetypes, or loot.
+ * ABaseShockAI in a world. Spawn path applies imported UShockAiArchetype data when present.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSpawnAI : public UShockAction

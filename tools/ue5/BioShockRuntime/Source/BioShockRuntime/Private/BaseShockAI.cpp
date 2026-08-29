@@ -1,5 +1,6 @@
 #include "BaseShockAI.h"
 
+#include "ShockAiArchetype.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
@@ -13,6 +14,14 @@ void ABaseShockAI::ConfigureIdentity(FName InType, FName InLabel)
 {
 	AITypeName = InType;
 	ScriptLabel = InLabel;
+}
+
+void ABaseShockAI::ApplyArchetypeLookup(FName LookupKey)
+{
+	if (UShockAiArchetype* Archetype = UShockAiArchetypeLibrary::FindByKey(LookupKey))
+	{
+		UShockAiArchetypeLibrary::ApplyToAI(this, Archetype);
+	}
 }
 
 void ABaseShockAI::ScriptedAttackTarget(AShockPawn* Target)

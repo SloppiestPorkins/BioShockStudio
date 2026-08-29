@@ -62,6 +62,7 @@ AActor* UShockActionSpawnAI::SpawnAtLocation(UObject* WorldContextObject, FVecto
 	}
 
 	AI->ConfigureIdentity(AITypeToSpawn, SpawnedAILabel.IsNone() ? AITypeToSpawn : SpawnedAILabel);
+	AI->ApplyArchetypeLookup(AITypeToSpawn);
 	AI->EnsureHealthInitialized();
 #if WITH_EDITOR
 	if (!SpawnedAILabel.IsNone())

@@ -24,6 +24,12 @@ public:
 	FName AITypeName;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float AuthoredFrozenHealth = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bHasAuthoredFrozenHealth = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<AShockPawn> CurrentScriptedAttackTarget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
@@ -100,6 +106,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
+
+	/** Apply imported archetype data when present; no-op when lookup misses. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void ApplyArchetypeLookup(FName LookupKey);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FName GetScriptLabel() const { return ScriptLabel; }

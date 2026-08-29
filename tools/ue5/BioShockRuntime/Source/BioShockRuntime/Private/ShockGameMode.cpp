@@ -263,6 +263,7 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 	}
 
 	AI->ConfigureIdentity(FName(TEXT("Agg_BabyJane")), FName(TEXT("SliceBabyJane")));
+	AI->ApplyArchetypeLookup(FName(TEXT("Agg_BabyJane")));
 	AI->EnsureHealthInitialized();
 	UE_LOG(
 		LogTemp,
@@ -283,15 +284,21 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 	AI->SetActorLabel(TEXT("SliceBabyJane"));
 #endif
 
-	if (USkeletalMesh* MeshAsset = LoadObject<USkeletalMesh>(
-			nullptr,
-			TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
+	// Fallback: if the archetype lookup did not resolve a mesh (asset not imported, or the
+	// import could not map the manifest name to a UE asset), keep the known-good slice mesh so
+	// the enemy is never invisible.
+	if (USkeletalMeshComponent* Body = AI->GetMesh())
 	{
-		if (USkeletalMeshComponent* Body = AI->GetMesh())
+		if (!Body->GetSkeletalMeshAsset())
 		{
-			Body->SetSkeletalMesh(MeshAsset);
-			Body->SetHiddenInGame(false);
-			Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			if (USkeletalMesh* MeshAsset = LoadObject<USkeletalMesh>(
+					nullptr,
+					TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
+			{
+				Body->SetSkeletalMesh(MeshAsset);
+				Body->SetHiddenInGame(false);
+				Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			}
 		}
 	}
 

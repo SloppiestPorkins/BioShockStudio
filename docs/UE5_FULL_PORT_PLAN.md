@@ -1153,6 +1153,13 @@ tails"**:
    `AShockAI` from — build the UE5 `UDataAsset` against `document.archetypes`, resistances keyed by
    `DamageResistanceSetName` into `Weapons.ini`.
 
+**Phase 3 depth — AI spawn from archetype data, 30 Aug 2026 (Cursor).** `UShockAiArchetype`
+(`document.archetypes` mirror: class, mesh, health/frozen health, resistance-set name, loadout
+slots) is imported idempotently by `tools/ue5/import_ai_archetypes.py` into the throwaway project;
+`ABaseShockAI::ApplyArchetypeLookup` reads those assets when `ShockGameMode` / `ActionSpawnAI`
+spawn (missing archetype → prior hand-authored fallback). Verified on `1-Medical` via
+`run_verify_ai_archetypes.py` (`Agg_BabyJane` mesh lookup → authored health 80).
+
 The plan's framing of item 3 as the highest-value *unbuilt* work was stale — the manifest half was
 built incrementally under `feat:` commits (`0d03b75`, `2e20188`, `d25155f`, the `Region`/`Spawner`
 decoders); the archetype half landed 28 Aug.

@@ -15,6 +15,6 @@ public class BioShockRuntime : ModuleRules
             "Slate",
             "SlateCore",
         });
-        PrivateDependencyModuleNames.AddRange(new[] { "Json", "JsonUtilities" });
+        PrivateDependencyModuleNames.AddRange(new[] { "AssetRegistry", "Json", "JsonUtilities" });
     }
 }
