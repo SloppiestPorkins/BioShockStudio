@@ -51,6 +51,7 @@ try
         "export-cubemaps" => ExportCubemaps(root, args),
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
+        "archetypes" => Archetypes(root, args),
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
@@ -99,6 +100,7 @@ static int Usage()
                                         a TextureCube (face order UNKNOWN).
           ue5-audit [out.json]            Decode-check asset containers required by the UE5 pipeline.
           characters <package>          List animated character assets in a package.
+          archetypes <package>          List AIArchetype records — the enemy roster with class, mesh, health and loadout.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
@@ -1302,6 +1304,30 @@ static int Characters(string root, string[] args)
     }
 
     Console.WriteLine($"\n{entries.Count} animated assets.");
+    return 0;
+}
+
+static int Archetypes(string root, string[] args)
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: archetypes <package>"); return 1; }
+
+    using var package = BioShockPackage.Open(ResolvePackage(root, args[1]));
+    var entries = AiArchetypeCatalog.Read(package);
+
+    Console.WriteLine($"{"archetype",-38} {"AIType",-26} {"mesh",-22} {"hp",5} {"frz",5}  slots(mat/att/wpn)  anim/voice");
+    foreach (var e in entries.OrderBy(a => a.Name, StringComparer.Ordinal))
+    {
+        Console.WriteLine(
+            $"{e.Name,-38} {e.AiType ?? "-",-26} {e.Mesh ?? "-",-22} "
+            + $"{e.Health?.ToString("0") ?? "-",5} {e.FrozenHealth?.ToString("0") ?? "-",5}  "
+            + $"{e.MaterialSlotEntries}/{e.AttachmentSlotEntries}/{e.WeaponSlotEntries,-12}  "
+            + $"{e.RequiredAnimationGroups.Count}/{e.VoiceTypes.Count}"
+            + (e.Complete ? "" : "  [truncated]"));
+    }
+
+    int complete = entries.Count(e => e.Complete);
+    int withCore = entries.Count(e => e.AiType is not null && e.Mesh is not null && e.Health is not null);
+    Console.WriteLine($"\n{entries.Count} archetypes, {complete} clean, {withCore} with class+mesh+health.");
     return 0;
 }
 

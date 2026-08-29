@@ -163,6 +163,12 @@ three resolves more than 1 of 62.** `LIKELY` these are AI-archetype or character
 rather than a placed-actor name lookup. Left open rather than guessed at further — this is a
 different, unopened investigation, not a variant of §2's mechanism.
 
+**Resolved, 28 Aug 2026 — they are `AIArchetype` names.** `Cohen`, `Steinman` and the rest are
+entries in `SpawningManager.ArchetypeNames` (313 game-wide), each shipping as an `AIArchetype`
+export in the maps that use it. `docs/research/spawning.md` has the full decode; `AiArchetypeCatalog`
+reads them. So `TriggerOnlyByLabels` filters on *what kind of AI* trips the trigger, keyed by
+archetype name — exactly the "Cohen-type enemy" reading, now confirmed rather than `LIKELY`.
+
 ## 5. Doors — portal, lock and animation state
 
 The game ships roughly 50 door-named classes (`MedicalDoors_Solid`, `BulkheadDoors`,

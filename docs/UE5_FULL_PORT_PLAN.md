@@ -1088,8 +1088,8 @@ already carries all four, at varying completeness. Item-by-item:
 | **Script graph** | Manifest: `LevelScriptActionsDocument.Actions` (action-export identities only) + `LevelScriptedSequenceDocument`. Full per-instance parameter tree, nested If/Loop/For bodies, `testsOr`, `TriggeredBy`, message triggers: the `bioshock-tool export-script-actions` sidecar (`bySourceKey`), which `tools/ue5/import_scripts.py` consumes. | **Split by design, Medical-complete.** The 256-byte inline cap in `LevelPropertyDocument.ValueHex` is why large script payloads deliberately do not live in the manifest. Full `1-Medical`: 300 scripts, 1,463 actions mapped, nested true/else/loop/for/tests 331/37/10/3/114, `nested_unmapped = 0` (§9, 27 Aug 2026). **Gap:** the sidecar's graph coverage is proven on Medical only; the other 20 maps are unrun. |
 | **Archetype references** | `LevelSpawnerActorDocument.OverriddenAiArchetypeNames` + the `*AiTypes` lists — raw name strings from the package name table. | **Names carried; what they resolve to is `UNKNOWN`.** `docs/research/interaction.md` §4 already records that AI-archetype / character-identity names (`Steinman`, `Cohen`, `BerserkDude1`, …) seen on `TriggerOnlyByLabels` resolve through "a system this project hasn't decoded" — not a placed-actor lookup, and not shown to be a Phase 2.1 class either. The spawner archetype names are the same shape of reference. The manifest carries them faithfully; the resolution target is an unopened investigation, not a by-name lookup that just needs a census. |
 
-**Verdict:** Phase 2 item 3 moves from "unbuilt" to **"built for three of four asks; archetype
-resolution is a separate open investigation"**:
+**Verdict:** Phase 2 item 3 moves from "unbuilt" to **"built for all four asks; two verification
+tails"**:
 
 1. **Script-graph sidecar coverage on the 20 non-Medical maps.** **Export half done, 28 Aug 2026:**
    `export-script-actions` run over all 21 maps — **0 skipped on every map**, ~4,878 scripts /
@@ -1098,12 +1098,18 @@ resolution is a separate open investigation"**:
    with no map-specific decode gap. **Import half still open** — Cursor's `import_scripts.py` +
    `run_import_scripts.py` need to be run per map with `nested_unmapped` / `unmapped_classes`
    recorded; that is a `tools/ue5/**` + UE5 task for the Cursor lane.
-2. **The AI-archetype system** — decode what an archetype name (`Spawner.*AiTypes`,
-   `OverriddenAiArchetypeNames`, `TriggerOnlyByLabels`) actually points at: a class, a data object,
-   an `.ini` table, something else. `interaction.md` §4 is the existing lead. This is research, not
-   a pin, and it is arguably its own track rather than a Phase 2.3 loose end — flag for the user
-   before starting.
+2. **The AI-archetype system — decoded, 28 Aug 2026.** An archetype name points at an `AIArchetype`
+   record: `SpawningManager.ArchetypeNames` lists all 313; each map ships the subset it uses as
+   `AIArchetype` exports (267 game-wide), a plain tagged-property list carrying `AIType`
+   (`Class<ShockAI>`), `Mesh`, `Health`/`FrozenHealth`, resistances, and chance-weighted
+   material/attachment/weapon loadout slots. `AiArchetypeCatalog` + `AiArchetypeTests`;
+   `docs/research/spawning.md`. This also closes `interaction.md` §4 (`Cohen`, `Steinman` on
+   `TriggerOnlyByLabels` are archetype names). **Tails:** the per-archetype `Spawning.ini` values
+   for records that ship no export (file not located in the Remastered install); the ChancePair
+   inner class/mesh refs; three `EngineeringWaders*` archetypes that hit a pre-existing `Range`
+   struct reader gap. This is what Phase 3 needs to populate `AShockAI` from data — build the UE5
+   side against `AiArchetypeCatalog`.
 
-Neither is "build the manifest". The plan's framing of item 3 as the highest-value *unbuilt* work
-is stale — the manifest half was built incrementally under `feat:` commits (`0d03b75`, `2e20188`,
-`d25155f`, the `Region`/`Spawner` decoders) without being tracked against this item.
+The plan's framing of item 3 as the highest-value *unbuilt* work was stale — the manifest half was
+built incrementally under `feat:` commits (`0d03b75`, `2e20188`, `d25155f`, the `Region`/`Spawner`
+decoders); the archetype half landed 28 Aug.

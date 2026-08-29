@@ -92,7 +92,7 @@ end to end found that almost every open item was either already built-but-untrac
 | Item | Outcome, 28 Aug |
 |---|---|
 | Part 0.1 / 0.2 reconcile | **Done** — 0.1 was stale; verification stamp moved to **599/599 GREEN** (`76f40e0`). |
-| Phase 2.3 — level-manifest data layer | **Audit done** (`09b0f9b`, `614a5c4`). Built, not unbuilt: zone membership + spawner config pinned by tests; script graph Medical-complete via the sidecar. Two gaps: non-Medical sidecar coverage (verification); the AI-archetype system (undecoded — separate research track, `research/interaction.md` §4). |
+| Phase 2.3 — level-manifest data layer | **Audit done** (`09b0f9b`, `614a5c4`); all four asks built. Zone membership + spawner config pinned by tests; script graph Medical-complete via the sidecar, **export half now verified clean on all 21 maps** (`fb06c52`); **AI-archetype system decoded** — `AiArchetypeCatalog` + `research/spawning.md`, closes `interaction.md` §4. Tails: non-Medical sidecar *import* (Cursor); `Spawning.ini` values for non-shipped archetypes. |
 | Phase 1.1–1.2 — level geometry + materials | **Already done** 24 Aug (§9), plan text was stale — reconciled. |
 | Phase 1.3 — cubemaps | **Mostly done** 25 Aug; open: `TextureCube` assembly (face order `UNKNOWN`), influence radius. |
 | Phase 1.4 — lighting | Falloff exponent **resolved** (no such field). `LightCone`/`Type`/`Effect`/`Period` **now decoded** (`research/lights.md`, `LevelLightFieldTests`). Open: the `LevelLightDocument` manifest bump (needs Cursor coordination) and pinning the `LightType`/`LightEffect` enums (needs `Engine.U` to decompile). |
@@ -108,11 +108,15 @@ end to end found that almost every open item was either already built-but-untrac
 2. **Non-Medical script-sidecar coverage** — **export half done 28 Aug**: all 21 maps export with
    0 skipped, no map-specific decode gap (§9). Import half (`nested_unmapped` per map) is a Cursor
    `tools/ue5` + UE5 task.
-3. **On-demand decode support** — whatever Cursor's Phase 3/4 runtime work turns out to need from
+3. **Feed the archetype data into Phase 3** — `AiArchetypeCatalog` gives the enemy roster (class +
+   mesh + health + loadout). Phase 3's `AShockAI` population should be built against it. Cross-lane:
+   Claude owns the reader/export, Cursor owns the UE5 `UDataAsset`.
+4. **On-demand decode support** — whatever Cursor's Phase 3/4 runtime work turns out to need from
    the data side (a new manifest field, a decode gap, an enum).
-4. **Part 0.6 consolidation** (ongoing) — collapse parallel status tables into `ROADMAP.md`.
-5. **Optional research tracks** (need user scoping): the AI-archetype system; the `LightType`/
-   `LightEffect` enums; `TextureCube` face order.
+5. **Part 0.6 consolidation** (ongoing) — collapse parallel status tables into `ROADMAP.md`.
+6. **Optional research tails** (need user scoping): the `LightType`/`LightEffect` enums (needs
+   `Engine.U`); `TextureCube` face order; the `Spawning.ini` archetype values; the `Range`-struct
+   reader gap that fails three `EngineeringWaders*` archetypes.
 
 Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
 wide margin"). This lane's role is now support, not a parallel workstream.
