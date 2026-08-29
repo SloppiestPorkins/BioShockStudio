@@ -100,23 +100,27 @@ end to end found that almost every open item was either already built-but-untrac
 | Gate 1 kDOP, Gate 3 | Deferred by design / mostly done. |
 | Gate 4 audio | Closed by the user. Do not resume. |
 
-**What actually remains for this lane, in rough priority:**
+**Done this session (28 Aug):**
 
-1. **The `LevelLightDocument` manifest bump** — carry `Cone`/`Type`/`Effect`/`Period` so
-   `import_level.py` can spawn `SpotLight`s and drive flicker. Schema change → coordinate with the
-   Cursor lane's importer; do it when its Phase 4 batch settles.
-2. **Non-Medical script-sidecar coverage** — **export half done 28 Aug**: all 21 maps export with
-   0 skipped, no map-specific decode gap (§9). Import half (`nested_unmapped` per map) is a Cursor
-   `tools/ue5` + UE5 task.
-3. **Feed the archetype data into Phase 3** — `AiArchetypeCatalog` gives the enemy roster (class +
-   mesh + health + loadout). Phase 3's `AShockAI` population should be built against it. Cross-lane:
-   Claude owns the reader/export, Cursor owns the UE5 `UDataAsset`.
-4. **On-demand decode support** — whatever Cursor's Phase 3/4 runtime work turns out to need from
-   the data side (a new manifest field, a decode gap, an enum).
-5. **Part 0.6 consolidation** (ongoing) — collapse parallel status tables into `ROADMAP.md`.
-6. **Optional research tails** (need user scoping): the `LightType`/`LightEffect` enums (needs
-   `Engine.U`); `TextureCube` face order; the `Spawning.ini` archetype values; the `Range`-struct
-   reader gap that fails three `EngineeringWaders*` archetypes.
+- ✅ `LevelLightDocument` gained `Cone`/`Type`/`Effect`/`Period` — additive (`199e579`).
+- ✅ Non-Medical script-sidecar **export** verified clean on all 21 maps (`fb06c52`). Import half
+  stays Cursor's.
+- ✅ **`AIArchetype` decode** (`6e5ca20`) + **onto the level manifest** as `document.archetypes`
+  (`b5a5520`). `AiArchetypeCatalog`, `research/spawning.md`, `AiArchetypeTests`.
+- ✅ `LightType` enum `PLAUSIBLE` → `CORROBORATED` (`a92c563`); cubemap face order noted (`4092925`).
+
+**What remains for this lane:**
+
+1. **Cursor consumes the new manifest fields** — cross-lane. `document.archetypes` → the Phase 3
+   `AShockAI` `UDataAsset`; the light `cone`/`type` → `SpotLight` spawning. Claude owns the export
+   (done), Cursor owns the UE5 side.
+2. **On-demand decode support** — whatever Cursor's runtime work needs from the data side.
+3. **Part 0.6 consolidation** (ongoing).
+4. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
+   decompile to pin the light enums / read `Range`-struct layout; `TextureCube` face-order A/B;
+   `Spawning.ini` values for non-shipped archetypes; the shared `UnrealPropertyReader`
+   `array<struct>` size fix + its §24 classification pass; the `Range`-struct reader gap
+   (3 `EngineeringWaders*` archetypes).
 
 Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
 wide margin"). This lane's role is now support, not a parallel workstream.
