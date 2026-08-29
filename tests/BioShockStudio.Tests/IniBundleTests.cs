@@ -103,6 +103,29 @@ public sealed class IniBundleTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void WeaponConfigResolvesTheWeaponAmmoDamageChain()
+    {
+        var weapons = WeaponConfig.ReadAll(Bundle()["Weapons.ini"]!);
+
+        var pistol = weapons.Single(w => w.Name == "Pistol");
+        Assert.Equal(6, pistol.BaseMagazineSize);
+        Assert.Equal(3, pistol.Ammo.Count);
+
+        var standard = pistol.Ammo.Single(a => a.Name == "Pistol_Bullet");
+        Assert.Equal("StandardBulletStimuliSet", standard.DamageStimuliSetName);
+        Assert.Equal(48, standard.MaximumStackSize);
+        // The base number a pistol round deals to an AI, before the target's resistance set.
+        var piercing = standard.Damage.Single(d => d.Type == "STIMULUS_AIGenericPiercing");
+        Assert.Equal(40f, piercing.Amount);
+
+        // The crossbow's steel-tip bolt is the game's hardest-hitting basic round.
+        var bolt = weapons.Single(w => w.Name == "Crossbow").Ammo
+            .Single(a => a.Name == "Crossbow_Bolt").Damage
+            .Single(d => d.Type == "STIMULUS_AIGenericPiercing");
+        Assert.Equal(450f, bolt.Amount);
+    }
+
+    [RequiresGameFact]
     public void ResistanceSetReadsTheWeaponsIniIntoTypedModifiers()
     {
         var sets = ResistanceSet.ReadAll(Bundle()["Weapons.ini"]!);

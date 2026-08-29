@@ -53,6 +53,7 @@ try
         "characters" => Characters(root, args),
         "archetypes" => Archetypes(root, args),
         "config" => ConfigDump(root, args),
+        "weapons-config" => WeaponsConfig(root, args),
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
@@ -103,6 +104,7 @@ static int Usage()
           characters <package>          List animated character assets in a package.
           archetypes <package>          List AIArchetype records — the enemy roster with class, mesh, health and loadout.
           config [<file.ini> [section]] The baked config bundle (Spawning.ini, Weapons.ini, …): list files, or dump a section.
+          weapons-config                Player weapons from Weapons.ini — magazine, fire rate, accuracy, and per-ammo damage.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
@@ -1340,6 +1342,28 @@ static int Archetypes(string root, string[] args)
     int complete = entries.Count(e => e.Complete);
     int withCore = entries.Count(e => e.AiType is not null && e.Mesh is not null && e.Health is not null);
     Console.WriteLine($"\n{entries.Count} archetypes, {complete} clean, {withCore} with class+mesh+health.");
+    return 0;
+}
+
+static int WeaponsConfig(string root, string[] args)
+{
+    var bundle = BioShockStudio.Core.Config.IniBundle.Load(
+        BioShockStudio.Core.Game.GameLocator.ConfigBundle(root));
+    var weapons = BioShockStudio.Core.Config.WeaponConfig.ReadAll(bundle["Weapons.ini"]!);
+
+    foreach (var w in weapons.OrderBy(w => w.Name, StringComparer.Ordinal))
+    {
+        Console.WriteLine(
+            $"{w.FriendlyName ?? w.Name,-18} mag {w.BaseMagazineSize,3}  acc {w.BaseAccuracy,4}  "
+            + $"rate {w.BaseFireRate,4}  reload {w.BaseReloadRate,4}  {(w.CanBeZoomed == true ? "zoom" : "")}");
+        foreach (var a in w.Ammo)
+        {
+            string dmg = string.Join(", ", a.Damage.Select(d => $"{d.Type.Replace("STIMULUS_", "")} {d.Amount:0.#}"));
+            Console.WriteLine($"    {a.FriendlyName ?? a.Name,-24} stack {a.MaximumStackSize,3}  {dmg}");
+        }
+    }
+
+    Console.WriteLine($"\n{weapons.Count} weapons, {weapons.Sum(w => w.Ammo.Count)} ammo types.");
     return 0;
 }
 

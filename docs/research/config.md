@@ -51,7 +51,18 @@ byte[]         content         // the .ini text, single-byte, CRLF
   `document.resistanceSets` — the sets a map's archetypes name, resolved once;
   `archetype.damageResistanceSetName` looks up there.
 
-- **Loot, weapons, plasmids, difficulty** — not yet consumed, but readable.
+- **Player weapons** — `WeaponConfig.ReadAll` resolves the full chain:
+  `[ShockGame.<Weapon>]` (magazine, accuracy, fire rate, reload, ammo types) →
+  `[ShockGame.<Ammo>]` (stack size, credit value, `DamageStimuliSetName`) →
+  `[<name>StimuliSet]` (`Stimulus=(Type=,Amount=,Chance=)` — the base damage). Final damage to an AI
+  is `stimulus.Amount ×` that archetype's resistance-set modifier for the same `Type`. Pistol round
+  = `AIGenericPiercing 40`; crossbow steel-tip bolt = `450`. `bioshock-tool weapons-config`.
+
+- **`Difficulty.ini`** — the *adaptive* difficulty director (advisors sample player stats and nudge
+  resource spawns), not a static "hard = 2× health" table. Behaviour config for a later phase, not
+  data to wire.
+
+- **Loot tables, plasmids** — readable, not yet consumed.
 
 ## Notes
 
