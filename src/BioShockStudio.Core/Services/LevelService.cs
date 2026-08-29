@@ -112,7 +112,8 @@ public sealed class LevelService
     /// </param>
     public IReadOnlyList<string> Extract(
         string packageFile, string outputDirectory, LevelExportFormats formats, bool readable = false,
-        IProgress<string>? progress = null, Textures.BulkTextureCatalog? bulk = null)
+        IProgress<string>? progress = null, Textures.BulkTextureCatalog? bulk = null,
+        Config.IniBundle? config = null)
     {
         using var package = BioShockPackage.Open(packageFile);
         progress?.Report("Reading actors…");
@@ -120,8 +121,26 @@ public sealed class LevelService
         progress?.Report("Assembling geometry…");
         var scene = LevelSceneBuilder.Build(package, context, progress);
 
+        // The config bundle sits beside the maps directory; load it when the caller did not.
+        config ??= TryLoadConfig(packageFile);
+
         string directory = Path.Combine(outputDirectory, scene.PackageName);
         progress?.Report($"Writing {scene.Instances.Count:N0} instances…");
-        return LevelSceneExporter.Write(scene, directory, formats, readable, package, bulk);
+        return LevelSceneExporter.Write(scene, directory, formats, readable, package, bulk, config);
+    }
+
+    private static Config.IniBundle? TryLoadConfig(string packageFile)
+    {
+        // <root>/ContentBaked/pc/Maps/<map>.bsm  →  <root>/ContentBaked/pc/ConfigINI.IBF
+        try
+        {
+            string? pc = Path.GetDirectoryName(Path.GetDirectoryName(packageFile));
+            string bundle = Path.Combine(pc ?? "", "ConfigINI.IBF");
+            return File.Exists(bundle) ? Config.IniBundle.Load(bundle) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 }

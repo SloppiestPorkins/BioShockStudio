@@ -111,11 +111,22 @@ public sealed class AiArchetypeTests(GameFixture game)
         using var package = BioShockPackage.Open(game.MedicalPackage);
         var scene = LevelSceneBuilder.Build(package, LevelAnalyzer.Analyze(package));
 
-        var document = LevelSceneExporter.ToDocument(scene, package: package);
+        var config = BioShockStudio.Core.Config.IniBundle.Load(
+            BioShockStudio.Core.Game.GameLocator.ConfigBundle(game.RequireRoot));
+        var document = LevelSceneExporter.ToDocument(scene, package: package, config: config);
         Assert.NotEmpty(document.Archetypes);
         Assert.Equal(
             AiArchetypeCatalog.Read(package).Count,
             document.Archetypes.Count);
+
+        // Every resistance set a Medical archetype names is resolved and attached once.
+        Assert.NotEmpty(document.ResistanceSets);
+        var named = document.Archetypes
+            .Select(a => a.DamageResistanceSetName)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        Assert.All(named, n => Assert.Contains(document.ResistanceSets, s => s.Name == n));
+        Assert.All(document.ResistanceSets, s => Assert.NotEmpty(s.Modifiers));
 
         string json = JsonSerializer.Serialize(document,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

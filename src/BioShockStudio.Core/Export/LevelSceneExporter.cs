@@ -84,7 +84,8 @@ public static class LevelSceneExporter
     /// </param>
     public static IReadOnlyList<string> Write(
         LevelScene scene, string directory, LevelExportFormats formats = LevelExportFormats.All,
-        bool readable = false, BioShockPackage? package = null, BulkTextureCatalog? bulk = null)
+        bool readable = false, BioShockPackage? package = null, BulkTextureCatalog? bulk = null,
+        Config.IniBundle? config = null)
     {
         Directory.CreateDirectory(directory);
         var written = new List<string>();
@@ -104,7 +105,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, materials: materials, textures: textures, cubemaps: cubemaps, package: package),
+                ToDocument(scene, materials: materials, textures: textures, cubemaps: cubemaps, package: package, config: config),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -120,7 +121,7 @@ public static class LevelSceneExporter
         {
             string path = Path.Combine(directory, scene.PackageName + ".ue5-level.json");
             File.WriteAllText(path, JsonSerializer.Serialize(
-                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures, cubemaps, package: package),
+                ToDocument(scene, includeGeometry: false, assetFiles, materials, textures, cubemaps, package: package, config: config),
                 readable ? ReadableOptions : Options));
             written.Add(path);
         }
@@ -143,7 +144,8 @@ public static class LevelSceneExporter
         IReadOnlyList<(Level.SourceId Id, SceneMaterial Material)>? materials = null,
         IReadOnlyList<FbxTextureEntry>? textures = null,
         IReadOnlyList<LevelCubemapDocument>? cubemaps = null,
-        BioShockPackage? package = null) => new()
+        BioShockPackage? package = null,
+        Config.IniBundle? config = null) => new()
     {
         FormatVersion = LevelManifestVersion,
         Package = scene.PackageName,
@@ -178,6 +180,7 @@ public static class LevelSceneExporter
                 Complete = a.Complete,
             })
             .ToList(),
+        ResistanceSets = ResistanceSetsFor(package, config),
         Assets = scene.Instances
             .GroupBy(i => i.Asset)
             .Select(g => new LevelAssetDocument
@@ -914,6 +917,41 @@ public static class LevelSceneExporter
     private static LevelArchetypeChanceDocument ChanceDocument(ArchetypeChance c) =>
         new() { Name = c.Name, Chance = c.Chance, Replacement = c.Replacement };
 
+    /// <summary>
+    /// The resistance sets this map's archetypes name, resolved once from <c>Weapons.ini</c>. A
+    /// consumer looks <c>archetype.damageResistanceSetName</c> up here rather than the manifest
+    /// carrying the modifier table on every archetype.
+    /// </summary>
+    private static List<LevelResistanceSetDocument> ResistanceSetsFor(BioShockPackage? package, Config.IniBundle? config)
+    {
+        if (package is null || config?["Weapons.ini"] is not { } weaponsIni) return [];
+
+        var wanted = AiArchetypeCatalog.Read(package)
+            .Select(a => a.DamageResistanceSetName)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase!);
+        if (wanted.Count == 0) return [];
+
+        var all = Config.ResistanceSet.ReadAll(weaponsIni);
+        return all.Values
+            .Where(s => wanted.Contains(s.Name))
+            .OrderBy(s => s.Name, StringComparer.Ordinal)
+            .Select(s => new LevelResistanceSetDocument
+            {
+                Name = s.Name,
+                Modifiers = s.Modifiers
+                    .OrderBy(m => m.Key, StringComparer.Ordinal)
+                    .Select(m => new LevelStimulusModifierDocument
+                    {
+                        Stimulus = m.Key,
+                        Amount = m.Value.Amount,
+                        Chance = m.Value.Chance,
+                    })
+                    .ToList(),
+            })
+            .ToList();
+    }
+
     /// <summary>A <c>Range</c> as <c>[Min, Max]</c>, or null when the field was not serialised.</summary>
     private static float[]? ToArray(FloatRange? range) =>
         range is { } r ? [r.Min, r.Max] : null;
@@ -1030,6 +1068,12 @@ public sealed record LevelDocument
     /// loadout slots carry their resolved contents and pick chances.
     /// </summary>
     public List<LevelArchetypeDocument> Archetypes { get; init; } = [];
+
+    /// <summary>
+    /// The <c>[*ResistanceSet]</c> tables (from <c>Weapons.ini</c> in <c>ConfigINI.IBF</c>) that this
+    /// map's archetypes reference by name. Empty when no config bundle was passed.
+    /// </summary>
+    public List<LevelResistanceSetDocument> ResistanceSets { get; init; } = [];
 
     public required List<LevelAssetDocument> Assets { get; init; }
     public required List<LevelInstanceDocument> Instances { get; init; }
@@ -1702,6 +1746,21 @@ public sealed record LevelArchetypeChanceDocument
     public string? Name { get; init; }
     public float Chance { get; init; }
     public string? Replacement { get; init; }
+}
+
+/// <summary>A damage-resistance set — per-stimulus multipliers, keyed by the name archetypes use.</summary>
+public sealed record LevelResistanceSetDocument
+{
+    public required string Name { get; init; }
+    public required List<LevelStimulusModifierDocument> Modifiers { get; init; }
+}
+
+/// <summary>One stimulus's multipliers within a resistance set. 1.0 neutral, 0.0 immune.</summary>
+public sealed record LevelStimulusModifierDocument
+{
+    public required string Stimulus { get; init; }
+    public float Amount { get; init; }
+    public float Chance { get; init; }
 }
 
 public sealed record LevelActorCoverageDocument

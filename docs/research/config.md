@@ -47,8 +47,9 @@ byte[]         content         // the .ini text, single-byte, CRLF
   are weapon damage × player/AI, the `Shocked`/`Frozen`/`Burning`/`Diseased`/`Berserk` states, and
   specials. `[DefaultResistanceSet]` is neutral bar `STIMULUS_ElectricInWater` (0 for everyone);
   `[SteinmanResistanceSet]` zeroes every direct-fire stimulus (the scripted-invincible boss).
-  `ResistanceSet.ReadAll(bundle["Weapons.ini"])` gives them typed, keyed by the name an archetype's
-  `DamageResistanceSetName` uses.
+  `ResistanceSet.ReadAll(bundle["Weapons.ini"])` gives them typed. **On the level manifest** as
+  `document.resistanceSets` — the sets a map's archetypes name, resolved once;
+  `archetype.damageResistanceSetName` looks up there.
 
 - **Loot, weapons, plasmids, difficulty** — not yet consumed, but readable.
 

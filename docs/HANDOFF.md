@@ -36,11 +36,17 @@ means no row is currently claimed, not that no one is working ? always check the
 > change on that side first. A non-zero `cone` means "spawn a SpotLight"; `type`/`effect`/`period`
 > are raw bytes with low confidence — do not map them to UE enums without pinning first.
 >
-> **Also 28 Aug — `LevelDocument.archetypes`**, again additive / no version bump. The map's
-> `AIArchetype` records (class, mesh, health, resistances, loadout-slot counts) —
-> `docs/research/spawning.md`. This is what Phase 3's `AShockAI` population should read: build the
-> UE5 `UDataAsset` against `document.archetypes`, keyed by name; a `Spawner.OverriddenAiArchetypeNames`
-> entry looks up here.
+> **Also 28–29 Aug — `LevelDocument.archetypes` and `.resistanceSets`**, additive / no version
+> bump. Each map's `AIArchetype` records (class, mesh, health, resolved loadout slots, status
+> tuning) plus the `[*ResistanceSet]` tables its archetypes name, resolved once from `Weapons.ini`
+> inside `ConfigINI.IBF`. `docs/research/spawning.md` + `config.md`. Phase 3's `AShockAI` build:
+> `document.archetypes` keyed by name; `archetype.damageResistanceSetName` → `document.resistanceSets`.
+> The ~46 archetypes no map ships (incl. `PlayerEscortedGathererDLCCombat`) are in `Spawning.ini` —
+> `AiArchetypeConfig.Read` / `bioshock-tool archetypes --all`.
+>
+> **`IniBundle`** now reads the whole config bundle — `Spawning.ini`, `Weapons.ini`,
+> `LootTables.ini`, `Ai.ini`, `Plasmids.ini`, `Difficulty.ini`. The UE5 import scripts can load
+> `ConfigINI.IBF` directly for anything the manifest doesn't carry.
 
 **Recently released:** Phase 0 mechanical fire on 1-Medical — GameMode spawns `SliceBabyJane` (Agg_BabyJane mesh) 250 uu along +Y (Y=1272→1522) and hitscan drops health 100→75 (`BIOSHOCK_SLICE_OK fire=1`, `-game -bioshockverifypossess`, 28 Aug 2026). Human PIE feel still open. SpawnPickup / SpawnTurret / HackTurret / HackSecurity / SetDoorBrokenState (`0292b99`). quests/timers/HUD/alarms (`fd107ec`). Possess at MedicalStart.
 
