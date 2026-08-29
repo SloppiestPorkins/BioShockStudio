@@ -229,20 +229,27 @@ public static class AiArchetypeCatalog
         catch { return false; }
         if (count <= 0 || count > 4096) return false;
 
+        int sizeBytes = 0;
         for (int i = 0; i < count; i++)
         {
-            if (!TrySkipNestedList(p, ref offset, names)) return false;
+            if (!TrySkipNestedList(p, ref offset, names, ref sizeBytes)) return false;
         }
 
         int measured = offset - start;
-        if (measured <= declared || start + measured > p.Length) return false;
-        if (LooksLikePropertyStart(p, start + declared, names)) return false;
+        if (start + measured > p.Length) return false;
+
+        // Exactly the shortfall the rule predicts — the declared size omits its elements' own
+        // size-encoding bytes — or leave it. This is the same non-heuristic test
+        // UnrealPropertyReader.CorrectedStructSize applies one level down.
+        if (measured == declared) { span = declared; return false; }
+        if (measured != declared + sizeBytes || sizeBytes == 0) return false;
 
         span = measured;
         return true;
     }
 
-    private static bool TrySkipNestedList(byte[] p, ref int offset, IReadOnlyList<NameEntry> names)
+    private static bool TrySkipNestedList(
+        byte[] p, ref int offset, IReadOnlyList<NameEntry> names, ref int sizeBytes)
     {
         for (int guard = 0; guard < 64; guard++)
         {
@@ -270,9 +277,9 @@ public static class AiArchetypeCatalog
                 size = sizeEncoding switch
                 {
                     0 => 1, 1 => 2, 2 => 4, 3 => 12, 4 => 16,
-                    5 => p[offset++],
-                    6 => ReadU16(p, ref offset),
-                    _ => ReadI32(p, ref offset),
+                    5 => Tally(p[offset++], ref sizeBytes, 1),
+                    6 => Tally(ReadU16(p, ref offset), ref sizeBytes, 2),
+                    _ => Tally(ReadI32(p, ref offset), ref sizeBytes, 4),
                 };
             }
             catch { return false; }
@@ -286,18 +293,12 @@ public static class AiArchetypeCatalog
             offset += size;
         }
         return false;
-    }
 
-    private static bool LooksLikePropertyStart(byte[] p, int at, IReadOnlyList<NameEntry> names)
-    {
-        if (at + 5 > p.Length) return false;
-        int offset = at;
-        int index;
-        try { index = ReadCompact(p, ref offset); } catch { return false; }
-        if (index < 0 || index >= names.Count || offset + 4 > p.Length) return false;
-        if (names[index].Name == "None") return false;
-        var type = (UnrealPropertyType)(p[offset + 4] & 0x0F);
-        return type is >= UnrealPropertyType.Byte and <= UnrealPropertyType.FixedArray;
+        static int Tally(int value, ref int bytes, int width)
+        {
+            bytes += width;
+            return value;
+        }
     }
 
     private static int ReadCompact(byte[] d, ref int offset)

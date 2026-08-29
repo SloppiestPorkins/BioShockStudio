@@ -55,7 +55,7 @@ public sealed class AiArchetypeTests(GameFixture game)
 
         // The two fields that make an archetype usable — behaviour class and mesh — resolve for the
         // overwhelming majority. A handful of special-map archetypes (boss proteges, challenge-room
-        // stand-ins) and three that hit a pre-existing Range-struct reader gap are the exceptions.
+        // stand-ins) carry neither.
         Assert.True(withType > total * 0.9, $"only {withType}/{total} archetypes resolved an AIType");
         Assert.True(withMesh > total * 0.9, $"only {withMesh}/{total} archetypes resolved a Mesh");
 
@@ -64,10 +64,10 @@ public sealed class AiArchetypeTests(GameFixture game)
         Assert.Contains("GathererGirl", meshes);
         Assert.All(meshes, m => Assert.Matches("^[A-Za-z0-9_]+$", m));
 
-        // The CorrectedStructArraySize fix: the loadout slots (nested ChancePair lists) parse rather
-        // than truncating the walk. Before it, ~40% of archetypes lost every property after the
-        // first slot, Health included.
-        Assert.True(clean > total * 0.9, $"only {clean}/{total} archetypes parsed to a clean terminator");
+        // The struct-array re-measure: the loadout slots (nested ChancePair lists) parse rather than
+        // truncating the walk. Before it, ~40% of archetypes lost every property after the first
+        // slot, Health included; the severe cases threw outright. Every archetype now parses clean.
+        Assert.Equal(total, clean);
         Assert.True(withSlots > total / 2, $"only {withSlots}/{total} archetypes decoded any loadout slot");
     }
 

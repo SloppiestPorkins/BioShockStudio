@@ -52,9 +52,12 @@ level down for single structs — so a walk that trusts it lands mid-element and
 every property authored after the first slot (`Health` for ~40% of archetypes, in config order).
 
 `AiArchetypeCatalog` carries **its own property walk** that re-measures an `array<struct-proplist>`
-by walking all `count` elements to their terminators, conservatively (only when the declared size
-is demonstrably wrong — the byte at its end is not a property tag). Medical went 12 → 23 archetypes
-parsing clean.
+by walking all `count` elements to their terminators. Non-heuristic, like
+`UnrealPropertyReader.CorrectedStructSize` one level down: it corrects **only** when the walked span
+exceeds the declared size by *exactly* the number of size-encoding bytes its elements carry between
+them. **All 267 archetypes across the 21 maps parse clean** — including the `EngineeringWaders*`
+family whose 7-entry `MaterialSlot` under-declares by 6 bytes and made the shared reader throw
+outright ("Property 'Min' overruns").
 
 **Why not fix `UnrealPropertyReader` itself:** a first attempt did, and it shifted
 `DocumentedFiguresTests` (the diagnose sweep) and `EmitterTemplateCensusTests` — emitter templates
@@ -65,10 +68,6 @@ archetypes.
 
 ## Still open
 
-- **Three archetypes hit a *different*, pre-existing reader gap** — `EngineeringWadersSMG`,
-  `EngineeringWadersCeilingCrawler`, `EngineeringWadersTeleport` (5-Hephaestus) fail with
-  "Property 'Min' overruns" — an unhandled `Range { float Min; float Max; }` nested struct. Not
-  caused by the array fix (fails on the old reader too), not chased here.
 - **The per-archetype `Spawning.ini` values** for archetypes that ship no export (or fields an
   export omits) — the file is declared in `Default.ini` (`PerObjIniFile=Spawning.ini`) but not
   present as a loose file in the Remastered install. The native `PopulateArchetypes()` sources them

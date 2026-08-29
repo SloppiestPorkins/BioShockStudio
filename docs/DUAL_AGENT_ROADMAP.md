@@ -117,10 +117,10 @@ end to end found that almost every open item was either already built-but-untrac
 2. **On-demand decode support** — whatever Cursor's runtime work needs from the data side.
 3. **Part 0.6 consolidation** (ongoing).
 4. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
-   decompile to pin the light enums / read `Range`-struct layout; `TextureCube` face-order A/B;
-   `Spawning.ini` values for non-shipped archetypes; the shared `UnrealPropertyReader`
-   `array<struct>` size fix + its §24 classification pass; the `Range`-struct reader gap
-   (3 `EngineeringWaders*` archetypes).
+   decompile to pin the light enums; `TextureCube` face-order A/B; `Spawning.ini` values for
+   non-shipped archetypes; the ChancePair inner refs; the shared `UnrealPropertyReader`
+   `array<struct>` size fix + its §24 classification pass (the archetype reader carries a scoped
+   copy that all 267 archetypes now pass).
 
 Beyond that, the centre of gravity has shifted to the Cursor lane (Phase 4 is "the long pole by a
 wide margin"). This lane's role is now support, not a parallel workstream.
