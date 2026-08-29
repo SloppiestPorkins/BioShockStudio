@@ -109,17 +109,23 @@ end to end found that almost every open item was either already built-but-untrac
   (`b5a5520`). `AiArchetypeCatalog`, `research/spawning.md`, `AiArchetypeTests`.
 - ✅ `LightType` enum `PLAUSIBLE` → `CORROBORATED` (`a92c563`); cubemap face order noted (`4092925`).
 
+**Also done (28–29 Aug):** all 267 archetypes parse clean (`5d5f64f`); loadout slots resolved
+(`818513a`); status-tuning fields (`ccd4117`); **`ConfigINI.IBF` found and read** — `IniBundle` +
+typed readers for archetypes (all 312, `AiArchetypeConfig`), resistance sets (`ResistanceSet`, on
+the manifest as `document.resistanceSets`), player weapons + ammo + damage (`WeaponConfig`), loot
+tables (`LootTableConfig`), plasmids (`PlasmidConfig`). `research/config.md`.
+
 **What remains for this lane:**
 
-1. **Cursor consumes the new manifest fields** — cross-lane. `document.archetypes` → the Phase 3
-   `AShockAI` `UDataAsset`; the light `cone`/`type` → `SpotLight` spawning. Claude owns the export
-   (done), Cursor owns the UE5 side.
-2. **On-demand decode support** — whatever Cursor's runtime work needs from the data side.
-3. **Part 0.6 consolidation** (ongoing).
-4. **The config bundle now opens a lot** — `IniBundle` reads `ConfigINI.IBF` (`research/config.md`):
-   `Spawning.ini`, `Weapons.ini` + resistance sets, `LootTables.ini`, `Ai.ini`, `Plasmids.ini`,
-   `Difficulty.ini`. Wiring these into the manifest / feeding them to Phase 3 is real remaining
-   work — resistance values onto the archetypes, loot tables onto pickups, weapon/plasmid stats.
+1. **Cursor consumes the manifest + config data** — cross-lane. `document.archetypes` /
+   `document.resistanceSets` → the Phase 3 `AShockAI` `UDataAsset`; `WeaponConfig` → the player
+   weapons; `LootTableConfig` → pickups; the light `cone`/`type` → `SpotLight` spawning. Claude
+   owns the readers (done), Cursor owns the UE5 side. The import scripts can load `ConfigINI.IBF`
+   directly.
+2. **`Ai.ini` typed reader** — turret / camera / security-bot tuning. Small; Cursor-lane Phase 3
+   work (consumes it directly).
+3. **On-demand decode support** — whatever Cursor's runtime work needs from the data side.
+4. **Part 0.6 consolidation** (ongoing).
 5. **Research tails** (need user scoping): `LightEffect` semantic (still `UNKNOWN`); `Engine.U`
    decompile to pin the light enums; `TextureCube` face-order A/B. The shared `UnrealPropertyReader`
    `array<struct>` size fix is **closed** — §24 pass done 29 Aug, three attempts all regress
