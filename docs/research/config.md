@@ -66,7 +66,15 @@ byte[]         content         // the .ini text, single-byte, CRLF
   `LootSpec=(Chance=,ItemClass=,MinStackSize=,MaxStackSize=)` **or** `(Chance=,TableName=<sub>)`.
   Tables reference sub-tables, so a drop is a tree roll. `bioshock-tool loot-config [table]`.
 
-- **Plasmids** — readable (`Plasmids.ini`, 112 sections), not yet a typed reader.
+- **Plasmids / tonics** — `PlasmidConfig.ReadAll` → 103 entries: friendly name, `Track`
+  (`TRACK_Active` cast plasmids, `TRACK_Combat`/`Engineering`/`Physical` gene tonics), credit value,
+  the four `Prereqs[1..4]` DNA-track counts, and `PlasmidPrerequisite` for the 3-tier upgrade
+  chains. **Effect numbers** (bolt damage, EVE cost) are in the decompiled `ShockGame.<name>` class
+  defaults, not here. `bioshock-tool plasmids-config`.
+
+- **`Ai.ini`** (164 sections) — turret, security-camera and security-bot tuning, per-deck
+  variants. Readable; a typed reader is Cursor-lane Phase 3 work (it consumes this directly when
+  wiring turrets/bots).
 
 ## Notes
 

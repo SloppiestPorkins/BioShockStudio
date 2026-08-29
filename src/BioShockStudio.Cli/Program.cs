@@ -55,6 +55,7 @@ try
         "config" => ConfigDump(root, args),
         "weapons-config" => WeaponsConfig(root, args),
         "loot-config" => LootConfig(root, args),
+        "plasmids-config" => PlasmidsConfig(root, args),
         "textures" => Textures(root, args),
         "sounds" => Sounds(root, args),
         "export-sounds" => ExportSounds(root, args),
@@ -107,6 +108,7 @@ static int Usage()
           config [<file.ini> [section]] The baked config bundle (Spawning.ini, Weapons.ini, …): list files, or dump a section.
           weapons-config                Player weapons from Weapons.ini — magazine, fire rate, accuracy, and per-ammo damage.
           loot-config [table]           Loot tables from LootTables.ini — list, or dump one table's chance entries.
+          plasmids-config               Plasmid / tonic roster from Plasmids.ini — track, credit value, upgrade chains.
           weapon-effects <package> <class>
                                         Decode a weapon class's own OnFiredEffects/TracerEffects.
           effect-class <package> <class> <property>
@@ -1344,6 +1346,22 @@ static int Archetypes(string root, string[] args)
     int complete = entries.Count(e => e.Complete);
     int withCore = entries.Count(e => e.AiType is not null && e.Mesh is not null && e.Health is not null);
     Console.WriteLine($"\n{entries.Count} archetypes, {complete} clean, {withCore} with class+mesh+health.");
+    return 0;
+}
+
+static int PlasmidsConfig(string root, string[] args)
+{
+    var bundle = BioShockStudio.Core.Config.IniBundle.Load(
+        BioShockStudio.Core.Game.GameLocator.ConfigBundle(root));
+    var plasmids = BioShockStudio.Core.Config.PlasmidConfig.ReadAll(bundle["Plasmids.ini"]!);
+
+    foreach (var p in plasmids.OrderBy(p => p.Name, StringComparer.Ordinal))
+        Console.WriteLine(
+            $"{p.FriendlyName ?? p.Name,-22} {p.Track?.Replace("TRACK_", ""),-10} "
+            + $"{p.CreditValue?.ToString("0") ?? "-",4} cr"
+            + (p.UpgradeOf is { } u ? $"  ← {u}" : ""));
+
+    Console.WriteLine($"\n{plasmids.Count} plasmids/tonics.");
     return 0;
 }
 

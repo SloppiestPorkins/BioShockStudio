@@ -103,6 +103,28 @@ public sealed class IniBundleTests(GameFixture game)
     }
 
     [RequiresGameFact]
+    public void PlasmidConfigReadsTheRosterAndUpgradeChains()
+    {
+        var plasmids = PlasmidConfig.ReadAll(Bundle()["Plasmids.ini"]!);
+
+        Assert.True(plasmids.Count > 40, $"only {plasmids.Count} plasmids/tonics");
+
+        var electro = plasmids.Single(p => p.Name == "ElectricBolt");
+        Assert.Equal("Electro Bolt", electro.FriendlyName);
+        Assert.Equal("TRACK_Active", electro.Track);
+        Assert.Null(electro.UpgradeOf);
+
+        // Electro Bolt 2 upgrades Electro Bolt — the 3-tier chains resolve.
+        var electroTwo = plasmids.Single(p => p.Name == "ElectricBoltTwo");
+        Assert.Equal("ElectricBolt", electroTwo.UpgradeOf);
+        Assert.Contains(plasmids, p => p.Name == "ElectricBoltThree" && p.UpgradeOf == "ElectricBoltTwo");
+
+        // Every entry names a track and carries its four DNA-track prereq counts.
+        Assert.All(plasmids, p => Assert.StartsWith("TRACK_", p.Track));
+        Assert.All(plasmids, p => Assert.Equal(4, p.Prereqs.Length));
+    }
+
+    [RequiresGameFact]
     public void LootTablesResolveIntoChanceWeightedTreesOfItemsAndSubTables()
     {
         var tables = LootTableConfig.ReadAll(Bundle()["LootTables.ini"]!);
