@@ -49,12 +49,20 @@ function Sync-SourceTree {
   $toSrc = Join-Path $ToRoot 'Source'
   if (-not (Test-Path $fromSrc)) { throw "Missing source: $fromSrc" }
   New-Item -ItemType Directory -Force -Path $toSrc | Out-Null
+  $want = @{}
   Get-ChildItem -Path $fromSrc -Recurse -File | ForEach-Object {
     $rel = $_.FullName.Substring($fromSrc.Length).TrimStart('\')
+    $want[$rel] = $true
     $dest = Join-Path $toSrc $rel
     $destDir = Split-Path $dest -Parent
     if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
     Copy-Item -Force $_.FullName $dest
+  }
+  # Purge stale files a previous (e.g. parallel worktree) build left behind — Copy-Item never
+  # deletes, so a removed/renamed .cpp would otherwise keep compiling from the mirror.
+  Get-ChildItem -Path $toSrc -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+    $rel = $_.FullName.Substring($toSrc.Length).TrimStart('\')
+    if (-not $want.ContainsKey($rel)) { Remove-Item -Force $_.FullName }
   }
   Copy-Item -Force (Join-Path $FromRoot 'BioShockRuntime.uplugin') (Join-Path $ToRoot 'BioShockRuntime.uplugin')
 }
