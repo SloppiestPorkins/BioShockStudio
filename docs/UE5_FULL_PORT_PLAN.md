@@ -1213,6 +1213,11 @@ disables input/movement; `AShockGameMode` shows a C++ `UShockDeathOverlayWidget`
 reset; `bReloadLevelOnDeath` optional). `ABaseShockAI` stops combat tick and capsule collision on
 death. Verified headless via `run_player_death.py` (`Success - 0 error(s)`, 30 Aug 2026).
 
+**Phase 3 depth — in-game player HUD, 30 Aug 2026 (Cursor).** C++ `UShockHudWidget` (health bar
+bottom-left, mag/reserve ammo bottom-right; ammo hidden when `bEnforceAmmo` is false) polls
+`AShockPlayer` / equipped `AShockWeapon` every 0.1s. `AShockGameMode::PostLogin` adds it to the
+viewport after possess. Verified headless via `run_hud.py` (`Success - 0 error(s)`, 30 Aug 2026).
+
 **Phase 2.3 tail-1 — script-importer mapping gap closed, 30 Aug 2026.** The 21-map sidecar
 census (`docs/research/interaction.md` §8) found `import_scripts.py` silently dropping four
 shipped node classes: `OrStatement` ×23, `HideNeedleElement` ×2, `ShowNeedleElement` ×2,

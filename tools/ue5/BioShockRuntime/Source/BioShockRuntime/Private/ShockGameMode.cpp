@@ -2,6 +2,7 @@
 #include "BaseShockAI.h"
 #include "ShockAmmoPickup.h"
 #include "ShockDeathRespawnHandler.h"
+#include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
@@ -398,6 +399,22 @@ void AShockGameMode::AdvanceRespawnForVerify(float DeltaSeconds)
 	}
 }
 
+void AShockGameMode::EnsureHudForPlayer(APlayerController* PC)
+{
+	if (!PC)
+	{
+		return;
+	}
+	if (!PlayerHud)
+	{
+		PlayerHud = CreateWidget<UShockHudWidget>(PC, UShockHudWidget::StaticClass());
+	}
+	if (PlayerHud && !PlayerHud->IsInViewport())
+	{
+		PlayerHud->AddToViewport(0);
+	}
+}
+
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 {
 	if (!Player || !Enemy)
@@ -469,6 +486,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				EquipStarterWeapon(Player);
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
+				EnsureHudForPlayer(NewPlayer);
 				ABaseShockAI* Enemy = SpawnSliceEnemy(Player, Start);
 				SpawnSliceAmmoPickup(Player, Start, Enemy);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
@@ -481,7 +499,26 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		{
 			EquipStarterWeapon(Player);
 			NewPlayer->SetViewTarget(Player);
+			EnsureHudForPlayer(NewPlayer);
 		}
+	}
+
+	if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyhud")))
+	{
+		if (UShockHudWidget::RunHeadlessHudVerify(GetWorld()))
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HUD_VERIFY_OK"));
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_HUD_VERIFY_FAIL reason=%s"),
+				*UShockHudWidget::GetLastHudVerifyError());
+		}
+		FGenericPlatformMisc::RequestExit(false);
+		return;
 	}
 
 	const bool bVerifyPossess = FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"));

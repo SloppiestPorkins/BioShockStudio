@@ -6,6 +6,7 @@
 class ABaseShockAI;
 class AShockPlayer;
 class UShockDeathRespawnHandler;
+class UShockHudWidget;
 
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
@@ -43,8 +44,12 @@ private:
 	ABaseShockAI* SpawnSliceEnemy(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
+	void EnsureHudForPlayer(APlayerController* PC);
 	UShockDeathRespawnHandler* EnsureDeathHandler();
 
 	UPROPERTY()
 	TObjectPtr<UShockDeathRespawnHandler> DeathHandler;
+
+	UPROPERTY()
+	TObjectPtr<UShockHudWidget> PlayerHud;
 };
