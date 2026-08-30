@@ -354,3 +354,89 @@ The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString
   bytes remains `UNKNOWN`** — the Str path on `DecoyHumanAbility` is decoded; the named classes
   are not local exports of `ShockGame.U`. See §6's last paragraph.
 - **`KeyPos`/`KeyRot` remain `UNKNOWN`** — see §3. Deliberately deferred pending a render check.
+
+## 8. Script-action sidecar census — 30 Aug 2026
+
+`CONFIRMED_BYTES`. `bioshock-tool export-script-actions` was run against every one of the 21
+shipped, non-localised maps. Every JSON sidecar was written under `%TEMP%`; none is a repository
+artifact. Counts below come directly from those format-version-2 sidecars. `refs` is the exporter’s
+top-level `actions` count, `classes` is the number of distinct classes among all serialized
+`bySourceKey` nodes (including nested nodes), and the five body columns count child references in
+`trueActions` / `elseActions` / `loopActions` / `forActions` / `testsOr` respectively.
+
+“Unmapped” applies the current `tools/ue5/import_scripts.py` class-name rule: `Action*` maps to
+`ShockAction*`, plus the six explicit non-1:1 overrides. It is a measurement of the current UE5
+import name mapping, not a claim that a mapped action’s gameplay behaviour is implemented.
+
+| Map | Scripts | Refs | Classes | True | Else | Loop | For | Tests | `nested_unmapped` | `unmapped_classes` (sidecar nodes) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `0-Lighthouse` | 54 | 339 | 40 | 0 | 0 | 0 | 0 | 0 | 0 | — |
+| `1-Medical` | 299 | 1,463 | 115 | 331 | 37 | 10 | 3 | 114 | 0 | — |
+| `1-Welcome` | 319 | 2,195 | 97 | 306 | 21 | 24 | 0 | 89 | 0 | `TrainingCondition` 1 |
+| `2-Fisheries` | 417 | 2,210 | 110 | 380 | 44 | 38 | 0 | 155 | 0 | — |
+| `2-SubBay` | 74 | 510 | 67 | 39 | 10 | 5 | 0 | 20 | 0 | — |
+| `3-Arcadia` | 366 | 2,150 | 106 | 619 | 85 | 47 | 0 | 274 | 0 | — |
+| `3-Market` | 140 | 597 | 86 | 331 | 58 | 5 | 8 | 142 | 0 | — |
+| `4-Recreation` | 438 | 3,072 | 117 | 2,024 | 150 | 18 | 0 | 612 | 15 | `OrStatement` 15 |
+| `5-Hephaestus` | 190 | 760 | 96 | 478 | 60 | 7 | 0 | 165 | 0 | — |
+| `5-Ryan` | 95 | 577 | 72 | 90 | 21 | 72 | 0 | 28 | 0 | — |
+| `6-Resi` | 192 | 929 | 95 | 604 | 128 | 6 | 42 | 304 | 2 | `OrStatement` 2 |
+| `6-Slums` | 117 | 553 | 79 | 546 | 118 | 5 | 12 | 264 | 2 | `OrStatement` 2 |
+| `7-BossFight` | 71 | 379 | 64 | 77 | 11 | 25 | 0 | 21 | 0 | `HideNeedleElement` 2; `ShowNeedleElement` 2 |
+| `7-Gauntlet` | 139 | 854 | 81 | 444 | 67 | 31 | 0 | 195 | 2 | `OrStatement` 2 |
+| `7-Science` | 189 | 894 | 93 | 549 | 277 | 10 | 0 | 188 | 0 | — |
+| `Autoplay` | 299 | 1,460 | 115 | 331 | 37 | 10 | 3 | 114 | 0 | — |
+| `ChallengeRoomCombat` | 304 | 1,831 | 71 | 248 | 26 | 66 | 0 | 112 | 0 | — |
+| `ChallengeRoomDecoy` | 90 | 378 | 61 | 42 | 26 | 20 | 0 | 26 | 0 | — |
+| `ChallengeRoomElectric` | 139 | 601 | 80 | 278 | 78 | 6 | 0 | 78 | 2 | `OrStatement` 2 |
+| `Entry` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | — |
+| `museum` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | — |
+| **Game** | **3,932** | **21,752** | **201** | **7,717** | **1,254** | **405** | **68** | **2,901** | **23** | **`OrStatement` 23; `HideNeedleElement` 2; `ShowNeedleElement` 2; `TrainingCondition` 1** |
+
+All 21 exports reported `skipped = 0`. The 3,932 scripts and 21,752 top-level references exactly
+match `ActionUsageCensusTests`; the sidecar exporter therefore retains **100% of the census’s
+top-level action references**. Its 34,097 unique serialized nodes include the nested graph and 201
+distinct classes, versus the top-level census’s 186 classes. The census head also agrees exactly:
+`ActionWait` 2,209, `ActionSetProperty` 1,902, `ActionIf` 1,891, `ActionPlayEffect` 1,806, and
+`ActionNonBlockingExecuteScript` 1,106 — 8,914 / 21,752 references (**40.98%**). This establishes
+serialization coverage only; it does not raise the separate in-world execution percentage.
+
+### Stop-condition finding: four shipped class names have no current importer mapping
+
+`CONFIRMED_BYTES`. Ranked by serialized-node frequency, the current name mapper misses
+`OrStatement` **23**, `HideNeedleElement` **2**, `ShowNeedleElement` **2**, and
+`TrainingCondition` **1**. The latter three already have concrete UE5 runtime classes named
+`UShockActionHideNeedleElement`, `UShockActionShowNeedleElement`, and
+`UShockActionTrainingCondition`; the importer simply lacks their non-`Action` prefix overrides.
+`OrStatement` is a `testsOr` boolean child alongside the explicitly mapped `AndStatement`,
+`NotStatement`, `TruthStatement`, and `BooleanStatement`, but it has neither an override nor a
+concrete `UShockOrStatement` class. Expected: retain/create the typed boolean-test node. Actual:
+all 23 are serialized in the sidecars but fall through `shock_action_class_name`; import records
+them as `nested_unmapped` and omits them from the `ActionIf` test body.
+
+The 23 affected `OrStatement` source keys are:
+
+- `4-Recreation` (15): `OrStatement_OrStatement1_24273`,
+  `OrStatement_OrStatement2_31089`, `OrStatement_OrStatement3_31099`,
+  `OrStatement_OrStatement29_33493`, `OrStatement_OrStatement189_28335`,
+  `OrStatement_OrStatement204_20797`, `OrStatement_OrStatement240_35548`,
+  `OrStatement_OrStatement261_28409`, `OrStatement_OrStatement267_37382`,
+  `OrStatement_OrStatement276_41553`, `OrStatement_OrStatement321_28338`,
+  `OrStatement_OrStatement372_29969`, `OrStatement_OrStatement393_29968`,
+  `OrStatement_OrStatement401_44279`, `OrStatement_OrStatement606_45745`.
+- `6-Resi` (2): `OrStatement_OrStatement2_32866`, `OrStatement_OrStatement3_32007`.
+- `6-Slums` (2): `OrStatement_OrStatement7_33659`, `OrStatement_OrStatement39_29735`.
+- `7-Gauntlet` (2): `OrStatement_OrStatement76_32409`,
+  `OrStatement_OrStatement77_33255`.
+- `ChallengeRoomElectric` (2): `OrStatement_OrStatement4_29985`,
+  `OrStatement_OrStatement5_30045`.
+
+The other exact unmapped source keys are
+`TrainingCondition_TrainingCondition560_35453` (`1-Welcome`),
+`HideNeedleElement_HideNeedleElement0_15307`,
+`HideNeedleElement_HideNeedleElement8_7593`,
+`ShowNeedleElement_ShowNeedleElement10_7569`, and
+`ShowNeedleElement_ShowNeedleElement13_16838` (all `7-BossFight`). This is an importer mapping
+defect, not an exporter traversal defect: every named node and every referenced nested source key
+is present in its sidecar. Per the measurement-lane stop rule, no code was changed and the Phase
+2.3 plan line was not marked complete.
