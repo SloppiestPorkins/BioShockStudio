@@ -39,6 +39,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Death")
 	void AdvanceRespawnForVerify(float DeltaSeconds);
 
+	/** Headless verify: kick UNavigationSystemV1::Build on the editor world. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Nav", meta=(WorldContext="WorldContextObject"))
+	static bool BuildNavigationForVerify(UObject* WorldContextObject);
+
+	/** Headless verify: true when ProjectPointToNavigation succeeds for Point. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Nav", meta=(WorldContext="WorldContextObject"))
+	static bool CanProjectPointToNavigation(UObject* WorldContextObject, FVector Point);
+
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
 	void EquipStarterWeapon(AShockPlayer* Player);
@@ -59,6 +67,7 @@ private:
 		FName ArchetypeKey,
 		bool bForceRangedWeapon);
 	void VerifySliceEncounter(AShockPlayer* Player);
+	void EnsureSliceNavigation(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	void EnsureHudForPlayer(APlayerController* PC);

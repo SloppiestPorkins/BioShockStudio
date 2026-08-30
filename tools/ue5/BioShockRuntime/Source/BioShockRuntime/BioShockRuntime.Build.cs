@@ -14,6 +14,8 @@ public class BioShockRuntime : ModuleRules
             "UMG",
             "Slate",
             "SlateCore",
+            "AIModule",
+            "NavigationSystem",
         });
         PrivateDependencyModuleNames.AddRange(new[] { "AssetRegistry", "Json", "JsonUtilities" });
     }

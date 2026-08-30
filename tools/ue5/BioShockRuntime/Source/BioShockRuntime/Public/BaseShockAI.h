@@ -160,6 +160,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	bool bSuppressCombatLineOfSight = false;
 
+	/** When true, Chase uses AAIController path-following; missing nav falls back to direct input. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	bool bUseNavigation = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float LoseTargetSeconds = 5.0f;
 
@@ -306,11 +310,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void AdvanceAutonomousCombat(float DeltaSeconds);
 
+	/** Headless verify: spawn default AAIController when editor spawn skipped BeginPlay. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void EnsureControllerForVerify();
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	bool IsCombatLoopActive() const { return !bCombatLoopStopped; }
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	int32 GetDeathNotifyCount() const { return DeathNotifyCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	bool IsNavChaseActive() const { return bNavChaseActive; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	bool IsNavUsingFallback() const { return bNavUsingFallback; }
 
 	virtual void OnDeathFromDamage() override;
 
@@ -352,12 +366,27 @@ private:
 	UPROPERTY()
 	int32 DeathNotifyCount = 0;
 
+	UPROPERTY()
+	bool bNavChaseActive = false;
+
+	UPROPERTY()
+	bool bNavUsingFallback = false;
+
+	UPROPERTY()
+	FVector NavLastMoveGoal = FVector::ZeroVector;
+
+	UPROPERTY()
+	float NavMoveRefreshTimer = 0.0f;
+
 	bool bDeathReactionHandled = false;
 
 	FTimerHandle CorpseFadeTimer;
 
 	void HideCorpse();
 	void TickCombat(float DeltaSeconds);
+	void StopNavChase();
+	bool TryTickNavChase(AShockPawn* Target, float DeltaSeconds);
+	void TickChaseDirectMovement(AShockPawn* Target, float DeltaSeconds);
 	bool IsCombatLoopGated() const;
 	bool IsAliveTarget(const AShockPawn* Target) const;
 	void SetCombatTarget(AShockPawn* Target);

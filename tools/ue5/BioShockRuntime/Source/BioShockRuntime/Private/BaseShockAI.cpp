@@ -4,11 +4,14 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
+#include "AIController.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 #include "TimerManager.h"
 
 namespace
@@ -16,6 +19,8 @@ namespace
 constexpr float WalkSpeed = 350.0f;
 constexpr float RunSpeed = 550.0f;
 constexpr float SightConeHalfAngleDegrees = 45.0f;
+constexpr float NavMoveRefreshInterval = 0.5f;
+constexpr float NavMoveRetargetThreshold = 150.0f;
 
 bool IsBlockingSightHit(const FHitResult& Hit, const AActor* Target)
 {
@@ -73,15 +78,16 @@ bool ArchetypeHasRangedWeapon(const UShockAiArchetype* Archetype)
 ABaseShockAI::ABaseShockAI()
 {
 	SchemaClassName = TEXT("BaseShockAI");
-	AutoPossessAI = EAutoPossessAI::Disabled;
+	AIControllerClass = AAIController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
-		// Walk on the ground in real play. The slice uses direct AddMovementInput toward the
-		// target (no nav-mesh yet — see UE5_FULL_PORT_PLAN §9). Headless verification, which has
-		// no collision floor, opts into floorless motion via EnableFloorlessMovement().
+		// Walk on the ground in real play. Chase prefers AAIController path-following when nav data
+		// exists; missing nav falls back to direct AddMovementInput (see UE5_FULL_PORT_PLAN §9).
+		// Headless verification opts into floorless motion via EnableFloorlessMovement().
 		Move->MaxWalkSpeed = WalkSpeed;
 		Move->MaxFlySpeed = RunSpeed;
 	}
@@ -239,6 +245,7 @@ void ABaseShockAI::OnDeathFromDamage()
 	bCombatLoopStopped = true;
 	CombatState = EShockAICombatState::Idle;
 	ClearCombatTarget();
+	StopNavChase();
 	SetActorTickEnabled(false);
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
@@ -275,11 +282,29 @@ void ABaseShockAI::HideCorpse()
 	}
 }
 
+void ABaseShockAI::EnsureControllerForVerify()
+{
+	if (!GetController())
+	{
+		SpawnDefaultController();
+	}
+}
+
 void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 {
 	// Headless verification entry point — no world tick, no collision floor.
 	EnableFloorlessMovement();
 	Tick(DeltaSeconds);
+	if (bNavChaseActive && !bNavUsingFallback)
+	{
+		if (AAIController* AIC = Cast<AAIController>(GetController()))
+		{
+			if (UPathFollowingComponent* PFC = AIC->GetPathFollowingComponent())
+			{
+				PFC->TickComponent(DeltaSeconds, LEVELTICK_All, nullptr);
+			}
+		}
+	}
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
 		Move->TickComponent(DeltaSeconds, LEVELTICK_All, nullptr);
@@ -511,6 +536,119 @@ bool ABaseShockAI::TryAcquireTargetFromPerception()
 	return false;
 }
 
+void ABaseShockAI::StopNavChase()
+{
+	if (bNavChaseActive)
+	{
+		if (AAIController* AIC = Cast<AAIController>(GetController()))
+		{
+			AIC->StopMovement();
+		}
+	}
+	bNavChaseActive = false;
+	NavMoveRefreshTimer = 0.0f;
+	NavLastMoveGoal = FVector::ZeroVector;
+}
+
+void ABaseShockAI::TickChaseDirectMovement(AShockPawn* Target, float DeltaSeconds)
+{
+	if (!Target)
+	{
+		return;
+	}
+
+	const FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
+	FVector MoveDir = ToTarget;
+	MoveDir.Z = 0.0f;
+	if (MoveDir.IsNearlyZero())
+	{
+		return;
+	}
+
+	const FVector Before = GetActorLocation();
+	const FVector Norm = MoveDir.GetSafeNormal();
+	AddMovementInput(Norm, 1.0f);
+	// When nothing moved us (headless with no floor, or a frame where input was not consumed yet),
+	// close the distance directly so the slice still works without nav data.
+	if (FVector::Dist2D(Before, GetActorLocation()) < 1.0f)
+	{
+		const float Speed = bMovementShouldRun ? RunSpeed : WalkSpeed;
+		SetActorLocation(Before + Norm * Speed * DeltaSeconds, true);
+	}
+}
+
+bool ABaseShockAI::TryTickNavChase(AShockPawn* Target, float DeltaSeconds)
+{
+	if (!bUseNavigation || !Target)
+	{
+		StopNavChase();
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World);
+	if (!NavSys)
+	{
+		if (!bNavUsingFallback)
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_NAV_FALLBACK"));
+			bNavUsingFallback = true;
+		}
+		StopNavChase();
+		return false;
+	}
+
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (!AIC)
+	{
+		if (!bNavUsingFallback)
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_NAV_FALLBACK"));
+			bNavUsingFallback = true;
+		}
+		StopNavChase();
+		return false;
+	}
+
+	const FVector TargetLoc = Target->GetActorLocation();
+	FNavLocation Projected;
+	if (!NavSys->ProjectPointToNavigation(TargetLoc, Projected))
+	{
+		if (!bNavUsingFallback)
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_NAV_FALLBACK"));
+			bNavUsingFallback = true;
+		}
+		StopNavChase();
+		return false;
+	}
+
+	NavMoveRefreshTimer -= DeltaSeconds;
+	const bool bTargetMoved = FVector::Dist(NavLastMoveGoal, TargetLoc) > NavMoveRetargetThreshold;
+	const bool bNeedRefresh = !bNavChaseActive || NavMoveRefreshTimer <= 0.0f || bTargetMoved;
+	if (bNeedRefresh)
+	{
+		NavMoveRefreshTimer = NavMoveRefreshInterval;
+		NavLastMoveGoal = TargetLoc;
+		const float AcceptRadius = MeleeRange * 0.8f;
+		const EPathFollowingRequestResult::Type Result = AIC->MoveToActor(Target, AcceptRadius);
+		if (Result == EPathFollowingRequestResult::Failed)
+		{
+			if (!bNavUsingFallback)
+			{
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_NAV_FALLBACK"));
+				bNavUsingFallback = true;
+			}
+			StopNavChase();
+			return false;
+		}
+		bNavChaseActive = true;
+		bNavUsingFallback = false;
+	}
+
+	return true;
+}
+
 void ABaseShockAI::TickCombat(float DeltaSeconds)
 {
 	if (MeleeCooldownRemaining > 0.0f)
@@ -524,6 +662,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 
 	if (IsCombatLoopGated())
 	{
+		StopNavChase();
 		CombatState = EShockAICombatState::Idle;
 		ClearCombatTarget();
 		return;
@@ -562,6 +701,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 	{
 		if (!IsAliveTarget(CombatTarget))
 		{
+			StopNavChase();
 			ClearCombatTarget();
 			CombatState = EShockAICombatState::Idle;
 			break;
@@ -574,6 +714,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 			OutOfSightTimer += DeltaSeconds;
 			if (OutOfSightTimer >= LoseTargetSeconds)
 			{
+				StopNavChase();
 				ClearCombatTarget();
 				CombatState = EShockAICombatState::Idle;
 				break;
@@ -586,33 +727,22 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 
 		if (Dist <= MeleeRange)
 		{
+			StopNavChase();
 			CombatState = EShockAICombatState::Attack;
 			break;
 		}
 
 		if (AIWeapon && Dist <= RangedRange && Dist > MeleeRange && HasClearLineOfSightTo(CombatTarget))
 		{
+			StopNavChase();
 			CombatState = EShockAICombatState::RangedAttack;
 			break;
 		}
 
 		FaceTargetYaw(CombatTarget);
-		const FVector ToTarget = CombatTarget->GetActorLocation() - GetActorLocation();
-		FVector MoveDir = ToTarget;
-		MoveDir.Z = 0.0f;
-		if (!MoveDir.IsNearlyZero())
+		if (!TryTickNavChase(CombatTarget, DeltaSeconds))
 		{
-			const FVector Before = GetActorLocation();
-			const FVector Norm = MoveDir.GetSafeNormal();
-			AddMovementInput(Norm, 1.0f);
-			// The engine ticks the movement component itself in real play. When nothing moved us
-			// (headless with no floor, or a frame where input hadn't been consumed yet), close the
-			// distance directly so the slice still works without a nav-mesh.
-			if (FVector::Dist2D(Before, GetActorLocation()) < 1.0f)
-			{
-				const float Speed = bMovementShouldRun ? RunSpeed : WalkSpeed;
-				SetActorLocation(Before + Norm * Speed * DeltaSeconds, true);
-			}
+			TickChaseDirectMovement(CombatTarget, DeltaSeconds);
 		}
 		break;
 	}
@@ -620,6 +750,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 	{
 		if (!IsAliveTarget(CombatTarget))
 		{
+			StopNavChase();
 			ClearCombatTarget();
 			CombatState = EShockAICombatState::Idle;
 			break;
@@ -628,6 +759,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		const float Dist = DistanceToTarget(CombatTarget);
 		if (Dist <= MeleeRange)
 		{
+			StopNavChase();
 			CombatState = EShockAICombatState::Attack;
 			break;
 		}
@@ -649,6 +781,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 	{
 		if (!IsAliveTarget(CombatTarget))
 		{
+			StopNavChase();
 			ClearCombatTarget();
 			CombatState = EShockAICombatState::Idle;
 			break;

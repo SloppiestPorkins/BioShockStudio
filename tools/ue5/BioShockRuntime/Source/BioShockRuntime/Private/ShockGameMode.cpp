@@ -17,6 +17,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMeshActor.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "GameFramework/WorldSettings.h"
@@ -28,6 +29,9 @@
 #include "GameFramework/PlayerStart.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
+#include "NavMesh/NavMeshBoundsVolume.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "NavigationSystem.h"
 
 namespace
 {
@@ -110,6 +114,39 @@ void EnableDynamicLighting(UWorld* World)
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d fill=%d"), Converted, bHasFill ? 0 : 1);
+}
+
+void EnsureSliceNavMeshBounds(UWorld* World, const FVector& Center)
+{
+	if (!World)
+	{
+		return;
+	}
+
+	const FName NavTag(TEXT("BioShockSliceNav"));
+	for (TActorIterator<ANavMeshBoundsVolume> It(World); It; ++It)
+	{
+		if (*It && It->Tags.Contains(NavTag))
+		{
+			return;
+		}
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (ANavMeshBoundsVolume* Volume = World->SpawnActor<ANavMeshBoundsVolume>(
+			ANavMeshBoundsVolume::StaticClass(),
+			Center,
+			FRotator::ZeroRotator,
+			Params))
+	{
+		Volume->Tags.Add(NavTag);
+		// Default brush is 200 uu per side; scale to ~6000 x 6000 x 3000 uu.
+		Volume->SetActorScale3D(FVector(30.0f, 30.0f, 15.0f));
+#if WITH_EDITOR
+		Volume->SetActorLabel(TEXT("BioShockSliceNavBounds"));
+#endif
+	}
 }
 }
 
@@ -391,6 +428,74 @@ void AShockGameMode::SpawnSliceEnemyStaggered(
 	SpawnOneSliceEnemy(Player, Index, ArchetypeKey, SpawnLoc, SpawnRot, bForceRangedWeapon);
 }
 
+void AShockGameMode::EnsureSliceNavigation(AShockPlayer* Player, AActor* StartSpot)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FVector PlayerLoc = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+	if (StartSpot)
+	{
+		PlayerLoc = StartSpot->GetActorLocation();
+	}
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	const float PlayerZ = PlayerLoc.Z;
+
+	const FVector MeleeLeft = PlayerLoc + Forward * 375.0f + Right * (-100.0f);
+	const FVector MeleeRight = PlayerLoc + Forward * 375.0f + Right * 100.0f;
+	const FVector RangedBack = PlayerLoc + Forward * 800.0f;
+	FVector Center = (PlayerLoc + MeleeLeft + MeleeRight + RangedBack) * 0.25f;
+	Center.Z = PlayerZ + 150.0f;
+
+	EnsureSliceNavMeshBounds(World, Center);
+
+	int32 BoundsCount = 0;
+	for (TActorIterator<ANavMeshBoundsVolume> It(World); It; ++It)
+	{
+		if (*It)
+		{
+			++BoundsCount;
+		}
+	}
+
+	int32 NavMeshCount = 0;
+	for (TActorIterator<ARecastNavMesh> It(World); It; ++It)
+	{
+		if (*It)
+		{
+			++NavMeshCount;
+		}
+	}
+
+	if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+	{
+		NavSys->Build();
+		if (NavMeshCount == 0)
+		{
+			if (const ANavigationData* NavData = NavSys->GetDefaultNavDataInstance(FNavigationSystem::DontCreate))
+			{
+				if (NavData->IsA<ARecastNavMesh>())
+				{
+					NavMeshCount = 1;
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_NAV bounds=%d navmesh=%d"), BoundsCount, NavMeshCount);
+}
+
 void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot)
 {
 	UWorld* World = GetWorld();
@@ -408,6 +513,7 @@ void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot
 	}
 
 	ConfigureSlicePlayerLabel(Player);
+	EnsureSliceNavigation(Player, StartSpot);
 
 	FVector Forward = PlayableStartRotation(StartSpot).Vector();
 	Forward.Z = 0.0f;
@@ -626,6 +732,37 @@ void AShockGameMode::AdvanceRespawnForVerify(float DeltaSeconds)
 	{
 		DeathHandler->AdvanceRespawnForVerify(DeltaSeconds);
 	}
+}
+
+bool AShockGameMode::BuildNavigationForVerify(UObject* WorldContextObject)
+{
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (!World)
+	{
+		return false;
+	}
+	if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+	{
+		NavSys->Build();
+		return true;
+	}
+	return false;
+}
+
+bool AShockGameMode::CanProjectPointToNavigation(UObject* WorldContextObject, FVector Point)
+{
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (!World)
+	{
+		return false;
+	}
+	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World);
+	if (!NavSys)
+	{
+		return false;
+	}
+	FNavLocation Projected;
+	return NavSys->ProjectPointToNavigation(Point, Projected);
 }
 
 void AShockGameMode::EnsureHudForPlayer(APlayerController* PC)

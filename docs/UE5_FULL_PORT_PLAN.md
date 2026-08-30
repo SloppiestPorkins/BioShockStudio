@@ -1215,6 +1215,17 @@ Pistol/Tommy heuristic in `import_ai_archetypes.py`). FSM adds `RangedAttack` (`
 `AimSpreadDegrees` ~3, `RangedRange` ~1600). Verified headless via `run_ai_combat.py` (armed fires
 at range without closing to melee; unarmed still melees; LoS-blocked no fire).
 
+**Phase 3 depth — slice AI nav + direct-input fallback, 30 Aug 2026 (Cursor).** `AShockGameMode`
+spawns a tagged `NavMeshBoundsVolume` (~6000×6000×3000 uu centred on the slice encounter) and
+kicks `UNavigationSystemV1::Build` (`BIOSHOCK_NAV bounds=%d navmesh=%d`). `ABaseShockAI` possesses
+an `AAIController` and Chase calls `MoveToActor` (refreshed ~0.5s / 150 uu target motion); when
+`UNavigationSystemV1` is missing, projection fails, or `MoveToActor` returns `Failed`, Chase falls
+back to the prior `AddMovementInput` + straight-line close (`BIOSHOCK_NAV_FALLBACK`). Gated by
+`bUseNavigation` (default true). Verified headless via `run_ai_nav.py` (`Success - 0 error(s)`,
+30 Aug 2026): fallback closes distance in open floor; walled path-around runs when
+`CanProjectPointToNavigation` succeeds (PLAUSIBLE in `-Cmd` editor world — navmesh build often
+returns size 0 there, same as pre-nav `run_ai_combat.py` fallback path).
+
 **Phase 3 depth — player death + respawn loop, 30 Aug 2026 (Cursor).** `ApplyDamage` fires
 `OnDeathFromDamage` on the false→true `bIsDead` transition (not polled). `AShockPlayer::OnDied`
 disables input/movement; `AShockGameMode` shows a C++ `UShockDeathOverlayWidget`, then after
