@@ -1205,6 +1205,13 @@ disables input/movement; `AShockGameMode` shows a C++ `UShockDeathOverlayWidget`
 reset; `bReloadLevelOnDeath` optional). `ABaseShockAI` stops combat tick and capsule collision on
 death. Verified headless via `run_player_death.py` (`Success - 0 error(s)`, 30 Aug 2026).
 
+**Phase 2.3 tail-1 — script-importer mapping gap closed, 30 Aug 2026.** The 21-map sidecar
+census (`docs/research/interaction.md` §8) found `import_scripts.py` silently dropping four
+shipped node classes: `OrStatement` ×23, `HideNeedleElement` ×2, `ShowNeedleElement` ×2,
+`TrainingCondition` ×1. Fixed — three prefix overrides plus a new `UShockOrStatement`
+(`&&`→`||` mirror of `UShockAndStatement`). Compiles clean; the per-map `nested_unmapped`
+re-import re-run is still owed (worker connection dropped during that step).
+
 The plan's framing of item 3 as the highest-value *unbuilt* work was stale — the manifest half was
 built incrementally under `feat:` commits (`0d03b75`, `2e20188`, `d25155f`, the `Region`/`Spawner`
 decoders); the archetype half landed 28 Aug.

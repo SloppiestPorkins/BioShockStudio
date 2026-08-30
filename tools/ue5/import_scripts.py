@@ -34,6 +34,10 @@ ACTION_CLASS_OVERRIDES = {
     "TruthStatement": "ShockTruthStatement",
     "AndStatement": "ShockAndStatement",
     "NotStatement": "ShockNotStatement",
+    "OrStatement": "ShockOrStatement",
+    "HideNeedleElement": "ShockActionHideNeedleElement",
+    "ShowNeedleElement": "ShockActionShowNeedleElement",
+    "TrainingCondition": "ShockActionTrainingCondition",
 }
 
 # Schema Lookup class name when it differs from the placed Action* name.
@@ -244,6 +248,13 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 stats["instance_applied"] += 1
                 return True
         if action_class == "AndStatement":
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if (lhs is not None or rhs is not None) and hasattr(action, "configure"):
+                action.configure(bool(lhs) if lhs is not None else False, bool(rhs) if rhs is not None else False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "OrStatement":
             lhs = _prop(bag, "lhs", "Lhs")
             rhs = _prop(bag, "rhs", "Rhs")
             if (lhs is not None or rhs is not None) and hasattr(action, "configure"):

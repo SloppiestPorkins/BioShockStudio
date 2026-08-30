@@ -83,6 +83,7 @@
 #include "ShockActionSetPlasmidSlotLockedState.h"
 #include "ShockBooleanStatement.h"
 #include "ShockAndStatement.h"
+#include "ShockOrStatement.h"
 #include "ShockNotStatement.h"
 #include "ShockActionTestFact.h"
 #include "ShockActionPropertyTest.h"
@@ -3394,6 +3395,20 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
 					AndStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockOrStatement* OrStmt = Cast<UShockOrStatement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					OrStmt->bLhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("lhs"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					OrStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("rhs"));
 				}
 			}

@@ -440,3 +440,13 @@ The other exact unmapped source keys are
 defect, not an exporter traversal defect: every named node and every referenced nested source key
 is present in its sidecar. Per the measurement-lane stop rule, no code was changed and the Phase
 2.3 plan line was not marked complete.
+
+**Resolved 30 Aug 2026 (`<a14>`).** `import_scripts.py` gained the three missing prefix
+overrides (`HideNeedleElement` / `ShowNeedleElement` / `TrainingCondition` → their existing
+`UShockАction*` classes). `OrStatement` got a new `UShockOrStatement` runtime class — an exact
+`&&`→`||` mirror of `UShockAndStatement` (`UShockActionBool` base, `bLhs`/`bRhs`, `EvaluateBool()`
+returns `bLhs || bRhs`); `ActionIf` already dispatches `EvaluateBool()` polymorphically on the
+test node, so no runner change was needed. `ShockSchemaLibrary` applies its `lhs`/`rhs` defaults
+alongside `NotStatement`'s. BioShockRuntime compiles clean. **Not re-verified by re-importing the
+6 affected maps in a live editor** — the worker's Cursor-API connection dropped during that step;
+the per-map `nested_unmapped` re-run is still owed.
