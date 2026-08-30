@@ -173,6 +173,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float CorpseFadeSeconds = 5.0f;
 
+	/** Playable-slice hit flinch: stagger duration base (~0.35 s), scaled slightly by damage fraction. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float HitStaggerSeconds = 0.35f;
+
+	/** Knockback impulse magnitude base (~250), scaled and clamped per hit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float HitKnockback = 250.0f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat")
 	bool bAggroOnDamage = false;
 
@@ -306,6 +314,9 @@ public:
 	/** Called from UShockDamageLibrary when a ShockPlayer damages this AI. */
 	void NotifyAggroFromPlayer(AShockPawn* DamageInstigator);
 
+	/** Live-hit feedback: stagger, knockback, mesh flash. Called from ApplyDamage on surviving AI. */
+	void ReactToHit(float Amount, AActor* DamageInstigator);
+
 	/** Headless verify helper: runs Tick plus movement so AddMovementInput advances. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void AdvanceAutonomousCombat(float DeltaSeconds);
@@ -325,6 +336,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	bool IsNavUsingFallback() const { return bNavUsingFallback; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	float GetHitReactRemaining() const { return HitReactRemaining; }
 
 	virtual void OnDeathFromDamage() override;
 
@@ -380,9 +394,31 @@ private:
 
 	bool bDeathReactionHandled = false;
 
+	UPROPERTY()
+	float HitReactRemaining = 0.0f;
+
+	UPROPERTY()
+	float HitReactRateLimitRemaining = 0.0f;
+
+	UPROPERTY()
+	TObjectPtr<class UMaterialInstanceDynamic> HitFlashOverlayMID;
+
+	UPROPERTY()
+	bool bHitFlashUsesOverlay = false;
+
+	UPROPERTY()
+	bool bHitFlashUsesCustomDepth = false;
+
 	FTimerHandle CorpseFadeTimer;
+	FTimerHandle HitFlashTimerHandle;
+
+	static constexpr float HitReactRateLimitSeconds = 0.15f;
+	static constexpr float HitFlashSeconds = 0.12f;
+	static constexpr float HitReactMovementScale = 0.4f;
 
 	void HideCorpse();
+	void ClearHitFlash();
+	void ApplyHitFlash();
 	void TickCombat(float DeltaSeconds);
 	void StopNavChase();
 	bool TryTickNavChase(AShockPawn* Target, float DeltaSeconds);

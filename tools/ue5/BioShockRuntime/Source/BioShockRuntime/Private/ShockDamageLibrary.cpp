@@ -75,6 +75,10 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 			const float After = FMath::Max(1.0f, Before - Applied);
 			Applied = Before - After;
 			Pawn->CurrentHealth = After;
+			if (Applied > 0.0f)
+			{
+				Cast<ABaseShockAI>(Pawn)->ReactToHit(Applied, Instigator);
+			}
 			return Applied;
 		}
 	}
@@ -88,6 +92,13 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 	if (!bWasDead && Pawn->bIsDead)
 	{
 		Pawn->OnDeathFromDamage();
+	}
+	else if (ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
+	{
+		if (Applied > 0.0f && !Pawn->bIsDead)
+		{
+			AI->ReactToHit(Applied, Instigator);
+		}
 	}
 	return Applied;
 }

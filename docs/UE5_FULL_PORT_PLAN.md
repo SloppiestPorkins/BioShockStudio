@@ -1129,6 +1129,13 @@ teleport infra). **~46% of scripted behaviour references now execute in-world**
 `ActionDealDamageInRadius`, `ActionDealShockingDamageInRadius` `ApplyInWorld` wired on
 `UShockScriptRunner`. Live `run_script_damage_exec.py`, `Success - 0 error(s)`.
 
+### Phase 0 AI hit reaction — stagger / knockback / flash, 30 Aug 2026
+
+`ABaseShockAI::ReactToHit` from `UShockDamageLibrary::ApplyDamage` on live AI: ~0.35 s stagger
+(scaled by damage fraction, rate-limited ~0.15 s) interrupts melee/ranged swings without leaving
+Chase; ~40% movement speed; clamped knockback; asset-free mesh flash via dynamic material or
+overlay. `BIOSHOCK_HIT_REACT` log. Live `run_hit_reaction.py`, `Success - 0 error(s)`.
+
 ### Phase 4 shared physics path — done, 30 Aug 2026
 
 `UShockPhysicsLibrary::ApplyImpulse` / `ApplyRadialImpulse` / `SetActorPhysicsFrozen`

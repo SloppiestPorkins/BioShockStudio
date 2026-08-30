@@ -7,9 +7,12 @@
 #include "AIController.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
 #include "TimerManager.h"
@@ -234,6 +237,133 @@ void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 	}
 }
 
+void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
+{
+	if (bIsDead || bCombatLoopStopped || Amount <= 0.0f)
+	{
+		return;
+	}
+
+	const float MaxHealth = AuthoredMaxHealth > 0.0f
+		? AuthoredMaxHealth
+		: FMath::Max(CurrentHealth + Amount, 100.0f);
+	const float DamageFraction = FMath::Clamp(Amount / MaxHealth, 0.0f, 1.0f);
+	const float StaggerDuration = FMath::Min(
+		HitStaggerSeconds * (0.85f + 0.15f * DamageFraction),
+		HitStaggerSeconds * 1.25f);
+
+	if (HitReactRateLimitRemaining > 0.0f)
+	{
+		HitReactRemaining = FMath::Min(HitReactRemaining + 0.06f, HitStaggerSeconds * 1.5f);
+		return;
+	}
+
+	HitReactRemaining = FMath::Max(HitReactRemaining, StaggerDuration);
+	HitReactRateLimitRemaining = HitReactRateLimitSeconds;
+
+	const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_HIT_REACT ai=%s amount=%.0f stagger=%.2f"),
+		*AiName,
+		Amount,
+		HitReactRemaining);
+
+	if (!bCannotBecomeUnconscious && DamageInstigator)
+	{
+		FVector AwayDir = GetActorLocation() - DamageInstigator->GetActorLocation();
+		AwayDir.Z = 0.0f;
+		if (!AwayDir.IsNearlyZero())
+		{
+			AwayDir = AwayDir.GetSafeNormal();
+			const float KnockScale = FMath::Clamp(0.35f + 0.65f * DamageFraction, 0.35f, 1.0f);
+			const float ImpulseMag = FMath::Clamp(HitKnockback * KnockScale, 80.0f, HitKnockback);
+			LaunchCharacter(AwayDir * ImpulseMag, true, true);
+			const float KnockDist = FMath::Clamp(ImpulseMag * 0.08f, 12.0f, 48.0f);
+			SetActorLocation(GetActorLocation() + AwayDir * KnockDist, true);
+		}
+	}
+
+	ApplyHitFlash();
+}
+
+void ABaseShockAI::ApplyHitFlash()
+{
+	USkeletalMeshComponent* SkelMesh = GetMesh();
+	UWorld* World = GetWorld();
+	if (!SkelMesh || !World)
+	{
+		return;
+	}
+
+	bool bFlashed = false;
+	const int32 NumMaterials = SkelMesh->GetNumMaterials();
+	for (int32 Slot = 0; Slot < NumMaterials && !bFlashed; ++Slot)
+	{
+		UMaterialInstanceDynamic* MID = SkelMesh->CreateAndSetMaterialInstanceDynamic(Slot);
+		if (!MID)
+		{
+			continue;
+		}
+		const FLinearColor White(1.0f, 1.0f, 1.0f, 1.0f);
+		MID->SetVectorParameterValue(TEXT("EmissiveColor"), White);
+		MID->SetVectorParameterValue(TEXT("Emissive"), White);
+		MID->SetScalarParameterValue(TEXT("EmissiveStrength"), 4.0f);
+		bFlashed = SkelMesh->GetMaterial(Slot) != nullptr;
+	}
+
+	if (!bFlashed)
+	{
+		if (!HitFlashOverlayMID)
+		{
+			UMaterialInterface* BaseMat = UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface);
+			HitFlashOverlayMID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			if (HitFlashOverlayMID)
+			{
+				HitFlashOverlayMID->SetVectorParameterValue(
+					TEXT("BaseColor"),
+					FLinearColor(1.0f, 0.95f, 0.95f, 1.0f));
+			}
+		}
+		if (HitFlashOverlayMID)
+		{
+			SkelMesh->SetOverlayMaterial(HitFlashOverlayMID);
+			bHitFlashUsesOverlay = true;
+		}
+		else
+		{
+			SkelMesh->SetRenderCustomDepth(true);
+			bHitFlashUsesCustomDepth = true;
+		}
+	}
+
+	World->GetTimerManager().ClearTimer(HitFlashTimerHandle);
+	World->GetTimerManager().SetTimer(
+		HitFlashTimerHandle,
+		this,
+		&ABaseShockAI::ClearHitFlash,
+		HitFlashSeconds,
+		false);
+}
+
+void ABaseShockAI::ClearHitFlash()
+{
+	if (USkeletalMeshComponent* SkelMesh = GetMesh())
+	{
+		if (bHitFlashUsesOverlay)
+		{
+			SkelMesh->SetOverlayMaterial(nullptr);
+			bHitFlashUsesOverlay = false;
+		}
+		if (bHitFlashUsesCustomDepth)
+		{
+			SkelMesh->SetRenderCustomDepth(false);
+			bHitFlashUsesCustomDepth = false;
+		}
+	}
+}
+
 void ABaseShockAI::OnDeathFromDamage()
 {
 	if (bDeathReactionHandled)
@@ -243,6 +373,13 @@ void ABaseShockAI::OnDeathFromDamage()
 	bDeathReactionHandled = true;
 	++DeathNotifyCount;
 	bCombatLoopStopped = true;
+	HitReactRemaining = 0.0f;
+	HitReactRateLimitRemaining = 0.0f;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitFlashTimerHandle);
+	}
+	ClearHitFlash();
 	CombatState = EShockAICombatState::Idle;
 	ClearCombatTarget();
 	StopNavChase();
@@ -651,6 +788,15 @@ bool ABaseShockAI::TryTickNavChase(AShockPawn* Target, float DeltaSeconds)
 
 void ABaseShockAI::TickCombat(float DeltaSeconds)
 {
+	if (HitReactRemaining > 0.0f)
+	{
+		HitReactRemaining = FMath::Max(0.0f, HitReactRemaining - DeltaSeconds);
+	}
+	if (HitReactRateLimitRemaining > 0.0f)
+	{
+		HitReactRateLimitRemaining = FMath::Max(0.0f, HitReactRateLimitRemaining - DeltaSeconds);
+	}
+
 	if (MeleeCooldownRemaining > 0.0f)
 	{
 		MeleeCooldownRemaining = FMath::Max(0.0f, MeleeCooldownRemaining - DeltaSeconds);
@@ -670,7 +816,8 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
-		const float Speed = bMovementShouldRun ? RunSpeed : WalkSpeed;
+		const float SpeedMult = HitReactRemaining > 0.0f ? HitReactMovementScale : 1.0f;
+		const float Speed = (bMovementShouldRun ? RunSpeed : WalkSpeed) * SpeedMult;
 		Move->MaxWalkSpeed = Speed;
 		Move->MaxFlySpeed = Speed;
 	}
@@ -770,7 +917,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		}
 
 		FaceTargetYaw(CombatTarget);
-		if (RangedCooldownRemaining <= 0.0f)
+		if (RangedCooldownRemaining <= 0.0f && HitReactRemaining <= 0.0f)
 		{
 			TryRangedFire();
 			RangedCooldownRemaining = RangedCooldown;
@@ -795,7 +942,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		}
 
 		FaceTargetYaw(CombatTarget);
-		if (MeleeCooldownRemaining <= 0.0f)
+		if (MeleeCooldownRemaining <= 0.0f && HitReactRemaining <= 0.0f)
 		{
 			UShockDamageLibrary::ApplyDamage(CombatTarget, MeleeDamage, this, FName(TEXT("Melee")));
 			MeleeCooldownRemaining = MeleeCooldown;
