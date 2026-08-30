@@ -1112,6 +1112,15 @@ teleport infra). **~46% of scripted behaviour references now execute in-world**
 `ActionDealDamageInRadius`, `ActionDealShockingDamageInRadius` `ApplyInWorld` wired on
 `UShockScriptRunner`. Live `run_script_damage_exec.py`, `Success - 0 error(s)`.
 
+### Phase 4 shared physics path — done, 30 Aug 2026
+
+`UShockPhysicsLibrary::ApplyImpulse` / `ApplyRadialImpulse` / `SetActorPhysicsFrozen`
+(Chaos stand-ins; Havok force fields PLAUSIBLE). `ActionApplyImpulse`, `ActionFreezeHavokActor`,
+`ActionTriggerHavokForceActor`, `ActionEnableOrDisableHavokForceActor` `ApplyInWorld` wired on
+`UShockScriptRunner`. Skipped: `ActionEnableOrDisableCascadingWaterVolume` (no water volume),
+`ActionTelekinesisDropObject` (needs TK hold). Live `run_script_physics_exec.py`,
+`Success - 0 error(s)`.
+
 ### Playable Fire input mapping — done, 27 Aug 2026
 
 `run_playable_input.py` writes `ActionName="Fire"` → LeftMouseButton into the throwaway project's

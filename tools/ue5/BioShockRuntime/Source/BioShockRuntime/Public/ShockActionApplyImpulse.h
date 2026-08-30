@@ -5,7 +5,7 @@
 
 class UWorld;
 
-/** UnrealScript `ActionApplyImpulse` (Scripting.U). Records target + velocity; no physics yet. */
+/** UnrealScript `ActionApplyImpulse` (Scripting.U). ApplyInWorld uses UShockPhysicsLibrary. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionApplyImpulse : public UShockAction
 {

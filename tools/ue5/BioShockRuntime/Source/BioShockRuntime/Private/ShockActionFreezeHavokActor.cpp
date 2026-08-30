@@ -1,8 +1,6 @@
 #include "ShockActionFreezeHavokActor.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
-#include "Components/PrimitiveComponent.h"
+#include "ShockPhysicsLibrary.h"
 
 UShockActionFreezeHavokActor::UShockActionFreezeHavokActor()
 {
@@ -23,39 +21,24 @@ bool UShockActionFreezeHavokActor::ApplyToActor(AActor* Target)
 	{
 		return false;
 	}
-	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(Target->GetRootComponent()))
-	{
-		Prim->SetSimulatePhysics(!bFreeze);
-	}
+	const bool bApplied = UShockPhysicsLibrary::SetActorPhysicsFrozen(
+		Target,
+		bFreeze,
+		!bFreeze && bActivateWhenUnfreezing);
 	bLastAppliedFreeze = bFreeze;
-	return true;
+	return bApplied;
 }
 
 int32 UShockActionFreezeHavokActor::ApplyInWorld(UWorld* World)
 {
-	int32 Applied = 0;
 	if (!World || TargetLabel.IsNone())
 	{
 		return 0;
 	}
-	const FString Want = TargetLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	AActor* TargetActor = UShockPhysicsLibrary::FindActorByLabel(World, TargetLabel);
+	if (!TargetActor)
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
-		if (ApplyToActor(Actor))
-		{
-			++Applied;
-		}
-#endif
+		return 0;
 	}
-	return Applied;
+	return ApplyToActor(TargetActor) ? 1 : 0;
 }

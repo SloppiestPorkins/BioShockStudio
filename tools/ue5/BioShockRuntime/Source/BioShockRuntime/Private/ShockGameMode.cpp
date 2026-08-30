@@ -1,6 +1,7 @@
 #include "ShockGameMode.h"
 #include "BaseShockAI.h"
 #include "ShockDeathRespawnHandler.h"
+#include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
 
@@ -14,6 +15,7 @@
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 #include "GameFramework/WorldSettings.h"
 #include "Components/LightComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -372,6 +374,30 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 	Super::PostLogin(NewPlayer);
 
 	EnableDynamicLighting(GetWorld());
+
+	if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyphysics")))
+	{
+		UWorld* World = GetWorld();
+		FTimerHandle TimerHandle;
+		World->GetTimerManager().SetTimer(
+			TimerHandle,
+			FTimerDelegate::CreateLambda([World]()
+			{
+				FString Error;
+				if (UShockPhysicsLibrary::RunHeadlessSelfTest(World, Error))
+				{
+					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PHYSICS_OK"));
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_PHYSICS_FAIL reason=%s"), *Error);
+				}
+				FGenericPlatformMisc::RequestExit(false);
+			}),
+			0.1f,
+			false);
+		return;
+	}
 
 	APawn* Pawn = NewPlayer ? NewPlayer->GetPawn() : nullptr;
 	if (Pawn && NewPlayer)

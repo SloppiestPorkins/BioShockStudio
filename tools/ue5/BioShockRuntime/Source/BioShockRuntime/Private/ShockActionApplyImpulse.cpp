@@ -1,8 +1,6 @@
 #include "ShockActionApplyImpulse.h"
 
-#include "Components/PrimitiveComponent.h"
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
+#include "ShockPhysicsLibrary.h"
 
 UShockActionApplyImpulse::UShockActionApplyImpulse()
 {
@@ -28,31 +26,14 @@ bool UShockActionApplyImpulse::RequestApply()
 
 int32 UShockActionApplyImpulse::ApplyInWorld(UWorld* World)
 {
-	int32 Applied = 0;
 	if (!RequestApply() || !World || Velocity.IsNearlyZero())
 	{
 		return 0;
 	}
-	const FString Want = Target.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	AActor* TargetActor = UShockPhysicsLibrary::FindActorByLabel(World, Target);
+	if (!TargetActor)
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
-		if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(Actor->GetRootComponent()))
-		{
-			Prim->SetSimulatePhysics(true);
-			Prim->AddImpulse(Velocity, NAME_None, true);
-			++Applied;
-		}
-#endif
+		return 0;
 	}
-	return Applied;
+	return UShockPhysicsLibrary::ApplyImpulse(TargetActor, Velocity, true, true) > 0 ? 1 : 0;
 }

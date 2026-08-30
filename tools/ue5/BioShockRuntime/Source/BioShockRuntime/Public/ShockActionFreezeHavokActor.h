@@ -7,8 +7,7 @@ class AActor;
 class UWorld;
 
 /**
- * UnrealScript `ActionFreezeHavokActor`: freeze/unfreeze a Havok actor.
- * First slice: Freeze=true → disable physics simulation on root body if present; record intent.
+ * UnrealScript `ActionFreezeHavokActor`: freeze/unfreeze via UShockPhysicsLibrary.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionFreezeHavokActor : public UShockAction

@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionTriggerHavokForceActor.generated.h"
 
-/** UnrealScript `ActionTriggerHavokForceActor`. Records Target; no Havok force yet. */
+class UWorld;
+
+/** UnrealScript `ActionTriggerHavokForceActor`. PLAUSIBLE radial impulse at labeled force actor. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTriggerHavokForceActor : public UShockAction
 {
@@ -26,4 +28,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestTrigger();
+
+	/** Find TargetLabel and apply PLAUSIBLE radial impulse when enabled. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

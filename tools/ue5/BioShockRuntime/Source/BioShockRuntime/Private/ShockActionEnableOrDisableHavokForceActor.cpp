@@ -1,5 +1,7 @@
 #include "ShockActionEnableOrDisableHavokForceActor.h"
 
+#include "ShockPhysicsLibrary.h"
+
 UShockActionEnableOrDisableHavokForceActor::UShockActionEnableOrDisableHavokForceActor()
 {
 	ActionClassName = TEXT("ActionEnableOrDisableHavokForceActor");
@@ -19,4 +21,14 @@ bool UShockActionEnableOrDisableHavokForceActor::RequestSet()
 	}
 	LastTarget = Target;
 	return true;
+}
+
+int32 UShockActionEnableOrDisableHavokForceActor::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet() || !World)
+	{
+		return 0;
+	}
+	UShockPhysicsLibrary::SetHavokForceActorEnabled(Target, bEnabled);
+	return 1;
 }

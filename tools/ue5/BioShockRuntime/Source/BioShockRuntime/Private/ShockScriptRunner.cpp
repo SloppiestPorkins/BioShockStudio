@@ -43,6 +43,8 @@
 #include "ShockActionDealShockingDamageInRadius.h"
 #include "ShockActionInitiateDamage.h"
 #include "ShockActionApplyImpulse.h"
+#include "ShockActionTriggerHavokForceActor.h"
+#include "ShockActionEnableOrDisableHavokForceActor.h"
 #include "ShockActionStartTimer.h"
 #include "ShockActionStopTimer.h"
 #include "ShockActionRunConsoleCommand.h"
@@ -989,6 +991,32 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 			World = OuterActor->GetWorld();
 		}
 		Impulse->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionTriggerHavokForceActor* TriggerForce = Cast<UShockActionTriggerHavokForceActor>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		TriggerForce->ApplyInWorld(World);
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionEnableOrDisableHavokForceActor* HavokForceEnable = Cast<UShockActionEnableOrDisableHavokForceActor>(Action))
+	{
+		UWorld* World = nullptr;
+		if (const AActor* OuterActor = Cast<AActor>(GetOuter()))
+		{
+			World = OuterActor->GetWorld();
+		}
+		HavokForceEnable->ApplyInWorld(World);
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
