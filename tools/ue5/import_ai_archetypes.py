@@ -9,15 +9,48 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 
 import unreal
 
 CONTENT_ROOT = "/Game/BioShockArchetypes"
 FINGERPRINT_TAG = "BioShockArchetypeFingerprint"
 
+# Default shipped 1-Medical package (same path verify_ai_archetypes.py uses).
+DEFAULT_MEDICAL_BSM = (
+    r"G:\SteamLibrary\steamapps\common\BioShock Remastered"
+    r"\ContentBaked\pc\Maps\1-Medical.bsm"
+)
+
 
 def _log(message):
     unreal.log("[bioshock-ai-archetypes] %s" % message)
+
+
+def _repo_root():
+    here = os.path.abspath(os.path.dirname(__file__))
+    return os.path.abspath(os.path.join(here, "..", ".."))
+
+
+def _reexport_manifest(package_bsm):
+    """Run a fresh `export-level` from the shipped bytes so the manifest carries archetypes.
+
+    A checked-out `*.ue5-level.json` can predate `document.archetypes`; verify_ai_archetypes.py
+    does the same fallback. Returns the fresh manifest path.
+    """
+    out_dir = os.path.join(os.environ.get("TEMP", "."), "bioshock-ai-archetype-import")
+    os.makedirs(out_dir, exist_ok=True)
+    cli = os.path.join(_repo_root(), "src", "BioShockStudio.Cli")
+    subprocess.run(
+        ["dotnet", "run", "--project", cli, "--", "export-level", package_bsm, out_dir],
+        check=True,
+        cwd=_repo_root(),
+    )
+    stem = os.path.splitext(os.path.basename(package_bsm))[0]
+    manifest = os.path.join(out_dir, stem, stem + ".ue5-level.json")
+    if not os.path.isfile(manifest):
+        raise RuntimeError("export-level did not write %s" % manifest)
+    return manifest
 
 
 def _package_folder(manifest):
@@ -173,7 +206,7 @@ def _configure_asset(asset, archetype, manifest):
         "weapon_slots",
         _make_loadout_slots(archetype.get("weaponSlots")),
     )
-    asset.set_editor_property("b_is_ranged", _is_ranged_archetype(archetype))
+    asset.set_editor_property("is_ranged", _is_ranged_archetype(archetype))
     unreal.EditorAssetLibrary.set_metadata_tag(asset, FINGERPRINT_TAG, _fingerprint(archetype))
     return payload
 
@@ -184,10 +217,22 @@ def import_ai_archetypes(manifest_path, content_root=CONTENT_ROOT):
 
     archetypes = manifest.get("archetypes") or []
     if not archetypes:
-        raise RuntimeError(
-            "manifest %s has no archetypes — re-export with a current export-level build"
-            % manifest_path
-        )
+        # Stale manifest (predates document.archetypes). Re-export fresh from the shipped bytes.
+        package_bsm = os.environ.get("BIOSHOCK_MEDICAL_BSM") or DEFAULT_MEDICAL_BSM
+        if not os.path.isfile(package_bsm):
+            raise RuntimeError(
+                "manifest %s has no archetypes and no shipped package to re-export from "
+                "(set BIOSHOCK_MEDICAL_BSM)" % manifest_path
+            )
+        _log("manifest has no archetypes; re-exporting from %s" % package_bsm)
+        manifest_path = _reexport_manifest(package_bsm)
+        with open(manifest_path, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        archetypes = manifest.get("archetypes") or []
+        if not archetypes:
+            raise RuntimeError(
+                "re-exported manifest %s still has no archetypes" % manifest_path
+            )
 
     package = manifest.get("package") or "unknown"
     folder = "%s/%s" % (content_root, package)

@@ -55,7 +55,7 @@ def main(out):
         weapon.configure_ammo(50, 0, 10.0, 2.5)
         weapon.initialize_ammo_full_mag(0)
         weapon.set_auto_reload(False)
-        weapon.set_editor_property("b_draw_tracers", True)
+        weapon.set_editor_property("draw_tracers", True)
         shooter.equip_weapon(weapon)
 
         recoil_before = float(shooter.get_weapon_recoil_kick_remaining_for_verify())
