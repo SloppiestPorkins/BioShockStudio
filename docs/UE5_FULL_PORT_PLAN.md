@@ -1011,6 +1011,14 @@ BlockingVolumes do not eat the shot. Live `-game -bioshockverifypossess`:
 Spawn offset re-verified the same run: `BIOSHOCK_SLICE_SPAWN` loc Y=1521.997 vs player
 Y=1271.997 (250 uu along +Y). Not ammo, not fire anims, not a human PIE claim.
 
+### Phase 0 weapon ammo — magazine / reload / pickup, 30 Aug 2026
+
+`AShockWeapon` magazine (50), reserve pool (150 start), fire-rate gate (~10 rps), timer reload
+(2.5s), dry-fire log (`BIOSHOCK_WEAPON_DRY`), ammo log (`BIOSHOCK_AMMO mag=%d reserve=%d`).
+`AShockPlayer` binds **R** → `Reload()`. `AShockAmmoPickup` overlap adds reserve; one placed near
+`SliceBabyJane` on slice spawn. Live `run_weapon_ammo.py`, `Success - 0 error(s)`. Hitscan damage
+path unchanged (`BIOSHOCK_SLICE_OK` 100→75 not re-run this pass).
+
 ### Phase 0 PIE — roof spawn / viewmodel / unbuilt lighting, 29 Aug 2026
 
 Human Play on `1-Medical` was unusable: pawn in the sky, no gun in view, walls broken.

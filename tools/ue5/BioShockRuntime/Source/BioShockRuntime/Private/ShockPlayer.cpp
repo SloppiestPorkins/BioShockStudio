@@ -274,6 +274,20 @@ void AShockPlayer::HandleFireInput()
 	TryFireEquippedWeapon();
 }
 
+bool AShockPlayer::TryReloadEquippedWeapon()
+{
+	if (!EquippedWeapon)
+	{
+		return false;
+	}
+	return EquippedWeapon->Reload();
+}
+
+void AShockPlayer::HandleReloadInput()
+{
+	TryReloadEquippedWeapon();
+}
+
 void AShockPlayer::MoveForward(float Value)
 {
 	if (Value == 0.0f || Controller == nullptr || bMovementDisabled)
@@ -863,6 +877,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		return;
 	}
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
+	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

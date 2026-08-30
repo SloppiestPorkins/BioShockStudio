@@ -1,5 +1,6 @@
 #include "ShockGameMode.h"
 #include "BaseShockAI.h"
+#include "ShockAmmoPickup.h"
 #include "ShockDeathRespawnHandler.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
@@ -215,6 +216,8 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	}
 
 	Weapon->ConfigureHitscan(25.0f, 10000.0f);
+	Weapon->ConfigureAmmo(50, 150, 10.0f, 2.5f);
+	Weapon->InitializeAmmoFullMag(150);
 
 	if (USkeletalMesh* TommyGun = LoadObject<USkeletalMesh>(
 			nullptr,
@@ -306,6 +309,61 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 	}
 
 	return AI;
+}
+
+void AShockGameMode::SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		return;
+	}
+
+	for (TActorIterator<AShockAmmoPickup> It(World); It; ++It)
+	{
+		if (*It && (*It)->Tags.Contains(FName(TEXT("SliceAmmoPickup"))))
+		{
+			return;
+		}
+	}
+
+	FVector SpawnLoc = Player->GetActorLocation();
+	if (Enemy)
+	{
+		SpawnLoc = Enemy->GetActorLocation() + FVector(0.0f, 120.0f, 0.0f);
+	}
+	else if (StartSpot)
+	{
+		SpawnLoc = StartSpot->GetActorLocation() + FVector(180.0f, 0.0f, 0.0f);
+	}
+	else
+	{
+		SpawnLoc += FVector(180.0f, 0.0f, 0.0f);
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AShockAmmoPickup* Pickup = World->SpawnActor<AShockAmmoPickup>(
+		AShockAmmoPickup::StaticClass(),
+		SpawnLoc,
+		FRotator::ZeroRotator,
+		Params);
+	if (!Pickup)
+	{
+		return;
+	}
+
+	Pickup->Tags.Add(FName(TEXT("SliceAmmoPickup")));
+	Pickup->PickupAmount = 60;
+#if WITH_EDITOR
+	Pickup->SetActorLabel(TEXT("SliceAmmoPickup"));
+#endif
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_AMMO_PICKUP loc=%s amount=%d"),
+		*Pickup->GetActorLocation().ToString(),
+		Pickup->PickupAmount);
 }
 
 UShockDeathRespawnHandler* AShockGameMode::EnsureDeathHandler()
@@ -412,6 +470,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				ABaseShockAI* Enemy = SpawnSliceEnemy(Player, Start);
+				SpawnSliceAmmoPickup(Player, Start, Enemy);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{
 					VerifySliceFire(Player, Enemy);

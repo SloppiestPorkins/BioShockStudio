@@ -55,6 +55,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryFireEquippedWeapon();
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool TryReloadEquippedWeapon();
+
 	/**
 	 * UnrealScript `ShockPlayer.AddStackToInventory` stand-in: merge StackSize into the
 	 * named ItemClass. No Item actors, no UI warnings, no max-stack clamp.
@@ -325,6 +328,7 @@ public:
 
 private:
 	void HandleFireInput();
+	void HandleReloadInput();
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void TurnAtRate(float Value);

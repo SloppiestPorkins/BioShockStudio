@@ -41,6 +41,7 @@ private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
 	void EquipStarterWeapon(AShockPlayer* Player);
 	ABaseShockAI* SpawnSliceEnemy(AShockPlayer* Player, AActor* StartSpot);
+	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	UShockDeathRespawnHandler* EnsureDeathHandler();
 
