@@ -79,10 +79,15 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 		}
 	}
 
+	const bool bWasDead = Pawn->bIsDead;
 	Pawn->CurrentHealth = FMath::Max(0.0f, Before - Applied);
 	if (Pawn->CurrentHealth <= 0.0f)
 	{
 		Pawn->bIsDead = true;
+	}
+	if (!bWasDead && Pawn->bIsDead)
+	{
+		Pawn->OnDeathFromDamage();
 	}
 	return Applied;
 }

@@ -29,6 +29,10 @@ float AShockPawn::ApplyAuthoredDamage(float Damage)
 	return CurrentHealth;
 }
 
+void AShockPawn::OnDeathFromDamage()
+{
+}
+
 void AShockPawn::SetScriptedPhysicsDisabled(bool bDisable, bool bRootMotion)
 {
 	bPhysicsDisabled = bDisable;

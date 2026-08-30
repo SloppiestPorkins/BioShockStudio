@@ -9,6 +9,8 @@ class UInputComponent;
 class USkeletalMeshComponent;
 class UWorld;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerDied, AShockPlayer*, Player);
+
 /** UnrealScript `ShockPlayer`. CollisionRadius=34 is on this class's own defaults, not the parent. */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockPlayer : public AShockPawn
@@ -304,6 +306,20 @@ public:
 	/** Possessed ShockPlayer, or the first placed one (editor/headless). */
 	static AShockPlayer* FindLocalOrFirst(UWorld* World);
 
+	/** Fired once when ApplyDamage flips bIsDead true. */
+	UPROPERTY(BlueprintAssignable, Category="BioShock|Player")
+	FOnPlayerDied OnPlayerDied;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void OnDied();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	int32 GetDeathNotifyCount() const { return DeathNotifyCount; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void ResetForRespawn(float Health);
+
+	virtual void OnDeathFromDamage() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -441,4 +457,9 @@ private:
 
 	UPROPERTY()
 	TSet<FName> RemovedHoldables;
+
+	UPROPERTY()
+	int32 DeathNotifyCount = 0;
+
+	bool bDeathHandled = false;
 };

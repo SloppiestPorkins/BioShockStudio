@@ -1,5 +1,6 @@
 #include "ShockGameMode.h"
 #include "BaseShockAI.h"
+#include "ShockDeathRespawnHandler.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
 
@@ -305,6 +306,38 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 	return AI;
 }
 
+UShockDeathRespawnHandler* AShockGameMode::EnsureDeathHandler()
+{
+	if (!DeathHandler)
+	{
+		DeathHandler = NewObject<UShockDeathRespawnHandler>(this);
+	}
+	DeathHandler->RespawnDelaySeconds = RespawnDelaySeconds;
+	DeathHandler->bReloadLevelOnDeath = bReloadLevelOnDeath;
+	return DeathHandler;
+}
+
+void AShockGameMode::BindPlayerDeathHandling(AShockPlayer* Player, AActor* RespawnStart)
+{
+	if (UShockDeathRespawnHandler* Handler = EnsureDeathHandler())
+	{
+		Handler->Initialize(GetWorld(), Player, RespawnStart);
+	}
+}
+
+bool AShockGameMode::IsRespawnPending() const
+{
+	return DeathHandler && DeathHandler->IsRespawnPending();
+}
+
+void AShockGameMode::AdvanceRespawnForVerify(float DeltaSeconds)
+{
+	if (DeathHandler)
+	{
+		DeathHandler->AdvanceRespawnForVerify(DeltaSeconds);
+	}
+}
+
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 {
 	if (!Player || !Enemy)
@@ -351,6 +384,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 			{
 				EquipStarterWeapon(Player);
 				NewPlayer->SetViewTarget(Player);
+				BindPlayerDeathHandling(Player, Start);
 				ABaseShockAI* Enemy = SpawnSliceEnemy(Player, Start);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{

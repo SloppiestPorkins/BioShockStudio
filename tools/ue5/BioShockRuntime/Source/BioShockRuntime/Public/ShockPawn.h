@@ -70,6 +70,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	bool IsDead() const { return bIsDead; }
 
+	/** Called once when ApplyDamage flips bIsDead false→true. Subclasses handle death reactions. */
+	virtual void OnDeathFromDamage();
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	void SetScriptedPhysicsDisabled(bool bDisable, bool bRootMotion);
 

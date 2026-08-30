@@ -150,6 +150,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float PerceptionScanInterval = 0.25f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float CorpseFadeSeconds = 5.0f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat")
 	bool bAggroOnDamage = false;
 
@@ -272,6 +275,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void AdvanceAutonomousCombat(float DeltaSeconds);
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	bool IsCombatLoopActive() const { return !bCombatLoopStopped; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	int32 GetDeathNotifyCount() const { return DeathNotifyCount; }
+
+	virtual void OnDeathFromDamage() override;
+
 	/** Switch to gravity-free flying — for headless verification / floorless test maps only.
 	 *  Real play keeps the default walking mode. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
@@ -301,6 +312,17 @@ private:
 	UPROPERTY()
 	float OutOfSightTimer = 0.0f;
 
+	UPROPERTY()
+	bool bCombatLoopStopped = false;
+
+	UPROPERTY()
+	int32 DeathNotifyCount = 0;
+
+	bool bDeathReactionHandled = false;
+
+	FTimerHandle CorpseFadeTimer;
+
+	void HideCorpse();
 	void TickCombat(float DeltaSeconds);
 	bool IsCombatLoopGated() const;
 	bool IsAliveTarget(const AShockPawn* Target) const;

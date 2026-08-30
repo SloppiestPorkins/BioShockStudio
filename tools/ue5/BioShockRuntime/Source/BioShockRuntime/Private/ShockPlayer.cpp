@@ -54,6 +54,71 @@ AShockPlayer::AShockPlayer()
 	ViewHands->SetHiddenInGame(true);
 }
 
+void AShockPlayer::OnDeathFromDamage()
+{
+	OnDied();
+}
+
+void AShockPlayer::OnDied()
+{
+	if (bDeathHandled)
+	{
+		return;
+	}
+	bDeathHandled = true;
+	++DeathNotifyCount;
+
+	EnablePlayableInput(false);
+	SetMovementDisabled(true);
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->DisableInput(PC);
+	}
+
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->StopMovementImmediately();
+		Move->DisableMovement();
+	}
+
+	if (ViewHands)
+	{
+		ViewHands->SetHiddenInGame(true);
+	}
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->SetActorHiddenInGame(true);
+	}
+
+	OnPlayerDied.Broadcast(this);
+}
+
+void AShockPlayer::ResetForRespawn(float Health)
+{
+	const float Seed = Health > 0.0f ? Health : (AuthoredMaxHealth > 0.0f ? AuthoredMaxHealth : 100.0f);
+	CurrentHealth = Seed;
+	bIsDead = false;
+	bInvincible = false;
+	bDeathHandled = false;
+	SetMovementDisabled(false);
+	EnablePlayableInput(true);
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->EnableInput(PC);
+	}
+
+	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
+	{
+		ViewHands->SetHiddenInGame(false);
+	}
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->SetActorHiddenInGame(false);
+	}
+}
+
 void AShockPlayer::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);

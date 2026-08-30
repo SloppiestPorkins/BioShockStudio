@@ -8,6 +8,7 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -138,6 +139,53 @@ void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 	}
 }
 
+void ABaseShockAI::OnDeathFromDamage()
+{
+	if (bDeathReactionHandled)
+	{
+		return;
+	}
+	bDeathReactionHandled = true;
+	++DeathNotifyCount;
+	bCombatLoopStopped = true;
+	CombatState = EShockAICombatState::Idle;
+	ClearCombatTarget();
+	SetActorTickEnabled(false);
+
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->StopMovementImmediately();
+		Move->DisableMovement();
+	}
+
+	if (CorpseFadeSeconds > 0.0f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(
+				CorpseFadeTimer,
+				this,
+				&ABaseShockAI::HideCorpse,
+				CorpseFadeSeconds,
+				false);
+		}
+	}
+}
+
+void ABaseShockAI::HideCorpse()
+{
+	SetActorHiddenInGame(true);
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetHiddenInGame(true);
+	}
+}
+
 void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 {
 	// Headless verification entry point — no world tick, no collision floor.
@@ -157,7 +205,7 @@ void ABaseShockAI::Tick(float DeltaSeconds)
 
 bool ABaseShockAI::IsCombatLoopGated() const
 {
-	return bIsDead || bToldToWait || !bCanAttack;
+	return bIsDead || bCombatLoopStopped || bToldToWait || !bCanAttack;
 }
 
 bool ABaseShockAI::IsAliveTarget(const AShockPawn* Target) const
