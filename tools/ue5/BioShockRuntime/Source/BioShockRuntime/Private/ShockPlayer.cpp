@@ -12,6 +12,12 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
+
+namespace
+{
+constexpr float WeaponRecoilRecoverSeconds = 0.12f;
+}
 
 AShockPlayer::AShockPlayer()
 {
@@ -267,6 +273,69 @@ bool AShockPlayer::TryFireEquippedWeapon()
 	}
 
 	return EquippedWeapon->FireAt(this, Start, Aim.Vector());
+}
+
+void AShockPlayer::ApplyWeaponRecoil()
+{
+	static constexpr float KickDegrees = 0.6f;
+	WeaponRecoilKickTotal = KickDegrees;
+	WeaponRecoilKickRemaining = KickDegrees;
+
+	if (AController* C = GetController())
+	{
+		FRotator Rot = C->GetControlRotation();
+		Rot.Pitch = FMath::Clamp(Rot.Pitch - KickDegrees, -89.0f, 89.0f);
+		C->SetControlRotation(Rot);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			WeaponRecoilTimerHandle,
+			this,
+			&AShockPlayer::TickWeaponRecoil,
+			0.01f,
+			true);
+	}
+}
+
+void AShockPlayer::AdvanceWeaponRecoilForVerify(float DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0f || WeaponRecoilKickRemaining <= KINDA_SMALL_NUMBER)
+	{
+		WeaponRecoilKickRemaining = 0.0f;
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(WeaponRecoilTimerHandle);
+		}
+		return;
+	}
+
+	const float RecoverRate =
+		WeaponRecoilKickTotal > KINDA_SMALL_NUMBER && WeaponRecoilRecoverSeconds > KINDA_SMALL_NUMBER
+			? WeaponRecoilKickTotal / WeaponRecoilRecoverSeconds
+			: 0.0f;
+	const float Step = FMath::Min(RecoverRate * DeltaSeconds, WeaponRecoilKickRemaining);
+	if (AController* C = GetController())
+	{
+		FRotator Rot = C->GetControlRotation();
+		Rot.Pitch = FMath::Clamp(Rot.Pitch + Step, -89.0f, 89.0f);
+		C->SetControlRotation(Rot);
+	}
+	WeaponRecoilKickRemaining -= Step;
+	if (WeaponRecoilKickRemaining <= KINDA_SMALL_NUMBER)
+	{
+		WeaponRecoilKickRemaining = 0.0f;
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(WeaponRecoilTimerHandle);
+		}
+	}
+}
+
+void AShockPlayer::TickWeaponRecoil()
+{
+	AdvanceWeaponRecoilForVerify(0.01f);
 }
 
 void AShockPlayer::HandleFireInput()

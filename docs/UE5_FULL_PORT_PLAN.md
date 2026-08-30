@@ -1238,6 +1238,13 @@ bottom-left, mag/reserve ammo bottom-right; ammo hidden when `bEnforceAmmo` is f
 `AShockPlayer` / equipped `AShockWeapon` every 0.1s. `AShockGameMode::PostLogin` adds it to the
 viewport after possess. Verified headless via `run_hud.py` (`Success - 0 error(s)`, 30 Aug 2026).
 
+**Phase 3 depth — weapon firing feedback, 30 Aug 2026 (Cursor).** `AShockWeapon::FireAt`
+presentation bolt-on: lazy `UPointLightComponent` muzzle flash (~0.04s warm / dim-red dry click),
+`DrawDebugLine` tracer (`bDrawTracers`, default true), pawn/world-static hit markers
+(red/yellow debug spheres), and subtle `AShockPlayer` camera recoil (~0.6° pitch kick easing over
+~0.12s; AI instigators skip recoil). Hitscan damage/ammo gates unchanged. Verified headless via
+`run_weapon_feedback.py` (`Success - 0 error(s)`, 30 Aug 2026).
+
 **Phase 2.3 tail-1 — script-importer mapping gap closed, 30 Aug 2026.** The 21-map sidecar
 census (`docs/research/interaction.md` §8) found `import_scripts.py` silently dropping four
 shipped node classes: `OrStatement` ×23, `HideNeedleElement` ×2, `ShowNeedleElement` ×2,

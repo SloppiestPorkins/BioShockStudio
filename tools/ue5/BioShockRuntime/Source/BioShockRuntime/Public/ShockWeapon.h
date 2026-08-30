@@ -4,6 +4,7 @@
 #include "ShockWeapon.generated.h"
 
 class AShockPawn;
+class UPointLightComponent;
 class USkeletalMeshComponent;
 
 /**
@@ -57,6 +58,10 @@ public:
 	/** When false, FireAt skips magazine/reload/rate gates (AI stand-ins). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
 	bool bEnforceAmmo = false;
+
+	/** Draw a short-lived debug tracer on each fired round (PIE-visible, no assets). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Weapon")
+	bool bDrawTracers = true;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
 	bool bIsReloading = false;
@@ -113,6 +118,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void AdvanceFireRateClockForVerify(float DeltaSeconds);
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	int32 GetTracerDrawCountForVerify() const { return TracerDrawCount; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	int32 GetMuzzleFlashCountForVerify() const { return MuzzleFlashCount; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	bool HasMuzzleFlashLightForVerify() const { return MuzzleFlashLight != nullptr; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	bool IsMuzzleFlashLightVisibleForVerify() const;
+
+	/** Headless verify: expire the muzzle-flash timer without real-time wait. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	void AdvanceMuzzleFlashForVerify(float DeltaSeconds);
+
 	/**
 	 * Line-trace from Start along Direction. On AShockPawn hit, ApplyAuthoredDamage.
 	 * Returns true if a ShockPawn was damaged. Refuses when empty, reloading, or fire-rate gated.
@@ -126,8 +147,26 @@ private:
 	void TryAutoReloadOnEmpty();
 	float GetMinFireInterval() const;
 	bool CanFireNow(UWorld* World) const;
+	FVector ResolveMuzzleLocation(const FVector& TraceStart) const;
+	void EnsureMuzzleFlashLight();
+	void HideMuzzleFlash();
+	void FlashMuzzleLight(const FVector& WorldLocation, const FLinearColor& Color, float Intensity, float Duration);
+	void PlayDryFireFeedback(const FVector& TraceStart);
+	void PlayFireFeedback(
+		AActor* InstigatorActor,
+		const FVector& MuzzleLocation,
+		const FVector& VisualEnd,
+		bool bPawnHit,
+		bool bWorldHit);
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPointLightComponent> MuzzleFlashLight;
 
 	FTimerHandle ReloadTimerHandle;
+	FTimerHandle MuzzleFlashTimerHandle;
+	float MuzzleFlashRemaining = 0.0f;
+	int32 TracerDrawCount = 0;
+	int32 MuzzleFlashCount = 0;
 	float ReloadCountdown = 0.0f;
 	double LastFireWorldSeconds = -1.0;
 };

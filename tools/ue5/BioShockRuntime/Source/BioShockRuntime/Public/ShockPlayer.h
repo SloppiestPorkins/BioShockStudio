@@ -319,6 +319,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player")
 	int32 GetDeathNotifyCount() const { return DeathNotifyCount; }
 
+	/** Subtle camera kick when the equipped weapon fires (presentation only). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void ApplyWeaponRecoil();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetWeaponRecoilKickRemainingForVerify() const { return WeaponRecoilKickRemaining; }
+
+	/** Headless verify: ease recoil back without real-time wait. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void AdvanceWeaponRecoilForVerify(float DeltaSeconds);
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void ResetForRespawn(float Health);
 
@@ -335,6 +346,7 @@ private:
 	void LookUpAtRate(float Value);
 	void EnsureViewHands();
 	void FrameViewmodel(FName GripSocket);
+	void TickWeaponRecoil();
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;
@@ -466,4 +478,8 @@ private:
 	int32 DeathNotifyCount = 0;
 
 	bool bDeathHandled = false;
+
+	float WeaponRecoilKickRemaining = 0.0f;
+	float WeaponRecoilKickTotal = 0.0f;
+	FTimerHandle WeaponRecoilTimerHandle;
 };
