@@ -1,5 +1,6 @@
 #include "ShockGameMode.h"
 #include "BaseShockAI.h"
+#include "ShockAiArchetype.h"
 #include "ShockAmmoPickup.h"
 #include "ShockDeathRespawnHandler.h"
 #include "ShockHudWidget.h"
@@ -230,54 +231,46 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->EquipWeapon(Weapon);
 }
 
-ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* StartSpot)
+namespace
 {
-	UWorld* World = GetWorld();
-	if (!World || !Player)
+FName ResolveSliceRangedArchetypeKey()
+{
+	static const FName Candidates[] = {
+		FName(TEXT("ThuggishSplicer")),
+		FName(TEXT("LeadheadSplicer")),
+		FName(TEXT("MachineGunMutant")),
+		FName(TEXT("RangedAggressor")),
+	};
+	for (const FName Key : Candidates)
 	{
-		return nullptr;
-	}
-
-	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
-	{
-		if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceBabyJane")))
+		if (UShockAiArchetype* Archetype = UShockAiArchetypeLibrary::FindByKey(Key))
 		{
-			return *It;
+			if (Archetype->bIsRanged)
+			{
+				return Key;
+			}
 		}
 	}
+	return NAME_None;
+}
 
-	FVector Forward = PlayableStartRotation(StartSpot).Vector();
-	Forward.Z = 0.0f;
-	if (Forward.IsNearlyZero())
+void ConfigureSlicePlayerLabel(AShockPlayer* Player)
+{
+	if (!Player)
 	{
-		Forward = FVector::YAxisVector;
+		return;
 	}
-	Forward.Normalize();
+#if WITH_EDITOR
+	Player->SetActorLabel(TEXT("SlicePlayer"));
+#endif
+}
 
-	FVector SpawnLoc = Player->GetActorLocation() + Forward * 250.0f;
-	SpawnLoc.Z = Player->GetActorLocation().Z;
-
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(
-		ABaseShockAI::StaticClass(),
-		SpawnLoc,
-		(-Forward).Rotation(),
-		Params);
+void ApplySliceCapsuleCollision(ABaseShockAI* AI)
+{
 	if (!AI)
 	{
-		return nullptr;
+		return;
 	}
-
-	AI->ConfigureIdentity(FName(TEXT("Agg_BabyJane")), FName(TEXT("SliceBabyJane")));
-	AI->ApplyArchetypeLookup(FName(TEXT("Agg_BabyJane")));
-	AI->EnsureHealthInitialized();
-	UE_LOG(
-		LogTemp,
-		Display,
-		TEXT("BIOSHOCK_SLICE_SPAWN loc=%s player=%s"),
-		*AI->GetActorLocation().ToString(),
-		*Player->GetActorLocation().ToString());
 	if (UCapsuleComponent* Capsule = AI->GetCapsuleComponent())
 	{
 		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -287,13 +280,14 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 		Capsule->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 		Capsule->SetCollisionResponseToChannel(ECC_Camera, ECR_Block);
 	}
-#if WITH_EDITOR
-	AI->SetActorLabel(TEXT("SliceBabyJane"));
-#endif
+}
 
-	// Fallback: if the archetype lookup did not resolve a mesh (asset not imported, or the
-	// import could not map the manifest name to a UE asset), keep the known-good slice mesh so
-	// the enemy is never invisible.
+void ApplySliceBabyJaneMeshFallback(ABaseShockAI* AI, FName ArchetypeKey)
+{
+	if (!AI || ArchetypeKey != FName(TEXT("Agg_BabyJane")))
+	{
+		return;
+	}
 	if (USkeletalMeshComponent* Body = AI->GetMesh())
 	{
 		if (!Body->GetSkeletalMeshAsset())
@@ -308,8 +302,231 @@ ABaseShockAI* AShockGameMode::SpawnSliceEnemy(AShockPlayer* Player, AActor* Star
 			}
 		}
 	}
+}
+
+void EquipSliceRangedWeaponIfNeeded(UWorld* World, ABaseShockAI* AI, bool bForceRangedWeapon)
+{
+	if (!World || !AI || AI->HasAIWeapon() || !bForceRangedWeapon)
+	{
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = AI;
+	Params.Instigator = AI;
+	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
+		AShockWeapon::StaticClass(),
+		AI->GetActorLocation(),
+		AI->GetActorRotation(),
+		Params);
+	if (!Weapon)
+	{
+		return;
+	}
+
+	Weapon->ConfigureHitscan(20.0f, 10000.0f);
+	AI->EquipAIWeapon(Weapon);
+}
+}
+
+ABaseShockAI* AShockGameMode::SpawnOneSliceEnemy(
+	AShockPlayer* Player,
+	int32 Index,
+	FName ArchetypeKey,
+	const FVector& SpawnLoc,
+	const FRotator& SpawnRot,
+	bool bForceRangedWeapon)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		return nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(
+		ABaseShockAI::StaticClass(),
+		SpawnLoc,
+		SpawnRot,
+		Params);
+	if (!AI)
+	{
+		return nullptr;
+	}
+
+	const FString Label = FString::Printf(TEXT("SliceEnemy%d"), Index);
+	AI->ConfigureIdentity(ArchetypeKey, FName(*Label));
+	AI->ApplyArchetypeLookup(ArchetypeKey);
+	EquipSliceRangedWeaponIfNeeded(World, AI, bForceRangedWeapon);
+	AI->EnsureHealthInitialized();
+	ApplySliceCapsuleCollision(AI);
+	ApplySliceBabyJaneMeshFallback(AI, ArchetypeKey);
+	AI->AddTargetToAttackOnSight(FName(TEXT("SlicePlayer")));
+#if WITH_EDITOR
+	AI->SetActorLabel(Label);
+#endif
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_SPAWN label=%s loc=%s player=%s"),
+		*Label,
+		*AI->GetActorLocation().ToString(),
+		*Player->GetActorLocation().ToString());
 
 	return AI;
+}
+
+void AShockGameMode::SpawnSliceEnemyStaggered(
+	AShockPlayer* Player,
+	AActor* StartSpot,
+	int32 Index,
+	FVector SpawnLoc,
+	FRotator SpawnRot,
+	FName ArchetypeKey,
+	bool bForceRangedWeapon)
+{
+	(void)StartSpot;
+	SpawnOneSliceEnemy(Player, Index, ArchetypeKey, SpawnLoc, SpawnRot, bForceRangedWeapon);
+}
+
+void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		return;
+	}
+
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceEnemy0")))
+		{
+			return;
+		}
+	}
+
+	ConfigureSlicePlayerLabel(Player);
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	const FVector PlayerLoc = Player->GetActorLocation();
+	const float PlayerZ = PlayerLoc.Z;
+	const FRotator FacePlayer = (-Forward).Rotation();
+
+	const FVector MeleeLeft = PlayerLoc + Forward * 375.0f + Right * (-100.0f);
+	const FVector MeleeRight = PlayerLoc + Forward * 375.0f + Right * 100.0f;
+	const FVector RangedBack = PlayerLoc + Forward * 800.0f;
+
+	FVector MeleeLeftLoc = MeleeLeft;
+	FVector MeleeRightLoc = MeleeRight;
+	FVector RangedLoc = RangedBack;
+	MeleeLeftLoc.Z = PlayerZ;
+	MeleeRightLoc.Z = PlayerZ;
+	RangedLoc.Z = PlayerZ;
+
+	SpawnOneSliceEnemy(
+		Player,
+		0,
+		FName(TEXT("Agg_BabyJane")),
+		MeleeLeftLoc,
+		FacePlayer,
+		false);
+
+	const FName RangedArchetype = ResolveSliceRangedArchetypeKey();
+	const bool bForceRangedWeapon = RangedArchetype.IsNone();
+	const FName RangedKey = bForceRangedWeapon ? FName(TEXT("Agg_BabyJane")) : RangedArchetype;
+
+	World->GetTimerManager().SetTimer(
+		SliceEncounterSpawnTimer1,
+		FTimerDelegate::CreateUObject(
+			this,
+			&AShockGameMode::SpawnSliceEnemyStaggered,
+			Player,
+			StartSpot,
+			1,
+			MeleeRightLoc,
+			FacePlayer,
+			FName(TEXT("Agg_BabyJane")),
+			false),
+		1.5f,
+		false);
+
+	World->GetTimerManager().SetTimer(
+		SliceEncounterSpawnTimer2,
+		FTimerDelegate::CreateUObject(
+			this,
+			&AShockGameMode::SpawnSliceEnemyStaggered,
+			Player,
+			StartSpot,
+			2,
+			RangedLoc,
+			FacePlayer,
+			RangedKey,
+			bForceRangedWeapon),
+		3.0f,
+		false);
+}
+
+void AShockGameMode::VerifySliceEncounter(AShockPlayer* Player)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_ENCOUNTER_FAIL reason=no_world"));
+		return;
+	}
+
+	int32 Spawned = 0;
+	int32 Armed = 0;
+	int32 Targeting = 0;
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		if (!*It)
+		{
+			continue;
+		}
+		const FString Label = It->GetScriptLabel().ToString();
+		if (!Label.StartsWith(TEXT("SliceEnemy")))
+		{
+			continue;
+		}
+
+		++Spawned;
+		const bool bWeapon = It->HasAIWeapon();
+		const bool bTarget = It->HasAttackOnSightLabel(FName(TEXT("SlicePlayer")));
+		if (bWeapon)
+		{
+			++Armed;
+		}
+		if (bTarget)
+		{
+			++Targeting;
+		}
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_ENCOUNTER_ENEMY label=%s weapon=%d target=%d"),
+			*Label,
+			bWeapon ? 1 : 0,
+			bTarget ? 1 : 0);
+	}
+
+	(void)Player;
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_ENCOUNTER spawned=%d armed=%d targeting=%d"),
+		Spawned,
+		Armed,
+		Targeting);
 }
 
 void AShockGameMode::SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy)
@@ -320,51 +537,63 @@ void AShockGameMode::SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpo
 		return;
 	}
 
+	int32 Existing = 0;
 	for (TActorIterator<AShockAmmoPickup> It(World); It; ++It)
 	{
-		if (*It && (*It)->Tags.Contains(FName(TEXT("SliceAmmoPickup"))))
+		if (*It && It->Tags.Contains(FName(TEXT("SliceAmmoPickup"))))
 		{
-			return;
+			++Existing;
 		}
 	}
-
-	FVector SpawnLoc = Player->GetActorLocation();
-	if (Enemy)
-	{
-		SpawnLoc = Enemy->GetActorLocation() + FVector(0.0f, 120.0f, 0.0f);
-	}
-	else if (StartSpot)
-	{
-		SpawnLoc = StartSpot->GetActorLocation() + FVector(180.0f, 0.0f, 0.0f);
-	}
-	else
-	{
-		SpawnLoc += FVector(180.0f, 0.0f, 0.0f);
-	}
-
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AShockAmmoPickup* Pickup = World->SpawnActor<AShockAmmoPickup>(
-		AShockAmmoPickup::StaticClass(),
-		SpawnLoc,
-		FRotator::ZeroRotator,
-		Params);
-	if (!Pickup)
+	if (Existing >= 2)
 	{
 		return;
 	}
 
-	Pickup->Tags.Add(FName(TEXT("SliceAmmoPickup")));
-	Pickup->PickupAmount = 60;
+	FVector BaseLoc = Player->GetActorLocation();
+	if (Enemy)
+	{
+		BaseLoc = Enemy->GetActorLocation() + FVector(0.0f, 120.0f, 0.0f);
+	}
+	else if (StartSpot)
+	{
+		BaseLoc = StartSpot->GetActorLocation() + FVector(180.0f, 0.0f, 0.0f);
+	}
+	else
+	{
+		BaseLoc += FVector(180.0f, 0.0f, 0.0f);
+	}
+
+	const FVector Offsets[2] = {FVector::ZeroVector, FVector(0.0f, 160.0f, 0.0f)};
+	for (int32 PickupIndex = Existing; PickupIndex < 2; ++PickupIndex)
+	{
+		const FVector SpawnLoc = BaseLoc + Offsets[PickupIndex];
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AShockAmmoPickup* Pickup = World->SpawnActor<AShockAmmoPickup>(
+			AShockAmmoPickup::StaticClass(),
+			SpawnLoc,
+			FRotator::ZeroRotator,
+			Params);
+		if (!Pickup)
+		{
+			continue;
+		}
+
+		Pickup->Tags.Add(FName(TEXT("SliceAmmoPickup")));
+		Pickup->PickupAmount = 60;
 #if WITH_EDITOR
-	Pickup->SetActorLabel(TEXT("SliceAmmoPickup"));
+		Pickup->SetActorLabel(FString::Printf(TEXT("SliceAmmoPickup%d"), PickupIndex));
 #endif
-	UE_LOG(
-		LogTemp,
-		Display,
-		TEXT("BIOSHOCK_SLICE_AMMO_PICKUP loc=%s amount=%d"),
-		*Pickup->GetActorLocation().ToString(),
-		Pickup->PickupAmount);
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_SLICE_AMMO_PICKUP index=%d loc=%s amount=%d"),
+			PickupIndex,
+			*Pickup->GetActorLocation().ToString(),
+			Pickup->PickupAmount);
+	}
 }
 
 UShockDeathRespawnHandler* AShockGameMode::EnsureDeathHandler()
@@ -434,10 +663,12 @@ void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 
 	const bool bFired = Player->TryFireEquippedWeapon();
 	const float HealthAfter = Enemy->GetCurrentHealth();
+	const FString EnemyLabel = Enemy->GetScriptLabel().ToString();
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_SLICE_OK enemy=SliceBabyJane mesh=%d health_before=%.1f health_after=%.1f fire=%d"),
+		TEXT("BIOSHOCK_SLICE_OK enemy=%s mesh=%d health_before=%.1f health_after=%.1f fire=%d"),
+		*EnemyLabel,
 		bMesh ? 1 : 0,
 		HealthBefore,
 		HealthAfter,
@@ -487,11 +718,43 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				EnsureHudForPlayer(NewPlayer);
-				ABaseShockAI* Enemy = SpawnSliceEnemy(Player, Start);
-				SpawnSliceAmmoPickup(Player, Start, Enemy);
+				SpawnSliceEncounter(Player, Start);
+				ABaseShockAI* PrimaryEnemy = nullptr;
+				if (UWorld* World = GetWorld())
+				{
+					for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+					{
+						if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceEnemy0")))
+						{
+							PrimaryEnemy = *It;
+							break;
+						}
+					}
+				}
+				SpawnSliceAmmoPickup(Player, Start, PrimaryEnemy);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{
-					VerifySliceFire(Player, Enemy);
+					VerifySliceFire(Player, PrimaryEnemy);
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter")))
+				{
+					if (UWorld* World = GetWorld())
+					{
+						TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+						World->GetTimerManager().SetTimer(
+							SliceEncounterVerifyTimer,
+							FTimerDelegate::CreateLambda([this, WeakPlayer]()
+							{
+								if (WeakPlayer.IsValid())
+								{
+									VerifySliceEncounter(WeakPlayer.Get());
+								}
+								FGenericPlatformMisc::RequestExit(false);
+							}),
+							3.5f,
+							false);
+					}
+					return;
 				}
 			}
 		}

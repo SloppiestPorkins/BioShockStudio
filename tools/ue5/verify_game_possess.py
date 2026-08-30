@@ -29,7 +29,7 @@ SLICE_RE = re.compile(
 )
 SLICE_FAIL_RE = re.compile(r"BIOSHOCK_SLICE_FAIL reason=(\S+)")
 SLICE_SPAWN_RE = re.compile(
-    r"BIOSHOCK_SLICE_SPAWN loc=X=([-\d.]+) Y=([-\d.]+) Z=([-\d.]+) "
+    r"BIOSHOCK_SLICE_SPAWN label=(\S+) loc=X=([-\d.]+) Y=([-\d.]+) Z=([-\d.]+) "
     r"player=X=([-\d.]+) Y=([-\d.]+) Z=([-\d.]+)"
 )
 
@@ -94,12 +94,13 @@ def _parse_log():
     }
     spawn_match = SLICE_SPAWN_RE.search(text)
     if spawn_match:
-        slice_ok["spawn_x"] = float(spawn_match.group(1))
-        slice_ok["spawn_y"] = float(spawn_match.group(2))
-        slice_ok["spawn_z"] = float(spawn_match.group(3))
-        slice_ok["player_x"] = float(spawn_match.group(4))
-        slice_ok["player_y"] = float(spawn_match.group(5))
-        slice_ok["player_z"] = float(spawn_match.group(6))
+        slice_ok["enemy"] = spawn_match.group(1)
+        slice_ok["spawn_x"] = float(spawn_match.group(2))
+        slice_ok["spawn_y"] = float(spawn_match.group(3))
+        slice_ok["spawn_z"] = float(spawn_match.group(4))
+        slice_ok["player_x"] = float(spawn_match.group(5))
+        slice_ok["player_y"] = float(spawn_match.group(6))
+        slice_ok["player_z"] = float(spawn_match.group(7))
     return possess, slice_ok, None
 
 
@@ -155,7 +156,7 @@ def main(schema_path, report_path, map_path=MAP_PATH):
             failures.append(err or "slice parse failed")
         else:
             report["slice"] = slice_ok
-            if slice_ok["enemy"] != "SliceBabyJane":
+            if slice_ok["enemy"] != "SliceEnemy0":
                 failures.append("enemy %s" % slice_ok["enemy"])
             if slice_ok["mesh"] != 1:
                 failures.append("BabyJane mesh not on enemy")
@@ -172,8 +173,8 @@ def main(schema_path, report_path, map_path=MAP_PATH):
                     + (slice_ok["spawn_y"] - slice_ok["player_y"]) ** 2
                 ) ** 0.5
                 report["sliceSpawnXy"] = spawn_xy
-                if spawn_xy < 200.0 or spawn_xy > 400.0:
-                    failures.append("slice spawn XY %.0f uu from player (want ~250)" % spawn_xy)
+                if spawn_xy < 320.0 or spawn_xy > 450.0:
+                    failures.append("slice spawn XY %.0f uu from player (want ~375)" % spawn_xy)
 
     report["failures"] = failures
     os.makedirs(out_dir, exist_ok=True)

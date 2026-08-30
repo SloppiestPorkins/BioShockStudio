@@ -1019,6 +1019,15 @@ Y=1271.997 (250 uu along +Y). Not ammo, not fire anims, not a human PIE claim.
 `SliceBabyJane` on slice spawn. Live `run_weapon_ammo.py`, `Success - 0 error(s)`. Hitscan damage
 path unchanged (`BIOSHOCK_SLICE_OK` 100→75 not re-run this pass).
 
+### Phase 0 slice encounter — staggered multi-enemy fight, 30 Aug 2026
+
+`ShockGameMode::SpawnSliceEncounter` replaces the lone `SliceBabyJane`: three AI (`SliceEnemy0..2`)
+— two `Agg_BabyJane` melee fanned ~200 uu apart at ~375 uu ahead, one ranged archetype
+(`ThuggishSplicer` when imported, else `Agg_BabyJane` + forced gun) at ~800 uu — staggered via
+timers (0 / 1.5s / 3s), `AddTargetToAttackOnSight(SlicePlayer)`, two ammo pickups. Live
+`run_encounter.py`, `BIOSHOCK_ENCOUNTER spawned=3`; possess fire evidence still hits `SliceEnemy0`
+(`BIOSHOCK_SLICE_OK` 100→75).
+
 ### Phase 0 PIE — roof spawn / viewmodel / unbuilt lighting, 29 Aug 2026
 
 Human Play on `1-Medical` was unusable: pawn in the sky, no gun in view, walls broken.
