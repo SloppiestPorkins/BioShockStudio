@@ -5,12 +5,14 @@
 
 class UWorld;
 class AShockPlayer;
+class AShockWeapon;
 
 UENUM()
 enum class EShockAICombatState : uint8
 {
 	Idle,
 	Chase,
+	RangedAttack,
 	Attack
 };
 
@@ -145,6 +147,20 @@ public:
 	float MeleeCooldown = 1.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float RangedRange = 1600.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float RangedCooldown = 1.4f;
+
+	/** PLAUSIBLE cone half-angle in degrees for AI hitscan spread. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	float AimSpreadDegrees = 3.0f;
+
+	/** Headless verify hook when spawned geometry does not block ECC_Visibility traces. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	bool bSuppressCombatLineOfSight = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float LoseTargetSeconds = 5.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
@@ -155,6 +171,21 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat")
 	bool bAggroOnDamage = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat")
+	TObjectPtr<AShockWeapon> AIWeapon;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void EquipAIWeapon(AShockWeapon* Weapon);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void SetSuppressCombatLineOfSight(bool bSuppress);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	bool HasAIWeapon() const { return AIWeapon != nullptr; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	int32 GetAIWeaponFireCount() const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void ConfigureIdentity(FName InType, FName InLabel);
@@ -310,6 +341,9 @@ private:
 	float MeleeCooldownRemaining = 0.0f;
 
 	UPROPERTY()
+	float RangedCooldownRemaining = 0.0f;
+
+	UPROPERTY()
 	float OutOfSightTimer = 0.0f;
 
 	UPROPERTY()
@@ -330,6 +364,10 @@ private:
 	void ClearCombatTarget();
 	float DistanceToTarget(const AShockPawn* Target) const;
 	void FaceTargetYaw(const AShockPawn* Target);
+	bool HasClearLineOfSightTo(const AShockPawn* Target) const;
+	FVector ApplyAimSpread(FVector Direction) const;
+	void TryRangedFire();
+	void SpawnArchetypeWeaponIfNeeded(const class UShockAiArchetype* Archetype);
 	bool CanPerceivePlayer(const AShockPlayer* Player) const;
 	bool TryAcquireTargetFromPerception();
 	FName GetPlayerPerceptionLabel(const AShockPlayer* Player) const;

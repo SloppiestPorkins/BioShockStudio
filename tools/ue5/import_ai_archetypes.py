@@ -52,6 +52,29 @@ def _slot_entries(slots):
     return out
 
 
+def _slot_name_looks_ranged(name):
+    if not name:
+        return False
+    lowered = str(name).lower()
+    return any(
+        token in lowered
+        for token in ("pistol", "tommy", "gun", "leadhead", "thug", "ranged")
+    )
+
+
+def _is_ranged_archetype(archetype):
+    """PLAUSIBLE heuristic from aiType / weapon-slot names (Leadhead, Thug, *Pistol*, *Tommy*)."""
+    ai_type = str(archetype.get("aiType") or "").lower()
+    if any(token in ai_type for token in ("leadhead", "thug", "ranged", "pistol", "tommy")):
+        return True
+    for slot in archetype.get("weaponSlots") or []:
+        if _slot_name_looks_ranged(slot.get("name")):
+            return True
+        if _slot_name_looks_ranged(slot.get("replacement")):
+            return True
+    return False
+
+
 def _archetype_payload(archetype):
     return {
         "name": archetype.get("name"),
@@ -63,6 +86,7 @@ def _archetype_payload(archetype):
         "materialSlots": _slot_entries(archetype.get("materialSlots")),
         "attachmentSlots": _slot_entries(archetype.get("attachmentSlots")),
         "weaponSlots": _slot_entries(archetype.get("weaponSlots")),
+        "bIsRanged": _is_ranged_archetype(archetype),
     }
 
 
@@ -149,6 +173,7 @@ def _configure_asset(asset, archetype, manifest):
         "weapon_slots",
         _make_loadout_slots(archetype.get("weaponSlots")),
     )
+    asset.set_editor_property("b_is_ranged", _is_ranged_archetype(archetype))
     unreal.EditorAssetLibrary.set_metadata_tag(asset, FINGERPRINT_TAG, _fingerprint(archetype))
     return payload
 

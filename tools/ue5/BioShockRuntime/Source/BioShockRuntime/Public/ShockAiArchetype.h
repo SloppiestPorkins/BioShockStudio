@@ -69,6 +69,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	TArray<FShockAiArchetypeLoadoutSlot> WeaponSlots;
+
+	/** PLAUSIBLE: set by import_ai_archetypes.py from aiType / weapon-slot name heuristics. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bIsRanged = false;
 };
 
 UCLASS()

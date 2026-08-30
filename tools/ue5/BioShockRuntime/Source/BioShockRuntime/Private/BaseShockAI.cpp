@@ -3,6 +3,7 @@
 #include "ShockAiArchetype.h"
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
+#include "ShockWeapon.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "EngineUtils.h"
@@ -24,6 +25,48 @@ bool IsBlockingSightHit(const FHitResult& Hit, const AActor* Target)
 	}
 	const AActor* HitActor = Hit.GetActor();
 	return HitActor && HitActor != Target;
+}
+
+bool SlotNameLooksRanged(const FString& SlotName)
+{
+	if (SlotName.IsEmpty())
+	{
+		return false;
+	}
+	if (SlotName.Contains(TEXT("Pistol"), ESearchCase::IgnoreCase)
+		|| SlotName.Contains(TEXT("Tommy"), ESearchCase::IgnoreCase)
+		|| SlotName.Contains(TEXT("Gun"), ESearchCase::IgnoreCase)
+		|| SlotName.Contains(TEXT("Leadhead"), ESearchCase::IgnoreCase)
+		|| SlotName.Contains(TEXT("Thug"), ESearchCase::IgnoreCase)
+		|| SlotName.Contains(TEXT("Ranged"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	return false;
+}
+
+bool ArchetypeHasRangedWeapon(const UShockAiArchetype* Archetype)
+{
+	if (!Archetype)
+	{
+		return false;
+	}
+	if (Archetype->bIsRanged)
+	{
+		return true;
+	}
+	if (SlotNameLooksRanged(Archetype->AITypeClassName))
+	{
+		return true;
+	}
+	for (const FShockAiArchetypeLoadoutSlot& Slot : Archetype->WeaponSlots)
+	{
+		if (SlotNameLooksRanged(Slot.Name) || SlotNameLooksRanged(Slot.Replacement))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 }
 
@@ -64,7 +107,53 @@ void ABaseShockAI::ApplyArchetypeLookup(FName LookupKey)
 	if (UShockAiArchetype* Archetype = UShockAiArchetypeLibrary::FindByKey(LookupKey))
 	{
 		UShockAiArchetypeLibrary::ApplyToAI(this, Archetype);
+		SpawnArchetypeWeaponIfNeeded(Archetype);
 	}
+}
+
+void ABaseShockAI::EquipAIWeapon(AShockWeapon* Weapon)
+{
+	AIWeapon = Weapon;
+}
+
+void ABaseShockAI::SetSuppressCombatLineOfSight(bool bSuppress)
+{
+	bSuppressCombatLineOfSight = bSuppress;
+}
+
+int32 ABaseShockAI::GetAIWeaponFireCount() const
+{
+	return AIWeapon ? AIWeapon->GetFireCount() : 0;
+}
+
+void ABaseShockAI::SpawnArchetypeWeaponIfNeeded(const UShockAiArchetype* Archetype)
+{
+	if (!Archetype || AIWeapon || !ArchetypeHasRangedWeapon(Archetype))
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
+		AShockWeapon::StaticClass(),
+		GetActorLocation(),
+		GetActorRotation(),
+		Params);
+	if (!Weapon)
+	{
+		return;
+	}
+
+	Weapon->ConfigureHitscan(20.0f, 10000.0f);
+	EquipAIWeapon(Weapon);
 }
 
 void ABaseShockAI::ScriptedAttackTarget(AShockPawn* Target)
@@ -249,6 +338,79 @@ void ABaseShockAI::FaceTargetYaw(const AShockPawn* Target)
 	SetActorRotation(FRotationMatrix::MakeFromX(ToTarget.GetSafeNormal()).Rotator());
 }
 
+bool ABaseShockAI::HasClearLineOfSightTo(const AShockPawn* Target) const
+{
+	if (bSuppressCombatLineOfSight)
+	{
+		return false;
+	}
+	if (!Target)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	FVector EyeLoc = GetActorLocation();
+	if (const UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		EyeLoc.Z += Capsule->GetScaledCapsuleHalfHeight();
+	}
+	const FVector TargetLoc = Target->GetActorLocation();
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockAILoS), false, this);
+	Params.AddIgnoredActor(Target);
+	FHitResult Hit;
+	if (World->LineTraceSingleByChannel(
+			Hit,
+			EyeLoc,
+			TargetLoc,
+			ECC_Visibility,
+			Params))
+	{
+		if (IsBlockingSightHit(Hit, Target))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+FVector ABaseShockAI::ApplyAimSpread(FVector Direction) const
+{
+	if (AimSpreadDegrees <= 0.0f || Direction.IsNearlyZero())
+	{
+		return Direction.GetSafeNormal();
+	}
+
+	FRotator Rot = Direction.Rotation();
+	Rot.Yaw += FMath::FRandRange(-AimSpreadDegrees, AimSpreadDegrees);
+	Rot.Pitch += FMath::FRandRange(-AimSpreadDegrees, AimSpreadDegrees);
+	return Rot.Vector().GetSafeNormal();
+}
+
+void ABaseShockAI::TryRangedFire()
+{
+	if (!AIWeapon || !CombatTarget)
+	{
+		return;
+	}
+
+	FVector MuzzleLoc = GetActorLocation();
+	if (const UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		MuzzleLoc.Z += Capsule->GetScaledCapsuleHalfHeight() * 0.8f;
+	}
+
+	FVector Direction = CombatTarget->GetActorLocation() - MuzzleLoc;
+	Direction = ApplyAimSpread(Direction);
+	AIWeapon->FireAt(this, MuzzleLoc, Direction);
+}
+
 FName ABaseShockAI::GetPlayerPerceptionLabel(const AShockPlayer* Player) const
 {
 	if (!Player)
@@ -355,6 +517,10 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 	{
 		MeleeCooldownRemaining = FMath::Max(0.0f, MeleeCooldownRemaining - DeltaSeconds);
 	}
+	if (RangedCooldownRemaining > 0.0f)
+	{
+		RangedCooldownRemaining = FMath::Max(0.0f, RangedCooldownRemaining - DeltaSeconds);
+	}
 
 	if (IsCombatLoopGated())
 	{
@@ -424,6 +590,12 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 			break;
 		}
 
+		if (AIWeapon && Dist <= RangedRange && Dist > MeleeRange && HasClearLineOfSightTo(CombatTarget))
+		{
+			CombatState = EShockAICombatState::RangedAttack;
+			break;
+		}
+
 		FaceTargetYaw(CombatTarget);
 		const FVector ToTarget = CombatTarget->GetActorLocation() - GetActorLocation();
 		FVector MoveDir = ToTarget;
@@ -441,6 +613,35 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 				const float Speed = bMovementShouldRun ? RunSpeed : WalkSpeed;
 				SetActorLocation(Before + Norm * Speed * DeltaSeconds, true);
 			}
+		}
+		break;
+	}
+	case EShockAICombatState::RangedAttack:
+	{
+		if (!IsAliveTarget(CombatTarget))
+		{
+			ClearCombatTarget();
+			CombatState = EShockAICombatState::Idle;
+			break;
+		}
+
+		const float Dist = DistanceToTarget(CombatTarget);
+		if (Dist <= MeleeRange)
+		{
+			CombatState = EShockAICombatState::Attack;
+			break;
+		}
+		if (Dist > RangedRange || !HasClearLineOfSightTo(CombatTarget))
+		{
+			CombatState = EShockAICombatState::Chase;
+			break;
+		}
+
+		FaceTargetYaw(CombatTarget);
+		if (RangedCooldownRemaining <= 0.0f)
+		{
+			TryRangedFire();
+			RangedCooldownRemaining = RangedCooldown;
 		}
 		break;
 	}

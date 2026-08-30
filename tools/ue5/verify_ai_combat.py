@@ -58,6 +58,25 @@ def _setup_engaged_pair(subsystem, ai_cls, player_cls, player_x):
     return ai, player
 
 
+def _equip_test_weapon(subsystem, ai, damage=20.0):
+    weapon_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWeapon")
+    if not weapon_cls or not ai:
+        return None
+    weapon = subsystem.spawn_actor_from_class(
+        weapon_cls, ai.get_actor_location(), unreal.Rotator(0.0, 0.0, 0.0)
+    )
+    if weapon:
+        weapon.configure_hitscan(float(damage), 10000.0)
+        ai.equip_ai_weapon(weapon)
+    return weapon
+
+
+def _destroy_spawned(subsystem, actors):
+    for actor in actors:
+        if actor:
+            subsystem.destroy_actor(actor)
+
+
 def main(out):
     report = {"failures": []}
     failures = report["failures"]
@@ -116,6 +135,9 @@ def main(out):
         if end_health >= start_health - 1.0:
             failures.append("engage no melee damage %.1f -> %.1f" % (start_health, end_health))
 
+    _destroy_spawned(subsystem, spawned)
+    spawned = []
+
     # (c) told to wait: no movement or damage
     wait_ai, wait_player = _setup_engaged_pair(subsystem, ai_cls, player_cls, 150.0)
     spawned.extend([wait_ai, wait_player])
@@ -145,6 +167,9 @@ def main(out):
         if wait_end_health != wait_start_health:
             failures.append("wait damaged %.1f -> %.1f" % (wait_start_health, wait_end_health))
 
+    _destroy_spawned(subsystem, spawned)
+    spawned = []
+
     # (d) out of sight range: no acquisition
     far_ai, far_player = _setup_engaged_pair(subsystem, ai_cls, player_cls, 4000.0)
     spawned.extend([far_ai, far_player])
@@ -166,9 +191,66 @@ def main(out):
         if far_dist < 3900.0:
             failures.append("far closed distance to %.1f" % far_dist)
 
-    for actor in spawned:
-        if actor:
-            subsystem.destroy_actor(actor)
+    _destroy_spawned(subsystem, spawned)
+    spawned = []
+
+    # (e) armed at range: hitscan damage without closing to melee
+    ranged_ai, ranged_player = _setup_engaged_pair(subsystem, ai_cls, player_cls, 800.0)
+    ranged_weapon = _equip_test_weapon(subsystem, ranged_ai)
+    spawned.extend([ranged_ai, ranged_player, ranged_weapon])
+    if not ranged_ai or not ranged_player or not ranged_weapon:
+        failures.append("ranged spawn")
+    else:
+        _arm_attack_on_sight(ranged_ai)
+        if not ranged_ai.has_ai_weapon():
+            failures.append("ranged weapon not equipped")
+        ranged_start_dist = _dist2d(ranged_ai.get_actor_location(), ranged_player.get_actor_location())
+        ranged_start_health = float(ranged_player.get_current_health())
+        _tick_combat(ranged_ai, 5.0)
+        ranged_end_dist = _dist2d(ranged_ai.get_actor_location(), ranged_player.get_actor_location())
+        ranged_end_health = float(ranged_player.get_current_health())
+        ranged_fires = int(ranged_ai.get_ai_weapon_fire_count())
+        report["ranged"] = {
+            "startDist": ranged_start_dist,
+            "endDist": ranged_end_dist,
+            "startHealth": ranged_start_health,
+            "endHealth": ranged_end_health,
+            "fireCount": ranged_fires,
+        }
+        if ranged_end_dist < 300.0:
+            failures.append("ranged closed to melee dist %.1f" % ranged_end_dist)
+        if ranged_fires < 1:
+            failures.append("ranged did not fire")
+        if ranged_end_health >= ranged_start_health - 1.0:
+            failures.append(
+                "ranged no hitscan damage %.1f -> %.1f" % (ranged_start_health, ranged_end_health)
+            )
+
+    _destroy_spawned(subsystem, spawned)
+    spawned = []
+
+    # (f) LoS blocked: armed AI does not fire (suppress LoS — spawned meshes often miss visibility in -Cmd)
+    blocked_ai, blocked_player = _setup_engaged_pair(subsystem, ai_cls, player_cls, 2000.0)
+    blocked_weapon = _equip_test_weapon(subsystem, blocked_ai)
+    spawned.extend([blocked_ai, blocked_player, blocked_weapon])
+    if not blocked_ai or not blocked_player:
+        failures.append("blocked spawn")
+    else:
+        _arm_attack_on_sight(blocked_ai)
+        blocked_ai.set_suppress_combat_line_of_sight(True)
+        blocked_start_health = float(blocked_player.get_current_health())
+        _tick_combat(blocked_ai, 3.0)
+        blocked_end_health = float(blocked_player.get_current_health())
+        blocked_fires = int(blocked_ai.get_ai_weapon_fire_count())
+        report["blocked"] = {
+            "startHealth": blocked_start_health,
+            "endHealth": blocked_end_health,
+            "fireCount": blocked_fires,
+        }
+        if blocked_fires > 0:
+            failures.append("blocked LoS fired %d" % blocked_fires)
+
+    _destroy_spawned(subsystem, spawned)
 
     report["ai_combat"] = "ok" if not failures else "fail"
     _write(out, report)
