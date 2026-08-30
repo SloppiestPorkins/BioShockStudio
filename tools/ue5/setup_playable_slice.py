@@ -1,0 +1,132 @@
+"""One-shot prep for playing the 1-Medical slice in the editor.
+
+Run this HEADLESS with the editor CLOSED, then open the editor fresh and Play.
+It composes the existing prep steps so you do not have to run five scripts by hand:
+
+  1. import_ai_archetypes  - UShockAiArchetype assets from document.archetypes
+  2. setup_main_menu        - MainMenu map + WBP + startup-map repoint
+  3. playable input         - Fire -> LMB, Reload -> R in DefaultInput.ini (legacy input)
+  4. repair_null_master_textures - fill NULL master-material params (wall-texture fix)
+
+Each step is idempotent and its own failure does not stop the others; a summary
+prints at the end and a JSON report is written to
+%TEMP%/bioshock_slice_setup_report.json.
+
+    "G:\\Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe" ^
+      "C:\\Users\\Jack\\Documents\\BioShockUE5\\BioShockUE5.uproject" ^
+      -run=pythonscript -script=tools\\ue5\\setup_playable_slice.py ^
+      -unattended -nopause -nosplash
+
+After it finishes: open the editor, let it finish compiling, open
+/Game/BioShockSlice/1-Medical (or just Play if the startup map is the menu),
+and Play In Editor. A **full editor restart** is required if the editor was
+open while BioShockRuntime was rebuilt.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import traceback
+
+import unreal
+
+# UE's -script runner does not put this file's directory on sys.path.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+_TMP = os.environ.get("TEMP", ".")
+
+
+def _tmp(name):
+    return os.path.join(_TMP, "bioshock_slice_setup", name)
+
+
+os.makedirs(os.path.join(_TMP, "bioshock_slice_setup"), exist_ok=True)
+
+REPORT = os.path.join(_TMP, "bioshock_slice_setup_report.json")
+
+RELOAD_LINE = (
+    '+ActionMappings=(ActionName="Reload",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=R)'
+)
+
+
+def _ensure_reload_mapping():
+    """verify_playable_input.py only writes the Fire mapping; add Reload -> R too."""
+    ini = os.path.join(
+        r"C:\Users\Jack\Documents\BioShockUE5", "Config", "DefaultInput.ini"
+    )
+    text = ""
+    if os.path.isfile(ini):
+        with open(ini, "r", encoding="utf-8", errors="ignore") as handle:
+            text = handle.read()
+    if 'ActionName="Reload"' in text or "ActionName=Reload" in text:
+        return {"reload_mapping": "already present", "ini": ini}
+    if "[/Script/Engine.InputSettings]" in text:
+        text = text.replace(
+            "[/Script/Engine.InputSettings]",
+            "[/Script/Engine.InputSettings]\n" + RELOAD_LINE,
+            1,
+        )
+    else:
+        text = text.rstrip() + "\n\n[/Script/Engine.InputSettings]\n" + RELOAD_LINE + "\n"
+    os.makedirs(os.path.dirname(ini), exist_ok=True)
+    with open(ini, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    return {"reload_mapping": "wrote Reload -> R", "ini": ini}
+
+
+STEPS = [
+    ("import_ai_archetypes", "import_ai_archetypes", "main", ()),
+    ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
+    ("playable_input", "verify_playable_input", "main", (_tmp("playable_input.json"),)),
+    ("reload_key_mapping", None, _ensure_reload_mapping, ()),
+    ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
+]
+
+
+def _run_step(label, module_name, func_name, args):
+    entry = {"step": label, "ok": False, "detail": None}
+    try:
+        if module_name is None:  # local callable, not an imported module
+            result = func_name()
+            entry["ok"] = True
+            entry["detail"] = result
+            return entry
+        module = __import__(module_name)
+        func = getattr(module, func_name)
+        result = func(*args)
+        entry["ok"] = True
+        if isinstance(result, dict):
+            entry["detail"] = {k: result[k] for k in list(result)[:8]}
+        else:
+            entry["detail"] = str(result)[:400] if result is not None else "ok"
+    except Exception as exc:  # noqa: BLE001 - one bad step must not kill the rest
+        entry["detail"] = "%s: %s" % (type(exc).__name__, exc)
+        entry["traceback"] = traceback.format_exc()
+    return entry
+
+
+def main():
+    report = {"steps": [], "ok": 0, "failed": 0}
+    for label, module_name, func_name, args in STEPS:
+        unreal.log("[slice-setup] %s ..." % label)
+        entry = _run_step(label, module_name, func_name, args)
+        report["steps"].append(entry)
+        report["ok" if entry["ok"] else "failed"] += 1
+        unreal.log("[slice-setup] %s -> %s" % (label, "ok" if entry["ok"] else "FAILED"))
+
+    os.makedirs(os.path.dirname(os.path.abspath(REPORT)), exist_ok=True)
+    with open(REPORT, "w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
+
+    unreal.log("[slice-setup] %d ok, %d failed. Report: %s"
+               % (report["ok"], report["failed"], REPORT))
+    if report["failed"]:
+        raise RuntimeError("%d slice-setup step(s) failed - see %s" % (report["failed"], REPORT))
+    return report
+
+
+if __name__ == "__main__":
+    main()
