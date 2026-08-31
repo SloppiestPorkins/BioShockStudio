@@ -9,6 +9,7 @@
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockIncineratePlasmid.h"
 #include "ShockTelekinesisPlasmid.h"
+#include "ShockTurret.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 
@@ -590,6 +591,58 @@ void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot
 			bForceRangedWeapon),
 		3.0f,
 		false);
+
+	SpawnSliceTurret(Player, StartSpot);
+}
+
+void AShockGameMode::SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot)
+{
+	if (!bEnableSliceTurret || !Player || !StartSpot)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AShockTurret> It(World); It; ++It)
+	{
+		if (*It && It->DeviceLabel == FName(TEXT("SliceTurret")))
+		{
+			return;
+		}
+	}
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	const FVector SpawnLoc = Player->GetActorLocation() + Forward * 500.0f + Right * 200.0f;
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AShockTurret* Turret = World->SpawnActor<AShockTurret>(
+		AShockTurret::StaticClass(),
+		SpawnLoc,
+		(-Forward).Rotation(),
+		Params);
+	if (!Turret)
+	{
+		return;
+	}
+
+	Turret->SetDeviceLabel(FName(TEXT("SliceTurret")));
+	Turret->SetAllegiance(EShockDeviceAllegiance::Hostile);
+#if WITH_EDITOR
+	Turret->SetActorLabel(TEXT("SliceTurret"));
+#endif
 }
 
 void AShockGameMode::VerifySliceEncounter(AShockPlayer* Player)

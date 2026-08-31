@@ -1,6 +1,8 @@
 #include "ShockActionHackTurret.h"
 
 #include "ShockPlayer.h"
+#include "ShockSecurityDevice.h"
+#include "ShockTurret.h"
 
 UShockActionHackTurret::UShockActionHackTurret()
 {
@@ -34,6 +36,14 @@ int32 UShockActionHackTurret::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
+
+	AShockTurret* Turret = Cast<AShockTurret>(AShockSecurityDevice::FindByLabel(World, TurretLabel));
+	if (Turret)
+	{
+		Turret->SetAllegiance(
+			bSetHacked ? EShockDeviceAllegiance::Friendly : EShockDeviceAllegiance::Hostile);
+	}
+
 	Player->SetTurretHacked(TurretLabel, bSetHacked);
 	return 1;
 }

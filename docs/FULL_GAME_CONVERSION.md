@@ -219,8 +219,21 @@ Census/spec order, each its own sub-project:
   water chain radius (~400uu), native stimuli factories (no damage in `.uc`), level scaling,
   VFX/audio, machine short-out. **Still missing:** Winter Blast, Security Bullseye, Enrage,
   Insect Swarm, Sonic Boom, Cyclone Trap, Target Dummy, Hypnotize.
-- **Hacking** — `HackSecuritySystem` / `HackTurret` / `UnHackSecuritySystem` stubs exist.
-  The pipe minigame or the modern "hack tool" — pick one, faithful-first says the minigame.
+- **Hacking — first slice (31 Aug 2026):** `EShockDeviceAllegiance` + `AShockSecurityDevice`
+  (perception cone/LoS, `ApplyAuthoredDamage`, security-shutdown / alarm range boost) and
+  `AShockTurret` (hitscan via `AShockWeapon`, idle yaw sweep). `AShockPlayer::TryHackDevice`
+  deterministic skill check (`HackSkill` default **0.7**); `HackTool` → `H` in
+  `setup_playable_slice.py`. `ActionHackTurret` / `ActionSpawnTurret` / `ActionHackSecuritySystem`
+  wired to real devices; `ActionStartSecurityAlarm` / `StopSecurityAlarm` set the player alarm
+  flag Hostile devices read. Slice turret behind `bEnableSliceTurret` (**false** default).
+  `run_hacking.py` / `verify_hacking.py` headless. **From shipped data:** detection range
+  **3000** (`ShockAI.uc` ViewDistance), turret fire rate **3/s** (`TurretMiniGun.uc`
+  BaseFireRate), attack range **3000** (`TurretMiniGunAmmo.uc`). **PLAUSIBLE:** turret HP **40**,
+  hitscan damage **8**, detection half-angle **90°**, alarm range ×**1.5**, hack-fail self-damage
+  **5**, idle sweep **90°/s** (`Turret.uc` YawSpeed). **TODO (next slices):** pipe minigame /
+  hack-tool UI, `AShockSecurityCamera` + alarm-summons-bot, `AShockSecurityBot`, RPG turret
+  variants, U-Invent auto-hack darts, `ActionUnHackSecuritySystem` device restore, security-bot
+  spawn actions.
 - Inventory, ammo types (AP / anti-personnel / incendiary per weapon), U-Invent, Gene Banks,
   the Research Camera, ADAM / Gene Tonics.
 

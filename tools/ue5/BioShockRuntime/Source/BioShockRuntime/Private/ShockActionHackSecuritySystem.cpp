@@ -1,6 +1,7 @@
 #include "ShockActionHackSecuritySystem.h"
 
 #include "ShockPlayer.h"
+#include "ShockSecurityDevice.h"
 
 UShockActionHackSecuritySystem::UShockActionHackSecuritySystem()
 {

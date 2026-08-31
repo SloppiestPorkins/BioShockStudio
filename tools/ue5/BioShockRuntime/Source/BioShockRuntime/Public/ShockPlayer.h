@@ -4,6 +4,7 @@
 #include "ShockPlayer.generated.h"
 
 class AShockWeapon;
+class AShockSecurityDevice;
 class UCameraComponent;
 class UInputComponent;
 class UShockPlasmid;
@@ -356,6 +357,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool IsTurretHacked(FName Turret) const;
 
+	/** Deterministic skill-check stand-in: succeeds when Difficulty01 <= HackSkill. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
+	bool TryHackDevice(AShockSecurityDevice* Device, float Difficulty01);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
+	bool UnHackDevice(AShockSecurityDevice* Device);
+
+	/** Default 0.7 — verify can override via SetHackSkillForVerify. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Hacking")
+	float HackSkill = 0.7f;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
+	void SetHackSkillForVerify(float Skill) { HackSkill = Skill; }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetDoorBroken(FName Door, bool bBroken);
 
@@ -399,6 +414,8 @@ private:
 	void HandlePlasmidInput();
 	void HandlePlasmidCycleInput();
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
+	void HandleHackToolInput();
+	bool PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const;
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void TurnAtRate(float Value);

@@ -61,6 +61,11 @@ PLASMID_CYCLE_LINE = (
     'bCmd=False,Key=Tab)'
 )
 
+HACK_TOOL_LINE = (
+    '+ActionMappings=(ActionName="HackTool",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=H)'
+)
+
 
 def _ensure_action_mapping(action_name, key, existing_line):
     """Add ActionName -> key to DefaultInput.ini if missing."""
@@ -102,6 +107,10 @@ def _ensure_plasmid_cycle_mapping():
     return _ensure_action_mapping("PlasmidCycle", "Tab", PLASMID_CYCLE_LINE)
 
 
+def _ensure_hack_tool_mapping():
+    return _ensure_action_mapping("HackTool", "H", HACK_TOOL_LINE)
+
+
 STEPS = [
     ("import_ai_archetypes", "import_ai_archetypes", "main", ()),
     ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
@@ -109,6 +118,7 @@ STEPS = [
     ("reload_key_mapping", None, _ensure_reload_mapping, ()),
     ("plasmid_key_mapping", None, _ensure_plasmid_mapping, ()),
     ("plasmid_cycle_key_mapping", None, _ensure_plasmid_cycle_mapping, ()),
+    ("hack_key_mapping", None, _ensure_hack_tool_mapping, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
 

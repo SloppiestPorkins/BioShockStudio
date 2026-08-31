@@ -29,6 +29,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Death")
 	bool bReloadLevelOnDeath = false;
 
+	/** Off by default so possess / encounter verifies stay unchanged. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
+	bool bEnableSliceTurret = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Death")
 	void BindPlayerDeathHandling(AShockPlayer* Player, AActor* RespawnStart);
 
@@ -69,6 +73,7 @@ private:
 	void VerifySliceEncounter(AShockPlayer* Player);
 	void EnsureSliceNavigation(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
+	void SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	void EnsureHudForPlayer(APlayerController* PC);
 	UShockDeathRespawnHandler* EnsureDeathHandler();

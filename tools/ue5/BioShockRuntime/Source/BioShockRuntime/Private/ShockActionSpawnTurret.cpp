@@ -2,9 +2,10 @@
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
-#include "Engine/TargetPoint.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "ShockSecurityDevice.h"
+#include "ShockTurret.h"
 
 UShockActionSpawnTurret::UShockActionSpawnTurret()
 {
@@ -42,11 +43,21 @@ AActor* UShockActionSpawnTurret::SpawnAtLocation(UObject* WorldContextObject, FV
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ATargetPoint* Spawned = World->SpawnActor<ATargetPoint>(ATargetPoint::StaticClass(), Location, FRotator::ZeroRotator, Params);
+	AShockTurret* Spawned = World->SpawnActor<AShockTurret>(
+		AShockTurret::StaticClass(),
+		Location,
+		FRotator::ZeroRotator,
+		Params);
 	if (!Spawned)
 	{
 		return nullptr;
 	}
+
+	Spawned->SetDeviceLabel(SpawnerLabel);
+	Spawned->SetAllegiance(EShockDeviceAllegiance::Hostile);
+#if WITH_EDITOR
+	Spawned->SetActorLabel(SpawnerLabel.ToString());
+#endif
 
 	LastSpawnedActor = Spawned;
 	return Spawned;

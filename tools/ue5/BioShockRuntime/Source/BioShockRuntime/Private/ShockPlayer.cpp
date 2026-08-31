@@ -1,6 +1,8 @@
 #include "ShockPlayer.h"
 
 #include "ShockPlasmid.h"
+#include "ShockSecurityDevice.h"
+#include "ShockTurret.h"
 #include "ShockWeapon.h"
 #include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
@@ -21,6 +23,8 @@ namespace
 {
 constexpr float WeaponRecoilRecoverSeconds = 0.12f;
 constexpr float PlasmidTraceRange = 10000.0f;
+constexpr float HackTraceRange = 800.0f;
+constexpr float HackFailSelfDamage = 5.0f; // PLAUSIBLE — pipe minigame shock stand-in
 }
 
 AShockPlayer::AShockPlayer()
@@ -518,6 +522,81 @@ void AShockPlayer::HandlePlasmidInput()
 void AShockPlayer::HandlePlasmidCycleInput()
 {
 	CycleActivePlasmid();
+}
+
+bool AShockPlayer::PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const
+{
+	OutDevice = nullptr;
+	UWorld* World = GetWorld();
+	if (!World || !FirstPersonCamera)
+	{
+		return false;
+	}
+
+	const FVector Start = FirstPersonCamera->GetComponentLocation();
+	const FVector End = Start + FirstPersonCamera->GetForwardVector() * HackTraceRange;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockHackTool), false, this);
+	FHitResult Hit;
+	if (!World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		return false;
+	}
+
+	OutDevice = Cast<AShockSecurityDevice>(Hit.GetActor());
+	if (!OutDevice && Hit.GetComponent())
+	{
+		OutDevice = Cast<AShockSecurityDevice>(Hit.GetComponent()->GetOwner());
+	}
+	return OutDevice != nullptr;
+}
+
+void AShockPlayer::HandleHackToolInput()
+{
+	AShockSecurityDevice* Device = nullptr;
+	if (!PerformHackToolTrace(Device) || !Device)
+	{
+		return;
+	}
+
+	// PLAUSIBLE default difficulty when using the hack-tool key without a minigame.
+	TryHackDevice(Device, 0.5f);
+}
+
+bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty01)
+{
+	if (!Device || Device->GetAllegiance() == EShockDeviceAllegiance::Disabled)
+	{
+		return false;
+	}
+
+	const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
+	const bool bSuccess = Difficulty01 <= HackSkill + KINDA_SMALL_NUMBER;
+	if (bSuccess)
+	{
+		Device->SetAllegiance(EShockDeviceAllegiance::Friendly);
+		SetTurretHacked(Label, true);
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK label=%s result=ok"), *Label.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK label=%s result=fail"), *Label.ToString());
+		ApplyAuthoredDamage(HackFailSelfDamage);
+	}
+	return bSuccess;
+}
+
+bool AShockPlayer::UnHackDevice(AShockSecurityDevice* Device)
+{
+	if (!Device)
+	{
+		return false;
+	}
+
+	const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
+	Device->SetAllegiance(EShockDeviceAllegiance::Neutral);
+	SetTurretHacked(Label, false);
+	return true;
 }
 
 void AShockPlayer::MoveForward(float Value)
@@ -1040,6 +1119,21 @@ void AShockPlayer::SetSecurityHacked(bool bHacked, float ShutdownTime)
 {
 	bSecurityHacked = bHacked;
 	SecurityHackShutdownTime = bHacked ? ShutdownTime : 0.0f;
+	if (bHacked)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			AShockSecurityDevice::ForEachDevice(
+				World,
+				[ShutdownTime](AShockSecurityDevice* Device)
+				{
+					if (Device)
+					{
+						Device->ApplySecurityShutdown(ShutdownTime);
+					}
+				});
+		}
+	}
 }
 
 void AShockPlayer::SetTurretHacked(FName Turret, bool bHacked)
@@ -1112,6 +1206,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
+	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);
