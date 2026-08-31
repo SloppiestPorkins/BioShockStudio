@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShockPawn.h"
+#include "ShockAIBrain.h"
 #include "BaseShockAI.generated.h"
 
 class UWorld;
@@ -173,6 +174,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float CorpseFadeSeconds = 5.0f;
 
+	/** When true, UShockAIBrain drives combat; when false, legacy Idle/Chase/Attack FSM runs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	bool bUseBrain = true;
+
 	/** Playable-slice hit flinch: stagger duration base (~0.35 s), scaled slightly by damage fraction. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float HitStaggerSeconds = 0.35f;
@@ -340,6 +345,33 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	float GetHitReactRemaining() const { return HitReactRemaining; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat|Brain")
+	bool IsUsingBrain() const { return bUseBrain; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat|Brain")
+	UShockAIBrain* GetShockAIBrain() const { return Brain; }
+
+	/** Combat helpers used by UShockAIAbility — surface moved from TickCombat FSM. */
+	AShockPawn* GetCombatTargetPawn() const { return CombatTarget; }
+	AShockPawn* GetCurrentScriptedAttackTargetPawn() const { return CurrentScriptedAttackTarget; }
+	void SetCombatTargetPawn(AShockPawn* Target);
+	void ClearCombatTargetPawn();
+	bool IsAliveCombatTarget(const AShockPawn* Target) const;
+	float GetDistanceToCombatTarget(const AShockPawn* Target) const;
+	void FaceCombatTarget(const AShockPawn* Target);
+	bool HasCombatLineOfSightTo(const AShockPawn* Target) const;
+	void StopCombatNavChase();
+	bool TryTickCombatNavChase(AShockPawn* Target, float DeltaSeconds);
+	void TickCombatChaseDirectMovement(AShockPawn* Target, float DeltaSeconds);
+	void TryCombatRangedFire();
+	float GetMeleeCooldownRemaining() const { return MeleeCooldownRemaining; }
+	void SetMeleeCooldownRemaining(float Value) { MeleeCooldownRemaining = Value; }
+	float GetRangedCooldownRemaining() const { return RangedCooldownRemaining; }
+	void SetRangedCooldownRemaining(float Value) { RangedCooldownRemaining = Value; }
+	float GetOutOfSightTimer() const { return OutOfSightTimer; }
+	void SetOutOfSightTimer(float Value) { OutOfSightTimer = Value; }
+	void TickBrainIdlePerception(float DeltaSeconds);
+
 	virtual void OnDeathFromDamage() override;
 
 	/** Switch to gravity-free flying — for headless verification / floorless test maps only.
@@ -350,6 +382,9 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Combat|Brain", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UShockAIBrain> Brain;
+
 	UPROPERTY()
 	TMap<FName, bool> HiddenAttachmentCategories;
 
@@ -420,6 +455,9 @@ private:
 	void ClearHitFlash();
 	void ApplyHitFlash();
 	void TickCombat(float DeltaSeconds);
+	void TickCombatFsm(float DeltaSeconds);
+	void TickCombatCooldowns(float DeltaSeconds);
+	void TickCombatMovementSpeed(float DeltaSeconds);
 	void StopNavChase();
 	bool TryTickNavChase(AShockPawn* Target, float DeltaSeconds);
 	void TickChaseDirectMovement(AShockPawn* Target, float DeltaSeconds);

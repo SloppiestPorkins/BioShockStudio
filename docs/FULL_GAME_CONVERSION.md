@@ -165,6 +165,14 @@ There are ~199 `Action*` classes; ~100 already have `ApplyInWorld` overrides on
   not per-frame polling.
 
 ### C2. The AI brain — goals + abilities (architecture, corrected 31 Aug 2026)
+
+**Tick (31 Aug 2026):** `UShockAIGoal`, `UShockAIAbility` base, `UShockAIBrain` on `ABaseShockAI`
+(`bUseBrain=true`, FSM fallback when false). Ability set landed: `IdleAbility`, `PatrolAbility`
+(PLAUSIBLE stub), `MoveToAbility`, `MeleeAttackAbility`, `RangedAttackAbility`, `FleeAbility`
+(PLAUSIBLE stub), `HitReactAbility`. Slice combat migrated; `run_ai_brain.py` /
+`verify_ai_brain.py` headless. Existing `run_ai_combat` / `run_ai_nav` / `run_hit_reaction` /
+`run_game_possess.py` unchanged behaviour path.
+
 **Reading the decompiled source changed the call.** `ShockAI` is *not* a big state machine —
 `ShockAI.uc` has one `state` (`Dying`). The AI is **goal-oriented**: a `CharacterAI` holds an
 **ability list** (`CharacterAI.addAbility_Class(Class'ShockAI.MoveToAction')`,

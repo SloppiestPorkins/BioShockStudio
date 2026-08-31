@@ -1,6 +1,7 @@
 #include "BaseShockAI.h"
 
 #include "ShockAiArchetype.h"
+#include "ShockAIBrain.h"
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
@@ -85,6 +86,8 @@ ABaseShockAI::ABaseShockAI()
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+
+	Brain = CreateDefaultSubobject<UShockAIBrain>(TEXT("ShockAIBrain"));
 
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
@@ -171,7 +174,14 @@ void ABaseShockAI::ScriptedAttackTarget(AShockPawn* Target)
 	if (IsAliveTarget(Target))
 	{
 		SetCombatTarget(Target);
-		CombatState = EShockAICombatState::Chase;
+		if (bUseBrain && Brain)
+		{
+			Brain->NotifyPendingKillTarget(Target);
+		}
+		else
+		{
+			CombatState = EShockAICombatState::Chase;
+		}
 	}
 }
 
@@ -233,7 +243,14 @@ void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 	if (IsAliveTarget(DamageInstigator))
 	{
 		SetCombatTarget(DamageInstigator);
-		CombatState = EShockAICombatState::Chase;
+		if (bUseBrain && Brain)
+		{
+			Brain->NotifyAggro(DamageInstigator);
+		}
+		else
+		{
+			CombatState = EShockAICombatState::Chase;
+		}
 	}
 }
 
@@ -788,23 +805,7 @@ bool ABaseShockAI::TryTickNavChase(AShockPawn* Target, float DeltaSeconds)
 
 void ABaseShockAI::TickCombat(float DeltaSeconds)
 {
-	if (HitReactRemaining > 0.0f)
-	{
-		HitReactRemaining = FMath::Max(0.0f, HitReactRemaining - DeltaSeconds);
-	}
-	if (HitReactRateLimitRemaining > 0.0f)
-	{
-		HitReactRateLimitRemaining = FMath::Max(0.0f, HitReactRateLimitRemaining - DeltaSeconds);
-	}
-
-	if (MeleeCooldownRemaining > 0.0f)
-	{
-		MeleeCooldownRemaining = FMath::Max(0.0f, MeleeCooldownRemaining - DeltaSeconds);
-	}
-	if (RangedCooldownRemaining > 0.0f)
-	{
-		RangedCooldownRemaining = FMath::Max(0.0f, RangedCooldownRemaining - DeltaSeconds);
-	}
+	TickCombatCooldowns(DeltaSeconds);
 
 	if (IsCombatLoopGated())
 	{
@@ -814,6 +815,44 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		return;
 	}
 
+	TickCombatMovementSpeed(DeltaSeconds);
+
+	if (bUseBrain && Brain)
+	{
+		if (!Brain->GetAbilityCount())
+		{
+			Brain->InitializeForAI(this);
+		}
+		Brain->Think(DeltaSeconds);
+		return;
+	}
+
+	TickCombatFsm(DeltaSeconds);
+}
+
+void ABaseShockAI::TickCombatCooldowns(float DeltaSeconds)
+{
+	if (HitReactRemaining > 0.0f)
+	{
+		HitReactRemaining = FMath::Max(0.0f, HitReactRemaining - DeltaSeconds);
+	}
+	if (HitReactRateLimitRemaining > 0.0f)
+	{
+		HitReactRateLimitRemaining = FMath::Max(0.0f, HitReactRateLimitRemaining - DeltaSeconds);
+	}
+	if (MeleeCooldownRemaining > 0.0f)
+	{
+		MeleeCooldownRemaining = FMath::Max(0.0f, MeleeCooldownRemaining - DeltaSeconds);
+	}
+	if (RangedCooldownRemaining > 0.0f)
+	{
+		RangedCooldownRemaining = FMath::Max(0.0f, RangedCooldownRemaining - DeltaSeconds);
+	}
+}
+
+void ABaseShockAI::TickCombatMovementSpeed(float DeltaSeconds)
+{
+	(void)DeltaSeconds;
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
 		const float SpeedMult = HitReactRemaining > 0.0f ? HitReactMovementScale : 1.0f;
@@ -821,7 +860,70 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		Move->MaxWalkSpeed = Speed;
 		Move->MaxFlySpeed = Speed;
 	}
+}
 
+void ABaseShockAI::SetCombatTargetPawn(AShockPawn* Target)
+{
+	SetCombatTarget(Target);
+}
+
+void ABaseShockAI::ClearCombatTargetPawn()
+{
+	ClearCombatTarget();
+}
+
+bool ABaseShockAI::IsAliveCombatTarget(const AShockPawn* Target) const
+{
+	return IsAliveTarget(Target);
+}
+
+float ABaseShockAI::GetDistanceToCombatTarget(const AShockPawn* Target) const
+{
+	return DistanceToTarget(Target);
+}
+
+void ABaseShockAI::FaceCombatTarget(const AShockPawn* Target)
+{
+	FaceTargetYaw(Target);
+}
+
+bool ABaseShockAI::HasCombatLineOfSightTo(const AShockPawn* Target) const
+{
+	return HasClearLineOfSightTo(Target);
+}
+
+void ABaseShockAI::StopCombatNavChase()
+{
+	StopNavChase();
+}
+
+bool ABaseShockAI::TryTickCombatNavChase(AShockPawn* Target, float DeltaSeconds)
+{
+	return TryTickNavChase(Target, DeltaSeconds);
+}
+
+void ABaseShockAI::TickCombatChaseDirectMovement(AShockPawn* Target, float DeltaSeconds)
+{
+	TickChaseDirectMovement(Target, DeltaSeconds);
+}
+
+void ABaseShockAI::TryCombatRangedFire()
+{
+	TryRangedFire();
+}
+
+void ABaseShockAI::TickBrainIdlePerception(float DeltaSeconds)
+{
+	PerceptionScanAccumulator += DeltaSeconds;
+	if (PerceptionScanAccumulator >= PerceptionScanInterval)
+	{
+		PerceptionScanAccumulator = 0.0f;
+		TryAcquireTargetFromPerception();
+	}
+}
+
+void ABaseShockAI::TickCombatFsm(float DeltaSeconds)
+{
 	switch (CombatState)
 	{
 	case EShockAICombatState::Idle:
