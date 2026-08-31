@@ -2,6 +2,7 @@
 #include "BaseShockAI.h"
 #include "ShockAiArchetype.h"
 #include "ShockAmmoPickup.h"
+#include "ShockConsumablePickup.h"
 #include "ShockDeathRespawnHandler.h"
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
@@ -275,6 +276,9 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->EquipPlasmid(UShockIncineratePlasmid::StaticClass(), 1);
 	Player->EquipPlasmid(UShockTelekinesisPlasmid::StaticClass(), 2);
 	Player->ActivePlasmidSlot = 0;
+
+	Player->AddStackToInventory(FName(TEXT("FirstAidKit")), 1);
+	Player->AddStackToInventory(FName(TEXT("EveHypo")), 1);
 }
 
 namespace
@@ -763,6 +767,69 @@ void AShockGameMode::SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpo
 	}
 }
 
+void AShockGameMode::SpawnSliceConsumablePickup(
+	AShockPlayer* Player,
+	AActor* StartSpot,
+	ABaseShockAI* Enemy)
+{
+	if (!bEnableSlicePickup || !Player)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AShockConsumablePickup> It(World); It; ++It)
+	{
+		if (*It && It->Tags.Contains(FName(TEXT("SliceConsumablePickup"))))
+		{
+			return;
+		}
+	}
+
+	FVector SpawnLoc = Player->GetActorLocation();
+	if (Enemy)
+	{
+		SpawnLoc = Enemy->GetActorLocation() + FVector(0.0f, -120.0f, 0.0f);
+	}
+	else if (StartSpot)
+	{
+		SpawnLoc = StartSpot->GetActorLocation() + FVector(240.0f, 0.0f, 0.0f);
+	}
+	else
+	{
+		SpawnLoc += FVector(240.0f, 0.0f, 0.0f);
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AShockConsumablePickup* Pickup = World->SpawnActor<AShockConsumablePickup>(
+		AShockConsumablePickup::StaticClass(),
+		SpawnLoc,
+		FRotator::ZeroRotator,
+		Params);
+	if (!Pickup)
+	{
+		return;
+	}
+
+	Pickup->PickupKind = EShockPickupKind::FirstAidKit;
+	Pickup->Amount = 1;
+	Pickup->Tags.Add(FName(TEXT("SliceConsumablePickup")));
+#if WITH_EDITOR
+	Pickup->SetActorLabel(TEXT("SliceConsumablePickup"));
+#endif
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_CONSUMABLE_PICKUP kind=FirstAidKit loc=%s"),
+		*Pickup->GetActorLocation().ToString());
+}
+
 UShockDeathRespawnHandler* AShockGameMode::EnsureDeathHandler()
 {
 	if (!DeathHandler)
@@ -930,6 +997,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 					}
 				}
 				SpawnSliceAmmoPickup(Player, Start, PrimaryEnemy);
+				SpawnSliceConsumablePickup(Player, Start, PrimaryEnemy);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{
 					VerifySliceFire(Player, PrimaryEnemy);

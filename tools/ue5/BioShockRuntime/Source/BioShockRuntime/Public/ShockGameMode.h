@@ -33,6 +33,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
 	bool bEnableSliceTurret = false;
 
+	/** Off by default — optional FirstAidKit world pickup near the encounter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
+	bool bEnableSlicePickup = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Death")
 	void BindPlayerDeathHandling(AShockPlayer* Player, AActor* RespawnStart);
 
@@ -73,6 +77,7 @@ private:
 	void VerifySliceEncounter(AShockPlayer* Player);
 	void EnsureSliceNavigation(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
+	void SpawnSliceConsumablePickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	void EnsureHudForPlayer(APlayerController* PC);

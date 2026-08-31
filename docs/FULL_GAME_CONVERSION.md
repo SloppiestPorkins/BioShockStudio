@@ -234,6 +234,17 @@ Census/spec order, each its own sub-project:
   hack-tool UI, `AShockSecurityCamera` + alarm-summons-bot, `AShockSecurityBot`, RPG turret
   variants, U-Invent auto-hack darts, `ActionUnHackSecuritySystem` device restore, security-bot
   spawn actions.
+- **Inventory / consumables — first slice (31 Aug 2026):** `AShockPlayer::Heal`,
+  `UseFirstAidKit` / `UseEveHypo` (inventory stacks keyed `"FirstAidKit"` / `"EveHypo"`,
+  carry caps **9** each PLAUSIBLE), `AddMoney` / `GetMoney`, optional `bAutoFirstAid` (**false**
+  default). `AShockConsumablePickup` (`FirstAidKit` / `EveHypo` / `Money` / `Ammo` overlap +
+  `PickupForVerify`). HUD row `Kit N  Hypo N  $M` beside health/EVE. `UseFirstAid` → **Z**,
+  `UseEveHypo` → **X** in `setup_playable_slice.py`. Slice possess grants 1 kit + 1 hypo;
+  world kit pickup behind `bEnableSlicePickup` (**false** default). `run_inventory.py` /
+  `verify_inventory.py` headless. **PLAUSIBLE:** kit heal **60**, hypo refill **50** (existing
+  `EveHypoAmount`). **TODO:** U-Invent UI, Gene Banks, ADAM / Gene Tonics, Vita-Chambers vs kits,
+  ammo crafting, vending / money economy, ammo-type switching (AP / anti-personnel / incendiary per
+  `weapons-config`), Health Stations.
 - Inventory, ammo types (AP / anti-personnel / incendiary per weapon), U-Invent, Gene Banks,
   the Research Camera, ADAM / Gene Tonics.
 

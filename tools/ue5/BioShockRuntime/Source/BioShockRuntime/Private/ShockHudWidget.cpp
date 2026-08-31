@@ -110,6 +110,16 @@ void UShockHudWidget::EnsureWidgetTree()
 		EveTextSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 2.0f));
 	}
 
+	ConsumablesText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("ConsumablesText"));
+	ConsumablesText->SetText(FText::FromString(TEXT("")));
+	ConsumablesText->SetFont(MakeHudFont(13));
+	ConsumablesText->SetColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.9f, 0.85f, 1.0f)));
+	if (UVerticalBoxSlot* ConsumablesSlot = HealthBox->AddChildToVerticalBox(ConsumablesText))
+	{
+		ConsumablesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
+	}
+
 	PlasmidText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlasmidText"));
 	PlasmidText->SetText(FText::FromString(TEXT("")));
 	PlasmidText->SetFont(MakeHudFont(14));
@@ -300,6 +310,29 @@ void UShockHudWidget::RefreshDisplay()
 		EveText->SetText(FText::FromString(CachedEveText));
 	}
 
+	if (ConsumablesText)
+	{
+		int32 KitCount = 0;
+		int32 HypoCount = 0;
+		int32 Money = 0;
+		if (Player)
+		{
+			KitCount = Player->GetInventoryStack(FName(TEXT("FirstAidKit")));
+			HypoCount = Player->GetInventoryStack(FName(TEXT("EveHypo")));
+			Money = Player->GetMoney();
+		}
+		CachedConsumablesText = FString::Printf(
+			TEXT("Kit %d  Hypo %d  $%d"),
+			KitCount,
+			HypoCount,
+			Money);
+		ConsumablesText->SetText(FText::FromString(CachedConsumablesText));
+		ConsumablesText->SetVisibility(
+			(KitCount > 0 || HypoCount > 0 || Money > 0)
+				? ESlateVisibility::HitTestInvisible
+				: ESlateVisibility::Collapsed);
+	}
+
 	if (PlasmidText)
 	{
 		FString PlasmidLabel;
@@ -383,6 +416,11 @@ FString UShockHudWidget::GetDisplayedAmmoReserveText() const
 FString UShockHudWidget::GetDisplayedEveText() const
 {
 	return CachedEveText;
+}
+
+FString UShockHudWidget::GetDisplayedConsumablesText() const
+{
+	return CachedConsumablesText;
 }
 
 bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)

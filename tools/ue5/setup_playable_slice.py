@@ -66,6 +66,16 @@ HACK_TOOL_LINE = (
     'bCmd=False,Key=H)'
 )
 
+USE_FIRST_AID_LINE = (
+    '+ActionMappings=(ActionName="UseFirstAid",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Z)'
+)
+
+USE_EVE_HYPO_LINE = (
+    '+ActionMappings=(ActionName="UseEveHypo",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=X)'
+)
+
 WEAPON_NEXT_LINE = (
     '+ActionMappings=(ActionName="WeaponNext",bShift=False,bCtrl=False,bAlt=False,'
     'bCmd=False,Key=MouseScrollUp)'
@@ -151,6 +161,14 @@ def _ensure_hack_tool_mapping():
     return _ensure_action_mapping("HackTool", "H", HACK_TOOL_LINE)
 
 
+def _ensure_use_first_aid_mapping():
+    return _ensure_action_mapping("UseFirstAid", "Z", USE_FIRST_AID_LINE)
+
+
+def _ensure_use_eve_hypo_mapping():
+    return _ensure_action_mapping("UseEveHypo", "X", USE_EVE_HYPO_LINE)
+
+
 def _ensure_weapon_slot_mappings():
     results = []
     results.append(_ensure_action_mapping("WeaponNext", "MouseScrollUp", WEAPON_NEXT_LINE))
@@ -172,6 +190,8 @@ STEPS = [
     ("plasmid_key_mapping", None, _ensure_plasmid_mapping, ()),
     ("plasmid_cycle_key_mapping", None, _ensure_plasmid_cycle_mapping, ()),
     ("hack_key_mapping", None, _ensure_hack_tool_mapping, ()),
+    ("use_first_aid_key_mapping", None, _ensure_use_first_aid_mapping, ()),
+    ("use_eve_hypo_key_mapping", None, _ensure_use_eve_hypo_mapping, ()),
     ("weapon_slot_key_mapping", None, _ensure_weapon_slot_mappings, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]

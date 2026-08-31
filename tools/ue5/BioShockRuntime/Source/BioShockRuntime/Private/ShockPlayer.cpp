@@ -914,7 +914,16 @@ int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 		return 0;
 	}
 	int32& Count = InventoryStacks.FindOrAdd(ItemClass);
-	Count += StackSize;
+	int32 MaxStack = MAX_int32;
+	if (ItemClass == FName(TEXT("FirstAidKit")))
+	{
+		MaxStack = FMath::Max(0, MaxFirstAidKits);
+	}
+	else if (ItemClass == FName(TEXT("EveHypo")))
+	{
+		MaxStack = FMath::Max(0, MaxEveHypos);
+	}
+	Count = FMath::Min(Count + StackSize, MaxStack);
 	return Count;
 }
 
@@ -940,6 +949,121 @@ int32 AShockPlayer::GetInventoryStack(FName ItemClass) const
 		return *Count;
 	}
 	return 0;
+}
+
+float AShockPlayer::GetMaxHealth() const
+{
+	if (AuthoredMaxHealth > 0.0f)
+	{
+		return AuthoredMaxHealth;
+	}
+	if (AuthoredHealth > 0.0f)
+	{
+		return AuthoredHealth;
+	}
+	return 100.0f;
+}
+
+void AShockPlayer::SetCurrentHealthForVerify(float Value)
+{
+	EnsureHealthInitialized();
+	CurrentHealth = FMath::Clamp(Value, 0.0f, GetMaxHealth());
+	if (CurrentHealth > 0.0f)
+	{
+		bIsDead = false;
+		bDeathHandled = false;
+	}
+}
+
+void AShockPlayer::Heal(float Amount)
+{
+	if (Amount <= 0.0f)
+	{
+		return;
+	}
+	EnsureHealthInitialized();
+	const float MaxHealth = GetMaxHealth();
+	if (CurrentHealth >= MaxHealth - KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	CurrentHealth = FMath::Min(CurrentHealth + Amount, MaxHealth);
+}
+
+bool AShockPlayer::UseFirstAidKit()
+{
+	if (GetInventoryStack(FName(TEXT("FirstAidKit"))) <= 0)
+	{
+		return false;
+	}
+	EnsureHealthInitialized();
+	if (CurrentHealth >= GetMaxHealth() - KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+	RemoveStackFromInventory(FName(TEXT("FirstAidKit")), 1);
+	Heal(FirstAidHealAmount);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_CONSUMABLE item=FirstAidKit health=%.1f"),
+		CurrentHealth);
+	return true;
+}
+
+bool AShockPlayer::UseEveHypo()
+{
+	if (GetInventoryStack(FName(TEXT("EveHypo"))) <= 0)
+	{
+		return false;
+	}
+	if (CurrentEve >= MaxEve - KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+	RemoveStackFromInventory(FName(TEXT("EveHypo")), 1);
+	RefillEve(EveHypoAmount);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_CONSUMABLE item=EveHypo eve=%.1f"),
+		CurrentEve);
+	return true;
+}
+
+void AShockPlayer::AddMoney(int32 Amount)
+{
+	if (Amount > 0)
+	{
+		PlayerMoney += Amount;
+	}
+}
+
+void AShockPlayer::TryAutoFirstAidAfterDamage()
+{
+	if (!bAutoFirstAid)
+	{
+		return;
+	}
+	const float MaxHealth = GetMaxHealth();
+	if (MaxHealth <= 0.0f)
+	{
+		return;
+	}
+	if ((CurrentHealth / MaxHealth) < AutoFirstAidThreshold)
+	{
+		UseFirstAidKit();
+	}
+}
+
+void AShockPlayer::HandleUseFirstAidInput()
+{
+	UseFirstAidKit();
+}
+
+void AShockPlayer::HandleUseEveHypoInput()
+{
+	UseEveHypo();
 }
 
 void AShockPlayer::SetForcedCrouch(bool bShouldCrouch)
@@ -1486,6 +1610,8 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
 	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
+	PlayerInputComponent->BindAction(TEXT("UseFirstAid"), IE_Pressed, this, &AShockPlayer::HandleUseFirstAidInput);
+	PlayerInputComponent->BindAction(TEXT("UseEveHypo"), IE_Pressed, this, &AShockPlayer::HandleUseEveHypoInput);
 	PlayerInputComponent->BindAction(TEXT("WeaponNext"), IE_Pressed, this, &AShockPlayer::HandleWeaponNextInput);
 	PlayerInputComponent->BindAction(TEXT("WeaponPrev"), IE_Pressed, this, &AShockPlayer::HandleWeaponPrevInput);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot1"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot1Input);

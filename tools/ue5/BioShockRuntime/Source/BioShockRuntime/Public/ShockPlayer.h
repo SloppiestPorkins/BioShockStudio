@@ -99,7 +99,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
 	float MaxEve = 100.0f;
 
-	/** PLAUSIBLE — EVE hypo refill amount; not wired to inventory yet. */
+	/** PLAUSIBLE — EVE hypo refill amount; consumed via UseEveHypo / inventory stack. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
 	float EveHypoAmount = 50.0f;
 
@@ -149,7 +149,7 @@ public:
 
 	/**
 	 * UnrealScript `ShockPlayer.AddStackToInventory` stand-in: merge StackSize into the
-	 * named ItemClass. No Item actors, no UI warnings, no max-stack clamp.
+	 * named ItemClass. FirstAidKit / EveHypo stacks clamp to MaxFirstAidKits / MaxEveHypos.
 	 * Returns the new stack total, or 0 if the grant is refused.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
@@ -160,6 +160,53 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	int32 GetInventoryStack(FName ItemClass) const;
+
+	/** PLAUSIBLE carry cap — BioShock U-Invent max ~9 per consumable type. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="BioShock|Player|Consumables")
+	int32 MaxFirstAidKits = 9;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="BioShock|Player|Consumables")
+	int32 MaxEveHypos = 9;
+
+	/** PLAUSIBLE — first-aid kit heal chunk; UC kit restores a large fraction, not always full. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="BioShock|Player|Consumables")
+	float FirstAidHealAmount = 60.0f;
+
+	/** Off by default so slice / possess verifies stay unchanged. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Consumables")
+	bool bAutoFirstAid = false;
+
+	/** PLAUSIBLE — auto-use kit when health drops below this fraction of max. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Consumables")
+	float AutoFirstAidThreshold = 0.35f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player|Consumables")
+	int32 PlayerMoney = 0;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	void Heal(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	bool UseFirstAidKit();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	bool UseEveHypo();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	void AddMoney(int32 Amount);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
+	int32 GetMoney() const { return PlayerMoney; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
+	float GetMaxHealth() const;
+
+	/** Headless verify: set health without going through damage. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	void SetCurrentHealthForVerify(float Value);
+
+	/** Called from damage library when bAutoFirstAid is enabled. */
+	void TryAutoFirstAidAfterDamage();
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetForcedCrouch(bool bShouldCrouch);
@@ -481,6 +528,8 @@ private:
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();
+	void HandleUseFirstAidInput();
+	void HandleUseEveHypoInput();
 	bool PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const;
 	void MoveForward(float Value);
 	void MoveRight(float Value);

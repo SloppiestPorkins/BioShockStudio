@@ -41,6 +41,9 @@ public:
 	FString GetDisplayedEveText() const;
 
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	FString GetDisplayedConsumablesText() const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
 
 	/** Editor/headless: spawn player+weapon, create HUD, assert text + viewport, damage + re-assert. */
@@ -74,6 +77,9 @@ private:
 	TObjectPtr<UTextBlock> EveText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ConsumablesText = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PlasmidText = nullptr;
 
 	UPROPERTY(Transient)
@@ -93,6 +99,7 @@ private:
 
 	FString CachedHealthText;
 	FString CachedEveText;
+	FString CachedConsumablesText;
 	FString CachedPlasmidText;
 	FString CachedAmmoMagText;
 	FString CachedWeaponNameText;
