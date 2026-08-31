@@ -8,6 +8,7 @@
 #include "ShockPlayer.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockWeapon.h"
+#include "ShockWeaponDef.h"
 
 #include "Camera/CameraComponent.h"
 #include "CollisionQueryParams.h"
@@ -255,8 +256,7 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 		return;
 	}
 
-	Weapon->ConfigureHitscan(25.0f, 10000.0f);
-	Weapon->ConfigureAmmo(50, 150, 10.0f, 2.5f);
+	Weapon->ApplyDef(UShockWeaponDef::Resolve(TEXT("TommyGun")));
 	Weapon->InitializeAmmoFullMag(150);
 
 	if (USkeletalMesh* TommyGun = LoadObject<USkeletalMesh>(

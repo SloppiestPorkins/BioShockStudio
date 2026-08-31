@@ -3,6 +3,8 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
+#include "ShockProjectile.h"
+#include "ShockWeaponDef.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
@@ -18,6 +20,35 @@ AShockWeapon::AShockWeapon()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Mesh->SetCastShadow(false);
+}
+
+void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
+{
+	if (!Def)
+	{
+		return;
+	}
+
+	FireMode = Def->FireMode;
+	HitscanDamage = Def->Damage;
+	HitscanRange = Def->Range;
+	Spread = Def->Spread;
+	MagazineSize = FMath::Max(1, Def->MagazineSize);
+	ReserveAmmo = FMath::Max(0, Def->ReserveAmmo);
+	FireRate = FMath::Max(0.1f, Def->FireRate);
+	ReloadSeconds = FMath::Max(0.01f, Def->ReloadSeconds);
+	MeleeArc = Def->MeleeArc;
+	MeleeReach = Def->MeleeReach;
+	ProjectileClass = Def->ProjectileClass;
+	DefProjectileInitialSpeed = Def->ProjectileInitialSpeed;
+	DefProjectileImpactRadius = Def->ProjectileImpactRadius;
+	DefProjectileLifeSeconds = Def->ProjectileLifeSeconds;
+	DefWeaponName = Def->WeaponName;
+
+	if (FireMode != EWeaponFireMode::Melee)
+	{
+		bEnforceAmmo = true;
+	}
 }
 
 void AShockWeapon::ConfigureHitscan(float InDamage, float InRange)
@@ -74,6 +105,20 @@ bool AShockWeapon::CanFireNow(UWorld* World) const
 		return true;
 	}
 	return (World->GetTimeSeconds() - LastFireWorldSeconds) >= static_cast<double>(Interval) - KINDA_SMALL_NUMBER;
+}
+
+bool AShockWeapon::CanMeleeNow(UWorld* World) const
+{
+	if (!World)
+	{
+		return false;
+	}
+	const float Interval = GetMinFireInterval();
+	if (Interval <= 0.0f || LastMeleeWorldSeconds < 0.0)
+	{
+		return true;
+	}
+	return (World->GetTimeSeconds() - LastMeleeWorldSeconds) >= static_cast<double>(Interval) - KINDA_SMALL_NUMBER;
 }
 
 void AShockWeapon::LogAmmoState() const
@@ -152,6 +197,7 @@ void AShockWeapon::AdvanceReloadForVerify(float DeltaSeconds)
 void AShockWeapon::ClearFireCooldownForVerify()
 {
 	LastFireWorldSeconds = -1.0;
+	LastMeleeWorldSeconds = -1.0;
 }
 
 void AShockWeapon::AdvanceFireRateClockForVerify(float DeltaSeconds)
@@ -327,6 +373,19 @@ void AShockWeapon::PlayFireFeedback(
 
 bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direction)
 {
+	switch (FireMode)
+	{
+	case EWeaponFireMode::Projectile:
+		return FireAtProjectile(InstigatorActor, Start, Direction);
+	case EWeaponFireMode::Melee:
+		return FireAtMelee(InstigatorActor, Start, Direction);
+	default:
+		return FireAtHitscan(InstigatorActor, Start, Direction);
+	}
+}
+
+bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector Direction)
+{
 	UWorld* World = GetWorld();
 	if (!World || Direction.IsNearlyZero())
 	{
@@ -409,5 +468,129 @@ bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direct
 	{
 		TryAutoReloadOnEmpty();
 	}
+	return bDamaged;
+}
+
+bool AShockWeapon::FireAtProjectile(AActor* InstigatorActor, FVector Start, FVector Direction)
+{
+	UWorld* World = GetWorld();
+	if (!World || Direction.IsNearlyZero())
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && bIsReloading)
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_DRY"));
+		PlayDryFireFeedback(Start);
+		TryAutoReloadOnEmpty();
+		return false;
+	}
+
+	if (!CanFireNow(World))
+	{
+		return false;
+	}
+
+	const TSubclassOf<AShockProjectile> SpawnClass =
+		ProjectileClass ? ProjectileClass : TSubclassOf<AShockProjectile>(AShockProjectile::StaticClass());
+
+	LastFireWorldSeconds = World->GetTimeSeconds();
+	if (bEnforceAmmo)
+	{
+		--RoundsInMagazine;
+		LogAmmoState();
+	}
+	++FireCount;
+	LastHitPawn = nullptr;
+
+	const FVector NormDir = Direction.GetSafeNormal();
+	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
+	const FRotator SpawnRot = NormDir.Rotation();
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = Cast<APawn>(InstigatorActor);
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AShockProjectile* Projectile = World->SpawnActor<AShockProjectile>(
+		SpawnClass,
+		MuzzleLoc,
+		SpawnRot,
+		SpawnParams);
+	if (Projectile)
+	{
+		Projectile->ConfigureFromWeapon(
+			DefWeaponName,
+			HitscanDamage,
+			DefProjectileImpactRadius,
+			DefProjectileInitialSpeed,
+			DefProjectileLifeSeconds,
+			InstigatorActor,
+			NormDir);
+	}
+
+	PlayFireFeedback(InstigatorActor, MuzzleLoc, MuzzleLoc + NormDir * 500.0f, false, false);
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		TryAutoReloadOnEmpty();
+	}
+	return Projectile != nullptr;
+}
+
+bool AShockWeapon::FireAtMelee(AActor* InstigatorActor, FVector Start, FVector Direction)
+{
+	UWorld* World = GetWorld();
+	if (!World || Direction.IsNearlyZero() || MeleeReach <= 0.0f)
+	{
+		return false;
+	}
+
+	if (!CanMeleeNow(World))
+	{
+		return false;
+	}
+
+	LastMeleeWorldSeconds = World->GetTimeSeconds();
+	++FireCount;
+	LastHitPawn = nullptr;
+
+	const FVector NormDir = Direction.GetSafeNormal();
+	const FVector TraceEnd = Start + NormDir * MeleeReach;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponMelee), false, InstigatorActor);
+	Params.AddIgnoredActor(this);
+
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+
+	FHitResult Hit;
+	const bool bHit = World->SweepSingleByObjectType(
+		Hit,
+		Start,
+		TraceEnd,
+		FQuat::Identity,
+		ObjectParams,
+		FCollisionShape::MakeSphere(FMath::Max(10.0f, MeleeReach * 0.15f)),
+		Params);
+
+	bool bDamaged = false;
+	if (bHit)
+	{
+		if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
+		{
+			UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
+			LastHitPawn = Victim;
+			bDamaged = true;
+		}
+	}
+
+	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
+	PlayFireFeedback(InstigatorActor, MuzzleLoc, Hit.bBlockingHit ? Hit.ImpactPoint : TraceEnd, bDamaged, false);
 	return bDamaged;
 }

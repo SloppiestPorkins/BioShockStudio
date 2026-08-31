@@ -1,9 +1,11 @@
 #pragma once
 
 #include "GameFramework/Actor.h"
+#include "ShockWeaponDef.h"
 #include "ShockWeapon.generated.h"
 
 class AShockPawn;
+class AShockProjectile;
 class UPointLightComponent;
 class USkeletalMeshComponent;
 
@@ -65,6 +67,24 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
 	bool bIsReloading = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	EWeaponFireMode FireMode = EWeaponFireMode::Hitscan;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float Spread = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float MeleeArc = 90.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float MeleeReach = 180.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	TSubclassOf<AShockProjectile> ProjectileClass;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	void ApplyDef(UShockWeaponDef* Def);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ConfigureHitscan(float InDamage, float InRange);
@@ -142,11 +162,15 @@ public:
 	bool FireAt(AActor* InstigatorActor, FVector Start, FVector Direction);
 
 private:
+	bool FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector Direction);
+	bool FireAtProjectile(AActor* InstigatorActor, FVector Start, FVector Direction);
+	bool FireAtMelee(AActor* InstigatorActor, FVector Start, FVector Direction);
 	void FinishReload();
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
 	float GetMinFireInterval() const;
 	bool CanFireNow(UWorld* World) const;
+	bool CanMeleeNow(UWorld* World) const;
 	FVector ResolveMuzzleLocation(const FVector& TraceStart) const;
 	void EnsureMuzzleFlashLight();
 	void HideMuzzleFlash();
@@ -169,4 +193,9 @@ private:
 	int32 MuzzleFlashCount = 0;
 	float ReloadCountdown = 0.0f;
 	double LastFireWorldSeconds = -1.0;
+	double LastMeleeWorldSeconds = -1.0;
+	float DefProjectileInitialSpeed = 2500.0f;
+	float DefProjectileImpactRadius = 0.0f;
+	float DefProjectileLifeSeconds = 10.0f;
+	FName DefWeaponName;
 };
