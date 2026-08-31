@@ -116,6 +116,16 @@ WEAPON_SLOT6_LINE = (
     'bCmd=False,Key=Six)'
 )
 
+INTERACT_LINE = (
+    '+ActionMappings=(ActionName="Interact",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=F)'
+)
+
+TRAVEL_DEST_MAP = "/Game/BioShockSlice/_TravelDest"
+PLAY_GAME_MODE = "/Script/BioShockRuntime.ShockGameMode"
+SHOCK_GAME_INSTANCE = "/Script/BioShockRuntime.ShockGameInstance"
+SLICE_PROJECT = r"C:\Users\Jack\Documents\BioShockUE5"
+
 
 def _ensure_action_mapping(action_name, key, existing_line):
     """Add ActionName -> key to DefaultInput.ini if missing."""
@@ -182,6 +192,119 @@ def _ensure_weapon_slot_mappings():
     return {"mapping": "weapon slots", "details": results}
 
 
+def _ensure_interact_mapping():
+    return _ensure_action_mapping("Interact", "F", INTERACT_LINE)
+
+
+def _project_config_dir():
+    return os.path.join(SLICE_PROJECT, "Config")
+
+
+def _set_engine_ini_value(text, key, value):
+    import re
+
+    section = "[/Script/Engine.Engine]"
+    line = "%s=%s" % (key, value)
+    if section not in text:
+        text = text.rstrip() + "\n\n" + section + "\n" + line + "\n"
+        return text, True
+    match = re.search(
+        r"(\[/Script/Engine\.Engine\][^\[]*)",
+        text,
+        flags=re.DOTALL,
+    )
+    if not match:
+        return text, False
+    block = match.group(1)
+    key_re = re.compile(r"(?m)^%s=.*$" % re.escape(key))
+    if key_re.search(block):
+        new_block = key_re.sub(line, block, count=1)
+    else:
+        new_block = block.rstrip("\n") + "\n" + line + "\n"
+    if new_block == block:
+        return text, False
+    return text[: match.start(1)] + new_block + text[match.end(1) :], True
+
+
+def _ensure_game_instance_class():
+    """Point DefaultEngine.ini at UShockGameInstance so carry state survives OpenLevel."""
+    ini_path = os.path.join(_project_config_dir(), "DefaultEngine.ini")
+    if not os.path.isfile(ini_path):
+        return {"ini": ini_path, "mapping": "missing ini"}
+    original = open(ini_path, encoding="utf-8").read()
+    text, changed = _set_engine_ini_value(original, "GameInstanceClass", SHOCK_GAME_INSTANCE)
+    if changed and text != original:
+        open(ini_path, "w", encoding="utf-8", newline="\n").write(text)
+    return {
+        "ini": ini_path,
+        "gameInstanceClass": SHOCK_GAME_INSTANCE,
+        "changed": changed and text != original,
+    }
+
+
+def _level_subsystem():
+    return unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+
+
+def _ensure_content_folder(path):
+    if unreal.EditorAssetLibrary.does_directory_exist(path):
+        return
+    if not unreal.EditorAssetLibrary.make_directory(path):
+        raise RuntimeError("could not create content folder %s" % path)
+
+
+def _ensure_travel_dest_map():
+    """Hand-built travel destination: ShockGameMode, default start + labelled arrivals."""
+    mode_class = unreal.load_class(None, PLAY_GAME_MODE)
+    if mode_class is None:
+        raise RuntimeError("ShockGameMode class missing")
+
+    level = _level_subsystem()
+    created = False
+    if unreal.EditorAssetLibrary.does_asset_exist(TRAVEL_DEST_MAP):
+        if not level.load_level(TRAVEL_DEST_MAP):
+            raise RuntimeError("could not load %s" % TRAVEL_DEST_MAP)
+    else:
+        _ensure_content_folder("/Game/BioShockSlice")
+        if not level.new_level(TRAVEL_DEST_MAP):
+            raise RuntimeError("could not create %s" % TRAVEL_DEST_MAP)
+        created = True
+
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    settings = world.get_world_settings()
+    settings.set_editor_property("default_game_mode", mode_class)
+
+    subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    labels_needed = {
+        "TravelDestStart": unreal.Vector(0.0, 0.0, 100.0),
+        "DestArrival": unreal.Vector(400.0, 0.0, 100.0),
+        "ReturnArrival": unreal.Vector(-400.0, 0.0, 100.0),
+    }
+    existing = {}
+    for actor in subsystem.get_all_level_actors():
+        if isinstance(actor, unreal.PlayerStart):
+            existing[actor.get_actor_label()] = actor
+
+    spawned = []
+    for label, loc in labels_needed.items():
+        if label in existing:
+            continue
+        start = subsystem.spawn_actor_from_class(unreal.PlayerStart, loc)
+        if not start:
+            raise RuntimeError("could not spawn PlayerStart %s" % label)
+        start.set_actor_label(label)
+        spawned.append(label)
+
+    if not level.save_current_level():
+        raise RuntimeError("could not save %s" % TRAVEL_DEST_MAP)
+
+    return {
+        "map": TRAVEL_DEST_MAP,
+        "created": created,
+        "spawnedStarts": spawned,
+    }
+
+
 STEPS = [
     ("import_ai_archetypes", "import_ai_archetypes", "main", ()),
     ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
@@ -193,6 +316,9 @@ STEPS = [
     ("use_first_aid_key_mapping", None, _ensure_use_first_aid_mapping, ()),
     ("use_eve_hypo_key_mapping", None, _ensure_use_eve_hypo_mapping, ()),
     ("weapon_slot_key_mapping", None, _ensure_weapon_slot_mappings, ()),
+    ("interact_key_mapping", None, _ensure_interact_mapping, ()),
+    ("game_instance_class", None, _ensure_game_instance_class, ()),
+    ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
 

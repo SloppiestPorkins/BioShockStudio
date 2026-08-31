@@ -504,6 +504,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Research")
 	float GetResearchPointsForVerify(FName Archetype) const;
 
+	/** Level-travel: copy inventory stacks without exposing the private map. */
+	TMap<FName, int32> GetInventoryStacksForTravel() const;
+
+	/** Level-travel: replace inventory stacks from a captured blob. */
+	void RestoreInventoryStacksForTravel(const TMap<FName, int32>& Stacks);
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void ResetForRespawn(float Health);
 

@@ -626,6 +626,16 @@ float AShockPlayer::GetResearchPointsForVerify(FName Archetype) const
 	return ResearchPointsByArchetype.FindRef(Archetype);
 }
 
+TMap<FName, int32> AShockPlayer::GetInventoryStacksForTravel() const
+{
+	return InventoryStacks;
+}
+
+void AShockPlayer::RestoreInventoryStacksForTravel(const TMap<FName, int32>& Stacks)
+{
+	InventoryStacks = Stacks;
+}
+
 void AShockPlayer::HandleFireInput()
 {
 	TryFireEquippedWeapon();

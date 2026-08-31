@@ -1,5 +1,7 @@
 #include "ShockActionChangeLevel.h"
 
+#include "ShockGameMode.h"
+
 UShockActionChangeLevel::UShockActionChangeLevel()
 {
 	ActionClassName = TEXT("ActionChangeLevel");
@@ -29,5 +31,18 @@ bool UShockActionChangeLevel::RequestChange()
 
 bool UShockActionChangeLevel::ApplyInWorld(const FShockActionContext& Ctx)
 {
-	return RequestChange();
+	if (!RequestChange() || !Ctx.World)
+	{
+		return false;
+	}
+
+	AShockGameMode* GameMode = Ctx.World->GetAuthGameMode<AShockGameMode>();
+	if (!GameMode)
+	{
+		return false;
+	}
+
+	const FName StartLabel = StartLocationLabel.IsEmpty() ? NAME_None : FName(*StartLocationLabel);
+	GameMode->TravelToLevel(MapName, StartLabel);
+	return true;
 }

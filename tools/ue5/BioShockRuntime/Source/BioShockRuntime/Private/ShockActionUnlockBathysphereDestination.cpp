@@ -1,5 +1,6 @@
 #include "ShockActionUnlockBathysphereDestination.h"
 
+#include "ShockBathysphereStation.h"
 #include "ShockPlayer.h"
 
 UShockActionUnlockBathysphereDestination::UShockActionUnlockBathysphereDestination()
@@ -30,13 +31,21 @@ int32 UShockActionUnlockBathysphereDestination::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
-	if (!Player)
+
+	int32 Applied = 0;
+	if (AShockBathysphereStation* Station = AShockBathysphereStation::FindByMapId(World, MapName))
 	{
-		return 0;
+		Station->SetUnlocked(true);
+		++Applied;
 	}
-	Player->UnlockBathysphereDestination(BathysphereSystem, MapName);
-	return 1;
+
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (Player)
+	{
+		Player->UnlockBathysphereDestination(BathysphereSystem, MapName);
+		++Applied;
+	}
+	return Applied;
 }
 
 bool UShockActionUnlockBathysphereDestination::ApplyInWorld(const FShockActionContext& Ctx)

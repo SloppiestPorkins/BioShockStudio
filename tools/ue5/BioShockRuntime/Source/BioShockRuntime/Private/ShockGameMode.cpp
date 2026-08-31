@@ -2,8 +2,10 @@
 #include "BaseShockAI.h"
 #include "ShockAiArchetype.h"
 #include "ShockAmmoPickup.h"
+#include "ShockCarryState.h"
 #include "ShockConsumablePickup.h"
 #include "ShockDeathRespawnHandler.h"
+#include "ShockGameInstance.h"
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
@@ -35,6 +37,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "HAL/PlatformMisc.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavMesh/RecastNavMesh.h"
@@ -166,6 +169,36 @@ AActor* AShockGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
 	if (UWorld* World = GetWorld())
 	{
+		if (const UShockGameInstance* GI = UShockGameInstance::GetShockInstance(World))
+		{
+			if (GI->HasPendingArrival())
+			{
+				const FName ArrivalLabel = GI->GetPendingArrivalStartLabel();
+				if (!ArrivalLabel.IsNone())
+				{
+					for (TActorIterator<APlayerStart> It(World); It; ++It)
+					{
+						const FString Label = It->GetActorLabel();
+						if (Label.Equals(ArrivalLabel.ToString(), ESearchCase::IgnoreCase))
+						{
+							UE_LOG(
+								LogTemp,
+								Display,
+								TEXT("BIOSHOCK_CHOOSE_START arrival label=%s loc=%s"),
+								*Label,
+								*It->GetActorLocation().ToString());
+							return *It;
+						}
+					}
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("BIOSHOCK_CHOOSE_START arrival label=%s not found; using default"),
+						*ArrivalLabel.ToString());
+				}
+			}
+		}
+
 		for (TActorIterator<APlayerStart> It(World); It; ++It)
 		{
 			for (const FName& Tag : It->Tags)
@@ -242,7 +275,7 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 		return;
 	}
 
-	UWorld* World = GetWorld();
+	UWorld* World = Player->GetWorld();
 	if (!World)
 	{
 		return;
@@ -279,6 +312,57 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 
 	Player->AddStackToInventory(FName(TEXT("FirstAidKit")), 1);
 	Player->AddStackToInventory(FName(TEXT("EveHypo")), 1);
+}
+
+void AShockGameMode::TravelToLevel(const FString& Map, FName StartLabel)
+{
+	UWorld* World = GetWorld();
+	if (!World || Map.IsEmpty())
+	{
+		return;
+	}
+
+	if (UShockGameInstance* GI = UShockGameInstance::GetShockInstance(World))
+	{
+		if (AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World))
+		{
+			UShockCarryState* Carry = UShockCarryState::Capture(Player);
+			GI->SetPendingCarry(Carry, StartLabel);
+		}
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_TRAVEL to=%s start=%s"),
+		*Map,
+		*StartLabel.ToString());
+
+	UGameplayStatics::OpenLevel(this, FName(*Map));
+}
+
+bool AShockGameMode::ApplyArrivalLoadout(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return false;
+	}
+
+	if (UShockGameInstance* GI = UShockGameInstance::GetShockInstance(Player->GetWorld()))
+	{
+		if (GI->HasPendingArrival())
+		{
+			return GI->ConsumePendingArrival(Player);
+		}
+	}
+
+	EquipStarterWeapon(Player);
+	return false;
+}
+
+void AShockGameMode::EquipStarterWeaponForVerify(AShockPlayer* Player)
+{
+	EquipStarterWeapon(Player);
 }
 
 namespace
@@ -979,7 +1063,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 			NewPlayer->SetControlRotation(PlayableStartRotation(Start));
 			if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
 			{
-				EquipStarterWeapon(Player);
+				ApplyArrivalLoadout(Player);
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				EnsureHudForPlayer(NewPlayer);
@@ -1026,7 +1110,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		}
 		else if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
 		{
-			EquipStarterWeapon(Player);
+			ApplyArrivalLoadout(Player);
 			NewPlayer->SetViewTarget(Player);
 			EnsureHudForPlayer(NewPlayer);
 		}

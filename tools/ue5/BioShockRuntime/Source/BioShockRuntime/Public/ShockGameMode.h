@@ -55,6 +55,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Nav", meta=(WorldContext="WorldContextObject"))
 	static bool CanProjectPointToNavigation(UObject* WorldContextObject, FVector Point);
 
+	/** Capture local player state and OpenLevel to Map (carry via UShockGameInstance). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Travel")
+	void TravelToLevel(const FString& Map, FName StartLabel);
+
+	/**
+	 * PostLogin branch: restore pending carry when present, else EquipStarterWeapon.
+	 * Headless verify calls this to exercise both paths without a full OpenLevel.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Travel")
+	bool ApplyArrivalLoadout(AShockPlayer* Player);
+
+	/** Headless verify: explicit starter path (same as PostLogin when no pending carry). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Slice")
+	void EquipStarterWeaponForVerify(AShockPlayer* Player);
+
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
 	void EquipStarterWeapon(AShockPlayer* Player);

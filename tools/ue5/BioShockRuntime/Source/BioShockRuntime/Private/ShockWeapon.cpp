@@ -91,6 +91,13 @@ void AShockWeapon::InitializeAmmoFullMag(int32 InReserveAmmo)
 	LogAmmoState();
 }
 
+void AShockWeapon::SetAmmoStateForVerify(int32 InMag, int32 InReserve)
+{
+	RoundsInMagazine = FMath::Clamp(InMag, 0, FMath::Max(1, MagazineSize));
+	ReserveAmmo = FMath::Max(0, InReserve);
+	LogAmmoState();
+}
+
 int32 AShockWeapon::AddReserveAmmo(int32 Amount)
 {
 	if (Amount <= 0)

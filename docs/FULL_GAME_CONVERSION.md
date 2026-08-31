@@ -245,6 +245,22 @@ Census/spec order, each its own sub-project:
   `EveHypoAmount`). **TODO:** U-Invent UI, Gene Banks, ADAM / Gene Tonics, Vita-Chambers vs kits,
   ammo crafting, vending / money economy, ammo-type switching (AP / anti-personnel / incendiary per
   `weapons-config`), Health Stations.
+- **Level travel — first slice (1 Sep 2026):** `UShockCarryState` on `UShockGameInstance`
+  (`DefaultEngine.ini` `GameInstanceClass` via `setup_playable_slice.py`) survives
+  `UGameplayStatics::OpenLevel`. **Captured fields:** `Health`, `MaxEve` / `CurrentEve`,
+  `TArray<FShockCarriedWeapon>` (`DefName` or `ClassPath`, `Slot`, `Mag`, `Reserve`),
+  `ActiveWeaponSlot`, `TArray<FShockCarriedPlasmid>` (`PlasmidName`, `Slot`),
+  `ActivePlasmidSlot`, `TMap<FName,float> Research`, `TMap<FName,int32> Inventory`, `Money`,
+  `ArrivalStartLabel`. `AShockGameMode::TravelToLevel` logs `BIOSHOCK_TRAVEL`; `PostLogin` /
+  `ApplyArrivalLoadout` restores when `bHasPendingArrival` else unchanged `EquipStarterWeapon`
+  (logs `BIOSHOCK_ARRIVED` on restore). `UShockActionChangeLevel::ApplyInWorld` wired.
+  Hand-built `/Game/BioShockSlice/_TravelDest` map (`TravelDestStart`, `DestArrival`,
+  `ReturnArrival` PlayerStarts) created by `setup_playable_slice.py`. `run_level_travel.py` /
+  `verify_level_travel.py` headless (capture → restore; editor substitutes for OpenLevel).
+  `AShockBathysphereStation` actor + unlock action stub; **Interact → F** mapping added but
+  player-side interact hook still TODO. **TODO:** bathysphere route-map UI, save-on-travel to
+  disk, per-level scripted intro beats, full 21-map import + travel graph, autosave on travel,
+  real `0-Lighthouse` (or full map) destination instead of `_TravelDest`.
 - Inventory, ammo types (AP / anti-personnel / incendiary per weapon), U-Invent, Gene Banks,
   the Research Camera, ADAM / Gene Tonics.
 

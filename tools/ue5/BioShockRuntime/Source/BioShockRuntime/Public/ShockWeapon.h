@@ -150,6 +150,9 @@ public:
 	int32 AddReserveAmmo(int32 Amount);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
+	void SetAmmoStateForVerify(int32 InMag, int32 InReserve);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	bool Reload();
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
