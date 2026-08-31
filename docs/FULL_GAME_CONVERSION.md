@@ -255,12 +255,25 @@ stations.
   HUD shows active weapon name beside ammo. `run_weapon_def.py` / `verify_weapon_def.py`,
   `run_weapon_slots.py` / `verify_weapon_slots.py`, `run_weapon_beam.py` /
   `verify_weapon_beam.py` headless.
+- [x] **C4 slice — Research Camera + per-archetype research:** `AShockResearchCamera` in holster
+  slot 7 (`GiveWeapon` — no weapon def; `ResearchCamera.uc` uses film ammo, not hitscan defs).
+  Photos score live `ABaseShockAI` subjects (centering + distance band + combat-target bonus;
+  PLAUSIBLE thresholds `{0,100,300,700,1500}` vs UC per-track `ScoreRequired`). Research points
+  keyed on `AITypeName`; `UShockDamageLibrary::ApplyDamage` multiplies player damage by
+  `GetResearchDamageMultiplier` (PLAUSIBLE +10%/level). `run_research_camera.py` /
+  `verify_research_camera.py` headless. **The C4 weapon list is complete (7 combat weapons +
+  Research Camera).**
 - **Still on inline `ConfigureHitscan` / `ConfigureAmmo`:** AI splicers (`BaseShockAI`), HUD ammo
   preview widget, slice encounter stand-in weapon — not `Resolve` yet.
 - **Tuning gaps:** TommyGun slice values differ from weapons-config Machine Gun (40 dmg / 40 mag);
-  spread not applied to hitscan traces; **Research Camera def missing**; no upgrade stations;
+  spread not applied to hitscan traces; no upgrade stations;
   no ammo-type switching (chem Ionic/LiquidN / crossbow trap-incendiary bolts); **bolt retrieval
   TODO**; projectile gravity / mesh / sticky-RPG modes not ported.
+- **Research Camera TODOs:** research rewards beyond the damage bonus (plasmid unlocks, one-time
+  level-up item grants per UC `ResearchLevels[].AwardItemClass`), the research film / photo-subject
+  variety (UC `CameraDamageFactory` centering/size/pose/dead/repeat scoring), upgrade stations,
+  ammo-type switching (film types), HUD readout of centred-subject research level while camera is
+  active.
 
 ### C5. The behaviour library — breadth then depth
 Everything else `Action*` / native, worked from the census, most-used first, each verified

@@ -4,6 +4,7 @@
 #include "ShockDamageLibrary.generated.h"
 
 class AActor;
+class AShockPlayer;
 class UWorld;
 
 /**
@@ -37,4 +38,7 @@ public:
 	/** Editor actor label or BaseShockAI ScriptLabel. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	static AActor* FindActorByLabel(UWorld* World, FName Label);
+
+	/** Walk instigator then owner chain for the player that authored damage. */
+	static AShockPlayer* ResolvePlayerFrom(AActor* Source);
 };

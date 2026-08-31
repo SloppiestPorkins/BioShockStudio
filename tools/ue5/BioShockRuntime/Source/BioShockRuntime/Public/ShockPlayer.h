@@ -433,6 +433,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void AdvanceWeaponRecoilForVerify(float DeltaSeconds);
 
+	/** Per-archetype research from the Research Camera (key = BaseShockAI::AITypeName). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Research")
+	TMap<FName, float> ResearchPointsByArchetype;
+
+	/** PLAUSIBLE slice thresholds — UC uses per-track ScoreRequired (e.g. 25/300/600/1000/1750). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="BioShock|Research")
+	TArray<float> ResearchLevelThresholds = {0.0f, 100.0f, 300.0f, 700.0f, 1500.0f};
+
+	/** PLAUSIBLE — +10% weapon damage per research level vs that archetype. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="BioShock|Research")
+	float ResearchDamageBonusPerLevel = 0.10f;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Research")
+	void AddResearchPoints(FName Archetype, float Points);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Research")
+	int32 GetResearchLevel(FName Archetype) const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Research")
+	float GetResearchDamageMultiplier(FName Archetype) const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Research")
+	float GetResearchPointsForVerify(FName Archetype) const;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void ResetForRespawn(float Health);
 

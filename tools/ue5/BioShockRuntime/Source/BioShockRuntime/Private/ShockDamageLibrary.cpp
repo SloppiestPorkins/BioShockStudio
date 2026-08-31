@@ -37,6 +37,34 @@ AActor* UShockDamageLibrary::FindActorByLabel(UWorld* World, FName Label)
 	return nullptr;
 }
 
+AShockPlayer* UShockDamageLibrary::ResolvePlayerFrom(AActor* Source)
+{
+	for (AActor* Current = Source; Current; )
+	{
+		if (AShockPlayer* Player = Cast<AShockPlayer>(Current))
+		{
+			return Player;
+		}
+
+		AActor* Next = Current->GetInstigator();
+		if (Next && Next != Current)
+		{
+			Current = Next;
+			continue;
+		}
+
+		Next = Current->GetOwner();
+		if (Next && Next != Current)
+		{
+			Current = Next;
+			continue;
+		}
+
+		break;
+	}
+	return nullptr;
+}
+
 float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Instigator, FName DamageType)
 {
 	(void)DamageType;
@@ -65,8 +93,20 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 		}
 	}
 
+	float ScaledAmount = Amount;
+	if (const ABaseShockAI* TargetAI = Cast<ABaseShockAI>(Pawn))
+	{
+		if (!TargetAI->AITypeName.IsNone())
+		{
+			if (AShockPlayer* Player = ResolvePlayerFrom(Instigator))
+			{
+				ScaledAmount *= Player->GetResearchDamageMultiplier(TargetAI->AITypeName);
+			}
+		}
+	}
+
 	const float Before = Pawn->GetCurrentHealth();
-	float Applied = FMath::Min(Amount, Before);
+	float Applied = FMath::Min(ScaledAmount, Before);
 
 	if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
 	{

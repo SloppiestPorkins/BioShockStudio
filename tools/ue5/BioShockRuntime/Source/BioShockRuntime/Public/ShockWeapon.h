@@ -191,7 +191,12 @@ public:
 	 * Returns true if a ShockPawn was damaged. Refuses when empty, reloading, or fire-rate gated.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
-	bool FireAt(AActor* InstigatorActor, FVector Start, FVector Direction);
+	virtual bool FireAt(AActor* InstigatorActor, FVector Start, FVector Direction);
+
+protected:
+	bool CanFireNow(UWorld* World) const;
+	float GetMinFireInterval() const;
+	double LastFireWorldSeconds = -1.0;
 
 private:
 	bool FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector Direction);
@@ -203,8 +208,6 @@ private:
 	void FinishReload();
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
-	float GetMinFireInterval() const;
-	bool CanFireNow(UWorld* World) const;
 	bool CanMeleeNow(UWorld* World) const;
 	FVector ResolveMuzzleLocation(const FVector& TraceStart) const;
 	void EnsureMuzzleFlashLight();
@@ -228,7 +231,6 @@ private:
 	int32 TracerDrawCount = 0;
 	int32 MuzzleFlashCount = 0;
 	float ReloadCountdown = 0.0f;
-	double LastFireWorldSeconds = -1.0;
 	double LastMeleeWorldSeconds = -1.0;
 	float DefProjectileInitialSpeed = 2500.0f;
 	float DefProjectileImpactRadius = 0.0f;

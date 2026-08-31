@@ -571,6 +571,61 @@ void AShockPlayer::TickWeaponRecoil()
 	AdvanceWeaponRecoilForVerify(0.01f);
 }
 
+void AShockPlayer::AddResearchPoints(FName Archetype, float Points)
+{
+	if (Archetype.IsNone() || Points <= 0.0f)
+	{
+		return;
+	}
+
+	const int32 OldLevel = GetResearchLevel(Archetype);
+	ResearchPointsByArchetype.FindOrAdd(Archetype) += Points;
+	const int32 NewLevel = GetResearchLevel(Archetype);
+	if (NewLevel > OldLevel)
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_RESEARCH archetype=%s level=%d->%d"),
+			*Archetype.ToString(),
+			OldLevel,
+			NewLevel);
+	}
+}
+
+int32 AShockPlayer::GetResearchLevel(FName Archetype) const
+{
+	const float Points = ResearchPointsByArchetype.FindRef(Archetype);
+	int32 Level = 0;
+	for (int32 Index = 0; Index < ResearchLevelThresholds.Num(); ++Index)
+	{
+		const float Threshold = ResearchLevelThresholds[Index];
+		if (Threshold <= 0.0f)
+		{
+			continue;
+		}
+		if (Points >= Threshold)
+		{
+			Level = Index;
+		}
+		else
+		{
+			break;
+		}
+	}
+	return Level;
+}
+
+float AShockPlayer::GetResearchDamageMultiplier(FName Archetype) const
+{
+	return 1.0f + static_cast<float>(GetResearchLevel(Archetype)) * ResearchDamageBonusPerLevel;
+}
+
+float AShockPlayer::GetResearchPointsForVerify(FName Archetype) const
+{
+	return ResearchPointsByArchetype.FindRef(Archetype);
+}
+
 void AShockPlayer::HandleFireInput()
 {
 	TryFireEquippedWeapon();
