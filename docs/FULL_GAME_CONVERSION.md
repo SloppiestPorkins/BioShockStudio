@@ -164,16 +164,31 @@ There are ~199 `Action*` classes; ~100 already have `ApplyInWorld` overrides on
 - Latent actions (`Wait`, `FinishAnim`, latent `MoveTo`) → C++ coroutine-style tasks,
   not per-frame polling.
 
-### C2. The `ShockAI` state machines — the architecture decision
-103 UnrealScript states, decompiled cleanly enough to read as spec. This needs the call
-`UE5_FULL_PORT_PLAN.md` §5 Phase 3 flagged and never made:
-- **Recommendation: a lightweight C++ state-machine component** (`UShockStateMachine`) that
-  mirrors UnrealScript state semantics (labels, `GotoState`, state-scoped functions,
-  `Begin:` blocks, latent `Sleep`) directly — *not* StateTree/BT, which would force a
-  translation and lose the 1:1 mapping to the source. Generate a skeleton per state from
-  the decompiler output; fill bodies census-ordered.
-- Prove it on the two enemies the slice already spawns (Thug/melee splicer + a Leadhead),
-  then the Big Daddy (the set-piece), then the tail.
+### C2. The AI brain — goals + abilities (architecture, corrected 31 Aug 2026)
+**Reading the decompiled source changed the call.** `ShockAI` is *not* a big state machine —
+`ShockAI.uc` has one `state` (`Dying`). The AI is **goal-oriented**: a `CharacterAI` holds an
+**ability list** (`CharacterAI.addAbility_Class(Class'ShockAI.MoveToAction')`,
+`HeadTrackingAction`, `FleeAction`, `MimicAction`, …), an `AI_Goal` names the current objective,
+and an `achievingAction` (an `AIAction`/ability) works it. The `*Action` classes are the
+behaviour units, and each is a small state machine. The decompiled *bodies* are degraded
+(`function initAction(){}` — empty artifacts), so this is hand-written against the
+hierarchy + ability lists + `defaultproperties` as spec, not a port of function bodies.
+
+- **`UShockAIGoal`** — a named objective (`KillTarget`, `MoveTo`, `Patrol`, `Flee`, `Alert`,
+  `Idle`) with parameters and a priority.
+- **`UShockAIAbility`** — a behaviour that can achieve one or more goal types, with its own
+  small state (Enter / Tick / Exit, latent-safe). First set: `MoveToAbility`,
+  `MeleeAttackAbility`, `RangedAttackAbility`, `FleeAbility`, `PatrolAbility`, `IdleAbility`.
+- **`UShockAIBrain`** (component on `ABaseShockAI`) — owns the ability list (seeded from the
+  archetype / AI class defaults), picks the highest-priority satisfiable goal each think tick,
+  runs the achieving ability. Perception feeds goals (see player → `KillTarget`; took damage →
+  `KillTarget` the instigator; lost target → `Patrol`/`Idle`).
+- **Migrate the a9 Idle/Chase/Attack FSM onto this**: Chase becomes `MoveToAbility` achieving
+  `KillTarget`; Attack becomes `MeleeAttackAbility` / `RangedAttackAbility`. The slice enemies
+  must fight exactly as they do now, just through the brain.
+- Prove on the two slice enemies (melee splicer + Leadhead), then the Big Daddy, then the tail.
+  Add abilities census-ordered — the ability list per AI class comes straight from its
+  `addAbility_Class` calls in the decompiled `.uc`.
 
 ### C3. Player systems
 Census/spec order, each its own sub-project:
