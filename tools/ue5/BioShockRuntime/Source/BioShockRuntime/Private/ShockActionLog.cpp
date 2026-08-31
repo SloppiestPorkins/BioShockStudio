@@ -16,3 +16,8 @@ bool UShockActionLog::Emit()
 	UE_LOG(LogTemp, Log, TEXT("[BioShock ActionLog] %s"), *Text);
 	return true;
 }
+
+bool UShockActionLog::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return Emit();
+}

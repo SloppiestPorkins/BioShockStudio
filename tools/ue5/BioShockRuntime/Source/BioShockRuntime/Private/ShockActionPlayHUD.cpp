@@ -27,3 +27,8 @@ int32 UShockActionPlayHUD::ApplyInWorld(UWorld* World)
 	Player->SetHUDPlaying(true);
 	return 1;
 }
+
+bool UShockActionPlayHUD::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

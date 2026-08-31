@@ -37,3 +37,8 @@ int32 UShockActionSetMaterialSwitchIndex::ApplyInWorld(UWorld* World)
 	Player->SetMaterialSwitchIndex(MaterialSwitchName, Index);
 	return 1;
 }
+
+bool UShockActionSetMaterialSwitchIndex::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

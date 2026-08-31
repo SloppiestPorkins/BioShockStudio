@@ -43,3 +43,8 @@ int32 UShockActionRemoveGoal::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionRemoveGoal::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

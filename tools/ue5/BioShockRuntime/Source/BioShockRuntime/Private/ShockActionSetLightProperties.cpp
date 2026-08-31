@@ -81,3 +81,8 @@ int32 UShockActionSetLightProperties::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionSetLightProperties::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

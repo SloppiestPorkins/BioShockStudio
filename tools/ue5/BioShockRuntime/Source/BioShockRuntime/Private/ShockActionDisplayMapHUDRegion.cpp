@@ -32,3 +32,8 @@ int32 UShockActionDisplayMapHUDRegion::ApplyInWorld(UWorld* World)
 	Player->SetMapHUDRegion(MapHUDRegionDescription);
 	return 1;
 }
+
+bool UShockActionDisplayMapHUDRegion::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

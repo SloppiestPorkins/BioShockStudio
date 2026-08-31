@@ -68,3 +68,8 @@ int32 UShockActionChangeCollision::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionChangeCollision::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

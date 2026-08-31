@@ -36,3 +36,8 @@ int32 UShockActionStartTimer::ApplyInWorld(UWorld* World)
 	Player->SetPendingTimerSeconds(Seconds);
 	return 1;
 }
+
+bool UShockActionStartTimer::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

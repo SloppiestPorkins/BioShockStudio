@@ -38,3 +38,8 @@ int32 UShockActionMuteAI::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionMuteAI::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -38,3 +38,8 @@ int32 UShockActionSetMovableSpotlightTarget::ApplyInWorld(UWorld* World)
 	Player->SetSpotlightTarget(SpotlightLabel, TargetActorLabel);
 	return 1;
 }
+
+bool UShockActionSetMovableSpotlightTarget::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

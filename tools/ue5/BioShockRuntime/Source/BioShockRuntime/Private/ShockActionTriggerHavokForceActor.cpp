@@ -51,3 +51,8 @@ int32 UShockActionTriggerHavokForceActor::ApplyInWorld(UWorld* World)
 		DefaultForceStrength,
 		true);
 }
+
+bool UShockActionTriggerHavokForceActor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

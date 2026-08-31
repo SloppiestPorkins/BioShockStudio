@@ -42,3 +42,8 @@ int32 UShockActionInitiateQuest::ApplyInWorld(UWorld* World)
 	Player->InitiateQuest(QuestName, bSetAsActiveQuest);
 	return 1;
 }
+
+bool UShockActionInitiateQuest::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

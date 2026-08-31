@@ -81,6 +81,7 @@ public:
 	 * UC execute(): first alive TargetLabel pawn, then each alive AILabel AI gets
 	 * ScriptedAttackTarget or AddTargetToAttackOnSight. Returns how many AIs were ordered.
 	 */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 

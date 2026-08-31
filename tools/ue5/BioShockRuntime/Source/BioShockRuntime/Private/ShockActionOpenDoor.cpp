@@ -20,3 +20,8 @@ bool UShockActionOpenDoor::RequestOpen()
 	LastOpenedDoorLabel = DoorLabel;
 	return true;
 }
+
+bool UShockActionOpenDoor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestOpen();
+}

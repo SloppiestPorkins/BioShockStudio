@@ -95,3 +95,8 @@ AActor* UShockActionSpawnPickup::SpawnInWorld(UWorld* World)
 	}
 	return nullptr;
 }
+
+bool UShockActionSpawnPickup::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return SpawnInWorld(Ctx.World) != nullptr;
+}

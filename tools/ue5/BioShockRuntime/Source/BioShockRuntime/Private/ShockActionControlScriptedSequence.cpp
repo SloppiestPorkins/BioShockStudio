@@ -44,3 +44,8 @@ int32 UShockActionControlScriptedSequence::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionControlScriptedSequence::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -22,3 +22,8 @@ bool UShockActionAISpeech::RequestSpeech()
 	LastSpeechEventLabel = SpeechEventLabel;
 	return true;
 }
+
+bool UShockActionAISpeech::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestSpeech();
+}

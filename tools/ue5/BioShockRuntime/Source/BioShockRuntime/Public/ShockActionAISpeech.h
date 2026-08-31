@@ -15,6 +15,8 @@ class BIOSHOCKRUNTIME_API UShockActionAISpeech : public UShockAction
 public:
 	UShockActionAISpeech();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName AILabel;
 

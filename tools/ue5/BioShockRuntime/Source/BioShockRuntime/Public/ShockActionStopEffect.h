@@ -18,6 +18,8 @@ class BIOSHOCKRUNTIME_API UShockActionStopEffect : public UShockAction
 public:
 	UShockActionStopEffect();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName EffectEvent;
 

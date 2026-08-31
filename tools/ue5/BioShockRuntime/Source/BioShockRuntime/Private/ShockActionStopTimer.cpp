@@ -36,3 +36,8 @@ int32 UShockActionStopTimer::ApplyInWorld(UWorld* World)
 	Player->StopTimerForScript(ScriptLabel);
 	return 1;
 }
+
+bool UShockActionStopTimer::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

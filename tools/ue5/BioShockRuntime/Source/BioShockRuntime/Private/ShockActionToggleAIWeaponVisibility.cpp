@@ -37,3 +37,8 @@ int32 UShockActionToggleAIWeaponVisibility::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionToggleAIWeaponVisibility::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -61,3 +61,8 @@ int32 UShockActionSetPawnInvincibility::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionSetPawnInvincibility::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

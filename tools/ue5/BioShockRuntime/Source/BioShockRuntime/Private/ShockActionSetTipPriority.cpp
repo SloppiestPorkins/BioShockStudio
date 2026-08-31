@@ -38,3 +38,8 @@ int32 UShockActionSetTipPriority::ApplyInWorld(UWorld* World)
 	Player->SetTipPriority(TipName, Priority);
 	return 1;
 }
+
+bool UShockActionSetTipPriority::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -148,16 +148,21 @@ their behaviour is still thin).
 The first-slice runtime (`BioShockRuntime`: combat FSM, hitscan weapon + ammo, damage
 library, HUD, death/respawn, nav, hit reactions, ~23 actions) becomes the real thing.
 
-### C1. A data-driven action VM — stop writing one-off stubs
-There are ~186 `Action*` classes and ~66 in `ShockAI` alone. Wiring each by hand
-(`ApplyInWorld()` per class) does not scale. Build:
-- `UShockActionVM`: reads the `Action*` schema + parameters from Phase B data and dispatches
-  through a **registry of handlers** — a handler covers a *family* (state setters, AI
-  commands, spawn ops, timers, flow control) rather than one class each.
+### C1. Polymorphic action dispatch — stop editing the runner per leaf
+There are ~199 `Action*` classes; ~100 already have `ApplyInWorld` overrides on
+`UShockAction`, the rest inherit the base no-op (`applied=0`). **Done (2026-08):**
+- `FShockActionContext` (`World`, `OwnerActor`, `Variables`, `Instigator`, `SourceLabel`)
+  built once per leaf dispatch in `UShockScriptRunner::StepOne`.
+- `UShockAction::ApplyInWorld(const FShockActionContext&)` — virtual, default `false`.
+  Adding a leaf action = override only; flow control (Wait / If / Loop / For / variables /
+  ExecuteScript / SendTriggerMessage) stays special-cased in the runner.
+- Headless check: `run_script_action_vm.py` / `verify_script_action_vm.py`.
+- **Still open:** handler *families* / data-driven registry for the remaining ~115 stubs
+  (original “UShockActionVM” sketch below — census-ordered, not one class per handler).
 - Keep the census order: the top 20 actions are 73% of all scripted behaviour, top 50 is
-  90%. Handlers for those families first.
-- Latent actions (`Wait`, `FinishAnim`, latent `MoveTo`) → C++ coroutine-style tasks on the
-  VM, not per-frame polling.
+  90%.
+- Latent actions (`Wait`, `FinishAnim`, latent `MoveTo`) → C++ coroutine-style tasks,
+  not per-frame polling.
 
 ### C2. The `ShockAI` state machines — the architecture decision
 103 UnrealScript states, decompiled cleanly enough to read as spec. This needs the call

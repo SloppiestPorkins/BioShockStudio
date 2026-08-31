@@ -37,3 +37,8 @@ int32 UShockActionSetMovableSpotlightState::ApplyInWorld(UWorld* World)
 	Player->SetSpotlightOn(SpotlightLabel, bSpotlightOn);
 	return 1;
 }
+
+bool UShockActionSetMovableSpotlightState::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

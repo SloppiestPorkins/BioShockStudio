@@ -19,6 +19,8 @@ class BIOSHOCKRUNTIME_API UShockActionPlayEffect : public UShockAction
 public:
 	UShockActionPlayEffect();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName EffectEvent;
 

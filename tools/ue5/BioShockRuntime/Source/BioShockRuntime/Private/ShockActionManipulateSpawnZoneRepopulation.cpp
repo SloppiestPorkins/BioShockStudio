@@ -44,3 +44,8 @@ int32 UShockActionManipulateSpawnZoneRepopulation::ApplyInWorld(UWorld* World)
 		static_cast<uint8>(ProtectorState));
 	return 1;
 }
+
+bool UShockActionManipulateSpawnZoneRepopulation::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

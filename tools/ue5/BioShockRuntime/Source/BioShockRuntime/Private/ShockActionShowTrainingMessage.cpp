@@ -36,3 +36,8 @@ int32 UShockActionShowTrainingMessage::ApplyInWorld(UWorld* World)
 	Player->SetTrainingMessage(MessageName);
 	return 1;
 }
+
+bool UShockActionShowTrainingMessage::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

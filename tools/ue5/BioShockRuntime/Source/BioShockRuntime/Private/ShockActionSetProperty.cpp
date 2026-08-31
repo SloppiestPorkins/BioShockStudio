@@ -76,3 +76,8 @@ int32 UShockActionSetProperty::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionSetProperty::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

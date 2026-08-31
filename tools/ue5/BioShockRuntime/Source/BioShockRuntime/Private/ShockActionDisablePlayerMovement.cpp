@@ -32,3 +32,8 @@ int32 UShockActionDisablePlayerMovement::ApplyInWorld(UWorld* World)
 	Player->SetMovementDisabled(bDisableMovement);
 	return 1;
 }
+
+bool UShockActionDisablePlayerMovement::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

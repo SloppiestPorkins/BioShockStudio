@@ -23,3 +23,8 @@ bool UShockActionChangeSkinAtIndex::RequestChangeSkin()
 	LastIndex = Index;
 	return true;
 }
+
+bool UShockActionChangeSkinAtIndex::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestChangeSkin();
+}

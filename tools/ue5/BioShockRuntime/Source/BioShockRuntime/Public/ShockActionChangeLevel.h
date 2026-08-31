@@ -12,6 +12,8 @@ class BIOSHOCKRUNTIME_API UShockActionChangeLevel : public UShockAction
 public:
 	UShockActionChangeLevel();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString MapName;
 

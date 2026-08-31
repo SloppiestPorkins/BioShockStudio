@@ -36,6 +36,7 @@ public:
 	bool ApplyToActor(AActor* Target);
 
 	/** Find actors by ObjectLabel and ApplyToActor each. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

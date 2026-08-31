@@ -100,3 +100,8 @@ AActor* UShockActionSpawnAI::SpawnInWorld(UWorld* World)
 	}
 	return nullptr;
 }
+
+bool UShockActionSpawnAI::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return SpawnInWorld(Ctx.World) != nullptr;
+}

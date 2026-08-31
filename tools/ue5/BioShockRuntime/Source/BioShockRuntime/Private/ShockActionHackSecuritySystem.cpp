@@ -30,3 +30,8 @@ int32 UShockActionHackSecuritySystem::ApplyInWorld(UWorld* World)
 	Player->SetSecurityHacked(true, ShutdownTime);
 	return 1;
 }
+
+bool UShockActionHackSecuritySystem::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

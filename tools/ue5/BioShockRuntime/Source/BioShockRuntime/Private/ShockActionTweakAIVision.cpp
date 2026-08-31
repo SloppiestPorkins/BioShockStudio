@@ -47,3 +47,8 @@ int32 UShockActionTweakAIVision::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionTweakAIVision::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -69,6 +69,7 @@ public:
 	bool RequestDeal();
 
 	/** Radial shocking damage with linear falloff between InnerRadius and OuterRadius. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

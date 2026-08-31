@@ -72,3 +72,8 @@ bool UShockActionTeleportPawnToLocation::TeleportInWorld(UWorld* World)
 		ETeleportType::TeleportPhysics);
 	return true;
 }
+
+bool UShockActionTeleportPawnToLocation::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return TeleportInWorld(Ctx.World);
+}

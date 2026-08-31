@@ -37,3 +37,8 @@ int32 UShockActionSetCollisionAvoidance::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionSetCollisionAvoidance::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

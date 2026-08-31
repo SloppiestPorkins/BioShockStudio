@@ -44,7 +44,7 @@ def _dist_xy(a, b):
     return (dx * dx + dy * dy) ** 0.5
 
 
-def _run_game_possess(timeout_s=360):
+def _run_game_possess(timeout_s=600):
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     cmd = [
         UE_CMD,

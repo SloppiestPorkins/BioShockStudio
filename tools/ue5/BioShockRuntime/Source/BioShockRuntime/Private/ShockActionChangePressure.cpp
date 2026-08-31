@@ -37,3 +37,8 @@ int32 UShockActionChangePressure::ApplyInWorld(UWorld* World)
 	Player->SetRegionPressure(RegionName, DesiredPressure);
 	return 1;
 }
+
+bool UShockActionChangePressure::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -56,3 +56,8 @@ int32 UShockActionStopEffect::StopInWorld(UWorld* World)
 	}
 	return Stopped;
 }
+
+bool UShockActionStopEffect::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return StopInWorld(Ctx.World) > 0;
+}

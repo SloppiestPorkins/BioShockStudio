@@ -40,3 +40,8 @@ int32 UShockActionCompleteQuestObjective::ApplyInWorld(UWorld* World)
 	Player->CompleteQuestObjective(QuestName, NumberOfObjectivesCompleted);
 	return 1;
 }
+
+bool UShockActionCompleteQuestObjective::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

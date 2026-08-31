@@ -38,3 +38,8 @@ int32 UShockActionRetractFact::ApplyInWorld(UWorld* World)
 	Player->RetractFact(Slot1, Slot2, Slot3);
 	return 1;
 }
+
+bool UShockActionRetractFact::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

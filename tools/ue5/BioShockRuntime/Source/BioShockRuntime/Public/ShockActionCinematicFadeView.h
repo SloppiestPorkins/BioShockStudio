@@ -12,6 +12,8 @@ class BIOSHOCKRUNTIME_API UShockActionCinematicFadeView : public UShockAction
 public:
 	UShockActionCinematicFadeView();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float FadeAlphaStart = 0.0f;
 

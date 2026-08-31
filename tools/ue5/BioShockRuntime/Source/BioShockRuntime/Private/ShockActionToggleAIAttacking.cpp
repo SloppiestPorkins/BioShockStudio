@@ -37,3 +37,8 @@ int32 UShockActionToggleAIAttacking::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionToggleAIAttacking::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

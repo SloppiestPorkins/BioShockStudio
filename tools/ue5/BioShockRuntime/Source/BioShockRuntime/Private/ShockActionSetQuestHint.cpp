@@ -38,3 +38,8 @@ int32 UShockActionSetQuestHint::ApplyInWorld(UWorld* World)
 	Player->SetQuestHint(QuestName, HintName);
 	return 1;
 }
+
+bool UShockActionSetQuestHint::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

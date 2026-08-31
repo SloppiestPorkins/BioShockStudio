@@ -35,3 +35,8 @@ int32 UShockActionPrintClientMessage::ApplyInWorld(UWorld* World)
 	Player->SetClientMessage(MessageText);
 	return 1;
 }
+
+bool UShockActionPrintClientMessage::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -32,3 +32,8 @@ int32 UShockActionForcePlayerCrouch::ApplyInWorld(UWorld* World)
 	Player->SetForcedCrouch(bShouldCrouch);
 	return 1;
 }
+
+bool UShockActionForcePlayerCrouch::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

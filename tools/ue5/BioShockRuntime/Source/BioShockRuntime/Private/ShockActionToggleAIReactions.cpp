@@ -48,3 +48,8 @@ int32 UShockActionToggleAIReactions::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionToggleAIReactions::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -78,3 +78,8 @@ AActor* UShockActionSpawnTurret::SpawnInWorld(UWorld* World)
 	}
 	return nullptr;
 }
+
+bool UShockActionSpawnTurret::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return SpawnInWorld(Ctx.World) != nullptr;
+}

@@ -37,3 +37,8 @@ int32 UShockActionGiveItemsToPlayer::ApplyInWorld(UWorld* World)
 	LastAppliedCount = 1;
 	return 1;
 }
+
+bool UShockActionGiveItemsToPlayer::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

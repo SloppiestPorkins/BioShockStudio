@@ -38,3 +38,8 @@ int32 UShockActionActivateResurrectionStation::ApplyInWorld(UWorld* World)
 	Player->SetResurrectionStationActivated(ResurrectionStationLabel, bActivateStation);
 	return 1;
 }
+
+bool UShockActionActivateResurrectionStation::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

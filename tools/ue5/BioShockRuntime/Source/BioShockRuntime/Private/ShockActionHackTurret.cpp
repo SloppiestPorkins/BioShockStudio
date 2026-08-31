@@ -37,3 +37,8 @@ int32 UShockActionHackTurret::ApplyInWorld(UWorld* World)
 	Player->SetTurretHacked(TurretLabel, bSetHacked);
 	return 1;
 }
+
+bool UShockActionHackTurret::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

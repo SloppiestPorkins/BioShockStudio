@@ -50,3 +50,8 @@ int32 UShockActionDealDamage::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionDealDamage::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

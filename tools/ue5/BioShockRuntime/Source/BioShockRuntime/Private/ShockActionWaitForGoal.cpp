@@ -44,3 +44,8 @@ int32 UShockActionWaitForGoal::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionWaitForGoal::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

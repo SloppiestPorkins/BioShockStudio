@@ -54,3 +54,8 @@ int32 UShockActionChangeStaticMesh::ApplyInWorld(UWorld* World)
 	}
 	return 0;
 }
+
+bool UShockActionChangeStaticMesh::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

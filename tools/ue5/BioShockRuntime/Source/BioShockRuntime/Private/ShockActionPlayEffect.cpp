@@ -57,3 +57,8 @@ int32 UShockActionPlayEffect::FireInWorld(UWorld* World)
 	}
 	return Fired;
 }
+
+bool UShockActionPlayEffect::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return FireInWorld(Ctx.World) > 0;
+}

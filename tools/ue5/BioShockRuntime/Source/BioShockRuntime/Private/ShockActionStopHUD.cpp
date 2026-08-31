@@ -27,3 +27,8 @@ int32 UShockActionStopHUD::ApplyInWorld(UWorld* World)
 	Player->SetHUDPlaying(false);
 	return 1;
 }
+
+bool UShockActionStopHUD::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

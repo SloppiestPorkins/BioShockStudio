@@ -70,3 +70,8 @@ int32 UShockActionPostMovementGoal::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionPostMovementGoal::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

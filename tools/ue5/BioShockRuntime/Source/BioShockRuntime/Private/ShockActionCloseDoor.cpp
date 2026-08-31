@@ -21,3 +21,8 @@ bool UShockActionCloseDoor::RequestClose()
 	LastClosedDoorLabel = DoorLabel;
 	return true;
 }
+
+bool UShockActionCloseDoor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestClose();
+}

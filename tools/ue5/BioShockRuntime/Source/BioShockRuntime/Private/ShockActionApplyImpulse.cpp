@@ -37,3 +37,8 @@ int32 UShockActionApplyImpulse::ApplyInWorld(UWorld* World)
 	}
 	return UShockPhysicsLibrary::ApplyImpulse(TargetActor, Velocity, true, true) > 0 ? 1 : 0;
 }
+
+bool UShockActionApplyImpulse::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

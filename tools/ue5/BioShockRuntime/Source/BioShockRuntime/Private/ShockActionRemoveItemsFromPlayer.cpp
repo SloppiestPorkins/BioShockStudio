@@ -34,3 +34,8 @@ int32 UShockActionRemoveItemsFromPlayer::ApplyInWorld(UWorld* World)
 	LastAppliedCount = 1;
 	return 1;
 }
+
+bool UShockActionRemoveItemsFromPlayer::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

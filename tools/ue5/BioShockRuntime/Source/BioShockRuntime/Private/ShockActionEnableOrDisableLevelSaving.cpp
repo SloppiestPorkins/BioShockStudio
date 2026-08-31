@@ -32,3 +32,8 @@ int32 UShockActionEnableOrDisableLevelSaving::ApplyInWorld(UWorld* World)
 	Player->SetLevelSavingDisabled(bDisableLevelSaving);
 	return 1;
 }
+
+bool UShockActionEnableOrDisableLevelSaving::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -19,3 +19,8 @@ bool UShockActionLockDoor::RequestLock()
 	LastLockedDoorLabel = DoorLabel;
 	return true;
 }
+
+bool UShockActionLockDoor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestLock();
+}

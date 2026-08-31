@@ -37,3 +37,8 @@ int32 UShockActionSetAINormalLODOverrideTime::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionSetAINormalLODOverrideTime::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

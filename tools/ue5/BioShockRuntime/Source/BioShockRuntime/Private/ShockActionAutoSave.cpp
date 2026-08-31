@@ -35,3 +35,8 @@ int32 UShockActionAutoSave::ApplyInWorld(UWorld* World)
 	Player->SetAutoSaveCommand(Command);
 	return 1;
 }
+
+bool UShockActionAutoSave::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

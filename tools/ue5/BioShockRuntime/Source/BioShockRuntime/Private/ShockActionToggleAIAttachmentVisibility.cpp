@@ -38,3 +38,8 @@ int32 UShockActionToggleAIAttachmentVisibility::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionToggleAIAttachmentVisibility::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

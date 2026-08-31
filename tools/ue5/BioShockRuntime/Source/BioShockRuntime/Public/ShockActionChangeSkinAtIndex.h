@@ -15,6 +15,8 @@ class BIOSHOCKRUNTIME_API UShockActionChangeSkinAtIndex : public UShockAction
 public:
 	UShockActionChangeSkinAtIndex();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName TargetLabel;
 

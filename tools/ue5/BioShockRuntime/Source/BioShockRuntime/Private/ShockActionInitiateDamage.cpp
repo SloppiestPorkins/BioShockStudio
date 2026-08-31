@@ -54,3 +54,8 @@ int32 UShockActionInitiateDamage::ApplyInWorld(UWorld* World)
 	}
 	return LastAppliedCount;
 }
+
+bool UShockActionInitiateDamage::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

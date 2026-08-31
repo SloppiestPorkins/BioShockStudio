@@ -35,3 +35,8 @@ int32 UShockActionDisplayOnScreenDebugMessage::ApplyInWorld(UWorld* World)
 	bLastDisplayed = true;
 	return 1;
 }
+
+bool UShockActionDisplayOnScreenDebugMessage::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

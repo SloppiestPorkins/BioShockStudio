@@ -63,3 +63,8 @@ int32 UShockActionForcePlayerMove::ApplyInWorld(UWorld* World)
 	}
 	return 0;
 }
+
+bool UShockActionForcePlayerMove::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

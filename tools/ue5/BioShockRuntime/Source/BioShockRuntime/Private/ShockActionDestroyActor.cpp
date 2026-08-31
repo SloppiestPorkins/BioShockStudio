@@ -56,3 +56,8 @@ int32 UShockActionDestroyActor::DestroyInWorld(UWorld* World)
 	}
 	return Destroyed;
 }
+
+bool UShockActionDestroyActor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return DestroyInWorld(Ctx.World) > 0;
+}

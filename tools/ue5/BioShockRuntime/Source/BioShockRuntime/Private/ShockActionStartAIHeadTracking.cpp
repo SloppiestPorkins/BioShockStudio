@@ -45,3 +45,8 @@ int32 UShockActionStartAIHeadTracking::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionStartAIHeadTracking::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

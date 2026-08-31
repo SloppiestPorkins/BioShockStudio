@@ -32,3 +32,8 @@ int32 UShockActionEnableOrDisableHavokForceActor::ApplyInWorld(UWorld* World)
 	UShockPhysicsLibrary::SetHavokForceActorEnabled(Target, bEnabled);
 	return 1;
 }
+
+bool UShockActionEnableOrDisableHavokForceActor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

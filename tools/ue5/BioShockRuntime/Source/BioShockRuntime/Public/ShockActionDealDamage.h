@@ -44,6 +44,7 @@ public:
 	bool RequestDamage();
 
 	/** Find ShockPawns by TargetLabel and ApplyAuthoredDamage each. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

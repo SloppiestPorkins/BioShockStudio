@@ -42,3 +42,8 @@ int32 UShockActionFreezeHavokActor::ApplyInWorld(UWorld* World)
 	}
 	return ApplyToActor(TargetActor) ? 1 : 0;
 }
+
+bool UShockActionFreezeHavokActor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

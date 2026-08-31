@@ -37,3 +37,8 @@ int32 UShockActionWaitForQuestLogToFinish::ApplyInWorld(UWorld* World)
 	Player->SetQuestLogWait(QuestLogClassName);
 	return 1;
 }
+
+bool UShockActionWaitForQuestLogToFinish::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

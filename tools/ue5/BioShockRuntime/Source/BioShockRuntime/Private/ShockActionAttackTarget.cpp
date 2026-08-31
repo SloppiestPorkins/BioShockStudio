@@ -127,3 +127,8 @@ bool UShockActionAttackTarget::RequestAttackInWorld(UWorld* World, float DamageA
 	(void)DamageAmount;
 	return ApplyInWorld(World) > 0;
 }
+
+bool UShockActionAttackTarget::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

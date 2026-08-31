@@ -38,3 +38,8 @@ int32 UShockActionAssertFact::ApplyInWorld(UWorld* World)
 	Player->AssertFact(Slot1, Slot2, Slot3);
 	return 1;
 }
+
+bool UShockActionAssertFact::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

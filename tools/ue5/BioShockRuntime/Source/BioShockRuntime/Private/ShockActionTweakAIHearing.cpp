@@ -39,3 +39,8 @@ int32 UShockActionTweakAIHearing::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionTweakAIHearing::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

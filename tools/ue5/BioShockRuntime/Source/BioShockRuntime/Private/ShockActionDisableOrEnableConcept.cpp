@@ -38,3 +38,8 @@ int32 UShockActionDisableOrEnableConcept::ApplyInWorld(UWorld* World)
 	Player->SetConceptEnabled(ConceptName, bEnable);
 	return 1;
 }
+
+bool UShockActionDisableOrEnableConcept::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

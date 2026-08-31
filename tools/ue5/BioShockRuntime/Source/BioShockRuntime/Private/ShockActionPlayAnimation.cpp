@@ -62,3 +62,8 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 	}
 	return Played;
 }
+
+bool UShockActionPlayAnimation::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return PlayInWorld(Ctx.World) > 0;
+}

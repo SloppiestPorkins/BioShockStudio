@@ -32,3 +32,8 @@ int32 UShockActionStopSecurityAlarm::ApplyInWorld(UWorld* World)
 	Player->SetSecurityAlarmOn(false, NAME_None);
 	return 1;
 }
+
+bool UShockActionStopSecurityAlarm::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

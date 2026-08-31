@@ -33,3 +33,8 @@ int32 UShockActionFadeVolumeOverride::ApplyInWorld(UWorld* World)
 	Player->SetFadeVolumeOverride(Volume, Duration);
 	return 1;
 }
+
+bool UShockActionFadeVolumeOverride::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

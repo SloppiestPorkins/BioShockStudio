@@ -45,6 +45,7 @@ public:
 	bool RequestDeal();
 
 	/** Damage ShockPawns within OuterRadius of SourceActorLabel. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

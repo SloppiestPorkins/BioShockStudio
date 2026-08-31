@@ -19,3 +19,8 @@ bool UShockActionUnlockDoor::RequestUnlock()
 	LastUnlockedDoorLabel = DoorLabel;
 	return true;
 }
+
+bool UShockActionUnlockDoor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestUnlock();
+}

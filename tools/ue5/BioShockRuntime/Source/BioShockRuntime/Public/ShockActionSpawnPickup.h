@@ -19,6 +19,8 @@ class BIOSHOCKRUNTIME_API UShockActionSpawnPickup : public UShockAction
 public:
 	UShockActionSpawnPickup();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName ActorLabel;
 

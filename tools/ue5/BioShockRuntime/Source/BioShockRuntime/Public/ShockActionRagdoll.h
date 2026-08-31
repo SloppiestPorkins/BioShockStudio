@@ -42,6 +42,7 @@ public:
 	bool RequestRagdoll();
 
 	/** Find AILabel actor and apply physics impulse stand-in. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

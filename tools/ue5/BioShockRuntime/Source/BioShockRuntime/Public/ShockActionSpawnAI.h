@@ -21,6 +21,8 @@ class BIOSHOCKRUNTIME_API UShockActionSpawnAI : public UShockAction
 public:
 	UShockActionSpawnAI();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName AITypeToSpawn;
 

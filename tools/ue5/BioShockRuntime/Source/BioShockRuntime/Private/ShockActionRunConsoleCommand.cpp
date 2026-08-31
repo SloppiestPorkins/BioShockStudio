@@ -33,3 +33,8 @@ int32 UShockActionRunConsoleCommand::ApplyInWorld(UWorld* World)
 	bLastExecuted = GEngine->Exec(World, *Command);
 	return bLastExecuted ? 1 : 0;
 }
+
+bool UShockActionRunConsoleCommand::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

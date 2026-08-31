@@ -66,3 +66,8 @@ int32 UShockActionDealShockingDamageInRadius::ApplyInWorld(UWorld* World)
 		TypeName,
 		static_cast<float>(InnerRadius));
 }
+
+bool UShockActionDealShockingDamageInRadius::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

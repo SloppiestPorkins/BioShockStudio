@@ -32,3 +32,8 @@ int32 UShockActionSetHUDDisplayState::ApplyInWorld(UWorld* World)
 	Player->SetHUDEnabled(bEnableHUD);
 	return 1;
 }
+
+bool UShockActionSetHUDDisplayState::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

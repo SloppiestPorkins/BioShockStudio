@@ -18,6 +18,8 @@ class BIOSHOCKRUNTIME_API UShockActionDestroyActor : public UShockAction
 public:
 	UShockActionDestroyActor();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName TargetLabel;
 

@@ -38,3 +38,8 @@ int32 UShockActionChangePawnPhysics::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionChangePawnPhysics::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

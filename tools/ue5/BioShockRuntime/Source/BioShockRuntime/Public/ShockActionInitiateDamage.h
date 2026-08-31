@@ -48,6 +48,7 @@ public:
 	bool RequestDamage();
 
 	/** Resolves TargetLabel and applies stand-in damage (no damage-class lookup yet). */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };

@@ -17,6 +17,8 @@ class BIOSHOCKRUNTIME_API UShockActionTeleportPawnToLocation : public UShockActi
 public:
 	UShockActionTeleportPawnToLocation();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName PawnLabel;
 

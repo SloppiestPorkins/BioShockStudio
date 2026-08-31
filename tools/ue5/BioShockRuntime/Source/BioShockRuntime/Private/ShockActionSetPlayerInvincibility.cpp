@@ -33,3 +33,8 @@ int32 UShockActionSetPlayerInvincibility::ApplyInWorld(UWorld* World)
 	Player->SetInvincible(bInvincible);
 	return 1;
 }
+
+bool UShockActionSetPlayerInvincibility::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

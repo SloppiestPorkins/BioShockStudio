@@ -12,6 +12,8 @@ class BIOSHOCKRUNTIME_API UShockActionCloseDoor : public UShockAction
 public:
 	UShockActionCloseDoor();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName DoorLabel;
 

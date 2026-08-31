@@ -37,3 +37,8 @@ int32 UShockActionSetOrUnsetInputContext::ApplyInWorld(UWorld* World)
 	Player->SetInputContext(Context, bUnset);
 	return 1;
 }
+
+bool UShockActionSetOrUnsetInputContext::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

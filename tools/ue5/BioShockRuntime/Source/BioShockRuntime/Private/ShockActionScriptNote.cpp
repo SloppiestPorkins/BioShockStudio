@@ -15,3 +15,8 @@ bool UShockActionScriptNote::EvaluateBool() const
 	// Runtime execute returns none; notes are not boolean tests.
 	return false;
 }
+
+bool UShockActionScriptNote::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return true;
+}

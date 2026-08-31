@@ -37,3 +37,8 @@ int32 UShockActionDisableOrEnableResurrectionStation::ApplyInWorld(UWorld* World
 	Player->SetResurrectionStationEnabled(StationLabel, bEnable);
 	return 1;
 }
+
+bool UShockActionDisableOrEnableResurrectionStation::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

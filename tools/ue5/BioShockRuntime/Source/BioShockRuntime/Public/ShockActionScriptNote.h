@@ -14,6 +14,8 @@ class BIOSHOCKRUNTIME_API UShockActionScriptNote : public UShockActionBool
 public:
 	UShockActionScriptNote();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString Note;
 

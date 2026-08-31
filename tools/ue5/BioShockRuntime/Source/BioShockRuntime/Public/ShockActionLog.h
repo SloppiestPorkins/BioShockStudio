@@ -12,6 +12,8 @@ class BIOSHOCKRUNTIME_API UShockActionLog : public UShockAction
 public:
 	UShockActionLog();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString Text;
 

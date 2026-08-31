@@ -38,3 +38,8 @@ int32 UShockActionUnlockBathysphereDestination::ApplyInWorld(UWorld* World)
 	Player->UnlockBathysphereDestination(BathysphereSystem, MapName);
 	return 1;
 }
+
+bool UShockActionUnlockBathysphereDestination::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

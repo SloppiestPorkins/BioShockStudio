@@ -24,3 +24,8 @@ bool UShockActionCinematicFadeView::RequestFade()
 	LastRequestedDuration = Duration;
 	return true;
 }
+
+bool UShockActionCinematicFadeView::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestFade();
+}

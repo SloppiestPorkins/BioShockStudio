@@ -32,3 +32,8 @@ int32 UShockActionEnableOrDisableLevelSwitching::ApplyInWorld(UWorld* World)
 	Player->SetLevelSwitchingDisabled(bDisableLevelSwitching);
 	return 1;
 }
+
+bool UShockActionEnableOrDisableLevelSwitching::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

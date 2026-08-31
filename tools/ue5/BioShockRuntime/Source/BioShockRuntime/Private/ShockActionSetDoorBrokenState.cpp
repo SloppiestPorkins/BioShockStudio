@@ -37,3 +37,8 @@ int32 UShockActionSetDoorBrokenState::ApplyInWorld(UWorld* World)
 	Player->SetDoorBroken(DoorLabel, bIsBroken);
 	return 1;
 }
+
+bool UShockActionSetDoorBrokenState::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

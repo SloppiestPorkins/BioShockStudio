@@ -36,3 +36,8 @@ int32 UShockActionRemoveAvailableHoldable::ApplyInWorld(UWorld* World)
 	Player->RemoveAvailableHoldable(HoldableClass);
 	return 1;
 }
+
+bool UShockActionRemoveAvailableHoldable::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

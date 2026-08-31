@@ -26,3 +26,8 @@ bool UShockActionChangeLevel::RequestChange()
 	LastMapName = MapName;
 	return true;
 }
+
+bool UShockActionChangeLevel::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return RequestChange();
+}

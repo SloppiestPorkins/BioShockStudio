@@ -36,3 +36,8 @@ int32 UShockActionTellAIToWait::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionTellAIToWait::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

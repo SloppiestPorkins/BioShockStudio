@@ -29,6 +29,8 @@ class BIOSHOCKRUNTIME_API UShockActionPlayAnimation : public UShockAction
 public:
 	UShockActionPlayAnimation();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName TargetLabel;
 

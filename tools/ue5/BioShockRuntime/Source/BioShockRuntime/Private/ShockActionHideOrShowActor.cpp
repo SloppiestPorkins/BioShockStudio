@@ -59,3 +59,8 @@ int32 UShockActionHideOrShowActor::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionHideOrShowActor::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -61,3 +61,8 @@ int32 UShockActionRagdoll::ApplyInWorld(UWorld* World)
 	}
 	return Applied;
 }
+
+bool UShockActionRagdoll::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
+}

@@ -30,6 +30,7 @@ public:
 	bool RequestTrigger();
 
 	/** Find TargetLabel and apply PLAUSIBLE radial impulse when enabled. */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	int32 ApplyInWorld(UWorld* World);
 };
