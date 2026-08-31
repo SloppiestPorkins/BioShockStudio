@@ -6,6 +6,11 @@ logic and AI.**
 This is a plan, not a claim of work done. Every number in it is measured from this repository or
 from the shipped game; where something is a judgement call it says so.
 
+> **31 Aug 2026 — the strategy has moved on.** The Phase 0 vertical slice now runs end to end,
+> so the "prove one slice before breadth" gate in §5 is met. The forward plan — convert all 21
+> maps and the runtime, fix as we go — is **`docs/FULL_GAME_CONVERSION.md`**. This document
+> stays the reference for the *reasoning* (the three-layer argument, §9's measurements).
+
 ---
 
 ## 1. The bottom line, first
