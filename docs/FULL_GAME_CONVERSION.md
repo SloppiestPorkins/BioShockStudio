@@ -40,7 +40,35 @@ find, not permanently — see D4.
 Goal: **you can open the UE5 project and walk through all 21 Rapture maps**, lit, textured,
 with the placed static/skeletal geometry, even before any of it is a "game".
 
-### A1. Batch level conversion — all 21 maps
+### A1. Batch level conversion — all 21 maps ✅ scaffolded (4-map proof, 31 Aug 2026)
+
+**Status:** `tools/ue5/import_all_levels.py` + `run_import_all_levels.py` landed. Proof run on
+four maps into `/Game/BioShockLevel/<map>` (geometry-only rig policy: `BIOSHOCK_IMPORT_RIGS=none`;
+character rigs deferred to A2). Report: `%TEMP%/bioshock_import_all_levels.json`.
+
+| Map | Imported | Idempotent re-run | Created / updated / skipped / unsupported | Notes |
+|---|---|---|---|---|
+| `0-Lighthouse` | ✅ | ✅ (~0 s second pass) | 1,865 / 436 / 0 / 395 | Matches prior single-map proof (1,274 instances, 0 mesh skipped). Unsupported = gameplay/dec FX classes → tagged `TargetPoint`s. |
+| `1-Medical` | ✅ | ✅ (~0 s second pass) | 8,075 / 1,132 / 0 / 2,910 | Slice map; unsupported dominated by `Script`, spawners, FX emitters, Havok constraint stubs. |
+| `2-Fisheries` | ✅ | — | 11,354 / 0 / 0 / 4,011 | Largest proof map (~11 min export+import). Extra unsupported vs Medical: door classes (`FishFreezerDoor*`), Fisheries-specific spawners/annotations. |
+| `7-BossFight` | ✅ | — | 1,699 / 0 / 0 / 490 | Set-piece map; smallest unsupported tail of the four. |
+
+**Decode gaps (expected, not blockers):** every map's `unsupported_classes` list is the same shape
+— `Script`, `*Spawner`, `Light` (authored lights become real `PointLight`s; duplicate actor rows
+still count unsupported), FX `Emitter`s, `Brush` CSG placeholders, navigation markers, Havok
+constraint actors. No map failed import; no mesh-instance skips on these four.
+
+**Lighting stopgap:** `--lighting-stopgap` (default on) applies `ShockGameMode::EnableDynamicLighting`
+equivalent — force-no-precomputed-lighting, movable static meshes, fill directional + sky tagged
+`BioShockSliceFill`.
+
+**Full 21-map run needs:** ~hours unattended (export + import per map, largest ~10–15 min each);
+run with editor closed; keep `BIOSHOCK_IMPORT_RIGS=none` unless doing A2 in the same pass.
+`BIOSHOCK_IMPORT_RIGS=all` currently crashes UE 5.7 on large animation imports (narrowing assert
+in `ImportAssetTasks` — recorded, not fixed here). One map per UE invocation recommended so a
+crash does not lose the batch report.
+
+Original scope:
 `export-level` + `import_level.py` already do one map. This phase:
 - A `tools/ue5/import_all_levels.py` that runs the pipeline for every shipped map into the
   project, idempotently, and writes a per-map report (`created / updated / skipped /
@@ -232,11 +260,11 @@ which one this is before Phase C3 (`UE5_FULL_PORT_PLAN.md` §6 "fidelity drift")
 
 ## Immediate next tasks (in order)
 
-1. `import_all_levels.py` + a first wide run — see which of the 21 maps import clean.
+1. ~~`import_all_levels.py` + a first wide run~~ — **4-map proof done** (A1 above); full 21 next.
 2. `import_scripts.py` wide run (B1) — the 20 non-Medical maps, record the gaps.
 3. The Tier-1 archetype/weapon bulk import (A2) — bounded set from the manifests.
 4. `UShockActionVM` skeleton + the state-setter and AI-command handler families (C1).
-5. `import_all_levels` lighting-stopgap so the maps aren't black.
+5. ~~`import_all_levels` lighting-stopgap~~ — shipped in A1 (`--lighting-stopgap`, default on).
 
 1 and 2 are pure Python, fan out immediately, and turn "convert the game" into a concrete
 gap list — same move that Phase 2.1/2.2 made for the AI.
