@@ -464,12 +464,13 @@ bool AShockPlayer::CastActivePlasmid()
 		return false;
 	}
 
-	if (GetPlasmidCooldownRemaining() > KINDA_SMALL_NUMBER)
+	if (Plasmid->EnforcesCastCooldown(this) && GetPlasmidCooldownRemaining() > KINDA_SMALL_NUMBER)
 	{
 		return false;
 	}
 
-	if (!bInfiniteEve && CurrentEve + KINDA_SMALL_NUMBER < Plasmid->EveCost)
+	const float EveNeeded = Plasmid->GetCastEveCost(this);
+	if (!bInfiniteEve && EveNeeded > KINDA_SMALL_NUMBER && CurrentEve + KINDA_SMALL_NUMBER < EveNeeded)
 	{
 		return false;
 	}
@@ -482,17 +483,41 @@ bool AShockPlayer::CastActivePlasmid()
 		return false;
 	}
 
-	if (!bInfiniteEve)
+	if (!bInfiniteEve && EveNeeded > KINDA_SMALL_NUMBER)
 	{
-		ConsumeEve(Plasmid->EveCost);
+		ConsumeEve(EveNeeded);
 	}
 	LastPlasmidCastWorldSeconds = World->GetTimeSeconds();
 	return true;
 }
 
+void AShockPlayer::CycleActivePlasmid()
+{
+	if (EquippedPlasmids.Num() <= 0)
+	{
+		return;
+	}
+
+	const int32 StartSlot = ActivePlasmidSlot;
+	for (int32 Step = 1; Step <= EquippedPlasmids.Num(); ++Step)
+	{
+		const int32 NextSlot = (StartSlot + Step) % EquippedPlasmids.Num();
+		if (EquippedPlasmids[NextSlot])
+		{
+			ActivePlasmidSlot = NextSlot;
+			return;
+		}
+	}
+}
+
 void AShockPlayer::HandlePlasmidInput()
 {
 	CastActivePlasmid();
+}
+
+void AShockPlayer::HandlePlasmidCycleInput()
+{
+	CycleActivePlasmid();
 }
 
 void AShockPlayer::MoveForward(float Value)
@@ -1086,6 +1111,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
+	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

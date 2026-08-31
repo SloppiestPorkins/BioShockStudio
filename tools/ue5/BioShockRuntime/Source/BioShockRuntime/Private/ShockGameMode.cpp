@@ -7,6 +7,8 @@
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockElectroBoltPlasmid.h"
+#include "ShockIncineratePlasmid.h"
+#include "ShockTelekinesisPlasmid.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 
@@ -268,10 +270,13 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 
 	Player->EquipWeapon(Weapon);
 
-	// C3 slice: Electro Bolt in slot 0 with a testable EVE pool.
+	// C3 slice: Electro Bolt in slot 0, Incinerate slot 1, Telekinesis slot 2.
 	Player->MaxEve = 100.0f;
 	Player->RefillEve(100.0f);
 	Player->EquipPlasmid(UShockElectroBoltPlasmid::StaticClass(), 0);
+	Player->EquipPlasmid(UShockIncineratePlasmid::StaticClass(), 1);
+	Player->EquipPlasmid(UShockTelekinesisPlasmid::StaticClass(), 2);
+	Player->ActivePlasmidSlot = 0;
 }
 
 namespace

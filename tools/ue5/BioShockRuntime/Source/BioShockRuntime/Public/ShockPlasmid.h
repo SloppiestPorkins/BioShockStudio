@@ -45,6 +45,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Plasmid")
 	virtual bool Cast(AShockPlayer* Caster, const FHitResult& Aim);
 
+	/** EVE spent this cast (Telekinesis: grab only). Default is EveCost. */
+	virtual float GetCastEveCost(const AShockPlayer* Caster) const;
+
+	/** When false, CastActivePlasmid skips cooldown (Telekinesis throw). */
+	virtual bool EnforcesCastCooldown(const AShockPlayer* Caster) const;
+
 	/** Map ActionEquipPlasmid Plasmid name → subclass. */
 	static TSubclassOf<UShockPlasmid> ResolvePlasmidClass(FName Name);
 };

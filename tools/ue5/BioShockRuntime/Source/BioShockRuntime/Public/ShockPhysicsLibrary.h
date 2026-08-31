@@ -49,4 +49,8 @@ public:
 
 	/** Headless -game self-test; logs via caller. Editor commandlet has no Chaos sim. */
 	static bool RunHeadlessSelfTest(UWorld* World, FString& OutError);
+
+	/** True when SetActorPhysicsFrozen(..., true) was applied (editor may not simulate). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Physics")
+	static bool IsActorFrozenForVerify(AActor* Target);
 };

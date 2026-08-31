@@ -56,6 +56,11 @@ PLASMID_LINE = (
     'bCmd=False,Key=Q)'
 )
 
+PLASMID_CYCLE_LINE = (
+    '+ActionMappings=(ActionName="PlasmidCycle",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Tab)'
+)
+
 
 def _ensure_action_mapping(action_name, key, existing_line):
     """Add ActionName -> key to DefaultInput.ini if missing."""
@@ -93,12 +98,17 @@ def _ensure_plasmid_mapping():
     return _ensure_action_mapping("Plasmid", "Q", PLASMID_LINE)
 
 
+def _ensure_plasmid_cycle_mapping():
+    return _ensure_action_mapping("PlasmidCycle", "Tab", PLASMID_CYCLE_LINE)
+
+
 STEPS = [
     ("import_ai_archetypes", "import_ai_archetypes", "main", ()),
     ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
     ("playable_input", "verify_playable_input", "main", (_tmp("playable_input.json"),)),
     ("reload_key_mapping", None, _ensure_reload_mapping, ()),
     ("plasmid_key_mapping", None, _ensure_plasmid_mapping, ()),
+    ("plasmid_cycle_key_mapping", None, _ensure_plasmid_cycle_mapping, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
 

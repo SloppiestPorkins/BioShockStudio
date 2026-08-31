@@ -104,6 +104,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool CastActivePlasmid();
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void CycleActivePlasmid();
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Player")
 	float GetPlasmidCooldownRemaining() const;
 
@@ -394,6 +397,7 @@ private:
 	void HandleFireInput();
 	void HandleReloadInput();
 	void HandlePlasmidInput();
+	void HandlePlasmidCycleInput();
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void MoveForward(float Value);
 	void MoveRight(float Value);

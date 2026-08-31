@@ -1,5 +1,7 @@
 #include "BaseShockAI.h"
 
+#include "ShockDamageLibrary.h"
+
 #include "ShockAiArchetype.h"
 #include "ShockAIBrain.h"
 #include "ShockDamageLibrary.h"
@@ -338,6 +340,84 @@ void ABaseShockAI::ReactToPlasmidStun(float Duration, AActor* DamageInstigator)
 	ApplyHitFlash();
 }
 
+void ABaseShockAI::Ignite(float Seconds, float Dps, AActor* DamageInstigator)
+{
+	if (bIsDead || bCombatLoopStopped || Seconds <= 0.0f || Dps <= 0.0f)
+	{
+		return;
+	}
+
+	BurningRemaining = FMath::Max(BurningRemaining, Seconds);
+	BurningDps = Dps;
+	BurningInstigator = DamageInstigator;
+}
+
+void ABaseShockAI::TickStatusEffects(float DeltaSeconds)
+{
+	if (BurningRemaining <= 0.0f || bIsDead)
+	{
+		return;
+	}
+
+	const float TickDamage = BurningDps * DeltaSeconds;
+	if (TickDamage > 0.0f)
+	{
+		UShockDamageLibrary::ApplyDamage(this, TickDamage, BurningInstigator, FName(TEXT("Burning")));
+	}
+
+	BurningRemaining = FMath::Max(0.0f, BurningRemaining - DeltaSeconds);
+	BurningLogAccumulator += DeltaSeconds;
+	if (BurningLogAccumulator >= 1.0f)
+	{
+		BurningLogAccumulator = 0.0f;
+		const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_BURNING ai=%s remaining=%.1f"),
+			*AiName,
+			BurningRemaining);
+		ApplyBurnFlash();
+	}
+
+	if (BurningRemaining <= 0.0f)
+	{
+		BurningDps = 0.0f;
+		BurningInstigator = nullptr;
+		BurningLogAccumulator = 0.0f;
+	}
+}
+
+void ABaseShockAI::ApplyBurnFlash()
+{
+	USkeletalMeshComponent* SkelMesh = GetMesh();
+	UWorld* World = GetWorld();
+	if (!SkelMesh || !World)
+	{
+		return;
+	}
+
+	const FLinearColor Orange(1.0f, 0.45f, 0.1f, 1.0f);
+	const int32 NumMaterials = SkelMesh->GetNumMaterials();
+	for (int32 Slot = 0; Slot < NumMaterials; ++Slot)
+	{
+		if (UMaterialInstanceDynamic* MID = SkelMesh->CreateAndSetMaterialInstanceDynamic(Slot))
+		{
+			MID->SetVectorParameterValue(TEXT("EmissiveColor"), Orange);
+			MID->SetVectorParameterValue(TEXT("Emissive"), Orange);
+			MID->SetScalarParameterValue(TEXT("EmissiveStrength"), 3.0f);
+		}
+	}
+
+	World->GetTimerManager().ClearTimer(HitFlashTimerHandle);
+	World->GetTimerManager().SetTimer(
+		HitFlashTimerHandle,
+		this,
+		&ABaseShockAI::ClearHitFlash,
+		HitFlashSeconds,
+		false);
+}
+
 void ABaseShockAI::ApplyHitFlash()
 {
 	USkeletalMeshComponent* SkelMesh = GetMesh();
@@ -425,6 +505,10 @@ void ABaseShockAI::OnDeathFromDamage()
 	bCombatLoopStopped = true;
 	HitReactRemaining = 0.0f;
 	HitReactRateLimitRemaining = 0.0f;
+	BurningRemaining = 0.0f;
+	BurningDps = 0.0f;
+	BurningInstigator = nullptr;
+	BurningLogAccumulator = 0.0f;
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(HitFlashTimerHandle);
@@ -869,6 +953,7 @@ void ABaseShockAI::TickCombatCooldowns(float DeltaSeconds)
 	{
 		HitReactRemaining = FMath::Max(0.0f, HitReactRemaining - DeltaSeconds);
 	}
+	TickStatusEffects(DeltaSeconds);
 	if (HitReactRateLimitRemaining > 0.0f)
 	{
 		HitReactRateLimitRemaining = FMath::Max(0.0f, HitReactRateLimitRemaining - DeltaSeconds);

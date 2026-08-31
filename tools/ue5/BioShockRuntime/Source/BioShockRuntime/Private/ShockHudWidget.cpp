@@ -1,6 +1,7 @@
 #include "ShockHudWidget.h"
 
 #include "ShockDamageLibrary.h"
+#include "ShockPlasmid.h"
 #include "ShockPlayer.h"
 #include "ShockPawn.h"
 #include "ShockWeapon.h"
@@ -107,6 +108,15 @@ void UShockHudWidget::EnsureWidgetTree()
 	if (UVerticalBoxSlot* EveTextSlot = HealthBox->AddChildToVerticalBox(EveText))
 	{
 		EveTextSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 2.0f));
+	}
+
+	PlasmidText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlasmidText"));
+	PlasmidText->SetText(FText::FromString(TEXT("")));
+	PlasmidText->SetFont(MakeHudFont(14));
+	PlasmidText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.72f, 0.35f, 1.0f)));
+	if (UVerticalBoxSlot* PlasmidTextSlot = HealthBox->AddChildToVerticalBox(PlasmidText))
+	{
+		PlasmidTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
 	}
 
 	EveBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("EveBar"));
@@ -277,6 +287,23 @@ void UShockHudWidget::RefreshDisplay()
 	{
 		EveText->SetText(FText::FromString(CachedEveText));
 	}
+
+	if (PlasmidText)
+	{
+		FString PlasmidLabel;
+		if (Player)
+		{
+			if (const UShockPlasmid* ActivePlasmid = Player->GetActivePlasmid())
+			{
+				PlasmidLabel = ActivePlasmid->PlasmidName.ToString();
+			}
+		}
+		CachedPlasmidText = PlasmidLabel;
+		PlasmidText->SetText(FText::FromString(CachedPlasmidText));
+		PlasmidText->SetVisibility(
+			PlasmidLabel.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+
 	if (EveBar)
 	{
 		EveBar->SetPercent(FMath::Clamp(Eve / MaxEve, 0.0f, 1.0f));

@@ -180,6 +180,11 @@ bool UShockPhysicsLibrary::SetActorPhysicsFrozen(AActor* Target, bool bFrozen, b
 	return true;
 }
 
+bool UShockPhysicsLibrary::IsActorFrozenForVerify(AActor* Target)
+{
+	return Target && GFrozenPriorState.Contains(Target);
+}
+
 void UShockPhysicsLibrary::SetHavokForceActorEnabled(FName Label, bool bEnabled)
 {
 	if (Label.IsNone())

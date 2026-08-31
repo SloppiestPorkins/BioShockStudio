@@ -31,6 +31,20 @@ def _tick_combat(ai, seconds, step=0.05):
         ai.advance_autonomous_combat(step)
 
 
+def _destroy_all(subsystem, actors):
+    """Guarded teardown — a thrown/physics actor can leave the editor world and
+    make destroy_actor log 'not part of the world editor' (counts as an error)."""
+    for actor in actors:
+        if not actor:
+            continue
+        try:
+            if hasattr(actor, "is_valid") and not actor.is_valid():
+                continue
+            subsystem.destroy_actor(actor)
+        except Exception:  # noqa: BLE001 -- teardown must not fail the verify
+            pass
+
+
 def _write(out, report):
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
@@ -126,9 +140,7 @@ def main(out):
         else:
             check("attack_blocked_during_stun", True)
 
-    for actor in spawned:
-        if actor:
-            subsystem.destroy_actor(actor)
+    _destroy_all(subsystem, spawned)
     spawned = []
 
     # --- (b) no EVE -> no-op ---
@@ -151,9 +163,7 @@ def main(out):
         ha = float(dry_ai.get_current_health())
         check("no_eve_no_cast", not ok and ha >= hb - 0.1, {"cast": ok, "health": ha})
 
-    for actor in spawned:
-        if actor:
-            subsystem.destroy_actor(actor)
+    _destroy_all(subsystem, spawned)
     spawned = []
 
     # --- (c) cooldown -> second cast no-op ---
@@ -181,9 +191,7 @@ def main(out):
             {"first": first, "second": second, "eveMid": eve_mid, "eveEnd": eve_end},
         )
 
-    for actor in spawned:
-        if actor:
-            subsystem.destroy_actor(actor)
+    _destroy_all(subsystem, spawned)
     spawned = []
 
     # --- (d) water: 2x + chain ---
@@ -239,9 +247,205 @@ def main(out):
     else:
         failures.append("water volume class missing")
 
-    for actor in spawned:
-        if actor:
-            subsystem.destroy_actor(actor)
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (e) Incinerate: burst + burn ticks ---
+    inc_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockIncineratePlasmid")
+    if inc_cls:
+        inc_player = _spawn(
+            subsystem, player_cls, "IncineratePlayer", unreal.Vector(0.0, 400.0, 100.0)
+        )
+        inc_ai = _spawn(
+            subsystem, ai_cls, "IncinerateAI", unreal.Vector(600.0, 400.0, 100.0)
+        )
+        spawned.extend([inc_player, inc_ai])
+        if inc_player and inc_ai:
+            inc_ai.configure_identity("Agg_BabyJane", "IncinerateAI")
+            inc_ai.ensure_health_initialized()
+            inc_ai.ensure_controller_for_verify()
+            inc_player.ensure_health_initialized()
+            inc_player.equip_plasmid(inc_cls, 0)
+            inc_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(inc_player.get_actor_location(), inc_ai.get_actor_location())
+            inc_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+
+            hb = float(inc_ai.get_current_health())
+            cast_ok = bool(inc_player.cast_active_plasmid())
+            ha_burst = float(inc_ai.get_current_health())
+            burn_rem = float(inc_ai.get_burning_remaining())
+            _tick_combat(inc_ai, 2.5)
+            ha_burn = float(inc_ai.get_current_health())
+            _tick_combat(inc_ai, 2.0)
+            burn_done = float(inc_ai.get_burning_remaining()) <= 0.1
+            ha_post_burn = float(inc_ai.get_current_health())
+            _tick_combat(inc_ai, 1.0)
+            ha_after = float(inc_ai.get_current_health())
+
+            report["incinerate"] = {
+                "castOk": cast_ok,
+                "burstDrop": hb - ha_burst,
+                "burnDrop": ha_burst - ha_burn,
+                "afterBurn": ha_after,
+                "burnRemainingMid": burn_rem,
+            }
+            check("incinerate_cast", cast_ok)
+            check("incinerate_burst", hb - ha_burst >= 8.0, hb - ha_burst)
+            check("incinerate_burning", burn_rem > 0.5, burn_rem)
+            check("incinerate_burn_ticks", ha_burst - ha_burn >= 4.0, ha_burst - ha_burn)
+            check(
+                "incinerate_burn_stops",
+                burn_done and abs(ha_post_burn - ha_after) < 1.0,
+                {"postBurn": ha_post_burn, "after": ha_after, "burnDone": burn_done},
+            )
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (f) Incinerate oil slick ---
+    oil_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockOilSlickVolume")
+    if inc_cls and oil_cls:
+        oil_player = _spawn(
+            subsystem, player_cls, "OilPlayer", unreal.Vector(0.0, 500.0, 100.0)
+        )
+        oil_ai1 = _spawn(
+            subsystem, ai_cls, "OilAI1", unreal.Vector(620.0, 500.0, 100.0)
+        )
+        oil_ai2 = _spawn(
+            subsystem, ai_cls, "OilAI2", unreal.Vector(660.0, 520.0, 100.0)
+        )
+        oil = _spawn(
+            subsystem,
+            oil_cls,
+            "OilVol",
+            unreal.Vector(640.0, 510.0, 100.0),
+        )
+        spawned.extend([oil_player, oil_ai1, oil_ai2, oil])
+        if oil_player and oil_ai1 and oil_ai2 and oil:
+            for target in (oil_ai1, oil_ai2):
+                target.configure_identity("Agg_BabyJane", target.get_actor_label())
+                target.ensure_health_initialized()
+            oil_player.ensure_health_initialized()
+            oil.refresh_overlaps_for_verify()
+            oil_player.equip_plasmid(inc_cls, 0)
+            oil_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(oil_player.get_actor_location(), oil_ai1.get_actor_location())
+            oil_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+
+            h1b = float(oil_ai1.get_current_health())
+            h2b = float(oil_ai2.get_current_health())
+            ok = bool(oil_player.cast_active_plasmid())
+            h1a = float(oil_ai1.get_current_health())
+            h2a = float(oil_ai2.get_current_health())
+            plasmid = oil_player.get_active_plasmid()
+            on_oil = bool(plasmid.was_last_cast_on_oil_for_verify()) if plasmid else False
+            d1 = h1b - h1a
+            d2 = h2b - h2a
+            report["oil"] = {
+                "castOk": ok,
+                "onOil": on_oil,
+                "damage1": d1,
+                "damage2": d2,
+                "ignited": bool(oil.get_editor_property("bIgnited")),
+            }
+            check("oil_cast", ok and on_oil)
+            check("oil_primary", d1 >= 8.0, d1)
+            check("oil_chain", d2 >= 8.0, d2)
+            check("oil_consumed", bool(oil.get_editor_property("bIgnited")))
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (g) Telekinesis grab + throw ---
+    tk_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTelekinesisPlasmid")
+    grab_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockGrabbableActor")
+    phys_lib = unreal.ShockPhysicsLibrary
+    if tk_cls and grab_cls:
+        tk_player = _spawn(
+            subsystem, player_cls, "TkPlayer", unreal.Vector(0.0, 600.0, 100.0)
+        )
+        tk_ai = _spawn(
+            subsystem, ai_cls, "TkAI", unreal.Vector(500.0, 600.0, 100.0)
+        )
+        prop = _spawn(
+            subsystem,
+            grab_cls,
+            "TkProp",
+            unreal.Vector(350.0, 600.0, 120.0),
+        )
+        spawned.extend([tk_player, tk_ai, prop])
+        if tk_player and tk_ai and prop:
+            tk_ai.configure_identity("Agg_BabyJane", "TkAI")
+            tk_ai.ensure_health_initialized()
+            tk_player.ensure_health_initialized()
+            tk_player.equip_plasmid(tk_cls, 0)
+            tk_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(tk_player.get_actor_location(), prop.get_actor_location())
+            tk_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+
+            eve_before = float(tk_player.get_current_eve())
+            grab_ok = bool(tk_player.cast_active_plasmid())
+            eve_after_grab = float(tk_player.get_current_eve())
+            plasmid = tk_player.get_active_plasmid()
+            frozen = bool(phys_lib.is_actor_frozen_for_verify(prop))
+            held = plasmid.get_held_actor_for_verify() if plasmid else None
+            grab_action = str(plasmid.get_last_action_for_verify()) if plasmid else ""
+
+            check("tk_grab_ok", grab_ok and frozen and held is not None)
+            check("tk_grab_eve", abs(eve_after_grab - (eve_before - 2.5)) < 0.5, eve_after_grab)
+            check("tk_grab_action", grab_action.lower().endswith("grab"), grab_action)
+
+            yaw_throw = _yaw_toward(prop.get_actor_location(), tk_ai.get_actor_location())
+            tk_player.set_actor_rotation(unreal.Rotator(0.0, yaw_throw, 0.0), False)
+            hb = float(tk_ai.get_current_health())
+            throw_ok = bool(tk_player.cast_active_plasmid())
+            ha = float(tk_ai.get_current_health())
+            throw_hit = bool(plasmid.did_last_throw_hit_for_verify()) if plasmid else False
+            eve_after_throw = float(tk_player.get_current_eve())
+            unfrozen = not bool(phys_lib.is_actor_frozen_for_verify(prop))
+
+            report["telekinesis"] = {
+                "grabOk": grab_ok,
+                "throwOk": throw_ok,
+                "throwHit": throw_hit,
+                "aiDamage": hb - ha,
+                "unfrozen": unfrozen,
+            }
+            check("tk_throw_ok", throw_ok)
+            check("tk_throw_free_eve", abs(eve_after_throw - eve_after_grab) < 0.1, eve_after_throw)
+            check(
+                "tk_throw_damage_or_unfreeze",
+                throw_hit or (hb - ha >= 10.0) or unfrozen,
+                {"dmg": hb - ha, "hit": throw_hit, "unfrozen": unfrozen},
+            )
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (h) Telekinesis no EVE -> no grab ---
+    if tk_cls and grab_cls:
+        phys_lib = unreal.ShockPhysicsLibrary
+        dry_tk_player = _spawn(
+            subsystem, player_cls, "DryTkPlayer", unreal.Vector(0.0, 700.0, 100.0)
+        )
+        dry_prop = _spawn(
+            subsystem,
+            grab_cls,
+            "DryTkProp",
+            unreal.Vector(350.0, 700.0, 120.0),
+        )
+        spawned.extend([dry_tk_player, dry_prop])
+        if dry_tk_player and dry_prop:
+            dry_tk_player.ensure_health_initialized()
+            dry_tk_player.equip_plasmid(tk_cls, 0)
+            dry_tk_player.set_current_eve_for_verify(0.0)
+            yaw = _yaw_toward(dry_tk_player.get_actor_location(), dry_prop.get_actor_location())
+            dry_tk_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+            ok = bool(dry_tk_player.cast_active_plasmid())
+            frozen = bool(phys_lib.is_actor_frozen_for_verify(dry_prop))
+            check("tk_no_eve", not ok and not frozen, {"cast": ok, "frozen": frozen})
+
+    _destroy_all(subsystem, spawned)
 
     report["checks"] = checks
     report["plasmid"] = "ok" if not failures else "fail"

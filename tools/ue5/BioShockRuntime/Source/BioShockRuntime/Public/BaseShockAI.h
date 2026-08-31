@@ -325,6 +325,12 @@ public:
 	/** Plasmid stun — longer HitReact window than weapon flinch (Electro Bolt). */
 	void ReactToPlasmidStun(float Duration, AActor* DamageInstigator);
 
+	/** Incinerate burn — ticking damage while BurningRemaining > 0. */
+	void Ignite(float Seconds, float Dps, AActor* DamageInstigator);
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	float GetBurningRemaining() const { return BurningRemaining; }
+
 	/** Headless verify helper: runs Tick plus movement so AddMovementInput advances. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void AdvanceAutonomousCombat(float DeltaSeconds);
@@ -439,6 +445,17 @@ private:
 	float HitReactRateLimitRemaining = 0.0f;
 
 	UPROPERTY()
+	float BurningRemaining = 0.0f;
+
+	UPROPERTY()
+	float BurningDps = 0.0f;
+
+	UPROPERTY()
+	TObjectPtr<AActor> BurningInstigator;
+
+	float BurningLogAccumulator = 0.0f;
+
+	UPROPERTY()
 	TObjectPtr<class UMaterialInstanceDynamic> HitFlashOverlayMID;
 
 	UPROPERTY()
@@ -457,6 +474,8 @@ private:
 	void HideCorpse();
 	void ClearHitFlash();
 	void ApplyHitFlash();
+	void ApplyBurnFlash();
+	void TickStatusEffects(float DeltaSeconds);
 	void TickCombat(float DeltaSeconds);
 	void TickCombatFsm(float DeltaSeconds);
 	void TickCombatCooldowns(float DeltaSeconds);

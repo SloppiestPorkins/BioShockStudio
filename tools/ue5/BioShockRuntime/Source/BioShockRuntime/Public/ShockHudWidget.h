@@ -71,6 +71,9 @@ private:
 	TObjectPtr<UTextBlock> EveText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> PlasmidText = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UProgressBar> EveBar = nullptr;
 
 	UPROPERTY(Transient)
@@ -84,6 +87,7 @@ private:
 
 	FString CachedHealthText;
 	FString CachedEveText;
+	FString CachedPlasmidText;
 	FString CachedAmmoMagText;
 	FString CachedAmmoReserveText;
 	bool bAmmoPanelVisible = false;
