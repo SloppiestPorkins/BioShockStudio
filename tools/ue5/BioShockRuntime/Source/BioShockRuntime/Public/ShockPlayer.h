@@ -442,6 +442,7 @@ public:
 
 private:
 	void HandleFireInput();
+	void HandleFireReleasedInput();
 	void HandleReloadInput();
 	void HandlePlasmidInput();
 	void HandlePlasmidCycleInput();
@@ -451,6 +452,8 @@ private:
 	void HandleWeaponSlot2Input();
 	void HandleWeaponSlot3Input();
 	void HandleWeaponSlot4Input();
+	void HandleWeaponSlot5Input();
+	void HandleWeaponSlot6Input();
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();

@@ -13,6 +13,16 @@ enum class EWeaponFireMode : uint8
 	Projectile,
 	Melee,
 	Shotgun,
+	Beam,
+};
+
+UENUM(BlueprintType)
+enum class EBeamStatus : uint8
+{
+	None,
+	Burning,
+	Electric,
+	Freeze,
 };
 
 /**
@@ -87,7 +97,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	float PelletSpreadDeg = 0.0f;
 
-	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun. Unknown keys return nullptr. */
+	/** Seconds between beam ticks when FireMode is Beam. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	float BeamTickInterval = 0.1f;
+
+	/** Beam trace length in uu when FireMode is Beam. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	float BeamRange = 800.0f;
+
+	/** Status applied to struck pawns each beam tick. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	EBeamStatus BeamStatus = EBeamStatus::None;
+
+	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun / ChemicalThrower / Crossbow. Unknown keys return nullptr. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	static UShockWeaponDef* Resolve(FName InWeaponName);
 };

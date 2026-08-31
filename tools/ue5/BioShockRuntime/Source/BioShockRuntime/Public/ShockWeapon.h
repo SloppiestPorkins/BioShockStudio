@@ -89,8 +89,31 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
 	float PelletSpreadDeg = 0.0f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float BeamTickInterval = 0.1f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float BeamRange = 800.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	EBeamStatus BeamStatus = EBeamStatus::None;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ApplyDef(UShockWeaponDef* Def);
+
+	/** Release fire — ends sustained beam (no-op for other fire modes). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	void StopBeam();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	EWeaponFireMode GetFireMode() const { return FireMode; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	bool IsBeamActiveForVerify() const { return bBeamActive; }
+
+	/** Headless verify: override beam status after ApplyDef. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	void SetBeamStatusForVerify(EBeamStatus InStatus) { BeamStatus = InStatus; }
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
 	FName GetWeaponDefName() const { return DefWeaponName; }
@@ -175,6 +198,8 @@ private:
 	bool FireAtProjectile(AActor* InstigatorActor, FVector Start, FVector Direction);
 	bool FireAtMelee(AActor* InstigatorActor, FVector Start, FVector Direction);
 	bool FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector Direction);
+	bool FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Direction);
+	bool CanBeamTickNow(UWorld* World) const;
 	void FinishReload();
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
@@ -209,4 +234,7 @@ private:
 	float DefProjectileImpactRadius = 0.0f;
 	float DefProjectileLifeSeconds = 10.0f;
 	FName DefWeaponName;
+	bool bBeamActive = false;
+	int32 BeamAmmoTickCounter = 0;
+	static constexpr int32 BeamAmmoTicksPerRound = 5; // PLAUSIBLE — ~1 round per 0.5s at 0.1s tick
 };

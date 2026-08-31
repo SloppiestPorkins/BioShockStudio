@@ -1,5 +1,6 @@
 #include "ShockWeapon.h"
 
+#include "BaseShockAI.h"
 #include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
@@ -46,11 +47,26 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 	DefWeaponName = Def->WeaponName;
 	PelletCount = FMath::Max(1, Def->PelletCount);
 	PelletSpreadDeg = FMath::Max(0.0f, Def->PelletSpreadDeg);
+	BeamTickInterval = FMath::Max(0.01f, Def->BeamTickInterval);
+	BeamRange = FMath::Max(1.0f, Def->BeamRange);
+	BeamStatus = Def->BeamStatus;
+	BeamAmmoTickCounter = 0;
+	bBeamActive = false;
 
-	if (FireMode != EWeaponFireMode::Melee)
+	if (FireMode == EWeaponFireMode::Beam)
+	{
+		bEnforceAmmo = true;
+		FireRate = BeamTickInterval > KINDA_SMALL_NUMBER ? 1.0f / BeamTickInterval : 10.0f;
+	}
+	else if (FireMode != EWeaponFireMode::Melee)
 	{
 		bEnforceAmmo = true;
 	}
+}
+
+void AShockWeapon::StopBeam()
+{
+	bBeamActive = false;
 }
 
 void AShockWeapon::ConfigureHitscan(float InDamage, float InRange)
@@ -387,6 +403,8 @@ bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direct
 		return FireAtMelee(InstigatorActor, Start, Direction);
 	case EWeaponFireMode::Shotgun:
 		return FireAtShotgun(InstigatorActor, Start, Direction);
+	case EWeaponFireMode::Beam:
+		return FireAtBeam(InstigatorActor, Start, Direction);
 	default:
 		return FireAtHitscan(InstigatorActor, Start, Direction);
 	}
@@ -709,4 +727,148 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 		TryAutoReloadOnEmpty();
 	}
 	return bAnyDamaged;
+}
+
+bool AShockWeapon::CanBeamTickNow(UWorld* World) const
+{
+	return CanFireNow(World);
+}
+
+bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Direction)
+{
+	UWorld* World = GetWorld();
+	if (!World || Direction.IsNearlyZero())
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && bIsReloading)
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_DRY"));
+		PlayDryFireFeedback(Start);
+		TryAutoReloadOnEmpty();
+		bBeamActive = false;
+		return false;
+	}
+
+	if (!CanBeamTickNow(World))
+	{
+		return false;
+	}
+
+	bBeamActive = true;
+	LastFireWorldSeconds = World->GetTimeSeconds();
+
+	++BeamAmmoTickCounter;
+	if (BeamAmmoTickCounter >= BeamAmmoTicksPerRound)
+	{
+		BeamAmmoTickCounter = 0;
+		if (bEnforceAmmo)
+		{
+			--RoundsInMagazine;
+			LogAmmoState();
+		}
+	}
+
+	++FireCount;
+	LastHitPawn = nullptr;
+
+	const FVector NormDir = Direction.GetSafeNormal();
+	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
+	const FVector End = MuzzleLoc + NormDir * BeamRange;
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponBeam), false, InstigatorActor);
+	Params.AddIgnoredActor(this);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	const bool bPawnTraceHit =
+		World->LineTraceSingleByObjectType(Hit, MuzzleLoc, End, ObjectParams, Params);
+
+	bool bDamaged = false;
+	AShockPawn* VictimPawn = nullptr;
+	if (bPawnTraceHit)
+	{
+		VictimPawn = Cast<AShockPawn>(Hit.GetActor());
+		if (VictimPawn)
+		{
+			UShockDamageLibrary::ApplyDamage(VictimPawn, HitscanDamage, InstigatorActor, NAME_None);
+			LastHitPawn = VictimPawn;
+			bDamaged = true;
+
+			if (ABaseShockAI* VictimAI = Cast<ABaseShockAI>(VictimPawn))
+			{
+				switch (BeamStatus)
+				{
+				case EBeamStatus::Burning:
+					// weapons-config Napalm Burning 1.2 — refresh ~1s linger after beam stops.
+					VictimAI->Ignite(1.0f, 1.2f, InstigatorActor);
+					break;
+				case EBeamStatus::Electric:
+					VictimAI->ReactToPlasmidStun(0.3f, InstigatorActor);
+					break;
+				case EBeamStatus::Freeze:
+					VictimAI->ApplyChill(0.3f);
+					break;
+				default:
+					break;
+				}
+			}
+		}
+	}
+
+	FString StatusName = TEXT("None");
+	switch (BeamStatus)
+	{
+	case EBeamStatus::Burning:
+		StatusName = TEXT("Burning");
+		break;
+	case EBeamStatus::Electric:
+		StatusName = TEXT("Electric");
+		break;
+	case EBeamStatus::Freeze:
+		StatusName = TEXT("Freeze");
+		break;
+	default:
+		break;
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_BEAM status=%s hit=%d"),
+		*StatusName,
+		bDamaged ? 1 : 0);
+
+	FVector VisualEnd = End;
+	bool bVisualPawnHit = false;
+	bool bVisualWorldHit = false;
+	FHitResult VisualHit;
+	FCollisionObjectQueryParams VisualObjectParams;
+	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	if (World->LineTraceSingleByObjectType(VisualHit, MuzzleLoc, End, VisualObjectParams, Params))
+	{
+		VisualEnd = VisualHit.ImpactPoint;
+		if (Cast<AShockPawn>(VisualHit.GetActor()))
+		{
+			bVisualPawnHit = true;
+		}
+		else
+		{
+			bVisualWorldHit = true;
+		}
+	}
+
+	PlayFireFeedback(InstigatorActor, MuzzleLoc, VisualEnd, bVisualPawnHit, bVisualWorldHit, false);
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		TryAutoReloadOnEmpty();
+		bBeamActive = false;
+	}
+	return bDamaged;
 }

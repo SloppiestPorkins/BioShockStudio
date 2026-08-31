@@ -22,7 +22,10 @@ UShockWeaponDef* MakeDef(
 	float ProjectileImpactRadius,
 	float ProjectileLifeSeconds,
 	int32 InPelletCount = 1,
-	float InPelletSpreadDeg = 0.0f)
+	float InPelletSpreadDeg = 0.0f,
+	float InBeamTickInterval = 0.1f,
+	float InBeamRange = 800.0f,
+	EBeamStatus InBeamStatus = EBeamStatus::None)
 {
 	UShockWeaponDef* Def = NewObject<UShockWeaponDef>(GetTransientPackage(), NAME_None, RF_Transient);
 	if (!Def)
@@ -46,6 +49,9 @@ UShockWeaponDef* MakeDef(
 	Def->ProjectileLifeSeconds = ProjectileLifeSeconds;
 	Def->PelletCount = InPelletCount;
 	Def->PelletSpreadDeg = InPelletSpreadDeg;
+	Def->BeamTickInterval = InBeamTickInterval;
+	Def->BeamRange = InBeamRange;
+	Def->BeamStatus = InBeamStatus;
 	if (FireMode == EWeaponFireMode::Projectile)
 	{
 		Def->ProjectileClass = AShockProjectile::StaticClass();
@@ -169,6 +175,56 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			8,
 			6.0f);
+	}
+	else if (
+		Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("ChemThrower"), ESearchCase::IgnoreCase))
+	{
+		// weapons-config: mag 100 acc 0 rate 1 reload 1; Napalm stack 400, Burning 1.2 / Heat 1.
+		// ChemicalThrower.uc BaseAmmoConsumptionRate=0.05; BeamTickInterval 0.1 PLAUSIBLE.
+		Def = MakeDef(
+			EWeaponFireMode::Beam,
+			TEXT("ChemicalThrower"),
+			3.0f, // PLAUSIBLE per-tick direct damage
+			10000.0f,
+			0.0f,
+			10.0f, // PLAUSIBLE — 1/BeamTickInterval for CanFireNow gate
+			100,
+			300, // PLAUSIBLE — Napalm stack 400 minus full mag
+			1.0f,
+			false,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f,
+			1,
+			0.0f,
+			0.1f,
+			800.0f, // PLAUSIBLE beam reach
+			EBeamStatus::Burning);
+	}
+	else if (Key.Equals(TEXT("Crossbow"), ESearchCase::IgnoreCase))
+	{
+		// weapons-config: mag 5 acc 0 rate 1 reload 1 zoom; Steel-Tip AIGenericPiercing 450.
+		// Crossbow_Bolt.uc InitialVelocity=6000; slice mag 1 / reserve 6 / reload 1.5 PLAUSIBLE.
+		// TODO: bolt retrieval after impact.
+		Def = MakeDef(
+			EWeaponFireMode::Projectile,
+			TEXT("Crossbow"),
+			45.0f, // PLAUSIBLE — config lacks player GenericPiercing for Steel-Tip
+			10000.0f,
+			0.0f,
+			1.0f,
+			1,
+			6,
+			1.5f,
+			true,
+			0.0f,
+			0.0f,
+			6000.0f,
+			0.0f,
+			10.0f);
 	}
 
 	if (Def)

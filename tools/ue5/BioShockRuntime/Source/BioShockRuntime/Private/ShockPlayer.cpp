@@ -455,6 +455,24 @@ void AShockPlayer::HandleWeaponSlot4Input()
 	SelectWeaponSlot(3);
 }
 
+void AShockPlayer::HandleWeaponSlot5Input()
+{
+	SelectWeaponSlot(5);
+}
+
+void AShockPlayer::HandleWeaponSlot6Input()
+{
+	SelectWeaponSlot(6);
+}
+
+void AShockPlayer::HandleFireReleasedInput()
+{
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->StopBeam();
+	}
+}
+
 void AShockPlayer::EnablePlayableInput(bool bEnable)
 {
 	bPlayableInputEnabled = bEnable;
@@ -1408,6 +1426,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		return;
 	}
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
+	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Released, this, &AShockPlayer::HandleFireReleasedInput);
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
@@ -1418,6 +1437,8 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot2"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot2Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot3"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot3Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot4"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot4Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot5"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot5Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot6"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot6Input);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

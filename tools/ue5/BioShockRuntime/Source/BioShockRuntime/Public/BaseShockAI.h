@@ -328,8 +328,18 @@ public:
 	/** Incinerate burn — ticking damage while BurningRemaining > 0. */
 	void Ignite(float Seconds, float Dps, AActor* DamageInstigator);
 
+	/** Chemical-thrower freeze beam — slows movement while ChillRemaining > 0. */
+	void ApplyChill(float Seconds);
+
 	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
 	float GetBurningRemaining() const { return BurningRemaining; }
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	float GetChillRemaining() const { return ChillRemaining; }
+
+	/** Headless verify: current MaxWalkSpeed after combat movement multipliers. */
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	float GetMaxWalkSpeedForVerify() const;
 
 	/** Headless verify helper: runs Tick plus movement so AddMovementInput advances. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
@@ -448,6 +458,9 @@ private:
 	float BurningRemaining = 0.0f;
 
 	UPROPERTY()
+	float ChillRemaining = 0.0f;
+
+	UPROPERTY()
 	float BurningDps = 0.0f;
 
 	UPROPERTY()
@@ -470,6 +483,7 @@ private:
 	static constexpr float HitReactRateLimitSeconds = 0.15f;
 	static constexpr float HitFlashSeconds = 0.12f;
 	static constexpr float HitReactMovementScale = 0.4f;
+	static constexpr float ChillMovementScale = 0.4f;
 
 	void HideCorpse();
 	void ClearHitFlash();

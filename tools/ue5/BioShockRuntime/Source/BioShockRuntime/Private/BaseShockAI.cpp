@@ -352,8 +352,23 @@ void ABaseShockAI::Ignite(float Seconds, float Dps, AActor* DamageInstigator)
 	BurningInstigator = DamageInstigator;
 }
 
+void ABaseShockAI::ApplyChill(float Seconds)
+{
+	if (bIsDead || bCombatLoopStopped || Seconds <= 0.0f)
+	{
+		return;
+	}
+
+	ChillRemaining = FMath::Max(ChillRemaining, Seconds);
+}
+
 void ABaseShockAI::TickStatusEffects(float DeltaSeconds)
 {
+	if (ChillRemaining > 0.0f && !bIsDead)
+	{
+		ChillRemaining = FMath::Max(0.0f, ChillRemaining - DeltaSeconds);
+	}
+
 	if (BurningRemaining <= 0.0f || bIsDead)
 	{
 		return;
@@ -973,11 +988,28 @@ void ABaseShockAI::TickCombatMovementSpeed(float DeltaSeconds)
 	(void)DeltaSeconds;
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
-		const float SpeedMult = HitReactRemaining > 0.0f ? HitReactMovementScale : 1.0f;
+		float SpeedMult = 1.0f;
+		if (HitReactRemaining > 0.0f)
+		{
+			SpeedMult *= HitReactMovementScale;
+		}
+		if (ChillRemaining > 0.0f)
+		{
+			SpeedMult *= ChillMovementScale;
+		}
 		const float Speed = (bMovementShouldRun ? RunSpeed : WalkSpeed) * SpeedMult;
 		Move->MaxWalkSpeed = Speed;
 		Move->MaxFlySpeed = Speed;
 	}
+}
+
+float ABaseShockAI::GetMaxWalkSpeedForVerify() const
+{
+	if (const UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		return Move->MaxWalkSpeed;
+	}
+	return 0.0f;
 }
 
 void ABaseShockAI::SetCombatTargetPawn(AShockPawn* Target)

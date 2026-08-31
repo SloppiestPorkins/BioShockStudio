@@ -262,6 +262,8 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	}
 
 	Player->GiveWeaponByDef(TEXT("Shotgun"), 3);
+	Player->GiveWeaponByDef(TEXT("ChemicalThrower"), 5);
+	Player->GiveWeaponByDef(TEXT("Crossbow"), 6);
 	Player->SelectWeaponSlot(2);
 
 	// C3 slice: Electro Bolt in slot 0, Incinerate slot 1, Telekinesis slot 2.

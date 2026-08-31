@@ -96,6 +96,16 @@ WEAPON_SLOT4_LINE = (
     'bCmd=False,Key=Four)'
 )
 
+WEAPON_SLOT5_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot5",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Five)'
+)
+
+WEAPON_SLOT6_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot6",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Six)'
+)
+
 
 def _ensure_action_mapping(action_name, key, existing_line):
     """Add ActionName -> key to DefaultInput.ini if missing."""
@@ -149,6 +159,8 @@ def _ensure_weapon_slot_mappings():
     results.append(_ensure_action_mapping("WeaponSlot2", "Two", WEAPON_SLOT2_LINE))
     results.append(_ensure_action_mapping("WeaponSlot3", "Three", WEAPON_SLOT3_LINE))
     results.append(_ensure_action_mapping("WeaponSlot4", "Four", WEAPON_SLOT4_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot5", "Five", WEAPON_SLOT5_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot6", "Six", WEAPON_SLOT6_LINE))
     return {"mapping": "weapon slots", "details": results}
 
 
