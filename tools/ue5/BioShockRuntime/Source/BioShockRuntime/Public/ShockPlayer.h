@@ -44,6 +44,38 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	AShockWeapon* GetEquippedWeapon() const { return EquippedWeapon; }
 
+	/** BioShock holster order: Wrench, Pistol, Machine Gun, Shotgun, GL, Chem Thrower, Crossbow, Camera. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	TArray<TObjectPtr<AShockWeapon>> WeaponSlots;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	int32 ActiveWeaponSlot = -1;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	AShockWeapon* GiveWeaponByDef(FName DefName, int32 Slot);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	AShockWeapon* GiveWeapon(TSubclassOf<AShockWeapon> WeaponClass, int32 Slot);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool SelectWeaponSlot(int32 Slot);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void NextWeapon();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void PrevWeapon();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	AShockWeapon* GetWeaponInSlot(int32 Slot) const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	int32 GetActiveWeaponSlot() const { return ActiveWeaponSlot; }
+
+	/** Headless verify: IsHidden() on the weapon actor in a holster slot. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	bool IsWeaponSlotHidden(int32 Slot) const;
+
 	/**
 	 * Playable-slice helpers. AutoPossess stays Disabled (GameMode + PlayerStart spawn path).
 	 * Needs project ActionMapping "Fire" and AxisMappings MoveForward/MoveRight/Turn/LookUp.
@@ -413,6 +445,13 @@ private:
 	void HandleReloadInput();
 	void HandlePlasmidInput();
 	void HandlePlasmidCycleInput();
+	void HandleWeaponNextInput();
+	void HandleWeaponPrevInput();
+	void HandleWeaponSlot1Input();
+	void HandleWeaponSlot2Input();
+	void HandleWeaponSlot3Input();
+	void HandleWeaponSlot4Input();
+	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();
 	bool PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const;

@@ -32,6 +32,9 @@ public:
 	FString GetDisplayedAmmoMagText() const;
 
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	FString GetDisplayedWeaponNameText() const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	FString GetDisplayedAmmoReserveText() const;
 
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
@@ -80,6 +83,9 @@ private:
 	TObjectPtr<UTextBlock> AmmoMagText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> AmmoWeaponNameText = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AmmoReserveText = nullptr;
 
 	UPROPERTY(Transient)
@@ -89,6 +95,7 @@ private:
 	FString CachedEveText;
 	FString CachedPlasmidText;
 	FString CachedAmmoMagText;
+	FString CachedWeaponNameText;
 	FString CachedAmmoReserveText;
 	bool bAmmoPanelVisible = false;
 

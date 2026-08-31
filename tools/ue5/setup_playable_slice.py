@@ -66,6 +66,36 @@ HACK_TOOL_LINE = (
     'bCmd=False,Key=H)'
 )
 
+WEAPON_NEXT_LINE = (
+    '+ActionMappings=(ActionName="WeaponNext",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=MouseScrollUp)'
+)
+
+WEAPON_PREV_LINE = (
+    '+ActionMappings=(ActionName="WeaponPrev",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=MouseScrollDown)'
+)
+
+WEAPON_SLOT1_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot1",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=One)'
+)
+
+WEAPON_SLOT2_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot2",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Two)'
+)
+
+WEAPON_SLOT3_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot3",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Three)'
+)
+
+WEAPON_SLOT4_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot4",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Four)'
+)
+
 
 def _ensure_action_mapping(action_name, key, existing_line):
     """Add ActionName -> key to DefaultInput.ini if missing."""
@@ -111,6 +141,17 @@ def _ensure_hack_tool_mapping():
     return _ensure_action_mapping("HackTool", "H", HACK_TOOL_LINE)
 
 
+def _ensure_weapon_slot_mappings():
+    results = []
+    results.append(_ensure_action_mapping("WeaponNext", "MouseScrollUp", WEAPON_NEXT_LINE))
+    results.append(_ensure_action_mapping("WeaponPrev", "MouseScrollDown", WEAPON_PREV_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot1", "One", WEAPON_SLOT1_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot2", "Two", WEAPON_SLOT2_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot3", "Three", WEAPON_SLOT3_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot4", "Four", WEAPON_SLOT4_LINE))
+    return {"mapping": "weapon slots", "details": results}
+
+
 STEPS = [
     ("import_ai_archetypes", "import_ai_archetypes", "main", ()),
     ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
@@ -119,6 +160,7 @@ STEPS = [
     ("plasmid_key_mapping", None, _ensure_plasmid_mapping, ()),
     ("plasmid_cycle_key_mapping", None, _ensure_plasmid_cycle_mapping, ()),
     ("hack_key_mapping", None, _ensure_hack_tool_mapping, ()),
+    ("weapon_slot_key_mapping", None, _ensure_weapon_slot_mappings, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
 

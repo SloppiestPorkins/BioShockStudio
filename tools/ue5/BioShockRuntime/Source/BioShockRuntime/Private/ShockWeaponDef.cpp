@@ -20,7 +20,9 @@ UShockWeaponDef* MakeDef(
 	float MeleeReach,
 	float ProjectileInitialSpeed,
 	float ProjectileImpactRadius,
-	float ProjectileLifeSeconds)
+	float ProjectileLifeSeconds,
+	int32 InPelletCount = 1,
+	float InPelletSpreadDeg = 0.0f)
 {
 	UShockWeaponDef* Def = NewObject<UShockWeaponDef>(GetTransientPackage(), NAME_None, RF_Transient);
 	if (!Def)
@@ -42,6 +44,8 @@ UShockWeaponDef* MakeDef(
 	Def->ProjectileInitialSpeed = ProjectileInitialSpeed;
 	Def->ProjectileImpactRadius = ProjectileImpactRadius;
 	Def->ProjectileLifeSeconds = ProjectileLifeSeconds;
+	Def->PelletCount = InPelletCount;
+	Def->PelletSpreadDeg = InPelletSpreadDeg;
 	if (FireMode == EWeaponFireMode::Projectile)
 	{
 		Def->ProjectileClass = AShockProjectile::StaticClass();
@@ -122,6 +126,49 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			2500.0f,
 			650.0f,
 			10.0f);
+	}
+	else if (Key.Equals(TEXT("Pistol"), ESearchCase::IgnoreCase))
+	{
+		// weapons-config: mag 6 acc 0.5 rate 1 reload 1 zoom; Pistol Rounds GenericPiercing 40.
+		Def = MakeDef(
+			EWeaponFireMode::Hitscan,
+			TEXT("Pistol"),
+			40.0f,
+			10000.0f,
+			1.0f, // PLAUSIBLE — BaseAccuracy 0.5 mapped to ~1° cone (spread not wired to traces yet)
+			1.0f,
+			6,
+			48, // Pistol_Bullet.uc MaximumStackSize=48
+			1.0f,
+			true,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f);
+	}
+	else if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
+	{
+		// weapons-config: mag 4 acc 0 rate 1 reload 1; 00 Buck GenericPiercing 35 total across 8 traces.
+		// Shotgun_00Buck.uc NumTracesToFire=8, SpreadOfFire Pitch/Yaw=910 (~5°); PLAUSIBLE 6° half-angle.
+		Def = MakeDef(
+			EWeaponFireMode::Shotgun,
+			TEXT("Shotgun"),
+			4.375f, // PLAUSIBLE — 35 total / 8 pellets (per-pellet; sum ≈ 35 when all hit)
+			10000.0f,
+			0.0f,
+			1.0f,
+			4,
+			24, // PLAUSIBLE — ~6 pickup stacks of 4 shells
+			1.0f,
+			false,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f,
+			0.0f,
+			8,
+			6.0f);
 	}
 
 	if (Def)

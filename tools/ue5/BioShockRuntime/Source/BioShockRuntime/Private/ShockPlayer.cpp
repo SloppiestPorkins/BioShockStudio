@@ -4,6 +4,7 @@
 #include "ShockSecurityDevice.h"
 #include "ShockTurret.h"
 #include "ShockWeapon.h"
+#include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -68,6 +69,7 @@ AShockPlayer::AShockPlayer()
 	ViewHands->SetHiddenInGame(true);
 
 	EquippedPlasmids.SetNum(3);
+	WeaponSlots.SetNum(8);
 }
 
 void AShockPlayer::OnDeathFromDamage()
@@ -248,6 +250,209 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s"),
 		(ViewHands && ViewHands->GetSkeletalMeshAsset()) ? 1 : 0,
 		*GripSocket.ToString());
+}
+
+void AShockPlayer::UpdateWeaponSlotVisibility(int32 VisibleSlot)
+{
+	for (int32 Index = 0; Index < WeaponSlots.Num(); ++Index)
+	{
+		if (AShockWeapon* SlotWeapon = WeaponSlots[Index].Get())
+		{
+			SlotWeapon->SetActorHiddenInGame(Index != VisibleSlot);
+		}
+	}
+}
+
+AShockWeapon* AShockPlayer::GiveWeaponByDef(FName DefName, int32 Slot)
+{
+	if (DefName.IsNone() || Slot < 0 || Slot >= WeaponSlots.Num())
+	{
+		return nullptr;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	if (AShockWeapon* Existing = WeaponSlots[Slot].Get())
+	{
+		if (EquippedWeapon == Existing)
+		{
+			EquippedWeapon = nullptr;
+		}
+		Existing->Destroy();
+		WeaponSlots[Slot] = nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
+		AShockWeapon::StaticClass(),
+		GetActorLocation(),
+		GetActorRotation(),
+		Params);
+	if (!Weapon)
+	{
+		return nullptr;
+	}
+
+	if (UShockWeaponDef* Def = UShockWeaponDef::Resolve(DefName))
+	{
+		Weapon->ApplyDef(Def);
+		Weapon->InitializeAmmoFullMag(Def->ReserveAmmo);
+	}
+
+	Weapon->SetOwner(this);
+	Weapon->SetActorHiddenInGame(true);
+	WeaponSlots[Slot] = Weapon;
+	return Weapon;
+}
+
+AShockWeapon* AShockPlayer::GiveWeapon(TSubclassOf<AShockWeapon> WeaponClass, int32 Slot)
+{
+	if (!WeaponClass || Slot < 0 || Slot >= WeaponSlots.Num())
+	{
+		return nullptr;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	if (AShockWeapon* Existing = WeaponSlots[Slot].Get())
+	{
+		if (EquippedWeapon == Existing)
+		{
+			EquippedWeapon = nullptr;
+		}
+		Existing->Destroy();
+		WeaponSlots[Slot] = nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
+		WeaponClass,
+		GetActorLocation(),
+		GetActorRotation(),
+		Params);
+	if (!Weapon)
+	{
+		return nullptr;
+	}
+
+	Weapon->SetOwner(this);
+	Weapon->SetActorHiddenInGame(true);
+	WeaponSlots[Slot] = Weapon;
+	return Weapon;
+}
+
+AShockWeapon* AShockPlayer::GetWeaponInSlot(int32 Slot) const
+{
+	if (Slot < 0 || Slot >= WeaponSlots.Num())
+	{
+		return nullptr;
+	}
+	return WeaponSlots[Slot].Get();
+}
+
+bool AShockPlayer::IsWeaponSlotHidden(int32 Slot) const
+{
+	const AShockWeapon* Weapon = GetWeaponInSlot(Slot);
+	return Weapon ? Weapon->IsHidden() : true;
+}
+
+bool AShockPlayer::SelectWeaponSlot(int32 Slot)
+{
+	if (Slot < 0 || Slot >= WeaponSlots.Num())
+	{
+		return false;
+	}
+
+	AShockWeapon* Weapon = WeaponSlots[Slot].Get();
+	if (!Weapon)
+	{
+		return false;
+	}
+
+	ActiveWeaponSlot = Slot;
+	UpdateWeaponSlotVisibility(Slot);
+	EquipWeapon(Weapon);
+	return true;
+}
+
+void AShockPlayer::NextWeapon()
+{
+	if (WeaponSlots.Num() <= 0)
+	{
+		return;
+	}
+
+	const int32 Start = ActiveWeaponSlot >= 0 ? ActiveWeaponSlot : 0;
+	for (int32 Step = 1; Step <= WeaponSlots.Num(); ++Step)
+	{
+		const int32 NextSlot = (Start + Step) % WeaponSlots.Num();
+		if (WeaponSlots[NextSlot].Get())
+		{
+			SelectWeaponSlot(NextSlot);
+			return;
+		}
+	}
+}
+
+void AShockPlayer::PrevWeapon()
+{
+	if (WeaponSlots.Num() <= 0)
+	{
+		return;
+	}
+
+	const int32 Start = ActiveWeaponSlot >= 0 ? ActiveWeaponSlot : 0;
+	for (int32 Step = 1; Step <= WeaponSlots.Num(); ++Step)
+	{
+		const int32 PrevSlot = (Start - Step + WeaponSlots.Num()) % WeaponSlots.Num();
+		if (WeaponSlots[PrevSlot].Get())
+		{
+			SelectWeaponSlot(PrevSlot);
+			return;
+		}
+	}
+}
+
+void AShockPlayer::HandleWeaponNextInput()
+{
+	NextWeapon();
+}
+
+void AShockPlayer::HandleWeaponPrevInput()
+{
+	PrevWeapon();
+}
+
+void AShockPlayer::HandleWeaponSlot1Input()
+{
+	SelectWeaponSlot(0);
+}
+
+void AShockPlayer::HandleWeaponSlot2Input()
+{
+	SelectWeaponSlot(1);
+}
+
+void AShockPlayer::HandleWeaponSlot3Input()
+{
+	SelectWeaponSlot(2);
+}
+
+void AShockPlayer::HandleWeaponSlot4Input()
+{
+	SelectWeaponSlot(3);
 }
 
 void AShockPlayer::EnablePlayableInput(bool bEnable)
@@ -1207,6 +1412,12 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
 	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
+	PlayerInputComponent->BindAction(TEXT("WeaponNext"), IE_Pressed, this, &AShockPlayer::HandleWeaponNextInput);
+	PlayerInputComponent->BindAction(TEXT("WeaponPrev"), IE_Pressed, this, &AShockPlayer::HandleWeaponPrevInput);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot1"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot1Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot2"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot2Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot3"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot3Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot4"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot4Input);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

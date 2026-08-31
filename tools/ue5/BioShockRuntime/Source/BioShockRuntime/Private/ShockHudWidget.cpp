@@ -134,6 +134,18 @@ void UShockHudWidget::EnsureWidgetTree()
 		UVerticalBox::StaticClass(), TEXT("AmmoBox"));
 	AmmoPanel->SetContent(AmmoBox);
 
+	AmmoWeaponNameText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("AmmoWeaponNameText"));
+	AmmoWeaponNameText->SetText(FText::FromString(TEXT("")));
+	AmmoWeaponNameText->SetJustification(ETextJustify::Right);
+	AmmoWeaponNameText->SetFont(MakeHudFont(14, true));
+	AmmoWeaponNameText->SetColorAndOpacity(FSlateColor(HudWhite()));
+	if (UVerticalBoxSlot* NameSlot = AmmoBox->AddChildToVerticalBox(AmmoWeaponNameText))
+	{
+		NameSlot->SetHorizontalAlignment(HAlign_Right);
+		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+	}
+
 	AmmoMagText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AmmoMagText"));
 	AmmoMagText->SetText(FText::FromString(TEXT("--")));
 	AmmoMagText->SetJustification(ETextJustify::Right);
@@ -320,14 +332,24 @@ void UShockHudWidget::RefreshDisplay()
 	if (!bShowAmmo)
 	{
 		CachedAmmoMagText = TEXT("");
+		CachedWeaponNameText = TEXT("");
 		CachedAmmoReserveText = TEXT("");
+		if (AmmoWeaponNameText)
+		{
+			AmmoWeaponNameText->SetText(FText::GetEmpty());
+		}
 		return;
 	}
 
 	const int32 Mag = Weapon->GetRoundsInMagazine();
 	const int32 Reserve = Weapon->GetReserveAmmo();
+	CachedWeaponNameText = Weapon->GetWeaponDefName().IsNone() ? TEXT("") : Weapon->GetWeaponDefName().ToString();
 	CachedAmmoMagText = FString::FromInt(Mag);
 	CachedAmmoReserveText = FString::Printf(TEXT("/ %d"), Reserve);
+	if (AmmoWeaponNameText)
+	{
+		AmmoWeaponNameText->SetText(FText::FromString(CachedWeaponNameText));
+	}
 	if (AmmoMagText)
 	{
 		AmmoMagText->SetText(FText::FromString(CachedAmmoMagText));
@@ -346,6 +368,11 @@ FString UShockHudWidget::GetDisplayedHealthText() const
 FString UShockHudWidget::GetDisplayedAmmoMagText() const
 {
 	return CachedAmmoMagText;
+}
+
+FString UShockHudWidget::GetDisplayedWeaponNameText() const
+{
+	return CachedWeaponNameText;
 }
 
 FString UShockHudWidget::GetDisplayedAmmoReserveText() const

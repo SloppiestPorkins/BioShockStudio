@@ -83,8 +83,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
 	TSubclassOf<AShockProjectile> ProjectileClass;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	int32 PelletCount = 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
+	float PelletSpreadDeg = 0.0f;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ApplyDef(UShockWeaponDef* Def);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	FName GetWeaponDefName() const { return DefWeaponName; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ConfigureHitscan(float InDamage, float InRange);
@@ -165,6 +174,7 @@ private:
 	bool FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector Direction);
 	bool FireAtProjectile(AActor* InstigatorActor, FVector Start, FVector Direction);
 	bool FireAtMelee(AActor* InstigatorActor, FVector Start, FVector Direction);
+	bool FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector Direction);
 	void FinishReload();
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
@@ -181,7 +191,8 @@ private:
 		const FVector& MuzzleLocation,
 		const FVector& VisualEnd,
 		bool bPawnHit,
-		bool bWorldHit);
+		bool bWorldHit,
+		bool bApplyRecoil = true);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPointLightComponent> MuzzleFlashLight;

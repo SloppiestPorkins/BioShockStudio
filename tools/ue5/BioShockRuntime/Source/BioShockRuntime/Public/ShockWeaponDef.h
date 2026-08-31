@@ -12,6 +12,7 @@ enum class EWeaponFireMode : uint8
 	Hitscan,
 	Projectile,
 	Melee,
+	Shotgun,
 };
 
 /**
@@ -78,7 +79,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	float ProjectileLifeSeconds = 10.0f;
 
-	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher. Unknown keys return nullptr. */
+	/** Per-pellet traces when FireMode is Shotgun (`Shotgun_00Buck.uc` NumTracesToFire=8). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 PelletCount = 1;
+
+	/** Cone half-angle in degrees (`Shotgun_00Buck.uc` SpreadOfFire ~910/65536*360 ≈ 5°; PLAUSIBLE 6). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	float PelletSpreadDeg = 0.0f;
+
+	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun. Unknown keys return nullptr. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	static UShockWeaponDef* Resolve(FName InWeaponName);
 };

@@ -246,30 +246,23 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 		return;
 	}
 
-	FActorSpawnParameters Params;
-	Params.Owner = Player;
-	Params.Instigator = Player;
-	AShockWeapon* Weapon = World->SpawnActor<AShockWeapon>(
-		AShockWeapon::StaticClass(),
-		Player->GetActorLocation(),
-		Player->GetActorRotation(),
-		Params);
-	if (!Weapon)
+	Player->GiveWeaponByDef(TEXT("Wrench"), 0);
+	Player->GiveWeaponByDef(TEXT("Pistol"), 1);
+
+	AShockWeapon* TommyGun = Player->GiveWeaponByDef(TEXT("TommyGun"), 2);
+	if (TommyGun)
 	{
-		return;
+		TommyGun->InitializeAmmoFullMag(150);
+		if (USkeletalMesh* TommyGunMesh = LoadObject<USkeletalMesh>(
+				nullptr,
+				TEXT("/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun")))
+		{
+			TommyGun->Mesh->SetSkeletalMesh(TommyGunMesh);
+		}
 	}
 
-	Weapon->ApplyDef(UShockWeaponDef::Resolve(TEXT("TommyGun")));
-	Weapon->InitializeAmmoFullMag(150);
-
-	if (USkeletalMesh* TommyGun = LoadObject<USkeletalMesh>(
-			nullptr,
-			TEXT("/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun")))
-	{
-		Weapon->Mesh->SetSkeletalMesh(TommyGun);
-	}
-
-	Player->EquipWeapon(Weapon);
+	Player->GiveWeaponByDef(TEXT("Shotgun"), 3);
+	Player->SelectWeaponSlot(2);
 
 	// C3 slice: Electro Bolt in slot 0, Incinerate slot 1, Telekinesis slot 2.
 	Player->MaxEve = 100.0f;

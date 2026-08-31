@@ -44,6 +44,8 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 	DefProjectileImpactRadius = Def->ProjectileImpactRadius;
 	DefProjectileLifeSeconds = Def->ProjectileLifeSeconds;
 	DefWeaponName = Def->WeaponName;
+	PelletCount = FMath::Max(1, Def->PelletCount);
+	PelletSpreadDeg = FMath::Max(0.0f, Def->PelletSpreadDeg);
 
 	if (FireMode != EWeaponFireMode::Melee)
 	{
@@ -328,7 +330,8 @@ void AShockWeapon::PlayFireFeedback(
 	const FVector& MuzzleLocation,
 	const FVector& VisualEnd,
 	bool bPawnHit,
-	bool bWorldHit)
+	bool bWorldHit,
+	bool bApplyRecoil)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -367,7 +370,10 @@ void AShockWeapon::PlayFireFeedback(
 
 	if (AShockPlayer* Player = Cast<AShockPlayer>(InstigatorActor))
 	{
-		Player->ApplyWeaponRecoil();
+		if (bApplyRecoil)
+		{
+			Player->ApplyWeaponRecoil();
+		}
 	}
 }
 
@@ -379,6 +385,8 @@ bool AShockWeapon::FireAt(AActor* InstigatorActor, FVector Start, FVector Direct
 		return FireAtProjectile(InstigatorActor, Start, Direction);
 	case EWeaponFireMode::Melee:
 		return FireAtMelee(InstigatorActor, Start, Direction);
+	case EWeaponFireMode::Shotgun:
+		return FireAtShotgun(InstigatorActor, Start, Direction);
 	default:
 		return FireAtHitscan(InstigatorActor, Start, Direction);
 	}
@@ -593,4 +601,112 @@ bool AShockWeapon::FireAtMelee(AActor* InstigatorActor, FVector Start, FVector D
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
 	PlayFireFeedback(InstigatorActor, MuzzleLoc, Hit.bBlockingHit ? Hit.ImpactPoint : TraceEnd, bDamaged, false);
 	return bDamaged;
+}
+
+bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector Direction)
+{
+	UWorld* World = GetWorld();
+	if (!World || Direction.IsNearlyZero())
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && bIsReloading)
+	{
+		return false;
+	}
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_DRY"));
+		PlayDryFireFeedback(Start);
+		TryAutoReloadOnEmpty();
+		return false;
+	}
+
+	if (!CanFireNow(World))
+	{
+		return false;
+	}
+
+	LastFireWorldSeconds = World->GetTimeSeconds();
+	if (bEnforceAmmo)
+	{
+		--RoundsInMagazine;
+		LogAmmoState();
+	}
+	++FireCount;
+	LastHitPawn = nullptr;
+
+	const FVector NormDir = Direction.GetSafeNormal();
+	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
+	const int32 TraceCount = FMath::Max(1, PelletCount);
+	const FRotator BaseRot = NormDir.Rotation();
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponShotgun), false, InstigatorActor);
+	Params.AddIgnoredActor(this);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	FCollisionObjectQueryParams VisualObjectParams;
+	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+
+	int32 HitCount = 0;
+	bool bAnyDamaged = false;
+	for (int32 PelletIndex = 0; PelletIndex < TraceCount; ++PelletIndex)
+	{
+		const float FanT = TraceCount > 1 ? (static_cast<float>(PelletIndex) / static_cast<float>(TraceCount - 1)) - 0.5f : 0.0f;
+		const float YawOffset = FanT * PelletSpreadDeg * 2.0f;
+		const float PitchOffset =
+			((PelletIndex % 2) == 0 ? 1.0f : -1.0f) * (static_cast<float>(PelletIndex % 3) + 1.0f) * 0.12f * PelletSpreadDeg;
+		const FVector PelletDir = (BaseRot + FRotator(PitchOffset, YawOffset, 0.0f)).Vector();
+		const FVector End = Start + PelletDir * HitscanRange;
+
+		FHitResult Hit;
+		const bool bPawnTraceHit =
+			World->LineTraceSingleByObjectType(Hit, Start, End, ObjectParams, Params);
+
+		bool bDamaged = false;
+		if (bPawnTraceHit)
+		{
+			if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
+			{
+				UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
+				LastHitPawn = Victim;
+				bDamaged = true;
+				++HitCount;
+			}
+		}
+		if (bDamaged)
+		{
+			bAnyDamaged = true;
+		}
+
+		FVector VisualEnd = End;
+		bool bVisualPawnHit = false;
+		bool bVisualWorldHit = false;
+		FHitResult VisualHit;
+		if (World->LineTraceSingleByObjectType(VisualHit, MuzzleLoc, End, VisualObjectParams, Params))
+		{
+			VisualEnd = VisualHit.ImpactPoint;
+			if (Cast<AShockPawn>(VisualHit.GetActor()))
+			{
+				bVisualPawnHit = true;
+			}
+			else
+			{
+				bVisualWorldHit = true;
+			}
+		}
+
+		const bool bApplyRecoil = PelletIndex == 0;
+		PlayFireFeedback(InstigatorActor, MuzzleLoc, VisualEnd, bVisualPawnHit, bVisualWorldHit, bApplyRecoil);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOTGUN pellets=%d hits=%d"), TraceCount, HitCount);
+
+	if (bEnforceAmmo && RoundsInMagazine <= 0)
+	{
+		TryAutoReloadOnEmpty();
+	}
+	return bAnyDamaged;
 }

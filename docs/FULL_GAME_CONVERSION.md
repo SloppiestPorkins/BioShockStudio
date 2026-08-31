@@ -243,15 +243,19 @@ Research Camera and the Rivet Gun-adjacent bits. Each: fire modes, ammo types, t
 stations.
 
 - [x] **C4 slice — weapon defs + fire modes:** `UShockWeaponDef::Resolve` (TommyGun / Wrench /
-  GrenadeLauncher) drives `AShockWeapon::ApplyDef`; hitscan (unchanged path), melee (Wrench),
-  projectile + `AShockProjectile` (frag radial). Slice TommyGun via def (25 dmg / 50 mag / 150
-  reserve). `run_weapon_def.py` / `verify_weapon_def.py` headless.
+  GrenadeLauncher / **Pistol** / **Shotgun**) drives `AShockWeapon::ApplyDef`; hitscan (unchanged
+  path), melee (Wrench), projectile + `AShockProjectile` (frag radial), **shotgun pellet fan**
+  (`EWeaponFireMode::Shotgun`, `PelletCount` / `PelletSpreadDeg`). Slice TommyGun via def (25 dmg /
+  50 mag / 150 reserve). **`AShockPlayer` holster slots** (8-wide, `GiveWeaponByDef` /
+  `SelectWeaponSlot` / `NextWeapon` / `PrevWeapon`); slice starts TommyGun active with Wrench /
+  Pistol / Shotgun in holster. HUD shows active weapon name beside ammo. `run_weapon_def.py` /
+  `verify_weapon_def.py`, `run_weapon_slots.py` / `verify_weapon_slots.py` headless.
 - **Still on inline `ConfigureHitscan` / `ConfigureAmmo`:** AI splicers (`BaseShockAI`), HUD ammo
   preview widget, slice encounter stand-in weapon — not `Resolve` yet.
 - **Tuning gaps:** TommyGun slice values differ from weapons-config Machine Gun (40 dmg / 40 mag);
-  spread not applied to traces; no weapon swap (Wrench / GL in-game — TODO); Pistol / Shotgun /
-  Chemical Thrower / Crossbow / Research Camera defs missing; no upgrade stations or ammo-type
-  switching; projectile gravity / mesh / sticky-RPG modes not ported.
+  spread not applied to hitscan traces; **Chemical Thrower / Crossbow / Research Camera defs
+  missing**; no upgrade stations or ammo-type switching; projectile gravity / mesh / sticky-RPG
+  modes not ported.
 
 ### C5. The behaviour library — breadth then depth
 Everything else `Action*` / native, worked from the census, most-used first, each verified
