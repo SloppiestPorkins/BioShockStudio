@@ -3,7 +3,7 @@
 #include "ShockAction.h"
 #include "ShockActionUnEquipAllPlasmids.generated.h"
 
-/** UnrealScript `ActionUnEquipAllPlasmids`. Records unequip request; no plasmid slots yet. */
+/** UnrealScript `ActionUnEquipAllPlasmids`. Clears plasmid slots on the local ShockPlayer. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionUnEquipAllPlasmids : public UShockAction
 {
@@ -20,4 +20,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestUnequip();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool ApplyInWorld(UWorld* World);
 };

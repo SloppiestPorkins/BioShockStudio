@@ -6,6 +6,7 @@
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
+#include "ShockElectroBoltPlasmid.h"
 #include "ShockWeapon.h"
 
 #include "Camera/CameraComponent.h"
@@ -266,6 +267,11 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	}
 
 	Player->EquipWeapon(Weapon);
+
+	// C3 slice: Electro Bolt in slot 0 with a testable EVE pool.
+	Player->MaxEve = 100.0f;
+	Player->RefillEve(100.0f);
+	Player->EquipPlasmid(UShockElectroBoltPlasmid::StaticClass(), 0);
 }
 
 namespace

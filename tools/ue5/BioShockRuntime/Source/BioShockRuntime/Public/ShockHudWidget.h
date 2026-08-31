@@ -35,6 +35,9 @@ public:
 	FString GetDisplayedAmmoReserveText() const;
 
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	FString GetDisplayedEveText() const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
 
 	/** Editor/headless: spawn player+weapon, create HUD, assert text + viewport, damage + re-assert. */
@@ -65,6 +68,12 @@ private:
 	TObjectPtr<UProgressBar> HealthBar = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> EveText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UProgressBar> EveBar = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AmmoMagText = nullptr;
 
 	UPROPERTY(Transient)
@@ -74,6 +83,7 @@ private:
 	TObjectPtr<UBorder> AmmoPanel = nullptr;
 
 	FString CachedHealthText;
+	FString CachedEveText;
 	FString CachedAmmoMagText;
 	FString CachedAmmoReserveText;
 	bool bAmmoPanelVisible = false;

@@ -17,4 +17,8 @@ public:
 	void Configure(FName InPlasmid, int32 InSlot);
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestEquip();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool ApplyInWorld(UWorld* World);
 };

@@ -6,6 +6,7 @@
 class AShockWeapon;
 class UCameraComponent;
 class UInputComponent;
+class UShockPlasmid;
 class USkeletalMeshComponent;
 class UWorld;
 
@@ -57,6 +58,58 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryReloadEquippedWeapon();
+
+	/** BioShock EVE pool (playable-slice stand-in; ~100 default). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	float CurrentEve = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	float MaxEve = 100.0f;
+
+	/** PLAUSIBLE — EVE hypo refill amount; not wired to inventory yet. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	float EveHypoAmount = 50.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	bool bInfiniteEve = false;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool ConsumeEve(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void RefillEve(float Amount);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	float GetCurrentEve() const { return CurrentEve; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	float GetMaxEve() const { return MaxEve; }
+
+	/** Three plasmid slots (UnrealScript ActivePlasmid array). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	TArray<TObjectPtr<UShockPlasmid>> EquippedPlasmids;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	int32 ActivePlasmidSlot = 0;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool EquipPlasmid(TSubclassOf<UShockPlasmid> PlasmidClass, int32 Slot);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void ClearAllPlasmids();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	UShockPlasmid* GetActivePlasmid() const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool CastActivePlasmid();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	float GetPlasmidCooldownRemaining() const;
+
+	/** Headless verify: force EVE to zero. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetCurrentEveForVerify(float Value) { CurrentEve = FMath::Clamp(Value, 0.0f, MaxEve); }
 
 	/**
 	 * UnrealScript `ShockPlayer.AddStackToInventory` stand-in: merge StackSize into the
@@ -340,6 +393,8 @@ public:
 private:
 	void HandleFireInput();
 	void HandleReloadInput();
+	void HandlePlasmidInput();
+	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void TurnAtRate(float Value);
@@ -482,4 +537,6 @@ private:
 	float WeaponRecoilKickRemaining = 0.0f;
 	float WeaponRecoilKickTotal = 0.0f;
 	FTimerHandle WeaponRecoilTimerHandle;
+
+	double LastPlasmidCastWorldSeconds = -1.0;
 };

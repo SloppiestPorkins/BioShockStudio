@@ -51,9 +51,14 @@ RELOAD_LINE = (
     'bCmd=False,Key=R)'
 )
 
+PLASMID_LINE = (
+    '+ActionMappings=(ActionName="Plasmid",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Q)'
+)
 
-def _ensure_reload_mapping():
-    """verify_playable_input.py only writes the Fire mapping; add Reload -> R too."""
+
+def _ensure_action_mapping(action_name, key, existing_line):
+    """Add ActionName -> key to DefaultInput.ini if missing."""
     ini = os.path.join(
         r"C:\Users\Jack\Documents\BioShockUE5", "Config", "DefaultInput.ini"
     )
@@ -61,20 +66,31 @@ def _ensure_reload_mapping():
     if os.path.isfile(ini):
         with open(ini, "r", encoding="utf-8", errors="ignore") as handle:
             text = handle.read()
-    if 'ActionName="Reload"' in text or "ActionName=Reload" in text:
-        return {"reload_mapping": "already present", "ini": ini}
+    needle = 'ActionName="%s"' % action_name
+    if needle in text or ("ActionName=%s" % action_name) in text:
+        return {"mapping": "already present", "action": action_name, "ini": ini}
+    line = existing_line
     if "[/Script/Engine.InputSettings]" in text:
         text = text.replace(
             "[/Script/Engine.InputSettings]",
-            "[/Script/Engine.InputSettings]\n" + RELOAD_LINE,
+            "[/Script/Engine.InputSettings]\n" + line,
             1,
         )
     else:
-        text = text.rstrip() + "\n\n[/Script/Engine.InputSettings]\n" + RELOAD_LINE + "\n"
+        text = text.rstrip() + "\n\n[/Script/Engine.InputSettings]\n" + line + "\n"
     os.makedirs(os.path.dirname(ini), exist_ok=True)
     with open(ini, "w", encoding="utf-8") as handle:
         handle.write(text)
-    return {"reload_mapping": "wrote Reload -> R", "ini": ini}
+    return {"mapping": "wrote %s -> %s" % (action_name, key), "ini": ini}
+
+
+def _ensure_reload_mapping():
+    """verify_playable_input.py only writes the Fire mapping; add Reload -> R too."""
+    return _ensure_action_mapping("Reload", "R", RELOAD_LINE)
+
+
+def _ensure_plasmid_mapping():
+    return _ensure_action_mapping("Plasmid", "Q", PLASMID_LINE)
 
 
 STEPS = [
@@ -82,6 +98,7 @@ STEPS = [
     ("setup_main_menu", "setup_main_menu", "main", (_tmp("main_menu.json"),)),
     ("playable_input", "verify_playable_input", "main", (_tmp("playable_input.json"),)),
     ("reload_key_mapping", None, _ensure_reload_mapping, ()),
+    ("plasmid_key_mapping", None, _ensure_plasmid_mapping, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
 

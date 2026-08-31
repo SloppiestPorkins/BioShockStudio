@@ -305,6 +305,39 @@ void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
 	ApplyHitFlash();
 }
 
+void ABaseShockAI::ReactToPlasmidStun(float Duration, AActor* DamageInstigator)
+{
+	if (bIsDead || bCombatLoopStopped || Duration <= 0.0f)
+	{
+		return;
+	}
+
+	HitReactRemaining = FMath::Max(HitReactRemaining, Duration);
+	HitReactRateLimitRemaining = 0.0f;
+
+	const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_PLASMID_STUN ai=%s duration=%.2f"),
+		*AiName,
+		HitReactRemaining);
+
+	if (!bCannotBecomeUnconscious && DamageInstigator)
+	{
+		FVector AwayDir = GetActorLocation() - DamageInstigator->GetActorLocation();
+		AwayDir.Z = 0.0f;
+		if (!AwayDir.IsNearlyZero())
+		{
+			AwayDir = AwayDir.GetSafeNormal();
+			const float ImpulseMag = HitKnockback * 0.5f;
+			LaunchCharacter(AwayDir * ImpulseMag, true, true);
+		}
+	}
+
+	ApplyHitFlash();
+}
+
 void ABaseShockAI::ApplyHitFlash()
 {
 	USkeletalMeshComponent* SkelMesh = GetMesh();

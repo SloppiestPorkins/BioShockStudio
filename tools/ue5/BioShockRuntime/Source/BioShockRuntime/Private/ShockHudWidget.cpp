@@ -100,6 +100,23 @@ void UShockHudWidget::EnsureWidgetTree()
 		BarSlot->SetPadding(FMargin(0.0f));
 	}
 
+	EveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EveText"));
+	EveText->SetText(FText::FromString(TEXT("EVE --")));
+	EveText->SetFont(MakeHudFont(18, true));
+	EveText->SetColorAndOpacity(FSlateColor(FLinearColor(0.55f, 0.85f, 1.0f, 1.0f)));
+	if (UVerticalBoxSlot* EveTextSlot = HealthBox->AddChildToVerticalBox(EveText))
+	{
+		EveTextSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 2.0f));
+	}
+
+	EveBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("EveBar"));
+	EveBar->SetFillColorAndOpacity(FLinearColor(0.35f, 0.75f, 1.0f, 1.0f));
+	EveBar->SetPercent(1.0f);
+	if (UVerticalBoxSlot* EveBarSlot = HealthBox->AddChildToVerticalBox(EveBar))
+	{
+		EveBarSlot->SetPadding(FMargin(0.0f));
+	}
+
 	AnchorBottomCorner(Canvas, HealthBacking, false);
 
 	AmmoPanel = MakeHudBacking(WidgetTree, TEXT("AmmoBacking"));
@@ -249,6 +266,22 @@ void UShockHudWidget::RefreshDisplay()
 		HealthBar->SetPercent(FMath::Clamp(Health / MaxHealth, 0.0f, 1.0f));
 	}
 
+	const float Eve = Player ? Player->GetCurrentEve() : 0.0f;
+	float MaxEve = Player ? Player->GetMaxEve() : 0.0f;
+	if (MaxEve <= 0.0f)
+	{
+		MaxEve = FMath::Max(Eve, 1.0f);
+	}
+	CachedEveText = FString::Printf(TEXT("EVE %d"), FMath::RoundToInt(Eve));
+	if (EveText)
+	{
+		EveText->SetText(FText::FromString(CachedEveText));
+	}
+	if (EveBar)
+	{
+		EveBar->SetPercent(FMath::Clamp(Eve / MaxEve, 0.0f, 1.0f));
+	}
+
 	AShockWeapon* Weapon = ResolveEquippedWeapon(Player);
 	const bool bShowAmmo = Weapon && Weapon->bEnforceAmmo;
 	bAmmoPanelVisible = bShowAmmo;
@@ -291,6 +324,11 @@ FString UShockHudWidget::GetDisplayedAmmoMagText() const
 FString UShockHudWidget::GetDisplayedAmmoReserveText() const
 {
 	return CachedAmmoReserveText;
+}
+
+FString UShockHudWidget::GetDisplayedEveText() const
+{
+	return CachedEveText;
 }
 
 bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)

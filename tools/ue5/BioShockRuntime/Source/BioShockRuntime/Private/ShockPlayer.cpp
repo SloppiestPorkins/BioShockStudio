@@ -1,11 +1,14 @@
 #include "ShockPlayer.h"
 
+#include "ShockPlasmid.h"
 #include "ShockWeapon.h"
 #include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "CollisionQueryParams.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/Scene.h"
 #include "Engine/SkeletalMesh.h"
 #include "EngineUtils.h"
@@ -17,6 +20,7 @@
 namespace
 {
 constexpr float WeaponRecoilRecoverSeconds = 0.12f;
+constexpr float PlasmidTraceRange = 10000.0f;
 }
 
 AShockPlayer::AShockPlayer()
@@ -58,6 +62,8 @@ AShockPlayer::AShockPlayer()
 	ViewHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ViewHands->SetCastShadow(false);
 	ViewHands->SetHiddenInGame(true);
+
+	EquippedPlasmids.SetNum(3);
 }
 
 void AShockPlayer::OnDeathFromDamage()
@@ -355,6 +361,138 @@ bool AShockPlayer::TryReloadEquippedWeapon()
 void AShockPlayer::HandleReloadInput()
 {
 	TryReloadEquippedWeapon();
+}
+
+bool AShockPlayer::ConsumeEve(float Amount)
+{
+	if (bInfiniteEve || Amount <= 0.0f)
+	{
+		return Amount <= 0.0f;
+	}
+	if (CurrentEve + KINDA_SMALL_NUMBER < Amount)
+	{
+		return false;
+	}
+	CurrentEve = FMath::Max(0.0f, CurrentEve - Amount);
+	return true;
+}
+
+void AShockPlayer::RefillEve(float Amount)
+{
+	if (Amount <= 0.0f)
+	{
+		return;
+	}
+	CurrentEve = FMath::Clamp(CurrentEve + Amount, 0.0f, MaxEve);
+}
+
+bool AShockPlayer::EquipPlasmid(TSubclassOf<UShockPlasmid> PlasmidClass, int32 Slot)
+{
+	if (!PlasmidClass || Slot < 0 || Slot >= EquippedPlasmids.Num())
+	{
+		return false;
+	}
+
+	UShockPlasmid* Instance = NewObject<UShockPlasmid>(this, PlasmidClass);
+	if (!Instance)
+	{
+		return false;
+	}
+	EquippedPlasmids[Slot] = Instance;
+	ActivePlasmidSlot = Slot;
+	return true;
+}
+
+void AShockPlayer::ClearAllPlasmids()
+{
+	for (int32 Index = 0; Index < EquippedPlasmids.Num(); ++Index)
+	{
+		EquippedPlasmids[Index] = nullptr;
+	}
+}
+
+UShockPlasmid* AShockPlayer::GetActivePlasmid() const
+{
+	if (ActivePlasmidSlot < 0 || ActivePlasmidSlot >= EquippedPlasmids.Num())
+	{
+		return nullptr;
+	}
+	return EquippedPlasmids[ActivePlasmidSlot];
+}
+
+float AShockPlayer::GetPlasmidCooldownRemaining() const
+{
+	const UShockPlasmid* Plasmid = GetActivePlasmid();
+	const UWorld* World = GetWorld();
+	if (!Plasmid || !World || LastPlasmidCastWorldSeconds < 0.0)
+	{
+		return 0.0f;
+	}
+	const double Elapsed = World->GetTimeSeconds() - LastPlasmidCastWorldSeconds;
+	return FMath::Max(0.0f, Plasmid->CastCooldown - static_cast<float>(Elapsed));
+}
+
+bool AShockPlayer::PerformPlasmidAimTrace(FHitResult& OutHit) const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	FVector Start = GetActorLocation() + FVector(0.0f, 0.0f, BaseEyeHeight);
+	FRotator AimRotation = GetControlRotation();
+	if (FirstPersonCamera)
+	{
+		Start = FirstPersonCamera->GetComponentLocation();
+		AimRotation = FirstPersonCamera->GetComponentRotation();
+	}
+	const FVector End = Start + AimRotation.Vector() * PlasmidTraceRange;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockPlasmidCast), false, this);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	return World->LineTraceSingleByObjectType(OutHit, Start, End, ObjectParams, Params);
+}
+
+bool AShockPlayer::CastActivePlasmid()
+{
+	UShockPlasmid* Plasmid = GetActivePlasmid();
+	UWorld* World = GetWorld();
+	if (!Plasmid || !World)
+	{
+		return false;
+	}
+
+	if (GetPlasmidCooldownRemaining() > KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	if (!bInfiniteEve && CurrentEve + KINDA_SMALL_NUMBER < Plasmid->EveCost)
+	{
+		return false;
+	}
+
+	FHitResult Hit;
+	PerformPlasmidAimTrace(Hit);
+
+	if (!Plasmid->Cast(this, Hit))
+	{
+		return false;
+	}
+
+	if (!bInfiniteEve)
+	{
+		ConsumeEve(Plasmid->EveCost);
+	}
+	LastPlasmidCastWorldSeconds = World->GetTimeSeconds();
+	return true;
+}
+
+void AShockPlayer::HandlePlasmidInput()
+{
+	CastActivePlasmid();
 }
 
 void AShockPlayer::MoveForward(float Value)
@@ -947,6 +1085,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
+	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

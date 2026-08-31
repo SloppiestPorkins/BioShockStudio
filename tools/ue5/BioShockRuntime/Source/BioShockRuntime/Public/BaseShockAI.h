@@ -322,6 +322,9 @@ public:
 	/** Live-hit feedback: stagger, knockback, mesh flash. Called from ApplyDamage on surviving AI. */
 	void ReactToHit(float Amount, AActor* DamageInstigator);
 
+	/** Plasmid stun — longer HitReact window than weapon flinch (Electro Bolt). */
+	void ReactToPlasmidStun(float Duration, AActor* DamageInstigator);
+
 	/** Headless verify helper: runs Tick plus movement so AddMovementInput advances. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void AdvanceAutonomousCombat(float DeltaSeconds);

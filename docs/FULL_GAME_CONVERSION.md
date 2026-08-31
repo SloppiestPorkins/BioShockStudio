@@ -201,9 +201,17 @@ hierarchy + ability lists + `defaultproperties` as spec, not a port of function 
 ### C3. Player systems
 Census/spec order, each its own sub-project:
 - Health / EVE, first-aid kits, EVE hypos.
-- **Plasmids** — `EquipPlasmid` / `UnEquipAllPlasmids` stubs exist. Electro Bolt →
-  Incinerate → Telekinesis → the rest. Plasmid = a `UShockPlasmid` with a cost, a cooldown,
-  a targeting mode, an effect (damage / status / physics / spawn).
+- **Plasmids** — **first slice (31 Aug 2026):** `UShockPlasmid` framework on `AShockPlayer`
+  (`CurrentEve`/`MaxEve` ~100, `ConsumeEve`/`RefillEve`, 3 slots, `CastActivePlasmid` trace +
+  cooldown + EVE spend). `UShockElectroBoltPlasmid` trace-targeted: `ApplyDamage` + ~2s plasmid
+  stun via `ReactToPlasmidStun` / `HitReactAbility`, water 2× + chain through
+  `AShockWaterVolume`. `ActionEquipPlasmid` / `ActionUnEquipAllPlasmids` wired;
+  slice possess equips slot 0; `Plasmid` → `Q` in `setup_playable_slice.py`.
+  `run_plasmid.py` / `verify_plasmid.py` headless. **Tuning from shipped data:**
+  EVE cost **15** (`ElectricBoltAbility.uc` `BioAmmoCost=15`). **PLAUSIBLE / gaps:** bolt HP
+  damage (~15), stun seconds (~2), cast cooldown (~0.5s), water chain radius (~400uu),
+  `TraceDamageFactory` native (no damage in `.uc`), level-1/2/3 `ElectricBolt*Ability` scaling,
+  VFX/audio, machine short-out, Incinerate/Telekinesis/etc. → next C3 slice.
 - **Hacking** — `HackSecuritySystem` / `HackTurret` / `UnHackSecuritySystem` stubs exist.
   The pipe minigame or the modern "hack tool" — pick one, faithful-first says the minigame.
 - Inventory, ammo types (AP / anti-personnel / incendiary per weapon), U-Invent, Gene Banks,
