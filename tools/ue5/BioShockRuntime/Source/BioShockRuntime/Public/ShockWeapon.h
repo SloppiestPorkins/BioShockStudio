@@ -98,6 +98,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Weapon")
 	EBeamStatus BeamStatus = EBeamStatus::None;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
+	TArray<FShockAmmoType> AmmoTypes;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
+	int32 ActiveAmmoTypeIndex = 0;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ApplyDef(UShockWeaponDef* Def);
 
@@ -148,6 +154,27 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	int32 AddReserveAmmo(int32 Amount);
+
+	/** Advance to next ammo type; swaps active reserve pool (chambered rounds keep current type until mag empties). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
+	void CycleAmmoType();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Ammo")
+	int32 GetActiveAmmoTypeIndex() const { return ActiveAmmoTypeIndex; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Ammo")
+	int32 GetAmmoTypeCount() const { return AmmoTypes.Num(); }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Ammo")
+	FName GetActiveAmmoTypeName() const;
+
+	/** Headless verify: jump active ammo index without cycling. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
+	void SetActiveAmmoTypeIndexForVerify(int32 Index);
+
+	/** Headless verify: override effect on an ammo entry. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
+	void SetAmmoEffectForVerify(int32 Index, EAmmoEffect Effect);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void SetAmmoStateForVerify(int32 InMag, int32 InReserve);
@@ -212,6 +239,10 @@ private:
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
 	bool CanMeleeNow(UWorld* World) const;
+	float GetDamageForAmmoIndex(int32 Index) const;
+	void SyncActiveAmmoFacingFields();
+	void ApplyAmmoHitEffect(AActor* InstigatorActor, AShockPawn* Victim, FVector ImpactPoint, int32 AmmoIndex);
+	static FString AmmoEffectToString(EAmmoEffect Effect);
 	FVector ResolveMuzzleLocation(const FVector& TraceStart) const;
 	void EnsureMuzzleFlashLight();
 	void HideMuzzleFlash();
@@ -241,5 +272,7 @@ private:
 	FName DefWeaponName;
 	bool bBeamActive = false;
 	int32 BeamAmmoTickCounter = 0;
+	int32 ChamberedAmmoTypeIndex = 0;
+	TArray<int32> AmmoReserves;
 	static constexpr int32 BeamAmmoTicksPerRound = 5; // PLAUSIBLE — ~1 round per 0.5s at 0.1s tick
 };

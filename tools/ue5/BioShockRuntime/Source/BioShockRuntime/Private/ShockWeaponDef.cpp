@@ -5,6 +5,25 @@
 
 namespace
 {
+void AddAmmoType(
+	UShockWeaponDef* Def,
+	FName AmmoName,
+	float Damage,
+	EAmmoEffect Effect,
+	int32 InReserveAmmo)
+{
+	if (!Def)
+	{
+		return;
+	}
+	FShockAmmoType Entry;
+	Entry.Name = AmmoName;
+	Entry.Damage = Damage;
+	Entry.Effect = Effect;
+	Entry.ReserveAmmo = InReserveAmmo;
+	Def->AmmoTypes.Add(Entry);
+}
+
 UShockWeaponDef* MakeDef(
 	EWeaponFireMode FireMode,
 	FName Name,
@@ -91,6 +110,11 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			0.0f,
 			0.0f);
+		// weapons-config Machine Gun: MG Rounds GenericPiercing 40 / Antipersonnel Auto 18 /
+		// Armor-piercing Auto 30 — slice keeps index 0 at 25 dmg; variants use raw config numbers.
+		AddAmmoType(Def, TEXT("MG Rounds"), 25.0f, EAmmoEffect::None, 150);
+		AddAmmoType(Def, TEXT("Antipersonnel Auto"), 18.0f, EAmmoEffect::AntiPersonnel, 150);
+		AddAmmoType(Def, TEXT("Armor-piercing Auto"), 30.0f, EAmmoEffect::ArmorPiercing, 150);
 	}
 	else if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
@@ -152,6 +176,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			0.0f,
 			0.0f);
+		AddAmmoType(Def, TEXT("Pistol Rounds"), 40.0f, EAmmoEffect::None, 48);
+		AddAmmoType(Def, TEXT("Armor-piercing"), 40.0f, EAmmoEffect::ArmorPiercing, 48);
+		AddAmmoType(Def, TEXT("Antipersonnel"), 40.0f, EAmmoEffect::AntiPersonnel, 48);
 	}
 	else if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
@@ -175,6 +202,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			8,
 			6.0f);
+		AddAmmoType(Def, TEXT("00 Buck"), 35.0f, EAmmoEffect::None, 24);
+		AddAmmoType(Def, TEXT("Electric Buck"), 35.0f, EAmmoEffect::Electric, 24);
+		AddAmmoType(Def, TEXT("Exploding Buck"), 49.0f, EAmmoEffect::Explosive, 24);
 	}
 	else if (
 		Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)

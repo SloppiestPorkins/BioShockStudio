@@ -521,6 +521,7 @@ private:
 	void HandleFireInput();
 	void HandleFireReleasedInput();
 	void HandleReloadInput();
+	void HandleAmmoCycleInput();
 	void HandlePlasmidInput();
 	void HandlePlasmidCycleInput();
 	void HandleWeaponNextInput();

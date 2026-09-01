@@ -121,6 +121,11 @@ INTERACT_LINE = (
     'bCmd=False,Key=F)'
 )
 
+AMMO_TYPE_CYCLE_LINE = (
+    '+ActionMappings=(ActionName="AmmoTypeCycle",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=C)'
+)
+
 TRAVEL_DEST_MAP = "/Game/BioShockSlice/_TravelDest"
 PLAY_GAME_MODE = "/Script/BioShockRuntime.ShockGameMode"
 SHOCK_GAME_INSTANCE = "/Script/BioShockRuntime.ShockGameInstance"
@@ -194,6 +199,10 @@ def _ensure_weapon_slot_mappings():
 
 def _ensure_interact_mapping():
     return _ensure_action_mapping("Interact", "F", INTERACT_LINE)
+
+
+def _ensure_ammo_type_cycle_mapping():
+    return _ensure_action_mapping("AmmoTypeCycle", "C", AMMO_TYPE_CYCLE_LINE)
 
 
 def _project_config_dir():
@@ -317,6 +326,7 @@ STEPS = [
     ("use_eve_hypo_key_mapping", None, _ensure_use_eve_hypo_mapping, ()),
     ("weapon_slot_key_mapping", None, _ensure_weapon_slot_mappings, ()),
     ("interact_key_mapping", None, _ensure_interact_mapping, ()),
+    ("ammo_type_cycle_key_mapping", None, _ensure_ammo_type_cycle_mapping, ()),
     ("game_instance_class", None, _ensure_game_instance_class, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),

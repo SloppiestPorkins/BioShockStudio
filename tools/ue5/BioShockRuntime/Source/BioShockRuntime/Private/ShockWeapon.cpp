@@ -2,9 +2,11 @@
 
 #include "BaseShockAI.h"
 #include "ShockDamageLibrary.h"
+#include "ShockElectroBoltPlasmid.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
 #include "ShockProjectile.h"
+#include "ShockWaterVolume.h"
 #include "ShockWeaponDef.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -62,6 +64,19 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 	{
 		bEnforceAmmo = true;
 	}
+
+	AmmoTypes = Def->AmmoTypes;
+	AmmoReserves.Reset();
+	if (AmmoTypes.Num() > 0)
+	{
+		for (const FShockAmmoType& Entry : AmmoTypes)
+		{
+			AmmoReserves.Add(FMath::Max(0, Entry.ReserveAmmo));
+		}
+		ActiveAmmoTypeIndex = 0;
+		ChamberedAmmoTypeIndex = 0;
+		SyncActiveAmmoFacingFields();
+	}
 }
 
 void AShockWeapon::StopBeam()
@@ -87,14 +102,195 @@ void AShockWeapon::ConfigureAmmo(int32 InMagazineSize, int32 InReserveAmmo, floa
 void AShockWeapon::InitializeAmmoFullMag(int32 InReserveAmmo)
 {
 	RoundsInMagazine = MagazineSize;
-	ReserveAmmo = FMath::Max(0, InReserveAmmo);
+	if (AmmoReserves.Num() > 0)
+	{
+		AmmoReserves[ActiveAmmoTypeIndex] = FMath::Max(0, InReserveAmmo);
+		ReserveAmmo = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	else
+	{
+		ReserveAmmo = FMath::Max(0, InReserveAmmo);
+	}
+	ChamberedAmmoTypeIndex = ActiveAmmoTypeIndex;
+	HitscanDamage = GetDamageForAmmoIndex(ChamberedAmmoTypeIndex);
 	LogAmmoState();
+}
+
+FName AShockWeapon::GetActiveAmmoTypeName() const
+{
+	if (AmmoTypes.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		return AmmoTypes[ActiveAmmoTypeIndex].Name;
+	}
+	return NAME_None;
+}
+
+void AShockWeapon::SetActiveAmmoTypeIndexForVerify(int32 Index)
+{
+	if (AmmoTypes.Num() == 0)
+	{
+		return;
+	}
+	ActiveAmmoTypeIndex = Index % AmmoTypes.Num();
+	ChamberedAmmoTypeIndex = ActiveAmmoTypeIndex;
+	SyncActiveAmmoFacingFields();
+}
+
+void AShockWeapon::SetAmmoEffectForVerify(int32 Index, EAmmoEffect Effect)
+{
+	if (AmmoTypes.IsValidIndex(Index))
+	{
+		AmmoTypes[Index].Effect = Effect;
+	}
+}
+
+void AShockWeapon::CycleAmmoType()
+{
+	if (AmmoTypes.Num() <= 1)
+	{
+		return;
+	}
+
+	ActiveAmmoTypeIndex = (ActiveAmmoTypeIndex + 1) % AmmoTypes.Num();
+	SyncActiveAmmoFacingFields();
+
+	const FShockAmmoType& Active = AmmoTypes[ActiveAmmoTypeIndex];
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AMMO_TYPE weapon=%s type=%s effect=%s"),
+		*DefWeaponName.ToString(),
+		*Active.Name.ToString(),
+		*AmmoEffectToString(Active.Effect));
+}
+
+float AShockWeapon::GetDamageForAmmoIndex(int32 Index) const
+{
+	if (!AmmoTypes.IsValidIndex(Index))
+	{
+		return HitscanDamage;
+	}
+	const float TotalDamage = AmmoTypes[Index].Damage;
+	if (FireMode == EWeaponFireMode::Shotgun && PelletCount > 0)
+	{
+		return TotalDamage / static_cast<float>(PelletCount);
+	}
+	return TotalDamage;
+}
+
+void AShockWeapon::SyncActiveAmmoFacingFields()
+{
+	if (AmmoReserves.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		ReserveAmmo = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	if (AmmoTypes.IsValidIndex(ChamberedAmmoTypeIndex))
+	{
+		HitscanDamage = GetDamageForAmmoIndex(ChamberedAmmoTypeIndex);
+	}
+}
+
+FString AShockWeapon::AmmoEffectToString(EAmmoEffect Effect)
+{
+	switch (Effect)
+	{
+	case EAmmoEffect::ArmorPiercing:
+		return TEXT("ArmorPiercing");
+	case EAmmoEffect::AntiPersonnel:
+		return TEXT("AntiPersonnel");
+	case EAmmoEffect::Electric:
+		return TEXT("Electric");
+	case EAmmoEffect::Incendiary:
+		return TEXT("Incendiary");
+	case EAmmoEffect::Explosive:
+		return TEXT("Explosive");
+	default:
+		return TEXT("None");
+	}
+}
+
+void AShockWeapon::ApplyAmmoHitEffect(
+	AActor* InstigatorActor,
+	AShockPawn* Victim,
+	FVector ImpactPoint,
+	int32 AmmoIndex)
+{
+	if (!Victim || !AmmoTypes.IsValidIndex(AmmoIndex))
+	{
+		return;
+	}
+
+	const EAmmoEffect Effect = AmmoTypes[AmmoIndex].Effect;
+	if (Effect == EAmmoEffect::None)
+	{
+		return;
+	}
+
+	ABaseShockAI* VictimAI = Cast<ABaseShockAI>(Victim);
+	if (!VictimAI)
+	{
+		return;
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AMMO_EFFECT type=%s target=%s"),
+		*AmmoEffectToString(Effect),
+		*Victim->GetName());
+
+	switch (Effect)
+	{
+	case EAmmoEffect::Electric:
+		// PLAUSIBLE — shorter stun than Electro Bolt's 2s.
+		UShockElectroBoltPlasmid::ApplyElectricStunAndWaterChain(
+			InstigatorActor,
+			Victim,
+			1.0f,
+			GetDamageForAmmoIndex(AmmoIndex),
+			400.0f);
+		break;
+	case EAmmoEffect::Incendiary:
+		// PLAUSIBLE — Incinerate reference tuning (~3s linger, ~5 dps).
+		VictimAI->Ignite(3.0f, 5.0f, InstigatorActor);
+		break;
+	case EAmmoEffect::Explosive:
+		if (UWorld* World = GetWorld())
+		{
+			// PLAUSIBLE — small radial tick (~150uu) plus direct hit; Burning 6 from weapons-config.
+			const float RadialAmount = AmmoTypes[AmmoIndex].Damage * 0.35f;
+			UShockDamageLibrary::ApplyRadialDamage(
+				World,
+				ImpactPoint,
+				150.0f,
+				RadialAmount,
+				InstigatorActor,
+				FName(TEXT("ExplosiveAmmo")),
+				0.0f);
+		}
+		VictimAI->Ignite(3.0f, 6.0f, InstigatorActor);
+		break;
+	case EAmmoEffect::AntiPersonnel:
+	case EAmmoEffect::ArmorPiercing:
+		// Damage number only — organic vs mechanical split TODO (no mechanical targets in slice).
+		break;
+	default:
+		break;
+	}
 }
 
 void AShockWeapon::SetAmmoStateForVerify(int32 InMag, int32 InReserve)
 {
 	RoundsInMagazine = FMath::Clamp(InMag, 0, FMath::Max(1, MagazineSize));
-	ReserveAmmo = FMath::Max(0, InReserve);
+	if (AmmoReserves.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		AmmoReserves[ActiveAmmoTypeIndex] = FMath::Max(0, InReserve);
+		ReserveAmmo = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	else
+	{
+		ReserveAmmo = FMath::Max(0, InReserve);
+	}
 	LogAmmoState();
 }
 
@@ -104,7 +300,15 @@ int32 AShockWeapon::AddReserveAmmo(int32 Amount)
 	{
 		return ReserveAmmo;
 	}
-	ReserveAmmo += Amount;
+	if (AmmoReserves.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		AmmoReserves[ActiveAmmoTypeIndex] += Amount;
+		ReserveAmmo = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	else
+	{
+		ReserveAmmo += Amount;
+	}
 	LogAmmoState();
 	return ReserveAmmo;
 }
@@ -194,9 +398,24 @@ void AShockWeapon::FinishReload()
 	bIsReloading = false;
 	ReloadCountdown = 0.0f;
 	const int32 Need = MagazineSize - RoundsInMagazine;
-	const int32 Transfer = FMath::Min(Need, ReserveAmmo);
+	int32 ActiveReserve = ReserveAmmo;
+	if (AmmoReserves.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		ActiveReserve = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	const int32 Transfer = FMath::Min(Need, ActiveReserve);
 	RoundsInMagazine += Transfer;
-	ReserveAmmo -= Transfer;
+	if (AmmoReserves.IsValidIndex(ActiveAmmoTypeIndex))
+	{
+		AmmoReserves[ActiveAmmoTypeIndex] -= Transfer;
+		ReserveAmmo = AmmoReserves[ActiveAmmoTypeIndex];
+	}
+	else
+	{
+		ReserveAmmo -= Transfer;
+	}
+	ChamberedAmmoTypeIndex = ActiveAmmoTypeIndex;
+	HitscanDamage = GetDamageForAmmoIndex(ChamberedAmmoTypeIndex);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD done transferred=%d"), Transfer);
 	LogAmmoState();
 }
@@ -464,11 +683,14 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 		World->LineTraceSingleByObjectType(Hit, Start, End, ObjectParams, Params);
 
 	bool bDamaged = false;
+	const int32 AmmoIndex = ChamberedAmmoTypeIndex;
+	const float ShotDamage = GetDamageForAmmoIndex(AmmoIndex);
 	if (bPawnTraceHit)
 	{
 		if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
 		{
-			UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
+			UShockDamageLibrary::ApplyDamage(Victim, ShotDamage, InstigatorActor, NAME_None);
+			ApplyAmmoHitEffect(InstigatorActor, Victim, Hit.ImpactPoint, AmmoIndex);
 			LastHitPawn = Victim;
 			bDamaged = true;
 		}
@@ -695,7 +917,10 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 		{
 			if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
 			{
-				UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
+				const int32 AmmoIndex = ChamberedAmmoTypeIndex;
+				const float PelletDamage = GetDamageForAmmoIndex(AmmoIndex);
+				UShockDamageLibrary::ApplyDamage(Victim, PelletDamage, InstigatorActor, NAME_None);
+				ApplyAmmoHitEffect(InstigatorActor, Victim, Hit.ImpactPoint, AmmoIndex);
 				LastHitPawn = Victim;
 				bDamaged = true;
 				++HitCount;

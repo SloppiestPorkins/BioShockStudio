@@ -294,8 +294,19 @@ stations.
   preview widget, slice encounter stand-in weapon — not `Resolve` yet.
 - **Tuning gaps:** TommyGun slice values differ from weapons-config Machine Gun (40 dmg / 40 mag);
   spread not applied to hitscan traces; no upgrade stations;
-  no ammo-type switching (chem Ionic/LiquidN / crossbow trap-incendiary bolts); **bolt retrieval
-  TODO**; projectile gravity / mesh / sticky-RPG modes not ported.
+  Crossbow / Grenade Launcher / Chemical Thrower ammo variants still TODO (Ionic/LiquidN /
+  trap-incendiary bolts); **bolt retrieval TODO**; projectile gravity / mesh / sticky-RPG modes
+  not ported.
+- [x] **C4 slice — ammo-type switching (Pistol / Machine Gun / Shotgun):** `FShockAmmoType` on
+  `UShockWeaponDef` (per-type damage, `EAmmoEffect`, independent reserve pools). `AShockWeapon`
+  `CycleAmmoType` + chambered-round behaviour (mag keeps current type until empty/reload).
+  Electric buck reuses Electro Bolt water-chain helper; Exploding Buck radial + burn; Incendiary
+  enum wired for future types. **C** → `AmmoTypeCycle`. `run_ammo_types.py` /
+  `verify_ammo_types.py` headless. TommyGun index 0 stays slice 25 dmg; alt types use raw
+  weapons-config numbers (18 AP / 30 armor-piercing).
+- **Ammo fidelity gaps:** AntiPersonnel / ArmorPiercing are damage-number-only (organic vs
+  mechanical split TODO); Crossbow / Grenade Launcher / Chemical Thrower ammo variants still
+  TODO.
 - **Research Camera TODOs:** research rewards beyond the damage bonus (plasmid unlocks, one-time
   level-up item grants per UC `ResearchLevels[].AwardItemClass`), the research film / photo-subject
   variety (UC `CameraDamageFactory` centering/size/pose/dead/repeat scoring), upgrade stations,

@@ -25,6 +25,37 @@ enum class EBeamStatus : uint8
 	Freeze,
 };
 
+/** Per-ammo stimuli from weapons-config (GenericPiercing / Shocked / Burning / etc.). */
+UENUM(BlueprintType)
+enum class EAmmoEffect : uint8
+{
+	None,
+	ArmorPiercing,
+	AntiPersonnel,
+	Electric,
+	Incendiary,
+	Explosive,
+};
+
+USTRUCT(BlueprintType)
+struct FShockAmmoType
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	float Damage = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	EAmmoEffect Effect = EAmmoEffect::None;
+
+	/** Independent reserve pool for this ammo type (not shared when cycling). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	int32 ReserveAmmo = 0;
+};
+
 /**
  * Per-weapon tuning from Weapons.ini (`bioshock-tool weapons-config`) plus slice overrides.
  * Headless-constructable via Resolve(); no content-browser asset required.
@@ -108,6 +139,10 @@ public:
 	/** Status applied to struck pawns each beam tick. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	EBeamStatus BeamStatus = EBeamStatus::None;
+
+	/** Alternate ammo types (index 0 = default round; independent reserve per entry). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	TArray<FShockAmmoType> AmmoTypes;
 
 	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun / ChemicalThrower / Crossbow. Unknown keys return nullptr. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")

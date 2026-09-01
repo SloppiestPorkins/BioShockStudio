@@ -33,6 +33,18 @@ public:
 
 	virtual bool Cast(AShockPlayer* Caster, const FHitResult& Aim) override;
 
+	/**
+	 * Shared water-chain for Electro Bolt and electric buck ammo (stun + chain damage in water).
+	 * Primary direct hit damage is assumed already applied by the caller.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Plasmid|ElectroBolt")
+	static void ApplyElectricStunAndWaterChain(
+		AActor* Instigator,
+		AShockPawn* Primary,
+		float InStunSeconds,
+		float ChainDamage,
+		float ChainRadius = 400.0f);
+
 	UFUNCTION(BlueprintPure, Category = "BioShock|Plasmid|ElectroBolt")
 	int32 GetLastHitCountForVerify() const { return LastHitCount; }
 

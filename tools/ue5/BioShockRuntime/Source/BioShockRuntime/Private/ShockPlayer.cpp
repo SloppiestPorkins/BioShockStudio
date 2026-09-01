@@ -655,6 +655,14 @@ void AShockPlayer::HandleReloadInput()
 	TryReloadEquippedWeapon();
 }
 
+void AShockPlayer::HandleAmmoCycleInput()
+{
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->CycleAmmoType();
+	}
+}
+
 bool AShockPlayer::ConsumeEve(float Amount)
 {
 	if (bInfiniteEve || Amount <= 0.0f)
@@ -1617,6 +1625,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AShockPlayer::HandleFireInput);
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Released, this, &AShockPlayer::HandleFireReleasedInput);
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
+	PlayerInputComponent->BindAction(TEXT("AmmoTypeCycle"), IE_Pressed, this, &AShockPlayer::HandleAmmoCycleInput);
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
 	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
