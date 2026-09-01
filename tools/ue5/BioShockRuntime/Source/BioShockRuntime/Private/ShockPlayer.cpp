@@ -69,7 +69,7 @@ AShockPlayer::AShockPlayer()
 	ViewHands->SetCastShadow(false);
 	ViewHands->SetHiddenInGame(true);
 
-	EquippedPlasmids.SetNum(3);
+	EquippedPlasmids.SetNum(6);
 	WeaponSlots.SetNum(8);
 }
 

@@ -331,11 +331,29 @@ public:
 	/** Chemical-thrower freeze beam — slows movement while ChillRemaining > 0. */
 	void ApplyChill(float Seconds);
 
+	/** Winter Blast — hard freeze (movement/brain off, physics frozen, shatter on damage). */
+	void FreezeSolid(float Seconds, AActor* DamageInstigator);
+
+	/** Enrage — treat other AIs as hostile; ignore the player while active. */
+	void ApplyEnrage(float Seconds, AActor* DamageInstigator);
+
 	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
 	float GetBurningRemaining() const { return BurningRemaining; }
 
 	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
 	float GetChillRemaining() const { return ChillRemaining; }
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	float GetFrozenSolidRemaining() const { return FrozenSolidRemaining; }
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	float GetEnragedRemaining() const { return EnragedRemaining; }
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
+	bool IsEnraged() const { return EnragedRemaining > 0.0f; }
+
+	/** Nearest living ABaseShockAI other than self (Enrage target pick). */
+	AShockPawn* FindNearestOtherAIForEnrage() const;
 
 	/** Headless verify: current MaxWalkSpeed after combat movement multipliers. */
 	UFUNCTION(BlueprintPure, Category = "BioShock|Combat")
@@ -461,12 +479,22 @@ private:
 	float ChillRemaining = 0.0f;
 
 	UPROPERTY()
+	float FrozenSolidRemaining = 0.0f;
+
+	UPROPERTY()
+	TObjectPtr<AActor> FrozenInstigator;
+
+	UPROPERTY()
+	float EnragedRemaining = 0.0f;
+
+	UPROPERTY()
 	float BurningDps = 0.0f;
 
 	UPROPERTY()
 	TObjectPtr<AActor> BurningInstigator;
 
 	float BurningLogAccumulator = 0.0f;
+	float FrozenLogAccumulator = 0.0f;
 
 	UPROPERTY()
 	TObjectPtr<class UMaterialInstanceDynamic> HitFlashOverlayMID;
@@ -489,6 +517,8 @@ private:
 	void ClearHitFlash();
 	void ApplyHitFlash();
 	void ApplyBurnFlash();
+	void ApplyFrozenFlash();
+	void ClearFrozenState();
 	void TickStatusEffects(float DeltaSeconds);
 	void TickCombat(float DeltaSeconds);
 	void TickCombatFsm(float DeltaSeconds);

@@ -10,8 +10,11 @@
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockElectroBoltPlasmid.h"
+#include "ShockEnragePlasmid.h"
 #include "ShockIncineratePlasmid.h"
+#include "ShockInsectSwarmPlasmid.h"
 #include "ShockTelekinesisPlasmid.h"
+#include "ShockWinterBlastPlasmid.h"
 #include "ShockTurret.h"
 #include "ShockSecurityCamera.h"
 #include "ShockSecurityDeviceTypes.h"
@@ -304,12 +307,15 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->GiveWeapon(AShockResearchCamera::StaticClass(), 7);
 	Player->SelectWeaponSlot(2);
 
-	// C3 slice: Electro Bolt in slot 0, Incinerate slot 1, Telekinesis slot 2.
+	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.
 	Player->MaxEve = 100.0f;
 	Player->RefillEve(100.0f);
 	Player->EquipPlasmid(UShockElectroBoltPlasmid::StaticClass(), 0);
 	Player->EquipPlasmid(UShockIncineratePlasmid::StaticClass(), 1);
 	Player->EquipPlasmid(UShockTelekinesisPlasmid::StaticClass(), 2);
+	Player->EquipPlasmid(UShockWinterBlastPlasmid::StaticClass(), 3);
+	Player->EquipPlasmid(UShockInsectSwarmPlasmid::StaticClass(), 4);
+	Player->EquipPlasmid(UShockEnragePlasmid::StaticClass(), 5);
 	Player->ActivePlasmidSlot = 0;
 
 	Player->AddStackToInventory(FName(TEXT("FirstAidKit")), 1);

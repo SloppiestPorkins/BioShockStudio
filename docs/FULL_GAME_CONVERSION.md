@@ -202,23 +202,32 @@ hierarchy + ability lists + `defaultproperties` as spec, not a port of function 
 Census/spec order, each its own sub-project:
 - Health / EVE, first-aid kits, EVE hypos.
 - **Plasmids** — **first slice (31 Aug 2026):** `UShockPlasmid` framework on `AShockPlayer`
-  (`CurrentEve`/`MaxEve` ~100, `ConsumeEve`/`RefillEve`, 3 slots, `CastActivePlasmid` trace +
+  (`CurrentEve`/`MaxEve` ~100, `ConsumeEve`/`RefillEve`, 6 slots, `CastActivePlasmid` trace +
   cooldown + EVE spend). `UShockElectroBoltPlasmid` trace-targeted: `ApplyDamage` + ~2s plasmid
   stun via `ReactToPlasmidStun` / `HitReactAbility`, water 2× + chain through
   `AShockWaterVolume`. **Second slice (31 Aug 2026):** `UShockIncineratePlasmid` (EVE **8**,
   burst + `ABaseShockAI::Ignite` burn ticks, oil-slick synergy via `AShockOilSlickVolume`) and
   `UShockTelekinesisPlasmid` (EVE **2.5** on grab, freeze-in-place + throw impulse stand-in via
-  `AShockGrabbableActor` / `UShockPhysicsLibrary`). `CycleActivePlasmid` + `Tab` cycle key;
+  `AShockGrabbableActor` / `UShockPhysicsLibrary`). **Third slice (1 Sep 2026):**
+  `UShockWinterBlastPlasmid` (EVE **13**, `IcicleAssaultAbility.uc`; forward cone ~45°/~600uu,
+  burst + `ABaseShockAI::FreezeSolid` hard-freeze + ~3× shatter on damage),
+  `UShockInsectSwarmPlasmid` (EVE **8**, `InsectSwarmAbility.uc`; spawns `AShockInsectSwarm`
+  homing DoT + `ReactToPlasmidStun` distract), `UShockEnragePlasmid` (EVE **8** PLAUSIBLE;
+  hitscan trace; `ApplyEnrage` — other `ABaseShockAI` as kill target via `UShockAIBrain`, player
+  aggro suppressed). `CycleActivePlasmid` + `Tab` cycle key;
   HUD shows active plasmid name beside EVE. `ActionEquipPlasmid` / `ActionUnEquipAllPlasmids`
-  wired; slice possess equips slots 0–2; `Plasmid` → `Q` in `setup_playable_slice.py`.
+  wired; slice possess equips slots 0–5; `Plasmid` → `Q` in `setup_playable_slice.py`.
   `run_plasmid.py` / `verify_plasmid.py` headless. **Tuning from shipped data:** Electro Bolt
   EVE **15** (`ElectricBoltAbility.uc`); Incinerate EVE **8** (`IncinerationAbility.uc`);
-  Telekinesis EVE **2.5** (`TelekinesisAbility.uc`). **PLAUSIBLE / gaps:** bolt HP damage (~15),
-  stun seconds (~2), Incinerate burst (~10) / burn (~4s @ ~6 dps), Telekinesis throw speed (~1500)
-  / throw damage (~15) / no per-frame camera hold, oil burn multiplier, cast cooldown (~0.5s),
-  water chain radius (~400uu), native stimuli factories (no damage in `.uc`), level scaling,
-  VFX/audio, machine short-out. **Still missing:** Winter Blast, Security Bullseye, Enrage,
-  Insect Swarm, Sonic Boom, Cyclone Trap, Target Dummy, Hypnotize.
+  Telekinesis EVE **2.5** (`TelekinesisAbility.uc`); Winter Blast EVE **13**
+  (`IcicleAssaultAbility.uc`); Insect Swarm EVE **8** (`InsectSwarmAbility.uc`). **PLAUSIBLE /
+  gaps:** bolt HP damage (~15), stun seconds (~2), Incinerate burst (~10) / burn (~4s @ ~6 dps),
+  Telekinesis throw speed (~1500) / throw damage (~15) / no per-frame camera hold, oil burn
+  multiplier, cast cooldown (~0.5s), water chain radius (~400uu), Winter Blast burst (~5) /
+  freeze (~4s) / shatter (~3×), Insect Swarm DPS (~4) / lifespan (~6s), Enrage duration (~12s)
+  and EVE cost (~8), native stimuli factories (no damage in `.uc`), level scaling, VFX/audio,
+  machine short-out. **Still missing:** Security Bullseye, Sonic Boom, Cyclone Trap, Target Dummy
+  (`DecoyHuman*` in decomp), Hypnotize.
 - **Hacking — first slice (31 Aug 2026):** `EShockDeviceAllegiance` + `AShockSecurityDevice`
   (perception cone/LoS, `ApplyAuthoredDamage`, security-shutdown / alarm range boost) and
   `AShockTurret` (hitscan via `AShockWeapon`, idle yaw sweep). `AShockPlayer::TryHackDevice`

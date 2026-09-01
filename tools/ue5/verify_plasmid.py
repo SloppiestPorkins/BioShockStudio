@@ -446,6 +446,187 @@ def main(out):
             check("tk_no_eve", not ok and not frozen, {"cast": ok, "frozen": frozen})
 
     _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (i) Winter Blast: cone freeze + shatter + thaw ---
+    wb_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWinterBlastPlasmid")
+    damage_lib = unreal.ShockDamageLibrary
+    if wb_cls and damage_lib:
+        wb_player = _spawn(
+            subsystem, player_cls, "WinterPlayer", unreal.Vector(0.0, 800.0, 100.0)
+        )
+        wb_ai1 = _spawn(
+            subsystem, ai_cls, "WinterAI1", unreal.Vector(500.0, 800.0, 100.0)
+        )
+        wb_ai2 = _spawn(
+            subsystem, ai_cls, "WinterAI2", unreal.Vector(520.0, 830.0, 100.0)
+        )
+        spawned.extend([wb_player, wb_ai1, wb_ai2])
+        if wb_player and wb_ai1 and wb_ai2:
+            for target in (wb_ai1, wb_ai2):
+                target.configure_identity("Agg_BabyJane", target.get_actor_label())
+                target.ensure_health_initialized()
+                target.ensure_controller_for_verify()
+            wb_player.ensure_health_initialized()
+            wb_player.equip_plasmid(wb_cls, 0)
+            wb_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(wb_player.get_actor_location(), wb_ai1.get_actor_location())
+            wb_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+
+            cast_ok = bool(wb_player.cast_active_plasmid())
+            _tick_combat(wb_ai1, 0.05)
+            _tick_combat(wb_ai2, 0.05)
+            f1 = float(wb_ai1.get_frozen_solid_remaining())
+            f2 = float(wb_ai2.get_frozen_solid_remaining())
+            s1 = float(wb_ai1.get_max_walk_speed_for_verify())
+            s2 = float(wb_ai2.get_max_walk_speed_for_verify())
+            plasmid = wb_player.get_active_plasmid()
+            frozen_n = int(plasmid.get_last_frozen_count_for_verify()) if plasmid else 0
+
+            check("winter_cast", cast_ok and frozen_n >= 2, frozen_n)
+            check("winter_frozen_both", f1 > 0.5 and f2 > 0.5, {"f1": f1, "f2": f2})
+            check("winter_speed_zero", s1 < 0.1 and s2 < 0.1, {"s1": s1, "s2": s2})
+
+            h_before = float(wb_ai1.get_current_health())
+            applied = float(damage_lib.apply_damage(wb_ai1, 10.0, wb_player, unreal.Name("Verify")))
+            h_after = float(wb_ai1.get_current_health())
+            check("winter_shatter", applied >= 25.0, applied)
+            check("winter_shatter_drop", h_before - h_after >= 25.0, h_before - h_after)
+
+            _tick_combat(wb_ai1, 4.5)
+            _tick_combat(wb_ai2, 4.5)
+            thaw1 = float(wb_ai1.get_frozen_solid_remaining()) <= 0.1
+            thaw2 = float(wb_ai2.get_frozen_solid_remaining()) <= 0.1
+            speed1 = float(wb_ai1.get_max_walk_speed_for_verify())
+            check("winter_thaw", thaw1 and thaw2, {"thaw1": thaw1, "thaw2": thaw2})
+            check("winter_speed_restored", speed1 > 1.0, speed1)
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (j) Insect Swarm: homing DoT + distract ---
+    swarm_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockInsectSwarmPlasmid")
+    if swarm_cls and attack_cls:
+        sw_player = _spawn(
+            subsystem, player_cls, "SwarmPlayer", unreal.Vector(0.0, 900.0, 100.0)
+        )
+        sw_victim = _spawn(
+            subsystem, ai_cls, "SwarmVictim", unreal.Vector(500.0, 900.0, 100.0)
+        )
+        sw_dummy = _spawn(
+            subsystem, player_cls, "SwarmDummy", unreal.Vector(560.0, 900.0, 100.0)
+        )
+        spawned.extend([sw_player, sw_victim, sw_dummy])
+        if sw_player and sw_victim and sw_dummy:
+            sw_victim.configure_identity("Agg_BabyJane", "SwarmVictim")
+            sw_victim.ensure_health_initialized()
+            sw_victim.ensure_controller_for_verify()
+            sw_dummy.ensure_health_initialized()
+            sw_player.ensure_health_initialized()
+            sw_victim.add_target_to_attack_on_sight(unreal.Name("SwarmDummy"))
+            order = unreal.new_object(attack_cls)
+            order.configure(unreal.Name("SwarmVictim"), unreal.Name("SwarmDummy"), True)
+            order.apply_in_world(world)
+            _tick_combat(sw_victim, 1.0)
+            dummy_h_pre = float(sw_dummy.get_current_health())
+
+            sw_player.equip_plasmid(swarm_cls, 0)
+            sw_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(sw_player.get_actor_location(), sw_victim.get_actor_location())
+            sw_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+            cast_ok = bool(sw_player.cast_active_plasmid())
+            plasmid = sw_player.get_active_plasmid()
+            swarm = plasmid.get_last_spawned_swarm_for_verify() if plasmid else None
+            check("swarm_cast", cast_ok and swarm is not None)
+
+            hb = float(sw_victim.get_current_health())
+            for _ in range(20):
+                if swarm:
+                    swarm.advance_for_verify(0.25)
+            ha = float(sw_victim.get_current_health())
+            dummy_h_mid = float(sw_dummy.get_current_health())
+            check("swarm_dot", hb - ha >= 4.0, hb - ha)
+            check(
+                "swarm_distract",
+                dummy_h_mid >= dummy_h_pre - 0.5,
+                {"pre": dummy_h_pre, "mid": dummy_h_mid},
+            )
+
+            for _ in range(30):
+                if swarm:
+                    swarm.advance_for_verify(0.25)
+            swarm_gone = swarm is None or float(swarm.get_remaining_life_for_verify()) <= 0.0
+            ha_end = float(sw_victim.get_current_health())
+            check("swarm_expired", swarm_gone)
+            ha_before_wait = float(sw_victim.get_current_health())
+            for _ in range(10):
+                _tick_combat(sw_victim, 0.25)
+            check(
+                "swarm_damage_stops",
+                abs(float(sw_victim.get_current_health()) - ha_before_wait) < 1.0,
+            )
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
+    # --- (k) Enrage: AI attacks other AI, not player ---
+    enrage_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockEnragePlasmid")
+    if enrage_cls and attack_cls:
+        er_player = _spawn(
+            subsystem, player_cls, "EnragePlayer", unreal.Vector(0.0, 1000.0, 100.0)
+        )
+        er_a = _spawn(
+            subsystem, ai_cls, "EnrageA", unreal.Vector(800.0, 1000.0, 100.0)
+        )
+        er_b = _spawn(
+            subsystem, ai_cls, "EnrageB", unreal.Vector(900.0, 1000.0, 100.0)
+        )
+        spawned.extend([er_player, er_a, er_b])
+        if er_player and er_a and er_b:
+            for target in (er_a, er_b):
+                target.configure_identity("Agg_BabyJane", target.get_actor_label())
+                target.ensure_health_initialized()
+                target.ensure_controller_for_verify()
+            er_player.ensure_health_initialized()
+            er_a.add_target_to_attack_on_sight(unreal.Name("EnragePlayer"))
+            order = unreal.new_object(attack_cls)
+            order.configure(unreal.Name("EnrageA"), unreal.Name("EnragePlayer"), True)
+            order.apply_in_world(world)
+            _tick_combat(er_a, 0.5)
+
+            er_player.equip_plasmid(enrage_cls, 0)
+            er_player.set_current_eve_for_verify(100.0)
+            yaw = _yaw_toward(er_player.get_actor_location(), er_a.get_actor_location())
+            er_player.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+            cast_ok = bool(er_player.cast_active_plasmid())
+            enraged = float(er_a.get_enraged_remaining()) > 0.5
+            check("enrage_cast", cast_ok and enraged)
+
+            player_h0 = float(er_player.get_current_health())
+            b_h0 = float(er_b.get_current_health())
+            _tick_combat(er_a, 3.0)
+            player_h1 = float(er_player.get_current_health())
+            b_h1 = float(er_b.get_current_health())
+            check("enrage_player_safe", player_h1 >= player_h0 - 0.5, player_h1)
+            check("enrage_hits_other", b_h0 - b_h1 >= 5.0, b_h0 - b_h1)
+
+            _tick_combat(er_a, 12.0)
+            enrage_done = float(er_a.get_enraged_remaining()) <= 0.1
+            check("enrage_expired", enrage_done)
+            player_h2 = float(er_player.get_current_health())
+            er_player.set_actor_location(unreal.Vector(850.0, 1000.0, 100.0), False, None)
+            reattack = unreal.new_object(attack_cls)
+            reattack.configure(unreal.Name("EnrageA"), unreal.Name("EnragePlayer"), False)
+            reattack.apply_in_world(world)
+            _tick_combat(er_a, 2.0)
+            player_h3 = float(er_player.get_current_health())
+            check(
+                "enrage_reverts",
+                enrage_done and player_h3 < player_h2 - 0.5,
+                {"h2": player_h2, "h3": player_h3},
+            )
+
+    _destroy_all(subsystem, spawned)
 
     report["checks"] = checks
     report["plasmid"] = "ok" if not failures else "fail"

@@ -94,8 +94,16 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 	}
 
 	float ScaledAmount = Amount;
-	if (const ABaseShockAI* TargetAI = Cast<ABaseShockAI>(Pawn))
+	if (ABaseShockAI* TargetAI = Cast<ABaseShockAI>(Pawn))
 	{
+		if (TargetAI->GetFrozenSolidRemaining() > 0.0f)
+		{
+			ScaledAmount *= 3.0f; // PLAUSIBLE — shatter multiplier while frozen solid
+			const FString AiName = TargetAI->GetScriptLabel().IsNone()
+				? TargetAI->GetName()
+				: TargetAI->GetScriptLabel().ToString();
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHATTER ai=%s"), *AiName);
+		}
 		if (!TargetAI->AITypeName.IsNone())
 		{
 			if (AShockPlayer* Player = ResolvePlayerFrom(Instigator))

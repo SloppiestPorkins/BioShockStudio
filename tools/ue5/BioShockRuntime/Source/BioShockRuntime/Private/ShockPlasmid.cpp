@@ -1,9 +1,12 @@
 #include "ShockPlasmid.h"
 
 #include "ShockElectroBoltPlasmid.h"
+#include "ShockEnragePlasmid.h"
 #include "ShockIncineratePlasmid.h"
+#include "ShockInsectSwarmPlasmid.h"
 #include "ShockPlayer.h"
 #include "ShockTelekinesisPlasmid.h"
+#include "ShockWinterBlastPlasmid.h"
 
 bool UShockPlasmid::Cast(AShockPlayer* Caster, const FHitResult& Aim)
 {
@@ -41,6 +44,19 @@ TSubclassOf<UShockPlasmid> UShockPlasmid::ResolvePlasmidClass(FName Name)
 		|| Key.Equals(TEXT("TelePlasmid"), ESearchCase::IgnoreCase))
 	{
 		return UShockTelekinesisPlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("WinterBlast"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("IcicleAssault"), ESearchCase::IgnoreCase))
+	{
+		return UShockWinterBlastPlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("InsectSwarm"), ESearchCase::IgnoreCase))
+	{
+		return UShockInsectSwarmPlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("Enrage"), ESearchCase::IgnoreCase))
+	{
+		return UShockEnragePlasmid::StaticClass();
 	}
 	return nullptr;
 }

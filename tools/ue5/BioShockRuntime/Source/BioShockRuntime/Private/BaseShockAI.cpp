@@ -6,6 +6,7 @@
 #include "ShockAIBrain.h"
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
+#include "ShockPhysicsLibrary.h"
 #include "ShockWeapon.h"
 #include "AIController.h"
 #include "CollisionQueryParams.h"
@@ -240,6 +241,11 @@ void ABaseShockAI::BeginHeadTracking(FName TargetLabel, bool bQuickLook, float I
 
 void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 {
+	if (EnragedRemaining > 0.0f && Cast<AShockPlayer>(DamageInstigator))
+	{
+		return;
+	}
+
 	bAggroOnDamage = true;
 	AggroInstigator = DamageInstigator;
 	if (IsAliveTarget(DamageInstigator))
@@ -362,11 +368,117 @@ void ABaseShockAI::ApplyChill(float Seconds)
 	ChillRemaining = FMath::Max(ChillRemaining, Seconds);
 }
 
+void ABaseShockAI::FreezeSolid(float Seconds, AActor* DamageInstigator)
+{
+	if (bIsDead || bCombatLoopStopped || Seconds <= 0.0f)
+	{
+		return;
+	}
+
+	const bool bWasFrozen = FrozenSolidRemaining > 0.0f;
+	FrozenSolidRemaining = FMath::Max(FrozenSolidRemaining, Seconds);
+	FrozenInstigator = DamageInstigator;
+
+	if (!bWasFrozen)
+	{
+		UShockPhysicsLibrary::SetActorPhysicsFrozen(this, true);
+	}
+	ApplyFrozenFlash();
+}
+
+void ABaseShockAI::ApplyEnrage(float Seconds, AActor* DamageInstigator)
+{
+	(void)DamageInstigator;
+	if (bIsDead || bCombatLoopStopped || Seconds <= 0.0f)
+	{
+		return;
+	}
+
+	EnragedRemaining = FMath::Max(EnragedRemaining, Seconds);
+	if (CombatTarget && Cast<AShockPlayer>(CombatTarget))
+	{
+		ClearCombatTarget();
+		if (bUseBrain && Brain)
+		{
+			Brain->NotifyPendingKillTarget(nullptr);
+		}
+	}
+}
+
+AShockPawn* ABaseShockAI::FindNearestOtherAIForEnrage() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	AShockPawn* Best = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	const FVector Origin = GetActorLocation();
+
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		ABaseShockAI* Other = *It;
+		if (!Other || Other == this || Other->IsDead())
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Origin, Other->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Other;
+		}
+	}
+	return Best;
+}
+
 void ABaseShockAI::TickStatusEffects(float DeltaSeconds)
 {
 	if (ChillRemaining > 0.0f && !bIsDead)
 	{
 		ChillRemaining = FMath::Max(0.0f, ChillRemaining - DeltaSeconds);
+	}
+
+	if (FrozenSolidRemaining > 0.0f && !bIsDead)
+	{
+		FrozenSolidRemaining = FMath::Max(0.0f, FrozenSolidRemaining - DeltaSeconds);
+		FrozenLogAccumulator += DeltaSeconds;
+		if (FrozenLogAccumulator >= 1.0f)
+		{
+			FrozenLogAccumulator = 0.0f;
+			const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_FROZEN ai=%s remaining=%.1f"),
+				*AiName,
+				FrozenSolidRemaining);
+			ApplyFrozenFlash();
+		}
+		if (FrozenSolidRemaining <= 0.0f)
+		{
+			ClearFrozenState();
+		}
+	}
+
+	if (EnragedRemaining > 0.0f && !bIsDead)
+	{
+		EnragedRemaining = FMath::Max(0.0f, EnragedRemaining - DeltaSeconds);
+		if (EnragedRemaining <= 0.0f)
+		{
+			const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_ENRAGE_END ai=%s"), *AiName);
+			if (CombatTarget && Cast<ABaseShockAI>(CombatTarget))
+			{
+				ClearCombatTarget();
+				if (bUseBrain && Brain)
+				{
+					Brain->NotifyPendingKillTarget(nullptr);
+				}
+			}
+		}
 	}
 
 	if (BurningRemaining <= 0.0f || bIsDead)
@@ -401,6 +513,36 @@ void ABaseShockAI::TickStatusEffects(float DeltaSeconds)
 		BurningInstigator = nullptr;
 		BurningLogAccumulator = 0.0f;
 	}
+}
+
+void ABaseShockAI::ApplyFrozenFlash()
+{
+	USkeletalMeshComponent* SkelMesh = GetMesh();
+	if (!SkelMesh)
+	{
+		return;
+	}
+
+	const FLinearColor Blue(0.35f, 0.65f, 1.0f, 1.0f);
+	const int32 NumMaterials = SkelMesh->GetNumMaterials();
+	for (int32 Slot = 0; Slot < NumMaterials; ++Slot)
+	{
+		if (UMaterialInstanceDynamic* MID = SkelMesh->CreateAndSetMaterialInstanceDynamic(Slot))
+		{
+			MID->SetVectorParameterValue(TEXT("EmissiveColor"), Blue);
+			MID->SetVectorParameterValue(TEXT("Emissive"), Blue);
+			MID->SetScalarParameterValue(TEXT("EmissiveStrength"), 2.5f);
+		}
+	}
+}
+
+void ABaseShockAI::ClearFrozenState()
+{
+	FrozenSolidRemaining = 0.0f;
+	FrozenInstigator = nullptr;
+	FrozenLogAccumulator = 0.0f;
+	UShockPhysicsLibrary::SetActorPhysicsFrozen(this, false, false);
+	ClearHitFlash();
 }
 
 void ABaseShockAI::ApplyBurnFlash()
@@ -524,6 +666,7 @@ void ABaseShockAI::OnDeathFromDamage()
 	BurningDps = 0.0f;
 	BurningInstigator = nullptr;
 	BurningLogAccumulator = 0.0f;
+	ClearFrozenState();
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(HitFlashTimerHandle);
@@ -594,6 +737,11 @@ void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
 		Move->TickComponent(DeltaSeconds, LEVELTICK_All, nullptr);
+		if (FrozenSolidRemaining > 0.0f)
+		{
+			TickCombatMovementSpeed(DeltaSeconds);
+			Move->StopMovementImmediately();
+		}
 	}
 }
 
@@ -605,7 +753,7 @@ void ABaseShockAI::Tick(float DeltaSeconds)
 
 bool ABaseShockAI::IsCombatLoopGated() const
 {
-	return bIsDead || bCombatLoopStopped || bToldToWait || !bCanAttack;
+	return bIsDead || bCombatLoopStopped || bToldToWait || !bCanAttack || FrozenSolidRemaining > 0.0f;
 }
 
 bool ABaseShockAI::IsAliveTarget(const AShockPawn* Target) const
@@ -938,6 +1086,7 @@ bool ABaseShockAI::TryTickNavChase(AShockPawn* Target, float DeltaSeconds)
 void ABaseShockAI::TickCombat(float DeltaSeconds)
 {
 	TickCombatCooldowns(DeltaSeconds);
+	TickCombatMovementSpeed(DeltaSeconds);
 
 	if (IsCombatLoopGated())
 	{
@@ -946,8 +1095,6 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		ClearCombatTarget();
 		return;
 	}
-
-	TickCombatMovementSpeed(DeltaSeconds);
 
 	if (bUseBrain && Brain)
 	{
@@ -996,6 +1143,10 @@ void ABaseShockAI::TickCombatMovementSpeed(float DeltaSeconds)
 		if (ChillRemaining > 0.0f)
 		{
 			SpeedMult *= ChillMovementScale;
+		}
+		if (FrozenSolidRemaining > 0.0f)
+		{
+			SpeedMult = 0.0f;
 		}
 		const float Speed = (bMovementShouldRun ? RunSpeed : WalkSpeed) * SpeedMult;
 		Move->MaxWalkSpeed = Speed;

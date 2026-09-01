@@ -121,6 +121,23 @@ TArray<UShockAIGoal*> UShockAIBrain::BuildCandidateGoals(ABaseShockAI* AI, float
 		Goals.Add(MakeGoal(EShockAIGoalType::Flee, 120.0f));
 	}
 
+	if (AI->IsEnraged())
+	{
+		if (AShockPawn* EnrageTarget = AI->FindNearestOtherAIForEnrage())
+		{
+			AI->SetCombatTargetPawn(EnrageTarget);
+			Goals.Add(MakeGoal(EShockAIGoalType::KillTarget, 100.0f, EnrageTarget));
+		}
+		Goals.Add(MakeGoal(EShockAIGoalType::Patrol, 10.0f));
+		Goals.Add(MakeGoal(EShockAIGoalType::Idle, 0.0f));
+		Goals.Sort(
+			[](const UShockAIGoal& A, const UShockAIGoal& B)
+			{
+				return A.Priority > B.Priority;
+			});
+		return Goals;
+	}
+
 	AShockPawn* KillTarget = nullptr;
 	if (PendingKillTarget.IsValid() && AI->IsAliveCombatTarget(PendingKillTarget.Get()))
 	{
