@@ -81,8 +81,15 @@ UShockWeaponDef* MakeDef(
 
 UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 {
-	static TMap<FName, TObjectPtr<UShockWeaponDef>> Cache;
-	if (const TObjectPtr<UShockWeaponDef>* Found = Cache.Find(InWeaponName))
+	// TStrongObjectPtr, not TObjectPtr: a function-local static container is NOT a GC root. The
+	// collector only visits UPROPERTY members, FGCObject implementers, TStrongObjectPtr and
+	// AddToRoot'd objects — so these RF_Transient defs, owned by nothing, were collected on the
+	// first GC while this cache went on handing out their freed addresses. AShockWeapon::ApplyDef
+	// then read Def->AmmoTypes off a dangling pointer and the editor died with
+	// EXCEPTION_ACCESS_VIOLATION on Play. Every headless verify passed because those commandlets
+	// are short-lived and never run a GC; only a real editor session does.
+	static TMap<FName, TStrongObjectPtr<UShockWeaponDef>> Cache;
+	if (const TStrongObjectPtr<UShockWeaponDef>* Found = Cache.Find(InWeaponName))
 	{
 		return Found->Get();
 	}
@@ -259,7 +266,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 
 	if (Def)
 	{
-		Cache.Add(InWeaponName, Def);
+		Cache.Add(InWeaponName, TStrongObjectPtr<UShockWeaponDef>(Def));
 	}
 	return Def;
 }

@@ -189,13 +189,24 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 		return;
 	}
 
+	// Where the grip should sit, in the camera's own space: forward, slightly right, slightly down.
 	const FVector DesiredLocal(28.0f, 10.0f, -14.0f);
-	const FVector SocketWorld = GripSocket.IsNone()
-		? (EquippedWeapon ? EquippedWeapon->GetActorLocation() : ViewHands->GetComponentLocation())
-		: ViewHands->GetSocketLocation(GripSocket);
-	const FVector DesiredWorld =
-		FirstPersonCamera->GetComponentTransform().TransformPosition(DesiredLocal);
-	ViewHands->AddWorldOffset(DesiredWorld - SocketWorld);
+
+	// The grip socket expressed in ViewHands' OWN component space, so the correction below is a
+	// property of the mesh's pivot rather than of wherever the player happened to be looking.
+	FVector SocketLocal = FVector::ZeroVector;
+	if (!GripSocket.IsNone() && ViewHands->DoesSocketExist(GripSocket))
+	{
+		SocketLocal = ViewHands->GetComponentTransform().InverseTransformPosition(
+			ViewHands->GetSocketLocation(GripSocket));
+	}
+
+	// SetRelativeLocation, not AddWorldOffset. ViewHands is attached to the camera, and the camera
+	// uses the pawn's control rotation — so a world-space nudge computed once at equip time is only
+	// correct for the orientation the player held at that instant. Look anywhere else and the baked
+	// offset swings the arms out of frame (they read as floating above the camera). A relative
+	// placement rides the camera through every rotation.
+	ViewHands->SetRelativeLocation(DesiredLocal - SocketLocal);
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
@@ -512,8 +523,14 @@ bool AShockPlayer::TryFireEquippedWeapon()
 void AShockPlayer::ApplyWeaponRecoil()
 {
 	static constexpr float KickDegrees = 0.6f;
-	WeaponRecoilKickTotal = KickDegrees;
-	WeaponRecoilKickRemaining = KickDegrees;
+
+	// ACCUMULATE the kick into what recovery still owes; do not reset the budget. Resetting it
+	// granted a fresh full 0.6 degrees of recovery for a kick that had already been partly repaid,
+	// so every shot landing mid-recovery returned more pitch than it took. Under sustained
+	// automatic fire (TommyGun, 10 rounds/sec against a 0.12s recovery) that surplus compounded
+	// and walked the camera up into the ceiling.
+	WeaponRecoilKickRemaining += KickDegrees;
+	WeaponRecoilKickTotal = WeaponRecoilKickRemaining;
 
 	if (AController* C = GetController())
 	{
@@ -524,12 +541,17 @@ void AShockPlayer::ApplyWeaponRecoil()
 
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().SetTimer(
-			WeaponRecoilTimerHandle,
-			this,
-			&AShockPlayer::TickWeaponRecoil,
-			0.01f,
-			true);
+		// Only arm it when it is not already recovering — re-arming restarts the interval and
+		// stretches recovery out under fire.
+		if (!World->GetTimerManager().IsTimerActive(WeaponRecoilTimerHandle))
+		{
+			World->GetTimerManager().SetTimer(
+				WeaponRecoilTimerHandle,
+				this,
+				&AShockPlayer::TickWeaponRecoil,
+				0.01f,
+				true);
+		}
 	}
 }
 

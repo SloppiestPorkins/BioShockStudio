@@ -624,6 +624,32 @@ public sealed class LevelSceneTests(GameFixture game)
                 int newmtl = File.ReadAllText(mtl).Split('\n')
                     .Count(l => l.StartsWith("newmtl ", StringComparison.Ordinal));
                 Assert.Equal(usemtl, newmtl);
+
+                // BSP parameterises surfaces in TEXELS, and this export path has to divide by the
+                // bound texture's size before Unreal sees them (see
+                // LevelSceneExporter.NormaliseBspUvs). Shipping raw texel UVs makes a wall tile
+                // hundreds of times across one face, so Unreal samples the smallest mip and paints
+                // every compiled-world surface its texture's flat average colour. Nothing else in
+                // this test can see that — counts, sections and material bindings are all correct
+                // either way — which is exactly how it shipped twice. A section whose material or
+                // texture does not resolve has no size to divide by and legitimately keeps texel
+                // UVs, so this pins the BULK, not every vertex.
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
+                List<double> magnitudes = multiObj.Split('\n')
+                    .Where(l => l.StartsWith("vt ", StringComparison.Ordinal))
+                    .Select(l => l[3..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    .Where(p => p.Length >= 2)
+                    .Select(p => Math.Max(
+                        Math.Abs(double.Parse(p[0], invariant)),
+                        Math.Abs(double.Parse(p[1], invariant))))
+                    .ToList();
+                Assert.NotEmpty(magnitudes);
+                int total = magnitudes.Count;
+                int normalised = magnitudes.Count(m => m <= 256);
+                Assert.True(
+                    normalised > total / 2,
+                    $"only {normalised}/{total} compiled-world UVs are normalised — "
+                    + "texel UVs are reaching the exported OBJ");
             }
 
             // BuildAssetObj used to write positions and faces only, with no "vt" line at all -- so

@@ -114,7 +114,7 @@ public static class LevelSceneExporter
         var assetFiles = new Dictionary<string, string>(StringComparer.Ordinal);
         if (formats.HasFlag(LevelExportFormats.AssetMeshes))
         {
-            assetFiles = WriteAssetMeshes(scene, directory, written);
+            assetFiles = WriteAssetMeshes(scene, directory, written, package);
         }
 
         if (formats.HasFlag(LevelExportFormats.Ue5Manifest))
@@ -649,7 +649,7 @@ public static class LevelSceneExporter
     /// hundred distinct assets, and writing per instance would duplicate every shared brush.
     /// </remarks>
     private static Dictionary<string, string> WriteAssetMeshes(
-        LevelScene scene, string directory, List<string> written)
+        LevelScene scene, string directory, List<string> written, BioShockPackage? package = null)
     {
         const string subdirectory = "Meshes";
         string meshDirectory = Path.Combine(directory, subdirectory);
@@ -659,7 +659,7 @@ public static class LevelSceneExporter
 
         foreach (var group in scene.Instances.GroupBy(i => i.Asset))
         {
-            var geometry = group.First().Geometry;
+            var geometry = NormaliseBspUvs(package, group.First());
             if (geometry.Vertices.Count == 0) continue;
 
             string stem = Sanitise(group.Key.ObjectName) + "_" + group.Key.ExportIndex;
@@ -814,6 +814,80 @@ public static class LevelSceneExporter
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// A BSP instance's geometry with its texel-space UVs divided into 0–1, or the geometry
+    /// unchanged for anything that is not brush/compiled-world.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// BSP parameterises a surface in TEXELS — <c>dot(v - Base, TextureU)</c> — and the engine
+    /// divides by the bound texture's size. <see cref="BspGeometry.NormaliseUvs(Mesh.MeshGeometry,
+    /// IReadOnlyList{ValueTuple{int, int}?})"/> exists for exactly that division, and
+    /// <c>LevelViewportService</c> has called it on this project's own preview since the bug was
+    /// first found there. <b>This export path never did.</b> Every asset OBJ therefore shipped raw
+    /// texel UVs — a wall vertex reading <c>vt 262978 263825</c> rather than <c>vt 0.4 0.7</c> — so
+    /// Unreal sampled the smallest mip and painted each compiled-world face its texture's single
+    /// average colour. Walls read as flat untextured tan, ceilings as flat off-white, floors as
+    /// flat brown, while the static meshes beside them looked correct because their UVs come from
+    /// their own vertex data and never pass through here. Same root cause, same shape, second
+    /// surface: pinned now by <c>LevelSceneTests</c> asserting exported UV magnitude.
+    /// </para>
+    /// <para>
+    /// The size used is the texture's AUTHORED size, not whichever mip happens to be loaded —
+    /// dividing by the loaded mip is wrong by the mip factor. A section whose material or texture
+    /// does not resolve contributes a null size and is left alone, which is the honest outcome:
+    /// there is nothing to divide by. Cross-package material imports resolve only when the
+    /// reference sits in this package; the rest keep texel UVs rather than being guessed at.
+    /// </para>
+    /// </remarks>
+    private static Mesh.MeshGeometry NormaliseBspUvs(BioShockPackage? package, LevelInstance instance)
+    {
+        if (package is null) return instance.Geometry;
+        if (instance.Kind is not (LevelGeometryKind.Brush or LevelGeometryKind.BuiltWorld))
+        {
+            return instance.Geometry;
+        }
+
+        var sizes = new List<(int Width, int Height)?>(instance.Geometry.Sections.Count);
+        for (int i = 0; i < instance.Geometry.Sections.Count; i++)
+        {
+            var material = i < instance.Materials.Count ? instance.Materials[i] : null;
+            sizes.Add(AuthoredTextureSize(package, material));
+        }
+
+        return BspGeometry.NormaliseUvs(instance.Geometry, sizes);
+    }
+
+    /// <summary>The authored pixel dimensions of a material's diffuse texture, or null.</summary>
+    private static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
+    {
+        if (material is not { } id || id.ExportIndex < 0 || id.ExportIndex >= package.Exports.Count) return null;
+
+        BioShockMaterial? decoded;
+        try { decoded = MaterialReader.Read(package, package.Exports[id.ExportIndex]); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        if (decoded?.DiffuseTexture is not { } name) return null;
+
+        var export = package.Exports
+            .Where(e => e.ObjectName == name && package.GetClassName(e) == TextureReader.ClassName)
+            .MaxBy(e => e.SerialSize);
+        if (export is null) return null;
+
+        try
+        {
+            var header = TextureReader.ReadHeader(package, export);
+            return header is { Width: > 0, Height: > 0 } ? (header.Value.Width, header.Value.Height) : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            return null;
+        }
     }
 
     /// <summary>One asset's geometry, untransformed.</summary>
