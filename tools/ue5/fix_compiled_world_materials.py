@@ -132,7 +132,34 @@ def _reimport_mesh(obj_path, stem):
     mesh = next((o for o in task.get_objects() if isinstance(o, unreal.StaticMesh)), None)
     if mesh is None:
         mesh = unreal.EditorAssetLibrary.load_asset(asset_path)
+    if mesh is not None:
+        _use_complex_collision(mesh)
     return mesh
+
+
+def _use_complex_collision(mesh):
+    """Trace level architecture against its own triangles, not an auto convex hull.
+
+    An OBJ import defaults to CTF_USE_DEFAULT and auto-generates a single convex element. On a
+    compiled world that hull is a solid blob enclosing the entire level: the player lands on its
+    outer surface instead of the floor ("stuck in the air") and anything spawned inside it is
+    inside solid geometry and squeezes out through the floor (ragdolls falling). Architecture
+    wants complex-as-simple with no hulls at all.
+    """
+    body = mesh.get_editor_property("body_setup")
+    if body is None:
+        return False
+    body.set_editor_property(
+        "collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+    try:
+        agg = body.get_editor_property("agg_geom")
+        agg.set_editor_property("convex_elems", [])
+        agg.set_editor_property("box_elems", [])
+        agg.set_editor_property("sphere_elems", [])
+        body.set_editor_property("agg_geom", agg)
+    except Exception as exc:  # noqa: BLE001 - the trace flag is the part that matters
+        unreal.log_warning("[cw-fix] could not clear simple collision: %s" % exc)
+    return True
 
 
 def _materials_by_key_from_existing(manifest, destination):

@@ -189,8 +189,9 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 		return;
 	}
 
-	// Where the grip should sit, in the camera's own space: forward, slightly right, slightly down.
-	const FVector DesiredLocal(28.0f, 10.0f, -14.0f);
+	// Where the grip should sit, in the camera's own space. Editor-tunable (ViewmodelOffset) —
+	// framing this is a judgement made looking at it, not one a headless verify can make.
+	const FVector DesiredLocal = ViewmodelOffset;
 
 	// The grip socket expressed in ViewHands' OWN component space, so the correction below is a
 	// property of the mesh's pivot rather than of wherever the player happened to be looking.

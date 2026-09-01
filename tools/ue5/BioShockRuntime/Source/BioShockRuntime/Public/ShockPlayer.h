@@ -32,6 +32,15 @@ public:
 	TObjectPtr<USkeletalMeshComponent> ViewHands;
 
 	/**
+	 * Where the weapon grip sits in camera space: +X forward, +Y right, -Z down. Tunable in the
+	 * editor because framing a viewmodel is a look-at-it judgement, not something a headless
+	 * verify can settle — lower Z to bring the gun down into frame, raise X to push it away.
+	 * Applied by FrameViewmodel on equip.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
+	FVector ViewmodelOffset = FVector(28.0f, 10.0f, -24.0f);
+
+	/**
 	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
 	 * Defaults true so GameMode-spawned PIE pawns walk/fire without an extra script call.
 	 */
