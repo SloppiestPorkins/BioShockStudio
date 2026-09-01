@@ -2,6 +2,7 @@
 
 #include "ShockPlasmid.h"
 #include "ShockSecurityDevice.h"
+#include "ShockSecuritySubsystem.h"
 #include "ShockTurret.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
@@ -1450,10 +1451,19 @@ void AShockPlayer::SetHUDPlaying(bool bPlaying)
 
 void AShockPlayer::SetSecurityAlarmOn(bool bOn, FName TargetLabel)
 {
+	const bool bWasOn = bSecurityAlarmOn;
 	bSecurityAlarmOn = bOn;
 	if (!TargetLabel.IsNone())
 	{
 		LastAlarmTarget = TargetLabel;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(World))
+		{
+			Security->OnAlarmStateChanged(this, bOn, bWasOn, TargetLabel);
+		}
 	}
 }
 
@@ -1543,6 +1553,7 @@ void AShockPlayer::SetSecurityHacked(bool bHacked, float ShutdownTime)
 	{
 		if (UWorld* World = GetWorld())
 		{
+			SetSecurityAlarmOn(false, NAME_None);
 			AShockSecurityDevice::ForEachDevice(
 				World,
 				[ShutdownTime](AShockSecurityDevice* Device)
@@ -1552,6 +1563,10 @@ void AShockPlayer::SetSecurityHacked(bool bHacked, float ShutdownTime)
 						Device->ApplySecurityShutdown(ShutdownTime);
 					}
 				});
+			if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(World))
+			{
+				Security->ApplySecurityShutdown(ShutdownTime);
+			}
 		}
 	}
 }

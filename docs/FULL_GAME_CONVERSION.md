@@ -230,10 +230,21 @@ Census/spec order, each its own sub-project:
   **3000** (`ShockAI.uc` ViewDistance), turret fire rate **3/s** (`TurretMiniGun.uc`
   BaseFireRate), attack range **3000** (`TurretMiniGunAmmo.uc`). **PLAUSIBLE:** turret HP **40**,
   hitscan damage **8**, detection half-angle **90°**, alarm range ×**1.5**, hack-fail self-damage
-  **5**, idle sweep **90°/s** (`Turret.uc` YawSpeed). **TODO (next slices):** pipe minigame /
-  hack-tool UI, `AShockSecurityCamera` + alarm-summons-bot, `AShockSecurityBot`, RPG turret
-  variants, U-Invent auto-hack darts, `ActionUnHackSecuritySystem` device restore, security-bot
-  spawn actions.
+  **5**, idle sweep **90°/s** (`Turret.uc` YawSpeed).
+- **Hacking — camera + bot (1 Sep 2026):** `AShockSecurityCamera` (inspection timer →
+  `BIOSHOCK_CAMERA_ALERT`, `SetSecurityAlarmOn`, no weapon; `PlayerBaseInspectionTimerAmount`
+  **4 s** alert threshold; `NumSecurityBotsSpawned` **1**), `AShockSecurityBot` (**subclasses
+  `ABaseShockAI`** for brain/nav — not `AShockSecurityDevice`), `UShockSecuritySubsystem`
+  (alarm hook spawns up to **2** bots at `AssignNextSecurityBotSpawnLocation` / spawner label /
+  near alerting camera; despawn on alarm clear). **From shipped data:** bot `DetectRadius` **2000**,
+  `MaximumAttackRange` **800**, `AirSpeed` **400**. **PLAUSIBLE:** bot HP **30**, move speed
+  **500**, post-alarm-clear lifetime **30 s**, hitscan damage **8**. `ActionSpawnSecurityBot` /
+  `ActivateSecurityBot` / `MakeBotsAttack` / `AssignNextSecurityBotSpawnLocation` /
+  `ToggleSecurityCameraSpotlight` wired; `SetSecurityHacked` disables cameras **and** bots. Slice
+  camera behind `bEnableSliceSecurity` (**false** default). `run_security.py` /
+  `verify_security.py` headless. **TODO:** pipe minigame / hack-tool UI, RPG turret variants,
+  U-Invent auto-hack darts, real bot navmesh patrol routes, camera spotlight polish,
+  `ActionUnHackSecuritySystem`, hacked-bot `ActionHackTurret`-style path.
 - **Inventory / consumables — first slice (31 Aug 2026):** `AShockPlayer::Heal`,
   `UseFirstAidKit` / `UseEveHypo` (inventory stacks keyed `"FirstAidKit"` / `"EveHypo"`,
   carry caps **9** each PLAUSIBLE), `AddMoney` / `GetMoney`, optional `bAutoFirstAid` (**false**

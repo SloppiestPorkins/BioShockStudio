@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionMakeBotsAttack.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionMakeBotsAttack`. Records controller + attackee labels. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionMakeBotsAttack : public UShockAction
@@ -11,6 +13,8 @@ class BIOSHOCKRUNTIME_API UShockActionMakeBotsAttack : public UShockAction
 
 public:
 	UShockActionMakeBotsAttack();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName ControllerLabel;
@@ -29,4 +33,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestAttack();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

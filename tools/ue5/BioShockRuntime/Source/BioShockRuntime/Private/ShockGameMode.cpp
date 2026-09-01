@@ -13,6 +13,8 @@
 #include "ShockIncineratePlasmid.h"
 #include "ShockTelekinesisPlasmid.h"
 #include "ShockTurret.h"
+#include "ShockSecurityCamera.h"
+#include "ShockSecurityDeviceTypes.h"
 #include "ShockResearchCamera.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
@@ -678,6 +680,7 @@ void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot
 		false);
 
 	SpawnSliceTurret(Player, StartSpot);
+	SpawnSliceSecurityCamera(Player, StartSpot);
 }
 
 void AShockGameMode::SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot)
@@ -727,6 +730,58 @@ void AShockGameMode::SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot)
 	Turret->SetAllegiance(EShockDeviceAllegiance::Hostile);
 #if WITH_EDITOR
 	Turret->SetActorLabel(TEXT("SliceTurret"));
+#endif
+}
+
+void AShockGameMode::SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* StartSpot)
+{
+	if (!bEnableSliceSecurity || !Player || !StartSpot)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AShockSecurityCamera> It(World); It; ++It)
+	{
+		if (*It && It->DeviceLabel == FName(TEXT("SliceSecurityCamera")))
+		{
+			return;
+		}
+	}
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	const FVector PlayerLoc = Player->GetActorLocation();
+	const FVector CamLoc = PlayerLoc + Forward * 500.0f + Right * 200.0f + FVector(0.0f, 0.0f, 120.0f);
+	const FRotator FacePlayer = (PlayerLoc - CamLoc).Rotation();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AShockSecurityCamera* Camera = World->SpawnActor<AShockSecurityCamera>(
+		AShockSecurityCamera::StaticClass(),
+		CamLoc,
+		FacePlayer,
+		Params);
+	if (!Camera)
+	{
+		return;
+	}
+
+	Camera->SetDeviceLabel(FName(TEXT("SliceSecurityCamera")));
+	Camera->SetAllegiance(EShockDeviceAllegiance::Hostile);
+#if WITH_EDITOR
+	Camera->SetActorLabel(TEXT("SliceSecurityCamera"));
 #endif
 }
 

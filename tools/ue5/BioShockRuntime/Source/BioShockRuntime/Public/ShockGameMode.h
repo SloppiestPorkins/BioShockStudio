@@ -33,6 +33,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
 	bool bEnableSliceTurret = false;
 
+	/** Off by default — optional security camera + alarm-response bot near the encounter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
+	bool bEnableSliceSecurity = false;
+
 	/** Off by default — optional FirstAidKit world pickup near the encounter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
 	bool bEnableSlicePickup = false;
@@ -94,6 +98,7 @@ private:
 	void SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void SpawnSliceConsumablePickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot);
+	void SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	void EnsureHudForPlayer(APlayerController* PC);
 	UShockDeathRespawnHandler* EnsureDeathHandler();

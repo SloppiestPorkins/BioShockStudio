@@ -1,5 +1,8 @@
 #include "ShockActionActivateSecurityBot.h"
 
+#include "Engine/World.h"
+#include "ShockSecuritySubsystem.h"
+
 UShockActionActivateSecurityBot::UShockActionActivateSecurityBot()
 {
 	ActionClassName = TEXT("ActionActivateSecurityBot");
@@ -19,4 +22,23 @@ bool UShockActionActivateSecurityBot::RequestActivate()
 	}
 	LastBotLabel = BotLabel;
 	return true;
+}
+
+int32 UShockActionActivateSecurityBot::ApplyInWorld(UWorld* World)
+{
+	if (!RequestActivate() || !World)
+	{
+		return 0;
+	}
+
+	if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(World))
+	{
+		return Security->ActivateBotByLabel(BotLabel, PawnLabel) ? 1 : 0;
+	}
+	return 0;
+}
+
+bool UShockActionActivateSecurityBot::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World) > 0;
 }

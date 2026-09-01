@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionSpawnSecurityBot.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionSpawnSecurityBot`. Records spawner + optional pawn handoff. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSpawnSecurityBot : public UShockAction
@@ -11,6 +13,8 @@ class BIOSHOCKRUNTIME_API UShockActionSpawnSecurityBot : public UShockAction
 
 public:
 	UShockActionSpawnSecurityBot();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName SpawnerLabel;
@@ -32,4 +36,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSpawn();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

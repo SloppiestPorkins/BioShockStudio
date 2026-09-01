@@ -1,6 +1,7 @@
 #include "ShockActionStartSecurityAlarm.h"
 
 #include "ShockPlayer.h"
+#include "ShockSecuritySubsystem.h"
 
 UShockActionStartSecurityAlarm::UShockActionStartSecurityAlarm()
 {
@@ -42,6 +43,10 @@ int32 UShockActionStartSecurityAlarm::ApplyInWorld(UWorld* World)
 	if (!Player)
 	{
 		return 0;
+	}
+	if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(World))
+	{
+		Security->SetRequestedBotCount(NumSecurityBotsToSpawn);
 	}
 	Player->SetSecurityAlarmOn(true, TargetLabel);
 	return 1;

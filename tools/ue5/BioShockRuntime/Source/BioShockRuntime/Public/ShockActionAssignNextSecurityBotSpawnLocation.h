@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionAssignNextSecurityBotSpawnLocation.generated.h"
 
+class UWorld;
+
 /** UnrealScript `ActionAssignNextSecurityBotSpawnLocation`. Records SpawnLocationLabel. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionAssignNextSecurityBotSpawnLocation : public UShockAction
@@ -11,6 +13,8 @@ class BIOSHOCKRUNTIME_API UShockActionAssignNextSecurityBotSpawnLocation : publi
 
 public:
 	UShockActionAssignNextSecurityBotSpawnLocation();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName SpawnLocationLabel;
@@ -26,4 +30,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestAssign();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
