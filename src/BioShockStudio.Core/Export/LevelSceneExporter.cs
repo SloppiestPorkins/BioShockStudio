@@ -666,9 +666,27 @@ public static class LevelSceneExporter
             string relative = subdirectory + "/" + stem + ".obj";
             string path = Path.Combine(meshDirectory, stem + ".obj");
 
-            File.WriteAllText(path, BuildAssetObj(group.Key.ObjectName, geometry));
+            File.WriteAllText(path, BuildAssetObj(group.Key.ObjectName, stem, geometry));
             files[group.Key.Key] = relative;
             written.Add(path);
+
+            // UE5's OBJ importer silently drops `usemtl` groups unless a companion `.mtl` is
+            // present, collapsing a multi-section mesh to one materialless slot (walls import
+            // grey). The names are placeholders — the importer, and import_level._assign_asset_
+            // material, bind real materials by slot position, not by parsing these.
+            if (geometry.Sections.Count > 1)
+            {
+                var mtl = new StringBuilder();
+                mtl.AppendLine("# BioShockStudio slot names — real materials are bound by position");
+                for (int s = 0; s < geometry.Sections.Count; s++)
+                {
+                    mtl.Append("newmtl BioShock_").Append(s).AppendLine();
+                    mtl.AppendLine("Kd 0.5 0.5 0.5");
+                }
+                string mtlPath = Path.Combine(meshDirectory, stem + ".mtl");
+                File.WriteAllText(mtlPath, mtl.ToString());
+                written.Add(mtlPath);
+            }
         }
 
         return files;
@@ -799,13 +817,19 @@ public static class LevelSceneExporter
     }
 
     /// <summary>One asset's geometry, untransformed.</summary>
-    private static string BuildAssetObj(string name, Mesh.MeshGeometry geometry)
+    private static string BuildAssetObj(string name, string stem, Mesh.MeshGeometry geometry)
     {
         var builder = new StringBuilder();
         var culture = CultureInfo.InvariantCulture;
 
         builder.Append("# BioShockStudio asset mesh: ").AppendLine(name);
         builder.AppendLine("# local space, right-handed, +X forward, +Y left, +Z up, centimetres");
+        // A `.mtl` sibling is written for multi-section meshes (see WriteAssetMeshes) — without
+        // this line UE5's importer ignores every `usemtl` below and imports one merged section.
+        if (geometry.Sections.Count > 1)
+        {
+            builder.Append("mtllib ").Append(stem).AppendLine(".mtl");
+        }
         builder.Append("o ").AppendLine(Sanitise(name));
 
         foreach (var vertex in geometry.Vertices)

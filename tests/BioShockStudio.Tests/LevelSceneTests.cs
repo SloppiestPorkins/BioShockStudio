@@ -600,9 +600,31 @@ public sealed class LevelSceneTests(GameFixture game)
 
             // An asset mesh may legitimately be tiny - a twelve-triangle brush is a few hundred
             // bytes - so these are checked for existence and content, not for size.
-            var meshes = written.Where(p => p.Contains("Meshes")).ToList();
+            var meshes = written
+                .Where(p => p.Contains("Meshes") && p.EndsWith(".obj", StringComparison.Ordinal))
+                .ToList();
             Assert.True(meshes.Count > 100, $"only {meshes.Count} asset meshes were written");
             Assert.All(meshes, path => Assert.True(new FileInfo(path).Length > 0, $"{path} is empty"));
+
+            // A multi-section mesh imports as one materialless slot (walls grey) unless a `.mtl`
+            // sits beside the `.obj` and the `.obj` names it with `mtllib` - UE5's OBJ importer
+            // drops every `usemtl` group otherwise.
+            var multiSection = meshes.FirstOrDefault(p =>
+                File.ReadAllText(p).Split('\n')
+                    .Count(l => l.StartsWith("usemtl ", StringComparison.Ordinal)) > 1);
+            if (multiSection is not null)
+            {
+                string multiObj = File.ReadAllText(multiSection);
+                Assert.Contains("\nmtllib ", "\n" + multiObj);
+                string mtl = Path.ChangeExtension(multiSection, ".mtl");
+                Assert.True(File.Exists(mtl), $"no .mtl beside {multiSection}");
+                Assert.Contains(written, p => p == mtl);
+                int usemtl = multiObj.Split('\n')
+                    .Count(l => l.StartsWith("usemtl ", StringComparison.Ordinal));
+                int newmtl = File.ReadAllText(mtl).Split('\n')
+                    .Count(l => l.StartsWith("newmtl ", StringComparison.Ordinal));
+                Assert.Equal(usemtl, newmtl);
+            }
 
             // BuildAssetObj used to write positions and faces only, with no "vt" line at all -- so
             // every asset UE5 imports through this path had no UV mapping regardless of which
