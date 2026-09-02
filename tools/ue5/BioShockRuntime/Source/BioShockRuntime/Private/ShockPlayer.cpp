@@ -72,6 +72,23 @@ AShockPlayer::AShockPlayer()
 	ViewHands->SetCastShadow(false);
 	ViewHands->SetHiddenInGame(true);
 
+	// A first-person viewmodel is always in view, and must never decide otherwise on its own.
+	//
+	// It did. Measured from the posed bone transforms, all 66 bones sat in front of the eye and
+	// topped out 17 units below it — plainly in frame — while the component's FBoxSphereBounds
+	// claimed a sphere centred 132 units BELOW the eye. Unreal culls on bounds, not on geometry,
+	// so the arms were culled while their skeleton was in shot, and the gun (a separate actor on
+	// the grip socket) kept drawing, which made it look like a framing problem.
+	//
+	// The default VisibilityBasedAnimTickOption then locks that in: OnlyTickPoseWhenRendered
+	// stops evaluating the pose once the component is culled, so the stale bounds that caused the
+	// culling can never be recomputed. Always ticking breaks the loop; the generous bounds scale
+	// means a pose that briefly leaves the authored bounds cannot start it again. Both are cheap
+	// on one always-visible mesh.
+	ViewHands->VisibilityBasedAnimTickOption =
+		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	ViewHands->SetBoundsScale(4.0f);
+
 	EquippedPlasmids.SetNum(6);
 	WeaponSlots.SetNum(8);
 }
