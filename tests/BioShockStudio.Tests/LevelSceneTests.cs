@@ -609,9 +609,17 @@ public sealed class LevelSceneTests(GameFixture game)
             // A multi-section mesh imports as one materialless slot (walls grey) unless a `.mtl`
             // sits beside the `.obj` and the `.obj` names it with `mtllib` - UE5's OBJ importer
             // drops every `usemtl` group otherwise.
-            var multiSection = meshes.FirstOrDefault(p =>
-                File.ReadAllText(p).Split('\n')
-                    .Count(l => l.StartsWith("usemtl ", StringComparison.Ordinal)) > 1);
+            // The BIGGEST multi-section mesh, not the first one enumerated. The UV assertion below
+            // is about the compiled world — the single BuiltWorld instance that is the level's
+            // architecture, 2.1 MB and 67 sections on 1-Medical — and "first" picked whichever
+            // ModelNNN brush OBJ the filesystem happened to return, a few hundred bytes of
+            // source CSG that the UE5 import deliberately never places (see import_level's remarks
+            // on `kind: Brush`). So the gate was reading UVs off geometry that is not in the level
+            // and cannot affect a render, and failed or passed on enumeration order.
+            var multiSection = meshes
+                .Where(p => File.ReadAllText(p).Split('\n')
+                    .Count(l => l.StartsWith("usemtl ", StringComparison.Ordinal)) > 1)
+                .MaxBy(p => new FileInfo(p).Length);
             if (multiSection is not null)
             {
                 string multiObj = File.ReadAllText(multiSection);
@@ -646,6 +654,17 @@ public sealed class LevelSceneTests(GameFixture game)
                 Assert.NotEmpty(magnitudes);
                 int total = magnitudes.Count;
                 int normalised = magnitudes.Count(m => m <= 256);
+
+                // This is a REGRESSION FLOOR, not a statement that the UVs are right. Measured on
+                // 1-Medical's compiled world: 32,707 UVs, 70.4% at or under 256, median 161, p90
+                // 1048. A median of 161 means a face tiles its texture ~161 times, which is
+                // plausible for a long corridor wall and has NOT been confirmed against a render —
+                // the capture viewpoint by the bathysphere is all static meshes, so no shot so far
+                // shows enough compiled-world surface to judge. What this catches is the failure
+                // that shipped twice: raw texel UVs in the tens of thousands reaching the OBJ, so
+                // Unreal samples the smallest mip and paints every surface its texture's flat
+                // average colour. Sections whose material or texture does not resolve have no size
+                // to divide by and legitimately keep texel UVs, so this pins the bulk.
                 Assert.True(
                     normalised > total / 2,
                     $"only {normalised}/{total} compiled-world UVs are normalised — "
