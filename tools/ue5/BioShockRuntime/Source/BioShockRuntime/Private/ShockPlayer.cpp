@@ -63,6 +63,9 @@ AShockPlayer::AShockPlayer()
 	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureBias = true;
 	FirstPersonCamera->PostProcessSettings.AutoExposureBias = 0.0f;
 
+	// Ticks so the viewmodel grip can be re-pinned each frame — see Tick.
+	PrimaryActorTick.bCanEverTick = true;
+
 	ViewHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ViewHands"));
 	ViewHands->SetupAttachment(FirstPersonCamera);
 	ViewHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -179,6 +182,17 @@ void AShockPlayer::EnsureViewHands()
 			TEXT("/Game/BioShockWeapons/NEWPlayerHands/Animations/FidgetTommygun.FidgetTommygun")))
 	{
 		ViewHands->PlayAnimation(Idle, true);
+
+		// Evaluate the pose NOW. PlayAnimation only installs the single-node instance; the bones
+		// are not posed until the component next ticks, so anything reading a socket before then
+		// gets the BIND pose. FrameViewmodel reads the grip socket immediately after this to work
+		// out where to put the mesh, and in the bind pose NEWPlayerHands has its arms at its
+		// sides: the TommyGun socket sits 76 units BELOW the mesh root with no forward offset at
+		// all. Framing against that put the root 52 units above the eye, which is precisely the
+		// reported "animations play above the camera" - the arms hung down into frame from the
+		// ceiling. Posing first makes the correction a property of the pose actually drawn.
+		ViewHands->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
+		ViewHands->RefreshBoneTransforms();
 	}
 }
 
@@ -235,8 +249,14 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 			DesiredRotation = FRotator(X, Y, Z);
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL framing offset=%s rot=%s"),
-		*DesiredLocal.ToCompactString(), *DesiredRotation.ToCompactString());
+	// Once, not every frame — this runs on Tick now. The values are constant for a given run, so
+	// repeating them would bury the probe output under thousands of identical lines.
+	if (!bLoggedViewmodelFraming)
+	{
+		bLoggedViewmodelFraming = true;
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL framing offset=%s rot=%s"),
+			*DesiredLocal.ToCompactString(), *DesiredRotation.ToCompactString());
+	}
 
 	// The grip socket expressed in ViewHands' OWN component space, so the correction below is a
 	// property of the mesh's pivot rather than of wherever the player happened to be looking.
@@ -245,6 +265,15 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 	{
 		SocketLocal = ViewHands->GetComponentTransform().InverseTransformPosition(
 			ViewHands->GetSocketLocation(GripSocket));
+	}
+	// The socket's local offset is the whole correction, and reading it is what showed the grip has
+	// no forward extent from the root at all. Logged on the first framing only, for the same
+	// reason as above; it is re-measured every frame regardless, which is the point.
+	if (!bLoggedViewmodelSocket)
+	{
+		bLoggedViewmodelSocket = true;
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL socket=%s socketLocal=%s"),
+			*GripSocket.ToString(), *SocketLocal.ToCompactString());
 	}
 
 	// SetRelativeLocation/Rotation, not AddWorldOffset. ViewHands is attached to the camera, and the
@@ -260,6 +289,28 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 	ViewHands->SetRelativeRotation(DesiredRotation);
 	const FVector SocketInCameraSpace = DesiredRotation.RotateVector(SocketLocal);
 	ViewHands->SetRelativeLocation(DesiredLocal - SocketInCameraSpace);
+}
+
+void AShockPlayer::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Re-pin the grip EVERY FRAME. Framing once at equip time is only correct on the frame it runs:
+	// FidgetTommygun is a looping idle whose bones carry the hands a long way, and the grip socket
+	// moves with them. Measured eight seconds after equip, with the framing maths guaranteeing the
+	// grip sits at ViewmodelOffset (28,10,-24), the socket was actually at camera-space
+	// (-26.1, 10.3, 39.2) - behind the eye, and off screen. That is the reported "animations play
+	// above the camera" and "animations aren't lined up with the viewmodel": not a wrong rotation,
+	// a correction computed once against a pose that then changed.
+	//
+	// Pinning the socket rather than the root means the gun holds still in the frame and the arms
+	// animate around it, which is what a first-person viewmodel wants anyway. It also makes the
+	// framing offset an actual screen-space placement instead of a value that is only true for an
+	// instant.
+	if (!ActiveGripSocket.IsNone() && ViewHands && ViewHands->GetSkeletalMeshAsset())
+	{
+		FrameViewmodel(ActiveGripSocket);
+	}
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
@@ -290,6 +341,7 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 			ViewHands,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
 			GripSocket);
+		ActiveGripSocket = GripSocket;
 		FrameViewmodel(GripSocket);
 	}
 	else if (FirstPersonCamera)

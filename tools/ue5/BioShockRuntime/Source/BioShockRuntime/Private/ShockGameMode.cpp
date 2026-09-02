@@ -1294,6 +1294,36 @@ void AShockGameMode::ProbeViewmodel(APlayerController* PC, int32 ShotW, int32 Sh
 			? *FString::Printf(TEXT("u=%.2f v=%.2f"), Screen.X / ShotW, Screen.Y / ShotH)
 			: TEXT("offscreen"),
 		CentreLocal.X > 0.0f ? TEXT("yes") : TEXT("NO — behind the camera"));
+
+	// Whether the thing is even eligible to draw, separately from where it is. A rotation that
+	// puts the bounds squarely in frame and still renders nothing is not a framing problem, and
+	// guessing further rotations cannot distinguish "mis-aimed" from "not being drawn at all".
+	UE_LOG(
+		LogTemp, Display,
+		TEXT("BIOSHOCK_VIEWMODEL visible=%d hiddenInGame=%d materials=%d bones=%d boxExtent=%s"),
+		Hands->IsVisible() ? 1 : 0,
+		Hands->bHiddenInGame ? 1 : 0,
+		Hands->GetNumMaterials(),
+		Hands->GetComponentSpaceTransforms().Num(),
+		*Bounds.BoxExtent.ToCompactString());
+
+	// The grip socket's own screen position. The bounds centre is an average over the whole mesh
+	// and can sit in frame while every visible triangle is elsewhere; the socket is the one point
+	// the framing maths actually aims, so this says whether the aim landed.
+	if (Hands->DoesSocketExist(FName(TEXT("TommyGun"))))
+	{
+		const FVector SocketWorld = Hands->GetSocketLocation(FName(TEXT("TommyGun")));
+		const FVector SocketCam = CameraToWorld.InverseTransformPosition(SocketWorld);
+		FVector2D SocketScreen = FVector2D::ZeroVector;
+		const bool bSocketOn = PC->ProjectWorldLocationToScreen(SocketWorld, SocketScreen);
+		UE_LOG(
+			LogTemp, Display,
+			TEXT("BIOSHOCK_VIEWMODEL gripCam=(%.1f,%.1f,%.1f) gripScreen=%s"),
+			SocketCam.X, SocketCam.Y, SocketCam.Z,
+			bSocketOn && ShotW > 0 && ShotH > 0
+				? *FString::Printf(TEXT("u=%.2f v=%.2f"), SocketScreen.X / ShotW, SocketScreen.Y / ShotH)
+				: TEXT("offscreen"));
+	}
 }
 
 void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 ShotH)

@@ -22,6 +22,8 @@ class BIOSHOCKRUNTIME_API AShockPlayer : public AShockPawn
 public:
 	AShockPlayer();
 
+	virtual void Tick(float DeltaSeconds) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<AShockWeapon> EquippedWeapon;
 
@@ -37,8 +39,19 @@ public:
 	 * verify can settle — lower Z to bring the gun down into frame, raise X to push it away.
 	 * Applied by FrameViewmodel on equip.
 	 */
+	/**
+	 * Where the weapon's grip socket sits in camera space: forward, right, up.
+	 *
+	 * Re-applied every frame (see Tick), so this is an actual screen placement rather than a value
+	 * that is only true on the frame the weapon is equipped. Chosen by capture: at the old
+	 * (28,10,-24) the grip sat below the frame and the gun's stock was almost touching the eye.
+	 * Pushed forward to 68 the whole weapon reads at a sensible size, low and right with the stock
+	 * running off the bottom corner, which is where BioShock holds the Tommy gun.
+	 *
+	 * Override without a rebuild via -bioshockvmoffset=X,Y,Z.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
-	FVector ViewmodelOffset = FVector(28.0f, 10.0f, -24.0f);
+	FVector ViewmodelOffset = FVector(68.0f, 17.0f, -28.0f);
 
 	/**
 	 * Viewmodel orientation relative to the camera. Separate from ViewmodelOffset because the first
@@ -568,6 +581,13 @@ private:
 	void EnsureViewHands();
 	void FrameViewmodel(FName GripSocket);
 	void TickWeaponRecoil();
+
+	/** Grip socket the equipped weapon is attached to, so Tick can re-pin the viewmodel to it. */
+	FName ActiveGripSocket;
+
+	/** FrameViewmodel runs per frame now; these keep its diagnostics to one line each. */
+	bool bLoggedViewmodelFraming = false;
+	bool bLoggedViewmodelSocket = false;
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;
