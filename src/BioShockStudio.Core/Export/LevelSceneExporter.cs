@@ -854,13 +854,50 @@ public static class LevelSceneExporter
         for (int i = 0; i < instance.Geometry.Sections.Count; i++)
         {
             var material = i < instance.Materials.Count ? instance.Materials[i] : null;
-            sizes.Add(AuthoredTextureSize(package, material));
+            var shipped = AuthoredTextureSize(package, material);
+            sizes.Add(shipped is { } s
+                ? (Math.Max(1, s.Width / RemasterTextureUpscale),
+                   Math.Max(1, s.Height / RemasterTextureUpscale))
+                : null);
         }
 
         return BspGeometry.NormaliseUvs(instance.Geometry, sizes);
     }
 
-    /// <summary>The authored pixel dimensions of a material's diffuse texture, or null.</summary>
+    /// <summary>
+    /// How much larger BioShock Remastered's shipped textures are than the art the BSP surface
+    /// parameterisation was authored against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A BSP surface's texture vectors encode texels-per-world-unit against the ORIGINAL texture
+    /// size. Remastered ships upscaled art and did not rescale the vectors, so dividing by the
+    /// shipped <c>USize</c> over-zooms every surface by the upscale factor. Nothing in the
+    /// remastered package records the original size: <c>MinLOD</c> is just <c>UBits - 6</c>,
+    /// <c>StrippedNumMips</c> is a constant 5 across every texture, and there is no authored-size
+    /// property. So this is measured, not read.
+    /// </para>
+    /// <para>
+    /// Two independent measurements on 1-Medical, against textures of different kinds, both give
+    /// exactly 4 (two mip levels — a standard remaster upscale):
+    /// <c>Med_Tile_white_Dirty_Diffuse</c> is an 8x8 grid of ceramic tiles, so the sheet should
+    /// span ~1.3m; dividing by the shipped 2048 spans 5.12m, making each ceramic tile 64cm.
+    /// <c>med_wall_public_dirt</c> is a complete floor-to-dado wall elevation with a brass rail
+    /// and a Deco wainscot band; it should span ~1.9m of wall height, and dividing by the shipped
+    /// size spans 7.68m — a skirting board a metre and a half tall.
+    /// </para>
+    /// <para>
+    /// Override with <c>BIOSHOCK_BSP_UV_UPSCALE</c> to re-tune against a render without a rebuild.
+    /// Set it to 1 to restore the raw shipped-size divisor.
+    /// </para>
+    /// </remarks>
+    private static int RemasterTextureUpscale =>
+        int.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_UPSCALE"), out int scale)
+        && scale >= 1
+            ? scale
+            : 4;
+
+    /// <summary>The shipped pixel dimensions of a material's diffuse texture, or null.</summary>
     private static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
     {
         if (material is not { } id || id.ExportIndex < 0 || id.ExportIndex >= package.Exports.Count) return null;
