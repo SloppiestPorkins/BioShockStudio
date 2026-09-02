@@ -41,9 +41,16 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Paths.h"
+#include "Engine/SceneCapture2D.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
+#include "Camera/PlayerCameraManager.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "NavigationSystem.h"
@@ -1195,6 +1202,20 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		return;
 	}
 
+	// -bioshockscreenshot: photograph the possessed scene and quit. Deliberately checked BEFORE the
+	// possess verify's exit, and deliberately does NOT exit here — a shot taken on the possess frame
+	// catches an unresolved scene (shaders still compiling, textures still streaming) and would be
+	// worse than no shot at all, because it would look like evidence.
+	if (FParse::Param(FCommandLine::Get(), TEXT("bioshockscreenshot")))
+	{
+		float Interval = 0.5f;
+		FParse::Value(FCommandLine::Get(), TEXT("bioshockshotinterval="), Interval);
+		GetWorldTimerManager().SetTimer(
+			ScreenshotTimer, this, &AShockGameMode::TickScreenshotCapture,
+			FMath::Max(0.05f, Interval), true);
+		return;
+	}
+
 	const bool bVerifyPossess = FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"));
 	if (!bVerifyPossess)
 	{
@@ -1223,5 +1244,96 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 			bWeapon ? 1 : 0);
 	}
 
+	FGenericPlatformMisc::RequestExit(false);
+}
+
+void AShockGameMode::TickScreenshotCapture()
+{
+	++ScreenshotTicks;
+
+	// Settle first. Shader compilation and texture streaming both land well after PostLogin, and a
+	// shot taken before they do shows default materials and blurry mips — the exact false negative
+	// this harness exists to prevent.
+	int32 SettleTicks = 12;
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockshotsettle="), SettleTicks);
+	if (ScreenshotTicks < FMath::Max(1, SettleTicks))
+	{
+		return;
+	}
+
+	if (!bScreenshotRequested)
+	{
+		FString Path;
+		if (!FParse::Value(FCommandLine::Get(), TEXT("bioshockshotpath="), Path) || Path.IsEmpty())
+		{
+			Path = FPaths::ProjectDir() / TEXT("Exports/slice/bioshock_shot.png");
+		}
+		Path = FPaths::ConvertRelativePathToFull(Path);
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true);
+
+		bScreenshotRequested = true;
+
+		// A SceneCapture2D rendered to a render target we own, NOT
+		// FScreenshotRequest::RequestScreenshot. The backbuffer route returned a uniformly black PNG
+		// from an unattended -game session - byte-identical 30KB output for two different maps, one
+		// of which had a rescaled lighting rig - so it was capturing an unpresented surface rather
+		// than the scene. Rendering to our own target does not depend on the swap chain at all.
+		UWorld* CaptureWorld = GetWorld();
+		APlayerController* PC = CaptureWorld ? CaptureWorld->GetFirstPlayerController() : nullptr;
+		if (!CaptureWorld || !PC)
+		{
+			UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_SCREENSHOT_FAIL reason=no_player_controller"));
+			GetWorldTimerManager().ClearTimer(ScreenshotTimer);
+			FGenericPlatformMisc::RequestExit(false);
+			return;
+		}
+
+		int32 ShotW = 1280;
+		int32 ShotH = 720;
+		FParse::Value(FCommandLine::Get(), TEXT("bioshockshotwidth="), ShotW);
+		FParse::Value(FCommandLine::Get(), TEXT("bioshockshotheight="), ShotH);
+
+		FVector CamLoc = FVector::ZeroVector;
+		FRotator CamRot = FRotator::ZeroRotator;
+		PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+		UTextureRenderTarget2D* Target =
+			UKismetRenderingLibrary::CreateRenderTarget2D(CaptureWorld, ShotW, ShotH, RTF_RGBA8);
+		FActorSpawnParameters CaptureParams;
+		CaptureParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		ASceneCapture2D* Capture =
+			CaptureWorld->SpawnActor<ASceneCapture2D>(CamLoc, CamRot, CaptureParams);
+		if (!Target || !Capture)
+		{
+			UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_SCREENSHOT_FAIL reason=capture_setup"));
+			GetWorldTimerManager().ClearTimer(ScreenshotTimer);
+			FGenericPlatformMisc::RequestExit(false);
+			return;
+		}
+
+		if (USceneCaptureComponent2D* Comp = Capture->GetCaptureComponent2D())
+		{
+			Comp->TextureTarget = Target;
+			// FinalColorLDR: the fully post-processed image a player would see, tone mapping and
+			// exposure included. SceneColor would hide the very lighting faults this exists to catch.
+			Comp->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+			Comp->bCaptureEveryFrame = false;
+			Comp->bCaptureOnMovement = false;
+			if (PC->PlayerCameraManager)
+			{
+				Comp->FOVAngle = PC->PlayerCameraManager->GetFOVAngle();
+			}
+			Comp->CaptureScene();
+		}
+
+		UKismetRenderingLibrary::ExportRenderTarget(
+			CaptureWorld, Target, FPaths::GetPath(Path), FPaths::GetCleanFilename(Path));
+		UE_LOG(
+			LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_REQUEST path=%s %dx%d"), *Path, ShotW, ShotH);
+		return;   // one more tick so the export lands before the world tears down
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_OK"));
+	GetWorldTimerManager().ClearTimer(ScreenshotTimer);
 	FGenericPlatformMisc::RequestExit(false);
 }

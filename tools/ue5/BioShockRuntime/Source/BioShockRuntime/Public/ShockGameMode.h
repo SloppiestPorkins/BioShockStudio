@@ -103,9 +103,22 @@ private:
 	void EnsureHudForPlayer(APlayerController* PC);
 	UShockDeathRespawnHandler* EnsureDeathHandler();
 
+	/**
+	 * Drives -bioshockscreenshot: wait for the scene to actually resolve, take one shot, exit.
+	 *
+	 * This exists because every visual defect in this project so far was found by a person opening
+	 * the editor, never by a check. The headless verifies run under -run=pythonscript with a Null
+	 * RHI and cannot render a single pixel, so a level whose every wall painted one flat colour
+	 * passed all of them. The -game harness already runs on D3D12, so it can photograph itself.
+	 */
+	void TickScreenshotCapture();
+
 	FTimerHandle SliceEncounterSpawnTimer1;
 	FTimerHandle SliceEncounterSpawnTimer2;
 	FTimerHandle SliceEncounterVerifyTimer;
+	FTimerHandle ScreenshotTimer;
+	int32 ScreenshotTicks = 0;
+	bool bScreenshotRequested = false;
 
 	UPROPERTY()
 	TObjectPtr<UShockDeathRespawnHandler> DeathHandler;
