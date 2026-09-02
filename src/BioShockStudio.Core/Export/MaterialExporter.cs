@@ -178,9 +178,12 @@ public static class MaterialExporter
             Sequences = material.Sequences,
             SwitchName = material.SwitchName,
             SwitchCandidates = material.SwitchCandidates,
-            Diffuse = Lookup(files, material.DiffuseTexture, material,
-                "Diffuse", "FacingDiffuse", "EdgeDiffuse", "AliveDiffuse", "DeadDiffuse", "WaterDiffuseMap",
-                MaterialReader.SelfSlot),
+            // MaterialReader.DiffuseSlots itself, not a copy of it. This was a second hand-kept
+            // list of the same slot names, and the two drifting is silent: DiffuseTexture picks a
+            // slot, this resolves that slot to a written file, and a name in one list but not the
+            // other yields no base colour with nothing logged. Sharing the array makes adding a
+            // shader class a one-place change.
+            Diffuse = Lookup(files, material.DiffuseTexture, material, MaterialReader.DiffuseSlots),
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,
                 "SpecularColorMap", "FacingSpecularColorMap", "EdgeSpecularColorMap"),

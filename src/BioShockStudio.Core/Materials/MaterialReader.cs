@@ -266,12 +266,29 @@ public static class MaterialReader
     /// <c>CONFIRMED_EXTERNAL</c> for <c>Diffuse</c> (Nyko's material note, §2.1) and
     /// <c>CONFIRMED_BYTES</c> for the rest, each read off a shipped material of that class:
     /// <c>FacingShader</c> has no <c>Diffuse</c> at all, <c>PlantShader</c> calls it
-    /// <c>AliveDiffuse</c>, and <c>FluidShader</c> calls it <c>WaterDiffuseMap</c>.
+    /// <c>AliveDiffuse</c>, <c>FluidShader</c> calls it <c>WaterDiffuseMap</c>, and
+    /// <c>LightBeamShader</c> calls it <c>FalloffMap</c>.
+    /// </para>
+    /// <para>
+    /// <c>FalloffMap</c> was the slot this list was missing, and the cost of missing it is worth
+    /// recording. A <c>LightBeamShader</c> binds <c>FalloffMap</c> and <c>DustMap</c> and nothing
+    /// else, so it matched no name here and no name containing "Diffuse", and exported with no
+    /// base colour at all. The UE5 import then filled the empty parameter with the engine's
+    /// <c>WhiteSquareTexture</c> — a reasonable default for an opaque surface and the worst
+    /// possible one for these, because light beams are <c>BLEND_ADDITIVE</c>: a pure white square
+    /// added over the scene saturates everything behind it. The god-ray meshes by the Medical
+    /// Pavilion bathysphere rendered as a flat white wedge across a quarter of the frame, and that
+    /// wedge survived four wrong diagnoses (a zone portal, an unbound skeletal material, opaque
+    /// glass, blown UVs) because a beam mesh carries no collision and so never appeared in a trace.
+    /// <c>DustMap</c> is deliberately NOT added: it is the panned dust overlay named by the
+    /// material's own <c>DustTextureAnimator</c>, not the beam's colour, and putting it here would
+    /// be the arbitrary pick the paragraph above rules out.
     /// </para>
     /// </remarks>
     internal static readonly string[] DiffuseSlots =
     [
         "Diffuse", "FacingDiffuse", "EdgeDiffuse", "AliveDiffuse", "DeadDiffuse", "WaterDiffuseMap",
+        "FalloffMap",
         SelfSlot,
     ];
 

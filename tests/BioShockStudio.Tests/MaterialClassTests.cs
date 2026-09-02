@@ -147,24 +147,76 @@ public sealed class MaterialClassTests(GameFixture game)
     }
 
     /// <summary>
-    /// A <c>LightBeamShader</c> binds textures but has no base colour, and says so rather than
-    /// picking one.
+    /// A <c>LightBeamShader</c>'s base colour is its <c>FalloffMap</c> — the named slot for this
+    /// class, the way <c>FluidShader</c> names <c>WaterDiffuseMap</c>.
     /// </summary>
     /// <remarks>
-    /// The honest answer here is null. Falling back to "the first texture bound" would make
-    /// <c>FalloffMap</c> the mesh's colour, which is a confidently wrong result that no count can
-    /// see — the same shape of fault as a normal map drawn as diffuse.
+    /// <para>
+    /// This test previously asserted the opposite — that the reader reports no base colour here —
+    /// on the reasoning that choosing <c>FalloffMap</c> would be a confidently wrong guess. That
+    /// conflated two different things. Picking "the first texture bound" IS an arbitrary guess and
+    /// is still refused. Mapping a class's own documented colour slot is not a guess, and
+    /// <c>AFluidShaderExportMapsWaterDiffuseIntoSceneDiffuse</c> two tests above asserts exactly
+    /// that for <c>WaterDiffuseMap</c>.
+    /// </para>
+    /// <para>
+    /// Returning null was also not the safe outcome it looked like. Downstream, a material with no
+    /// base colour has its UE5 parameter filled with the engine's <c>WhiteSquareTexture</c>, and
+    /// light beams are <c>BLEND_ADDITIVE</c> — a white square added over the scene saturates
+    /// everything behind it. The god rays outside the Medical Pavilion bathysphere rendered as a
+    /// flat white wedge over a quarter of the frame. "Report nothing" is only honest when nothing
+    /// downstream turns it into something.
+    /// </para>
+    /// <para>
+    /// <c>DustMap</c> stays out: it is the panned overlay named by the material's own
+    /// <c>DustTextureAnimator</c>, not the beam's colour.
+    /// </para>
     /// </remarks>
     [RequiresGameFact]
-    public void ALightBeamShaderBindsTexturesButReportsNoBaseColour()
+    public void ALightBeamShaderTakesItsBaseColourFromFalloffMap()
     {
         using var package = BioShockPackage.Open(Map("0-Lighthouse"));
         var beam = Material(package, "LightBeamShader", "VolumeLight_Undewater");
 
         Assert.Equal("LightShaft_Falloff", beam.TextureFor("FalloffMap"));
         Assert.Equal("LightShaftUnd_Dust", beam.TextureFor("DustMap"));
-        Assert.Null(beam.DiffuseTexture);
+        Assert.Equal("LightShaft_Falloff", beam.DiffuseTexture);
         Assert.Null(beam.TextureFor("DustTextureAnimator"));
+    }
+
+    /// <summary>
+    /// The export writes that base colour to a file, so the UE5 side never falls back to the
+    /// engine's white placeholder.
+    /// </summary>
+    /// <remarks>
+    /// The reader knowing the slot is only half of it: <c>MaterialExporter</c> kept its own copy of
+    /// the diffuse slot names, and a name present in one list and missing from the other produces
+    /// no base colour with nothing logged. They share one array now, and this asserts the whole
+    /// path rather than the reader alone.
+    /// </remarks>
+    [RequiresGameFact]
+    public void ALightBeamShaderExportWritesItsFalloffAsSceneDiffuse()
+    {
+        using var package = BioShockPackage.Open(Map("0-Lighthouse"));
+        var export = package.Exports
+            .Where(e => package.GetClassName(e) == "LightBeamShader"
+                        && string.Equals(e.ObjectName, "VolumeLight_Undewater", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(export);
+
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-beam-{Guid.NewGuid():N}");
+        try
+        {
+            var scene = MaterialExporter.ResolveMaterial(package, export, directory);
+            Assert.NotNull(scene);
+            Assert.NotNull(scene.Diffuse);
+            Assert.True(File.Exists(Path.Combine(directory, scene.Diffuse.Replace('/', Path.DirectorySeparatorChar))),
+                $"beam falloff '{scene.Diffuse}' was not written");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     /// <summary>
