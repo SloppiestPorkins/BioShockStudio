@@ -277,6 +277,18 @@ def _import_textures(rig, export_directory, destination, report=None):
         # save=True routes through InternalPromptForCheckoutAndSave, whose Slate notification
         # asserts under -run=pythonscript. Persist explicitly after applying texture settings.
         task.set_editor_property("save", False)
+        # Pin the LEGACY texture factory. Left to itself the task goes through Interchange, which
+        # fires a Slate notification when it finishes: the log reads "Interchange import completed"
+        # and one millisecond later the process dies on Assertion failed:
+        # CurrentApplication.IsValid(). Same failure the OBJ importer has, and the project already
+        # forces legacy for FBX and OBJ via Interchange.FeatureFlags in DefaultEngine.ini - but
+        # there is NO Interchange.FeatureFlags.Import.Texture, so the choice has to be made here,
+        # per task, by naming the factory.
+        try:
+            task.set_editor_property("factory", unreal.TextureFactory())
+        except Exception as exc:  # noqa: BLE001
+            _log(f"  could not pin the legacy texture factory ({exc}); "
+                 "Interchange may assert under -run=pythonscript")
         _asset_tools().import_asset_tasks([task])
 
         objects = list(task.get_objects())
