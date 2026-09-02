@@ -41,6 +41,20 @@ public:
 	FVector ViewmodelOffset = FVector(28.0f, 10.0f, -24.0f);
 
 	/**
+	 * Viewmodel orientation relative to the camera. Separate from ViewmodelOffset because the first
+	 * captured render of the possessed scene showed the arms and weapon INVERTED at the top of
+	 * frame - a rotation fault, which no amount of moving the mesh would have fixed.
+	 *
+	 * Left at identity, which is the state that produces that inverted render, because guessing is
+	 * expensive here: one trial is a rebuild plus a ~10 minute capture, and roll 180 (the obvious
+	 * first guess) pushed the mesh out of frame entirely rather than righting it. Pitch 180 and yaw
+	 * 180 are the untried candidates. In the editor this is a five-second drag with live feedback,
+	 * which is the right loop for it.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
+	FRotator ViewmodelRotation = FRotator::ZeroRotator;
+
+	/**
 	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
 	 * Defaults true so GameMode-spawned PIE pawns walk/fire without an extra script call.
 	 */

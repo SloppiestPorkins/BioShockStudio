@@ -202,12 +202,19 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 			ViewHands->GetSocketLocation(GripSocket));
 	}
 
-	// SetRelativeLocation, not AddWorldOffset. ViewHands is attached to the camera, and the camera
-	// uses the pawn's control rotation — so a world-space nudge computed once at equip time is only
-	// correct for the orientation the player held at that instant. Look anywhere else and the baked
-	// offset swings the arms out of frame (they read as floating above the camera). A relative
-	// placement rides the camera through every rotation.
-	ViewHands->SetRelativeLocation(DesiredLocal - SocketLocal);
+	// SetRelativeLocation/Rotation, not AddWorldOffset. ViewHands is attached to the camera, and the
+	// camera uses the pawn's control rotation - so a world-space nudge computed once at equip time is
+	// only correct for the orientation the player held at that instant. Look anywhere else and the
+	// baked offset swings the arms out of frame. A relative placement rides the camera through every
+	// rotation.
+	//
+	// Rotation is applied FIRST, and the socket correction is rotated into the parent's space before
+	// being subtracted: DesiredLocal is in camera space while SocketLocal is in the mesh's own space,
+	// so subtracting one from the other directly is only valid while the two spaces are aligned. With
+	// ViewmodelRotation non-zero they are not, and the grip lands somewhere arbitrary.
+	ViewHands->SetRelativeRotation(ViewmodelRotation);
+	const FVector SocketInCameraSpace = ViewmodelRotation.RotateVector(SocketLocal);
+	ViewHands->SetRelativeLocation(DesiredLocal - SocketInCameraSpace);
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
