@@ -1412,14 +1412,49 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 				Direction = Delta.RotateVector(Direction);
 			}
 
-			FHitResult Hit;
+			// EVERY hit along the ray, not just the first. This level's compiled world carries
+			// large invisible zone-portal planes across its openings, and they have collision, so
+			// a single trace reports the portal and stops - it cannot see anything actually
+			// rendered beyond it. That is not a rare case here: the portal is the first hit for
+			// most of the left half of the frame.
+			TArray<FHitResult> Hits;
 			const FVector End = Origin + Direction * 100000.0f;
-			if (!World->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params))
+			if (!World->LineTraceMultiByChannel(Hits, Origin, End, ECC_Visibility, Params)
+				|| Hits.Num() == 0)
 			{
 				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f hit=none"), U, V);
 				continue;
 			}
 
+			// Drop hits at zero distance. The camera stands inside several overlapping water
+			// volumes here, so an unfiltered list spends every slot naming volumes that contain
+			// the eye and never reaches the geometry actually on screen — which is how a green
+			// bar in the corner of the frame got blamed on those volumes and survived being
+			// "fixed". A volume you are inside is not a thing you are looking at.
+			TArray<int32> Reportable;
+			int32 ZeroDistanceHits = 0;
+			for (int32 Index = 0; Index < Hits.Num(); ++Index)
+			{
+				if (Hits[Index].Distance < 1.0f)
+				{
+					++ZeroDistanceHits;
+					continue;
+				}
+				Reportable.Add(Index);
+				if (Reportable.Num() >= 4)
+				{
+					break;
+				}
+			}
+			if (ZeroDistanceHits > 0)
+			{
+				UE_LOG(LogTemp, Display,
+					TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f enclosing=%d (camera is inside them)"),
+					U, V, ZeroDistanceHits);
+			}
+			for (int32 HitIndex : Reportable)
+			{
+			const FHitResult& Hit = Hits[HitIndex];
 			FString ActorName = Hit.GetActor() ? Hit.GetActor()->GetActorNameOrLabel() : TEXT("?");
 			FString MaterialName = TEXT("none");
 			FString MeshName = TEXT("none");
@@ -1475,9 +1510,10 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 
 			UE_LOG(
 				LogTemp, Display,
-				TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f dist=%.0f actor=%s mesh=%s material=%s uv=%s"),
-				U, V, Hit.Distance, *ActorName, *MeshName, *MaterialName,
+				TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f [%d/%d] dist=%.0f actor=%s mesh=%s material=%s uv=%s"),
+				U, V, HitIndex, Hits.Num(), Hit.Distance, *ActorName, *MeshName, *MaterialName,
 				bGotUV ? *FString::Printf(TEXT("%.1f,%.1f"), HitUV.X, HitUV.Y) : TEXT("n/a"));
+			}
 		}
 	}
 }
