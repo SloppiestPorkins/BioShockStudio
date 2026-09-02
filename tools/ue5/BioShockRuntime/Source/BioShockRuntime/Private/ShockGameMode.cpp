@@ -1270,6 +1270,10 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockScreenProbe), true);
 	Params.AddIgnoredActor(PC->GetPawn());
+	// Both of these are opt-in: without them FaceIndex stays INDEX_NONE and FindCollisionUV fails,
+	// so the probe would silently fall back to guessing exactly as before.
+	Params.bReturnFaceIndex = true;
+	Params.bTraceComplex = true;
 
 	for (int32 Y = 0; Y < Steps; ++Y)
 	{
@@ -1307,30 +1311,52 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 						MeshName = Mesh->GetName();
 					}
 				}
-				// List EVERY material on the component rather than indexing by Hit.ElementIndex.
-				// ElementIndex is a physics element, not a material section, and on a
-				// complex-collision trace it does not correspond to a slot at all - reading it as one
-				// reported "material=none" for a door whose material was in fact correctly bound, and
-				// sent two hours chasing a binding bug that did not exist. A short list of what is
-				// actually on the component cannot lie in that direction.
-				TArray<FString> Names;
-				const int32 Count = Comp->GetNumMaterials();
-				for (int32 Slot = 0; Slot < Count && Slot < 6; ++Slot)
-				{
-					UMaterialInterface* Mat = Comp->GetMaterial(Slot);
-					Names.Add(Mat ? Mat->GetName() : TEXT("<empty>"));
-				}
-				if (Names.Num())
+				// Resolve the ONE material actually under the ray, via the face index. This is the
+				// supported mapping from a collision hit to a render section; Hit.ElementIndex is a
+				// physics element and means nothing here - reading it as a slot reported
+				// "material=none" for a door whose material was correctly bound, and cost hours
+				// chasing a binding bug that did not exist.
+				int32 SectionIndex = INDEX_NONE;
+				if (UMaterialInterface* HitMat =
+						Comp->GetMaterialFromCollisionFaceIndex(Hit.FaceIndex, SectionIndex))
 				{
 					MaterialName = FString::Printf(
-						TEXT("[%d] %s"), Count, *FString::Join(Names, TEXT(", ")));
+						TEXT("%s (section %d)"), *HitMat->GetName(), SectionIndex);
+				}
+				else
+				{
+					// Fall back to listing the slots. Less precise, but it never claims a specific
+					// material that is not there.
+					TArray<FString> Names;
+					const int32 Count = Comp->GetNumMaterials();
+					for (int32 Slot = 0; Slot < Count && Slot < 6; ++Slot)
+					{
+						UMaterialInterface* Mat = Comp->GetMaterial(Slot);
+						Names.Add(Mat ? Mat->GetName() : TEXT("<empty>"));
+					}
+					if (Names.Num())
+					{
+						MaterialName = FString::Printf(
+							TEXT("unresolved, slots [%d] %s"), Count,
+							*FString::Join(Names, TEXT(", ")));
+					}
 				}
 			}
 
+			// MEASURE the texture coordinate rather than inferring it from how the surface looks.
+			// A face whose UVs run to the hundreds samples a handful of texels across its whole
+			// span and renders as flat untextured colour - indistinguishable by eye from a missing
+			// material, which is precisely the confusion that has driven this hunt. Needs
+			// bSupportUVFromHitResults; without it this returns false and prints uv=n/a rather
+			// than a wrong number.
+			FVector2D HitUV = FVector2D::ZeroVector;
+			const bool bGotUV = UGameplayStatics::FindCollisionUV(Hit, 0, HitUV);
+
 			UE_LOG(
 				LogTemp, Display,
-				TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f dist=%.0f actor=%s mesh=%s material=%s"),
-				U, V, Hit.Distance, *ActorName, *MeshName, *MaterialName);
+				TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f dist=%.0f actor=%s mesh=%s material=%s uv=%s"),
+				U, V, Hit.Distance, *ActorName, *MeshName, *MaterialName,
+				bGotUV ? *FString::Printf(TEXT("%.1f,%.1f"), HitUV.X, HitUV.Y) : TEXT("n/a"));
 		}
 	}
 }

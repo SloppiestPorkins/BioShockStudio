@@ -27,9 +27,18 @@ import os
 import unreal
 
 MAP = os.environ.get("BIOSHOCK_LIGHT_MAP", "/Game/BioShockLevel/1-Medical")
-FACTOR = float(os.environ.get("BIOSHOCK_LIGHT_FACTOR", "120"))
-CLAMP_MIN = float(os.environ.get("BIOSHOCK_LIGHT_MIN", "8"))
-CLAMP_MAX = float(os.environ.get("BIOSHOCK_LIGHT_MAX", "400"))
+FACTOR = float(os.environ.get("BIOSHOCK_LIGHT_FACTOR", "8"))
+CLAMP_MIN = float(os.environ.get("BIOSHOCK_LIGHT_MIN", "2"))
+CLAMP_MAX = float(os.environ.get("BIOSHOCK_LIGHT_MAX", "64"))
+# Reach, not brightness, was what made this level dark. import_level turns inverse-square OFF so
+# the authored LightBrightness stays a scale; in that mode UE5 shapes reach with
+# pow(saturate(1 - d/radius), exponent), and the exponent DEFAULTS TO 8. Measured across all 664
+# lights, that put 10% brightness at a median of 1.0 m in corridors 3-5 m wide: blown-out white
+# within arm's reach of each bulb and near-black everywhere else. Both halves of that - "god rays
+# are super bright and just white" and "walls are dark" - are this one number. An exponent near 2
+# is the gentle curve UE2.5 approximated; raising the multiplier instead (it was 120) only widened
+# the gap between the hotspot and the wall.
+FALLOFF = float(os.environ.get("BIOSHOCK_LIGHT_FALLOFF", "2"))
 # Every number below is a look-at-it judgement, so each is overridable without editing this file.
 # Rapture reads on light-and-shadow contrast far more than on absolute brightness: prefer a dim
 # ambient with bright practicals over lifting everything uniformly.
@@ -86,14 +95,18 @@ def _rescale_local_lights(report):
         if base <= 0.0:
             continue
         new_val = max(CLAMP_MIN, min(CLAMP_MAX, base * FACTOR))
-        try:
-            comp.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
-        except Exception:  # noqa: BLE001
-            pass
+        # No intensity_units here. This used to set CANDELAS and report success; UE5 ignores the
+        # unit while bUseInverseSquaredFalloff is false, and a read-back showed all 664 lights
+        # still UNITLESS. Intensity is a bare multiplier in this mode - leave the unit alone.
         comp.set_editor_property("intensity", new_val)
+        comp.set_editor_property("light_falloff_exponent", FALLOFF)
         scaled += 1
     report["localLightsScaled"] = scaled
     report["factor"] = FACTOR
+    report["falloffExponent"] = FALLOFF
+    # Reach at 10% brightness for the median light, the number that actually tracks whether a wall
+    # is lit. Recorded so a re-run can be compared against the 1.0 m that started this.
+    report["tenPercentReachAtRadius400"] = round(400.0 * (1.0 - pow(0.1, 1.0 / FALLOFF)), 1)
 
 
 def _fix_directional(report):
