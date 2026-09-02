@@ -126,6 +126,9 @@ private:
 	int32 ScreenshotTicks = 0;
 	bool bScreenshotRequested = false;
 
+	/** -bioshockshotyaw/pitch offset applied to the capture, so the probe can aim the same way. */
+	FRotator ScreenshotAimDelta = FRotator::ZeroRotator;
+
 	UPROPERTY()
 	TObjectPtr<UShockDeathRespawnHandler> DeathHandler;
 

@@ -1307,6 +1307,36 @@ void AShockGameMode::ProbeViewmodel(APlayerController* PC, int32 ShotW, int32 Sh
 		Hands->GetComponentSpaceTransforms().Num(),
 		*Bounds.BoxExtent.ToCompactString());
 
+	// The skeleton's REAL extent, from the posed bone transforms rather than from Bounds.
+	// FBoxSphereBounds has disagreed with the socket twice on this mesh - it does not refresh
+	// after SetRelativeRotation, and it reported the mesh topping out 81 units below the eye while
+	// the grip socket (actual bone data) sat 28 below and plainly in frame. Bone positions cannot
+	// be stale in that way, so this is the measurement to trust about where the arms are.
+	{
+		const TArray<FTransform>& BoneTransforms = Hands->GetComponentSpaceTransforms();
+		if (BoneTransforms.Num() > 0)
+		{
+			FVector Min(FLT_MAX), Max(-FLT_MAX);
+			int32 InFrontCount = 0;
+			for (const FTransform& BoneTransform : BoneTransforms)
+			{
+				const FVector BoneCam = CameraToWorld.InverseTransformPosition(
+					Hands->GetComponentTransform().TransformPosition(BoneTransform.GetLocation()));
+				Min = Min.ComponentMin(BoneCam);
+				Max = Max.ComponentMax(BoneCam);
+				if (BoneCam.X > 0.0f)
+				{
+					++InFrontCount;
+				}
+			}
+			UE_LOG(
+				LogTemp, Display,
+				TEXT("BIOSHOCK_VIEWMODEL boneCamMin=(%.1f,%.1f,%.1f) boneCamMax=(%.1f,%.1f,%.1f) "
+					 "inFrontOfEye=%d/%d"),
+				Min.X, Min.Y, Min.Z, Max.X, Max.Y, Max.Z, InFrontCount, BoneTransforms.Num());
+		}
+	}
+
 	// The grip socket's own screen position. The bounds centre is an average over the whole mesh
 	// and can sit in frame while every visible triangle is elsewhere; the socket is the one point
 	// the framing maths actually aims, so this says whether the aim landed.
@@ -1340,6 +1370,15 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 	FParse::Value(FCommandLine::Get(), TEXT("bioshockprobesteps="), Steps);
 	Steps = FMath::Clamp(Steps, 2, 12);
 
+	FVector PlayerViewLocation = FVector::ZeroVector;
+	FRotator PlayerViewRotation = FRotator::ZeroRotator;
+	PC->GetPlayerViewPoint(PlayerViewLocation, PlayerViewRotation);
+	if (!ScreenshotAimDelta.IsNearlyZero())
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PROBE aimDelta=%s (rays follow the capture, not the pawn)"),
+			*ScreenshotAimDelta.ToCompactString());
+	}
+
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockScreenProbe), true);
 	Params.AddIgnoredActor(PC->GetPawn());
 	// Both of these are opt-in: without them FaceIndex stays INDEX_NONE and FindCollisionUV fails,
@@ -1361,6 +1400,16 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 			if (!PC->DeprojectScreenPositionToWorld(Screen.X, Screen.Y, Origin, Direction))
 			{
 				continue;
+			}
+
+			// Deprojection uses the player's view; the shot may have been aimed elsewhere. The
+			// capture camera is the player camera composed with this delta, so composing the same
+			// delta onto each ray makes the probe describe the frame that was actually taken.
+			if (!ScreenshotAimDelta.IsNearlyZero())
+			{
+				const FQuat Delta = (PlayerViewRotation + ScreenshotAimDelta).Quaternion()
+					* PlayerViewRotation.Quaternion().Inverse();
+				Direction = Delta.RotateVector(Direction);
 			}
 
 			FHitResult Hit;
@@ -1482,6 +1531,32 @@ void AShockGameMode::TickScreenshotCapture()
 		FVector CamLoc = FVector::ZeroVector;
 		FRotator CamRot = FRotator::ZeroRotator;
 		PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+		// Aim the capture somewhere other than wherever the PlayerStart happens to face.
+		// Every shot so far looks at the bathysphere airlock, which is all static meshes, so the
+		// compiled world - the BSP shell that carries the reported "blown out, zoomed in" wall UVs
+		// - has never actually been photographed. A UV scale cannot be judged from a number; it
+		// has to be looked at against a wall of known size.
+		float ShotYaw = 0.0f;
+		float ShotPitch = 0.0f;
+		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotyaw="), ShotYaw))
+		{
+			CamRot.Yaw += ShotYaw;
+		}
+		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotpitch="), ShotPitch))
+		{
+			CamRot.Pitch += ShotPitch;
+		}
+		// The probe grid deprojects through the PLAYER's view, so once the capture is aimed
+		// somewhere else the two describe different scenes. Carry the delta so the probe can
+		// rotate its rays to match; a probe that confidently describes a frame nobody took is
+		// precisely the failure this harness exists to prevent.
+		ScreenshotAimDelta = FRotator(ShotPitch, ShotYaw, 0.0f);
+		if (!FMath::IsNearlyZero(ShotYaw) || !FMath::IsNearlyZero(ShotPitch))
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_AIM yaw+=%.1f pitch+=%.1f -> %s"),
+				ShotYaw, ShotPitch, *CamRot.ToCompactString());
+		}
 
 		UTextureRenderTarget2D* Target =
 			UKismetRenderingLibrary::CreateRenderTarget2D(CaptureWorld, ShotW, ShotH, RTF_RGBA8);
