@@ -638,6 +638,32 @@ def _resolve_volume_class(bio_class):
     return None
 
 
+def _hide_volume_in_game(actor):
+    """Stop a gameplay volume's brush drawing in the shipped view.
+
+    These are supposed to be invisible - the module docstring above says so - but a spawned
+    PhysicsVolume keeps a UBrushComponent that is a real, renderable primitive, and Unreal draws
+    volume brushes GREEN. A -game scene capture aimed at the Medical Pavilion entrance came back
+    with a saturated green bar (RGB ~80,255,30) across the bottom of the window, which is three
+    overlapping water volumes - CascadingWaterVolume3, FluidVolume2, TunnelCollapseWaterVolume -
+    being drawn as geometry. Nothing in the editor viewport makes this obvious, because volume
+    brushes are *supposed* to show there.
+
+    Sets both flags: hidden_in_game covers the running game, and visible covers a scene capture,
+    which does not respect hidden_in_game on every component type.
+    """
+    hidden = 0
+    for component in actor.get_components_by_class(unreal.PrimitiveComponent):
+        # Collision must keep working - this is a volume, being inside it is its whole job.
+        try:
+            component.set_editor_property("hidden_in_game", True)
+            component.set_editor_property("visible", False)
+            hidden += 1
+        except Exception:  # noqa: BLE001
+            continue
+    return hidden
+
+
 def _manifest_assets_by_key(manifest):
     return {entry["key"]: entry for entry in manifest.get("assets") or []}
 
@@ -800,6 +826,7 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
 
         actor.set_actor_label(entry.get("label") or entry.get("name") or key)
         actor.tags = _volume_tags(entry)
+        _hide_volume_in_game(actor)
         existing[key] = actor
 
 

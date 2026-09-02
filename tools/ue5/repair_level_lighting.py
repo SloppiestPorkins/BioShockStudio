@@ -46,6 +46,11 @@ SUN_LUX = float(os.environ.get("BIOSHOCK_LIGHT_SUN", "6"))
 SKY_INTENSITY = float(os.environ.get("BIOSHOCK_LIGHT_SKY", "1.5"))
 EXPOSURE_EV = float(os.environ.get("BIOSHOCK_LIGHT_EV", "11"))
 DRY = os.environ.get("BIOSHOCK_LIGHT_DRY", "0") == "1"
+# OFF for the undersea levels — see _ensure_sky_atmosphere. Turn on for the lighthouse/exterior.
+SKY_ATMOSPHERE = os.environ.get("BIOSHOCK_LIGHT_SKYATMO", "0") == "1"
+# Ambient tint. The daylight cubemap alone lit Rapture like an overcast afternoon; the interiors
+# read as undersea largely through a cold green-blue ambient with warm practicals against it.
+SKY_TINT = os.environ.get("BIOSHOCK_LIGHT_SKYTINT", "0.16,0.34,0.38")
 REPAIR_TAG = "BIOSHOCK_LIGHT_REPAIR"
 ORIG_PREFIX = "BIOSHOCK_LIGHT_ORIG="
 SKY_CUBEMAP = "/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap"
@@ -142,6 +147,18 @@ def _fix_skylight(report):
         comp.set_editor_property("cubemap", cubemap)
     comp.set_editor_property("intensity", SKY_INTENSITY)
     comp.set_editor_property("lower_hemisphere_is_black", False)
+    # Tint the ambient toward deep water. The cubemap is a daylight one and there is no undersea
+    # replacement decoded yet, so this colours what it contributes rather than pretending to be
+    # the real thing.
+    try:
+        r, g, b = (float(v) for v in SKY_TINT.split(","))
+        comp.set_editor_property("light_color", unreal.Color(
+            r=int(max(0.0, min(1.0, r)) * 255),
+            g=int(max(0.0, min(1.0, g)) * 255),
+            b=int(max(0.0, min(1.0, b)) * 255), a=255))
+        report["skyTint"] = SKY_TINT
+    except Exception as exc:  # noqa: BLE001
+        report["skyTint"] = "unparsed (%s): %s" % (SKY_TINT, exc)
     try:
         comp.recapture_sky()
     except Exception:  # noqa: BLE001
@@ -150,10 +167,31 @@ def _fix_skylight(report):
 
 
 def _ensure_sky_atmosphere(report):
-    for actor in _actors().get_all_level_actors():
-        if actor.get_class().get_name() == "SkyAtmosphere":
-            report["skyAtmosphere"] = "existing"
-            return
+    """Add a SkyAtmosphere only when asked. OFF by default, and removes one it added before.
+
+    A SkyAtmosphere models a planetary sky: Rayleigh scattering, a sun disc, a horizon. Rapture is
+    on the floor of the North Atlantic. Adding one here put a BLUE DAYLIGHT SKY WITH A HORIZON LINE
+    behind every window and every opening in the level shell, which is visible in the first capture
+    ever aimed away from the bathysphere. That is not a skybox that needs tuning, it is the wrong
+    kind of object, and it was mine - the level had none until this script added it.
+
+    Left switchable rather than deleted outright because the exterior/lighthouse maps are ABOVE
+    water and a sky is correct there; it just must not be the default for the undersea levels.
+    """
+    existing = [a for a in _actors().get_all_level_actors()
+                if a.get_class().get_name() == "SkyAtmosphere"]
+    if not SKY_ATMOSPHERE:
+        removed = 0
+        for actor in existing:
+            # Only ones this script added. A SkyAtmosphere someone placed deliberately stays.
+            if _has_tag(actor, REPAIR_TAG):
+                _actors().destroy_actor(actor)
+                removed += 1
+        report["skyAtmosphere"] = "disabled (removed %d)" % removed
+        return
+    if existing:
+        report["skyAtmosphere"] = "existing"
+        return
     atmo = _actors().spawn_actor_from_class(
         unreal.load_class(None, "/Script/Engine.SkyAtmosphere"), unreal.Vector(0, 0, 0))
     if atmo is not None:
