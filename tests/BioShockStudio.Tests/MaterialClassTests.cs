@@ -149,6 +149,44 @@ public sealed class MaterialClassTests(GameFixture game)
         }
     }
 
+    /// <summary>
+    /// An Opacity binding that resolves back to the material's own diffuse is NOT exported as a
+    /// mask.
+    /// </summary>
+    /// <remarks>
+    /// 85 materials in 1-Medical carry an <c>Opacity</c> <c>MaskMaterial</c>. 44 name a genuinely
+    /// separate mask; 41 resolve to their own diffuse. Exporting that second group as a cutout
+    /// forces the surface to <c>BLEND_MASKED</c> and punches holes through it wherever the COLOUR
+    /// is dark — carpets and wall panels come apart. These textures are DXT1 with no alpha, so
+    /// their RGB really is all there is, and reusing it as coverage is never what was meant.
+    /// Caught by a dry run of the UE5-side repair reporting it was about to bind
+    /// <c>Carpet_PatternC_WetDirt_Diffuse</c> as its own opacity mask.
+    /// </remarks>
+    [RequiresGameFact]
+    public void AnOpacityBindingThatIsJustTheDiffuseIsNotExportedAsAMask()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var export = package.Exports
+            .Where(e => package.GetClassName(e) == "Shader"
+                        && string.Equals(e.ObjectName, "Carpet_PatternC_WetDirt_Diffuse_shader",
+                            StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(export);
+
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-samemask-{Guid.NewGuid():N}");
+        try
+        {
+            var scene = MaterialExporter.ResolveMaterial(package, export, directory);
+            Assert.NotNull(scene);
+            Assert.NotNull(scene.Diffuse);
+            Assert.Null(scene.Opacity);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     /// <summary>A shader's nested opacity mask resolves and is exported as its authored RGB image.</summary>
     [RequiresGameFact]
     public void BloodSplatShaderExportsItsOpacityMask()

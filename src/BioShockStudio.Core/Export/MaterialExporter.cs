@@ -187,7 +187,20 @@ public static class MaterialExporter
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,
                 "SpecularColorMap", "FacingSpecularColorMap", "EdgeSpecularColorMap"),
-            Opacity = Lookup(files, material.OpacityTexture, material, "Opacity"),
+            // An Opacity binding that resolves to the SAME image as the diffuse is not a cutout,
+            // and must not be exported as one. 85 materials in 1-Medical carry an Opacity
+            // MaskMaterial; 44 name a genuinely separate mask (bloodsplat3opa,
+            // ConcreteWall_Hole_Opacity, BabyJane03_MASK, drips_SO) and 41 resolve back to their
+            // own diffuse — Carpet_PatternC_WetDirt_Diffuse, walltech_01_diffuse and the like.
+            // Consuming that second group as a mask forces the surface to BLEND_MASKED and cuts
+            // holes through it wherever the COLOUR is dark, so carpets and wall panels would come
+            // apart. These textures are DXT1 with no alpha, so their RGB is genuinely all there is.
+            // The reader still reports OpacityTexture faithfully for whatever the bytes name; the
+            // judgement about what is usable as a mask belongs here, at the point of harm.
+            Opacity = Lookup(files, material.OpacityTexture, material, "Opacity") is { } opacityFile
+                && opacityFile != Lookup(files, material.DiffuseTexture, material, MaterialReader.DiffuseSlots)
+                    ? opacityFile
+                    : null,
             Glossiness = material.Glossiness,
             SpecularBrightness = material.SpecularBrightness,
             EmissiveBrightness = material.EmissiveBrightness,

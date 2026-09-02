@@ -245,6 +245,10 @@ def _import_textures(rig, export_directory, destination, report=None):
     imported = []
     seen = {}
     by_file = {}
+    opacity_files = {
+        (material.get("name"), material.get("opacity"))
+        for material in (rig.get("materials") or []) if material.get("opacity")
+    }
 
     for entry in entries:
         source = os.path.join(export_directory, entry["file"].replace("/", os.sep))
@@ -254,7 +258,8 @@ def _import_textures(rig, export_directory, destination, report=None):
 
         # The same PNG can be bound twice with different intent. Import it once per distinct
         # intent, suffixed, so neither binding has to compromise on colour space.
-        srgb = entry["colourSpace"] == "Srgb"
+        is_opacity = (entry.get("material"), entry.get("file")) in opacity_files
+        srgb = False if is_opacity else entry["colourSpace"] == "Srgb"
         stem = os.path.splitext(os.path.basename(source))[0]
         key = (stem, srgb)
         if key in seen:
@@ -269,7 +274,9 @@ def _import_textures(rig, export_directory, destination, report=None):
         task.set_editor_property("destination_path", f"{destination}/Textures")
         task.set_editor_property("automated", True)
         task.set_editor_property("replace_existing", True)
-        task.set_editor_property("save", True)
+        # save=True routes through InternalPromptForCheckoutAndSave, whose Slate notification
+        # asserts under -run=pythonscript. Persist explicitly after applying texture settings.
+        task.set_editor_property("save", False)
         _asset_tools().import_asset_tasks([task])
 
         objects = list(task.get_objects())
@@ -282,7 +289,7 @@ def _import_textures(rig, export_directory, destination, report=None):
         if entry["usage"] == "NormalMap":
             texture.set_editor_property("compression_settings",
                                         unreal.TextureCompressionSettings.TC_NORMALMAP)
-        elif entry["usage"] in ("Mask", "Height"):
+        elif is_opacity or entry["usage"] in ("Mask", "Height"):
             texture.set_editor_property("compression_settings",
                                         unreal.TextureCompressionSettings.TC_MASKS)
 
@@ -452,7 +459,7 @@ def _repair_null_texture_parameters(master):
 
 
 def _material_texture_bindings(material, rig):
-    """Resolve diffuse/normal paths, including class-specific shader slots the JSON may omit."""
+    """Resolve texture paths, including class-specific shader slots the JSON may omit."""
     name = material["name"]
     by_slot = {}
     for entry in rig.get("textures") or []:
@@ -473,7 +480,11 @@ def _material_texture_bindings(material, rig):
             if slot in by_slot:
                 normal = by_slot[slot]
                 break
-    return diffuse, normal, by_slot
+
+    opacity = material.get("opacity")
+    if not opacity:
+        opacity = by_slot.get("Opacity")
+    return diffuse, normal, opacity, by_slot
 
 
 def _material_declares_alpha_texture(material, rig):
@@ -495,7 +506,7 @@ def _material_rendering_kind(material, rig):
     class_name = material.get("className") or ""
     name_lower = (material.get("name") or "").lower()
 
-    if material.get("masked"):
+    if material.get("opacity") or material.get("masked"):
         return "mask"
     if _material_declares_alpha_texture(material, rig):
         return "translucent"
@@ -526,7 +537,26 @@ def _blend_mode_for_kind(kind):
     return unreal.BlendMode.BLEND_OPAQUE
 
 
-def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None, rig=None):
+def _wire_opacity_mask(master, opacity_texture=None):
+    """Make an authored RGB coverage texture drive a masked master's clip input."""
+    edit = unreal.MaterialEditingLibrary
+    master.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY_MASK)
+    if (not isinstance(node, unreal.MaterialExpressionTextureSampleParameter2D)
+            or str(node.get_editor_property("parameter_name")) != "OpacityMask"):
+        node = edit.create_material_expression(
+            master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 450)
+        node.set_editor_property("parameter_name", "OpacityMask")
+        edit.connect_material_property(node, "R", unreal.MaterialProperty.MP_OPACITY_MASK)
+    node.set_editor_property("texture", opacity_texture or _default_base_color_texture())
+    node.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return node
+
+
+def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None,
+                           opacity_texture=None, rig=None):
     """Create the small, shared graph every imported BioShock material instances.
 
     Masked, translucent and additive variants are separate masters so UE5 blend mode and opacity
@@ -550,6 +580,8 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     path = "%s/Materials/Masters/%s" % (content_root, name)
     existing = _load_if_exists(path)
     if existing is not None:
+        if material.get("opacity"):
+            _wire_opacity_mask(existing, opacity_texture)
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
@@ -606,6 +638,8 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     roughness.set_editor_property("parameter_name", "Roughness")
     roughness.set_editor_property("default_value", 0.5)
     edit.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    if material.get("opacity"):
+        _wire_opacity_mask(master, opacity_texture)
     edit.recompile_material(master)
     unreal.EditorAssetLibrary.save_loaded_asset(master)
     return master
@@ -634,9 +668,10 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
             raise RuntimeError("could not create material instance %s" % path)
 
         library = unreal.MaterialEditingLibrary
-        diffuse, normal, by_slot = _material_texture_bindings(material, rig)
+        diffuse, normal, opacity, by_slot = _material_texture_bindings(material, rig)
         diffuse_texture = None
         normal_texture = None
+        opacity_texture = None
         for (owner, slot), texture in textures.items():
             if owner != material["name"] or texture is None:
                 continue
@@ -647,15 +682,20 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
                 diffuse_texture = texture
             elif file == normal:
                 normal_texture = texture
+            if file == opacity:
+                opacity_texture = texture
 
         instance.set_editor_property(
             "parent", _load_or_create_master(
                 material, content_root, diffuse_texture=diffuse_texture,
-                normal_texture=normal_texture, rig=rig))
+                normal_texture=normal_texture, opacity_texture=opacity_texture, rig=rig))
         if diffuse_texture is not None:
             library.set_material_instance_texture_parameter_value(instance, "BaseColor", diffuse_texture)
         if normal_texture is not None:
             library.set_material_instance_texture_parameter_value(instance, "Normal", normal_texture)
+        if opacity_texture is not None:
+            library.set_material_instance_texture_parameter_value(
+                instance, "OpacityMask", opacity_texture)
 
         # BioShock's Glossiness is not a normalised UE5 roughness value (the pistol writes 30),
         # so it is retained as provenance below rather than forced through an invented mapping.
