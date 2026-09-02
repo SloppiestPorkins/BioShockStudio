@@ -1247,6 +1247,94 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 	FGenericPlatformMisc::RequestExit(false);
 }
 
+/**
+ * Report which actor and material occupies a coarse grid of screen positions.
+ *
+ * A capture proves THAT something is wrong. It does not say which asset is responsible, and
+ * guessing that from a thumbnail is expensive: a flat pale wedge in one corner was assumed to be
+ * the compiled world's untextured section 0, and two rebuild-and-capture cycles later the frame
+ * came back byte-identical, because it never was. Deprojecting the screen back into the world
+ * answers the question directly.
+ */
+void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 ShotH)
+{
+	UWorld* World = PC ? PC->GetWorld() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	int32 Steps = 5;
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockprobesteps="), Steps);
+	Steps = FMath::Clamp(Steps, 2, 12);
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockScreenProbe), true);
+	Params.AddIgnoredActor(PC->GetPawn());
+
+	for (int32 Y = 0; Y < Steps; ++Y)
+	{
+		for (int32 X = 0; X < Steps; ++X)
+		{
+			// Sample cell centres so the grid never lands exactly on a screen edge.
+			const float U = (X + 0.5f) / Steps;
+			const float V = (Y + 0.5f) / Steps;
+			const FVector2D Screen(U * ShotW, V * ShotH);
+
+			FVector Origin = FVector::ZeroVector;
+			FVector Direction = FVector::ForwardVector;
+			if (!PC->DeprojectScreenPositionToWorld(Screen.X, Screen.Y, Origin, Direction))
+			{
+				continue;
+			}
+
+			FHitResult Hit;
+			const FVector End = Origin + Direction * 100000.0f;
+			if (!World->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params))
+			{
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f hit=none"), U, V);
+				continue;
+			}
+
+			FString ActorName = Hit.GetActor() ? Hit.GetActor()->GetActorNameOrLabel() : TEXT("?");
+			FString MaterialName = TEXT("none");
+			FString MeshName = TEXT("none");
+			if (UPrimitiveComponent* Comp = Hit.GetComponent())
+			{
+				if (UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(Comp))
+				{
+					if (UStaticMesh* Mesh = SM->GetStaticMesh())
+					{
+						MeshName = Mesh->GetName();
+					}
+				}
+				// List EVERY material on the component rather than indexing by Hit.ElementIndex.
+				// ElementIndex is a physics element, not a material section, and on a
+				// complex-collision trace it does not correspond to a slot at all - reading it as one
+				// reported "material=none" for a door whose material was in fact correctly bound, and
+				// sent two hours chasing a binding bug that did not exist. A short list of what is
+				// actually on the component cannot lie in that direction.
+				TArray<FString> Names;
+				const int32 Count = Comp->GetNumMaterials();
+				for (int32 Slot = 0; Slot < Count && Slot < 6; ++Slot)
+				{
+					UMaterialInterface* Mat = Comp->GetMaterial(Slot);
+					Names.Add(Mat ? Mat->GetName() : TEXT("<empty>"));
+				}
+				if (Names.Num())
+				{
+					MaterialName = FString::Printf(
+						TEXT("[%d] %s"), Count, *FString::Join(Names, TEXT(", ")));
+				}
+			}
+
+			UE_LOG(
+				LogTemp, Display,
+				TEXT("BIOSHOCK_PROBE u=%.2f v=%.2f dist=%.0f actor=%s mesh=%s material=%s"),
+				U, V, Hit.Distance, *ActorName, *MeshName, *MaterialName);
+		}
+	}
+}
+
 void AShockGameMode::TickScreenshotCapture()
 {
 	++ScreenshotTicks;
@@ -1330,6 +1418,11 @@ void AShockGameMode::TickScreenshotCapture()
 			CaptureWorld, Target, FPaths::GetPath(Path), FPaths::GetCleanFilename(Path));
 		UE_LOG(
 			LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_REQUEST path=%s %dx%d"), *Path, ShotW, ShotH);
+
+		// Name what is actually on screen. A picture shows THAT something is wrong; it does not say
+		// which actor or material is responsible, and guessing at that from a thumbnail is how an
+		// afternoon disappears. Deproject a coarse grid back into the world and report the hit.
+		ProbeScreenGrid(PC, ShotW, ShotH);
 		return;   // one more tick so the export lands before the world tears down
 	}
 

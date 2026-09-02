@@ -162,6 +162,45 @@ def _use_complex_collision(mesh):
     return True
 
 
+def _ensure_invisible_material():
+    """A fully-clipped material for compiled-world sections that name no texture at all.
+
+    Section 0 of 1-Medical's shell is 619 triangles with `material: null, materialKey: null` - not
+    the same thing as section 3, which names a real ZoningOnlyBrushMaterial. A UE2 BSP surface that
+    carries no texture is a ZONE PORTAL: a large room-dividing plane the original game never draws.
+    Left unassigned it renders as Unreal's default grey, which is the flat wedge that has been
+    sitting across the corner of every captured frame.
+
+    So these want to be INVISIBLE, not textured. Masked with a zero opacity mask clips every pixel
+    while keeping the triangles present for collision, which is what a portal plane should be.
+    """
+    path = "%s/Materials/M_BioShock_Invisible" % CONTENT_ROOT
+    # does_asset_exist first: load_asset on a missing asset logs at Error level, and a commandlet
+    # treats any logged Error as a failed run - so the probe alone would fail an otherwise clean
+    # repair the first time it is used in a content root.
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        existing = unreal.EditorAssetLibrary.load_asset(path)
+        if existing is not None:
+            return existing
+
+    factory = unreal.MaterialFactoryNew()
+    material = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+        "M_BioShock_Invisible", "%s/Materials" % CONTENT_ROOT, unreal.Material, factory)
+    if material is None:
+        return None
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    material.set_editor_property("two_sided", True)
+    edit = unreal.MaterialEditingLibrary
+    zero = edit.create_material_expression(
+        material, unreal.MaterialExpressionConstant, -350, 0)
+    zero.set_editor_property("r", 0.0)
+    edit.connect_material_property(zero, "", unreal.MaterialProperty.MP_OPACITY_MASK)
+    edit.recompile_material(material)
+    unreal.EditorAssetLibrary.save_loaded_asset(material)
+    return material
+
+
 def _materials_by_key_from_existing(manifest, destination):
     """Resolve section materialKeys to the MI_* assets a prior import already created."""
     by_key = {}
@@ -215,6 +254,43 @@ def main():
             else:
                 before = len(mesh.get_editor_property("static_materials") or [])
                 import_level._assign_asset_material(mesh, asset, materials_by_key, report)
+
+                # Fill the leftovers with the invisible material rather than leaving them on
+                # Unreal's default grey. Scoped to the compiled world on purpose: here an empty
+                # slot means the source surface named no texture, which means a zone portal.
+                # Elsewhere an empty slot means something went wrong and should stay visible.
+                invisible = _ensure_invisible_material()
+                hidden = 0
+                if invisible is not None:
+                    # Build FRESH StaticMaterial structs rather than mutating the ones
+                    # get_editor_property hands back. Mutating those and writing the array back
+                    # reports success and changes nothing - the first version of this counted the
+                    # assignments it intended and claimed sectionsHidden=1 while slot 0 stayed
+                    # empty on disk. Constructing new structs is what _assign_asset_material does,
+                    # and it is the pattern that actually persists.
+                    rebuilt = []
+                    for slot in mesh.get_editor_property("static_materials") or []:
+                        fresh = unreal.StaticMaterial()
+                        fresh.set_editor_property(
+                            "material_slot_name", slot.get_editor_property("material_slot_name"))
+                        bound = slot.get_editor_property("material_interface")
+                        if bound is None:
+                            bound = invisible
+                            hidden += 1
+                        fresh.set_editor_property("material_interface", bound)
+                        rebuilt.append(fresh)
+                    if hidden:
+                        mesh.set_editor_property("static_materials", rebuilt)
+
+                # Count what is actually bound now, by re-reading. A counter that reports what it
+                # tried to do is worth nothing.
+                entry["sectionsHidden"] = sum(
+                    1 for s in (mesh.get_editor_property("static_materials") or [])
+                    if s.get_editor_property("material_interface") == invisible)
+                entry["stillEmpty"] = [
+                    i for i, s in enumerate(mesh.get_editor_property("static_materials") or [])
+                    if s.get_editor_property("material_interface") is None]
+
                 slots = mesh.get_editor_property("static_materials") or []
                 resolved = sum(
                     1 for s in slots if s.get_editor_property("material_interface") is not None)

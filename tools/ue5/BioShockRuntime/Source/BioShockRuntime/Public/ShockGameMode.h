@@ -113,6 +113,9 @@ private:
 	 */
 	void TickScreenshotCapture();
 
+	/** Deproject a grid of screen positions and log the actor/mesh/material each one hits. */
+	void ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 ShotH);
+
 	FTimerHandle SliceEncounterSpawnTimer1;
 	FTimerHandle SliceEncounterSpawnTimer2;
 	FTimerHandle SliceEncounterVerifyTimer;
