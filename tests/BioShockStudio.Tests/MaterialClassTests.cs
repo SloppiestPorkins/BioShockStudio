@@ -1,6 +1,8 @@
 using BioShockStudio.Core.Export;
 using BioShockStudio.Core.Materials;
 using BioShockStudio.Core.Packages;
+using System.Buffers.Binary;
+using System.IO.Compression;
 using Xunit;
 
 namespace BioShockStudio.Tests;
@@ -137,6 +139,7 @@ public sealed class MaterialClassTests(GameFixture game)
             var scene = MaterialExporter.ResolveMaterial(package, export, directory);
             Assert.NotNull(scene);
             Assert.NotNull(scene.Diffuse);
+            Assert.Null(scene.Opacity);
             Assert.True(File.Exists(Path.Combine(directory, scene.Diffuse.Replace('/', Path.DirectorySeparatorChar))),
                 $"water diffuse '{scene.Diffuse}' was not written");
         }
@@ -144,6 +147,86 @@ public sealed class MaterialClassTests(GameFixture game)
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
+    }
+
+    /// <summary>A shader's nested opacity mask resolves and is exported as its authored RGB image.</summary>
+    [RequiresGameFact]
+    public void BloodSplatShaderExportsItsOpacityMask()
+    {
+        using var package = BioShockPackage.Open(Map("1-Medical"));
+        var export = package.Exports
+            .Where(e => package.GetClassName(e) == "Shader"
+                        && string.Equals(e.ObjectName, "bloodsplat3_shader", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(e => e.SerialSize);
+        Assert.NotNull(export);
+
+        var material = MaterialReader.Read(package, export!);
+        Assert.NotNull(material);
+        Assert.Equal("bloodsplat3opa", material!.OpacityTexture, ignoreCase: true);
+
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-opacity-{Guid.NewGuid():N}");
+        try
+        {
+            var scene = MaterialExporter.ResolveMaterial(package, export!, directory);
+            Assert.NotNull(scene);
+            Assert.Equal("Textures/bloodsplat3opa.png", scene!.Opacity, ignoreCase: true);
+
+            string path = Path.Combine(directory, scene.Opacity!.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(File.Exists(path), $"opacity mask '{scene.Opacity}' was not written");
+            Assert.True(ReadPngRgbStandardDeviation(path) > 5,
+                "exported opacity mask is uniform; its authored shape should be present in RGB intensity");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static double ReadPngRgbStandardDeviation(string path)
+    {
+        byte[] png = File.ReadAllBytes(path);
+        using var compressed = new MemoryStream();
+        int offset = 8;
+        int width = 0, height = 0;
+        while (offset + 12 <= png.Length)
+        {
+            int length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset, 4));
+            string type = System.Text.Encoding.ASCII.GetString(png, offset + 4, 4);
+            if (type == "IHDR")
+            {
+                width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset + 8, 4));
+                height = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset + 12, 4));
+            }
+            else if (type == "IDAT")
+            {
+                compressed.Write(png, offset + 8, length);
+            }
+            offset += length + 12;
+        }
+
+        compressed.Position = 0;
+        using var zlib = new ZLibStream(compressed, CompressionMode.Decompress);
+        using var raw = new MemoryStream();
+        zlib.CopyTo(raw);
+        byte[] scanlines = raw.ToArray();
+
+        double sum = 0, sumSquares = 0;
+        long count = (long)width * height * 3;
+        for (int y = 0; y < height; y++)
+        {
+            int row = y * (width * 4 + 1);
+            Assert.Equal(0, scanlines[row]);
+            for (int x = 0; x < width; x++)
+            for (int channel = 0; channel < 3; channel++)
+            {
+                byte value = scanlines[row + 1 + x * 4 + channel];
+                sum += value;
+                sumSquares += value * value;
+            }
+        }
+
+        double mean = sum / count;
+        return Math.Sqrt(sumSquares / count - mean * mean);
     }
 
     /// <summary>
@@ -210,6 +293,7 @@ public sealed class MaterialClassTests(GameFixture game)
             var scene = MaterialExporter.ResolveMaterial(package, export, directory);
             Assert.NotNull(scene);
             Assert.NotNull(scene.Diffuse);
+            Assert.Null(scene.Opacity);
             Assert.True(File.Exists(Path.Combine(directory, scene.Diffuse.Replace('/', Path.DirectorySeparatorChar))),
                 $"beam falloff '{scene.Diffuse}' was not written");
         }

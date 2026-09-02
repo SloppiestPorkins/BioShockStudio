@@ -217,6 +217,9 @@ public sealed record BioShockMaterial
         TextureFor("SpecularColorMap") ?? TextureFor("FacingSpecularColorMap") ?? TextureFor("EdgeSpecularColorMap")
         ?? TextureFor("AliveSpecularColorMap");
 
+    /// <summary>Coverage texture named by the shader's nested <c>Opacity</c> mask material.</summary>
+    public string? OpacityTexture => TextureFor("Opacity");
+
     public string? TextureFor(string slot) =>
         Textures.FirstOrDefault(t => string.Equals(t.Slot, slot, StringComparison.OrdinalIgnoreCase))?.TextureName;
 
@@ -716,6 +719,12 @@ public static class MaterialReader
                 case "CheckpointTypePadding": continue;
             }
 
+            if (property is { Name: "Opacity", Type: UnrealPropertyType.Struct, StructName: "MaskMaterial" })
+            {
+                var texture = ReadMaskTexture(package, property);
+                if (texture is not null) { textures.Add(texture); continue; }
+            }
+
             // A texture binding is an Object property whose reference resolves to a Texture. It is
             // NOT a property whose name is on a list: the list held thirteen names and the game ships
             // at least nine material classes, each with its own — PlantShader binds AliveDiffuse,
@@ -782,6 +791,30 @@ public static class MaterialReader
         if (name is null) return null;
 
         return new MaterialTexture { Slot = property.Name, TextureName = name, Reference = reference };
+    }
+
+    /// <summary>
+    /// Follows a <c>MaskMaterial</c>'s nested object binding, accepting it only when it resolves to
+    /// a <c>Texture</c>, just like a top-level material binding.
+    /// </summary>
+    private static MaterialTexture? ReadMaskTexture(BioShockPackage package, UnrealProperty property)
+    {
+        List<UnrealProperty> fields;
+        try { fields = UnrealPropertyReader.Read(property.Value, package.Names, out _, 0); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+
+        foreach (var field in fields)
+        {
+            if (field.Type != UnrealPropertyType.Object) continue;
+            var texture = ReadTexture(package, field);
+            if (texture is not null) return texture with { Slot = property.Name };
+        }
+
+        return null;
     }
 
     /// <summary>Reads a <c>MaterialSequence</c> a slot points at, or null if it points elsewhere.</summary>

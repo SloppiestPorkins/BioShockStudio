@@ -366,6 +366,7 @@ public sealed record SceneMaterial
 
     public string? NormalMap { get; init; }
     public string? Specular { get; init; }
+    public string? Opacity { get; init; }
 
     public float? Glossiness { get; init; }
     public float? SpecularBrightness { get; init; }

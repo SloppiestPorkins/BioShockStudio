@@ -187,6 +187,7 @@ public static class MaterialExporter
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,
                 "SpecularColorMap", "FacingSpecularColorMap", "EdgeSpecularColorMap"),
+            Opacity = Lookup(files, material.OpacityTexture, material, "Opacity"),
             Glossiness = material.Glossiness,
             SpecularBrightness = material.SpecularBrightness,
             EmissiveBrightness = material.EmissiveBrightness,

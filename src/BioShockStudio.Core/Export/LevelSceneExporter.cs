@@ -1152,6 +1152,7 @@ public static class LevelSceneExporter
         Diffuse = material.Diffuse,
         NormalMap = material.NormalMap,
         Specular = material.Specular,
+        Opacity = material.Opacity,
         Glossiness = material.Glossiness,
         SpecularBrightness = material.SpecularBrightness,
         EmissiveBrightness = material.EmissiveBrightness,
@@ -1306,6 +1307,7 @@ public sealed record LevelMaterialDocument
     public string? Diffuse { get; init; }
     public string? NormalMap { get; init; }
     public string? Specular { get; init; }
+    public string? Opacity { get; init; }
     public float? Glossiness { get; init; }
     public float? SpecularBrightness { get; init; }
     public float? EmissiveBrightness { get; init; }
