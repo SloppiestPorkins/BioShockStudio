@@ -1256,6 +1256,46 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
  * came back byte-identical, because it never was. Deprojecting the screen back into the world
  * answers the question directly.
  */
+void AShockGameMode::ProbeViewmodel(APlayerController* PC, int32 ShotW, int32 ShotH)
+{
+	const AShockPlayer* Player = Cast<AShockPlayer>(PC ? PC->GetPawn() : nullptr);
+	const USkeletalMeshComponent* Hands = Player ? Player->ViewHands : nullptr;
+	const UCameraComponent* Camera = Player ? Player->FirstPersonCamera : nullptr;
+	if (!Hands || !Camera)
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL none"));
+		return;
+	}
+
+	// Where the hands ACTUALLY are relative to the eye, in the camera's own frame: +X forward,
+	// +Y right, +Z up. Reported because "the viewmodel is above the camera" has so far been tuned
+	// by trying rotations and re-photographing, at roughly ten minutes a guess. The numbers below
+	// say which axis is wrong and by how much, so the correction can be computed instead.
+	const FTransform CameraToWorld = Camera->GetComponentTransform();
+	const FBoxSphereBounds Bounds = Hands->Bounds;
+	const FVector CentreLocal = CameraToWorld.InverseTransformPosition(Bounds.Origin);
+
+	UE_LOG(
+		LogTemp, Display,
+		TEXT("BIOSHOCK_VIEWMODEL relLoc=%s relRot=%s boundsCentreCam=(%.1f,%.1f,%.1f) radius=%.1f"),
+		*Hands->GetRelativeLocation().ToCompactString(),
+		*Hands->GetRelativeRotation().ToCompactString(),
+		CentreLocal.X, CentreLocal.Y, CentreLocal.Z, Bounds.SphereRadius);
+
+	// And where that lands on screen, in the same 0..1 the grid below uses, so it can be read
+	// against the shot directly. Behind the eye (X <= 0) is the interesting failure: it means the
+	// mesh is not merely misplaced but out of the frustum entirely.
+	FVector2D Screen = FVector2D::ZeroVector;
+	const bool bOnScreen = PC->ProjectWorldLocationToScreen(Bounds.Origin, Screen);
+	UE_LOG(
+		LogTemp, Display,
+		TEXT("BIOSHOCK_VIEWMODEL screen=%s forwardOfEye=%s"),
+		bOnScreen && ShotW > 0 && ShotH > 0
+			? *FString::Printf(TEXT("u=%.2f v=%.2f"), Screen.X / ShotW, Screen.Y / ShotH)
+			: TEXT("offscreen"),
+		CentreLocal.X > 0.0f ? TEXT("yes") : TEXT("NO — behind the camera"));
+}
+
 void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 ShotH)
 {
 	UWorld* World = PC ? PC->GetWorld() : nullptr;
@@ -1263,6 +1303,8 @@ void AShockGameMode::ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 S
 	{
 		return;
 	}
+
+	ProbeViewmodel(PC, ShotW, ShotH);
 
 	int32 Steps = 5;
 	FParse::Value(FCommandLine::Get(), TEXT("bioshockprobesteps="), Steps);

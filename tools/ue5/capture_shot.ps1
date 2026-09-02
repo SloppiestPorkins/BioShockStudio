@@ -27,7 +27,12 @@ param(
   # shows default materials, which looks exactly like the bug this harness is meant to catch.
   [int]$SettleTicks = 12,
   [double]$Interval = 0.5,
-  [int]$TimeoutSeconds = 900
+  [int]$TimeoutSeconds = 900,
+  # Extra switches passed straight through to the game, e.g.
+  #   -Extra '-bioshockvmrot=90,0,0','-bioshockvmoffset=28,10,-24'
+  # Framing the viewmodel is a look-at-it judgement, and the only way to look at it headlessly is
+  # this harness -- so the values worth trying must not each cost a plugin rebuild.
+  [string[]]$Extra = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,7 +60,8 @@ $args = @(
   "-bioshockshotsettle=$SettleTicks",
   "-bioshockshotinterval=$Interval",
   '-unattended', '-nopause', '-nosplash', '-log', "-abslog=$log"
-)
+) + $Extra
+if ($Extra.Count) { Write-Output "extra   : $($Extra -join ' ')" }
 
 # NOT Minimized: a minimised game window can present an empty backbuffer, so the shot comes back
 # black and reads as "the level is unlit" when it is really "nothing was drawn".

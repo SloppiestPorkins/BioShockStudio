@@ -116,6 +116,9 @@ private:
 	/** Deproject a grid of screen positions and log the actor/mesh/material each one hits. */
 	void ProbeScreenGrid(APlayerController* PC, int32 ShotW, int32 ShotH);
 
+	/** Where the first-person hands sit relative to the eye, and where that lands on screen. */
+	void ProbeViewmodel(APlayerController* PC, int32 ShotW, int32 ShotH);
+
 	FTimerHandle SliceEncounterSpawnTimer1;
 	FTimerHandle SliceEncounterSpawnTimer2;
 	FTimerHandle SliceEncounterVerifyTimer;

@@ -191,7 +191,52 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 
 	// Where the grip should sit, in the camera's own space. Editor-tunable (ViewmodelOffset) —
 	// framing this is a judgement made looking at it, not one a headless verify can make.
-	const FVector DesiredLocal = ViewmodelOffset;
+	//
+	// Overridable from the command line as well, because "looking at it" here means the -game
+	// capture harness, and a rebuild per candidate value costs about a minute on top of a ten
+	// minute shot. -bioshockvmoffset=X,Y,Z and -bioshockvmrot=P,Y,R let one build test many.
+	FVector DesiredLocal = ViewmodelOffset;
+	FRotator DesiredRotation = ViewmodelRotation;
+	{
+		// bShouldStopOnSeparator=false is REQUIRED and is why the first version of this silently
+		// did nothing: FParse::Value's FString overload defaults it to true, and comma is one of
+		// the separators it stops on, so "-bioshockvmrot=90,0,0" yielded "90". That split to one
+		// part, the three-part check failed, and the default was kept with nothing logged --
+		// a capture that looked like "pitch 90 changes nothing" rather than "the flag was ignored".
+		const auto ParseTriple = [](const TCHAR* Key, float& A, float& B, float& C) -> bool
+		{
+			FString Value;
+			if (!FParse::Value(FCommandLine::Get(), Key, Value, /*bShouldStopOnSeparator*/ false))
+			{
+				return false;
+			}
+			TArray<FString> Parts;
+			Value.ParseIntoArray(Parts, TEXT(","));
+			if (Parts.Num() != 3)
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("BIOSHOCK_VIEWMODEL %s expects three comma-separated numbers, got '%s'"),
+					Key, *Value);
+				return false;
+			}
+			A = FCString::Atof(*Parts[0]);
+			B = FCString::Atof(*Parts[1]);
+			C = FCString::Atof(*Parts[2]);
+			return true;
+		};
+
+		float X = 0.0f, Y = 0.0f, Z = 0.0f;
+		if (ParseTriple(TEXT("bioshockvmoffset="), X, Y, Z))
+		{
+			DesiredLocal = FVector(X, Y, Z);
+		}
+		if (ParseTriple(TEXT("bioshockvmrot="), X, Y, Z))
+		{
+			DesiredRotation = FRotator(X, Y, Z);
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL framing offset=%s rot=%s"),
+		*DesiredLocal.ToCompactString(), *DesiredRotation.ToCompactString());
 
 	// The grip socket expressed in ViewHands' OWN component space, so the correction below is a
 	// property of the mesh's pivot rather than of wherever the player happened to be looking.
@@ -212,8 +257,8 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 	// being subtracted: DesiredLocal is in camera space while SocketLocal is in the mesh's own space,
 	// so subtracting one from the other directly is only valid while the two spaces are aligned. With
 	// ViewmodelRotation non-zero they are not, and the grip lands somewhere arbitrary.
-	ViewHands->SetRelativeRotation(ViewmodelRotation);
-	const FVector SocketInCameraSpace = ViewmodelRotation.RotateVector(SocketLocal);
+	ViewHands->SetRelativeRotation(DesiredRotation);
+	const FVector SocketInCameraSpace = DesiredRotation.RotateVector(SocketLocal);
 	ViewHands->SetRelativeLocation(DesiredLocal - SocketInCameraSpace);
 }
 
