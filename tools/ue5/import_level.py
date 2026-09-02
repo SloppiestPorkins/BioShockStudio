@@ -301,6 +301,15 @@ def _import_cubemap_probes(manifest, existing, report, handled, face_textures=No
             actor.tags = tags
 
 
+# BioShock actor classes that must come through as a real UE5 class rather than a marker,
+# because the engine gives them behaviour a TargetPoint does not have. PlayerStart is the one
+# that matters today: without it ChoosePlayerStart finds nothing and the pawn spawns at world
+# origin. Everything absent from this table stays a positioned TargetPoint, which is honest —
+# it records where something belongs without pretending the pipeline understands it yet.
+_PLACED_ACTOR_CLASSES = {
+    "PlayerStart": unreal.PlayerStart,
+}
+
 def _import_actors(manifest, existing, report, handled):
     """Everything that is not a light: positioned, identified, and honestly reported."""
     for entry in manifest.get("actors") or []:
@@ -314,17 +323,30 @@ def _import_actors(manifest, existing, report, handled):
             continue
         handled.add(key)
 
+        spawn_class = _PLACED_ACTOR_CLASSES.get(entry.get("className"), unreal.TargetPoint)
+
         actor = existing.get(key)
+        # A previous run placed everything as a TargetPoint, including the PlayerStarts. Recreate
+        # when the existing actor is the wrong class, the same way _import_instances does for a
+        # mesh whose rig appeared later.
+        if actor is not None and not isinstance(actor, spawn_class):
+            _actor_subsystem().destroy_actor(actor)
+            actor = None
+
         if actor is None:
-            # TargetPoint, not EmptyActor: the latter does not exist in UE5.7's Python API, and a
-            # TargetPoint is the engine's own positioned-marker class, which is exactly what an
-            # actor whose geometry has not been imported yet should be.
+            # TargetPoint is the fallback, not the rule: it is the engine's own positioned-marker
+            # class, right for an actor whose geometry this pipeline has not imported. But a class
+            # with real engine behaviour has to come through as itself — a PlayerStart placed as a
+            # TargetPoint is invisible to ChoosePlayerStart, so the pawn spawns at world origin,
+            # outside the level, which is exactly what the first captured render showed.
             actor = _actor_subsystem().spawn_actor_from_class(
-                unreal.TargetPoint, unreal.Vector(*(entry.get("location") or [0, 0, 0])))
+                spawn_class, unreal.Vector(*(entry.get("location") or [0, 0, 0])))
             if actor is None:
                 report["skipped"] += 1
                 continue
             report["created"] += 1
+            if spawn_class is not unreal.TargetPoint:
+                report["typedActors"] = report.get("typedActors", 0) + 1
         else:
             report["updated"] += 1
 
