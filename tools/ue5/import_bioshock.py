@@ -366,7 +366,31 @@ def _load_engine_texture(*paths):
         "could not load any Engine Texture2D from %s (last=%r)" % (list(paths), last))
 
 
-def _default_base_color_texture():
+def _default_base_color_texture(blend_mode=None):
+    """The stand-in for an empty BaseColor, chosen by how the material BLENDS.
+
+    White is only a safe default for an opaque surface. On an additive material it is the worst
+    possible value: additive adds its colour to whatever is behind it, so a pure white square
+    saturates everything it covers. That is exactly what happened to the Medical Pavilion god rays
+    - LightBeamShader exported with no base colour, this filled it with WhiteSquareTexture, and the
+    beams rendered as a flat white wedge over a quarter of the frame. Black is the identity for
+    addition, so an additive material with nothing bound now disappears instead of blowing out,
+    which is both the correct no-op and a far more legible failure.
+
+    Modulate is the mirror image: it MULTIPLIES, so white is its identity and black would erase
+    everything behind it. Opaque and the translucent modes keep white.
+    """
+    if blend_mode == unreal.BlendMode.BLEND_ADDITIVE:
+        for path in ("/Engine/EngineResources/Black",
+                     "/Engine/EngineMaterials/BlackTexture"):
+            texture = unreal.load_object(None, path) or unreal.load_object(
+                None, "%s.%s" % (path, path.rsplit("/", 1)[-1]))
+            if texture is not None:
+                return texture
+        # Say so rather than quietly handing back the value this exists to avoid.
+        unreal.log_warning(
+            "[import] no engine black texture found; an additive master will be filled with "
+            "white and will blow out wherever it draws")
     return _load_engine_texture(
         "/Engine/EngineResources/WhiteSquareTexture",
         "/Engine/EngineMaterials/DefaultDiffuse",
@@ -391,6 +415,12 @@ def _repair_null_texture_parameters(master):
         return 0
     edit = unreal.MaterialEditingLibrary
     repaired = 0
+    # The blend mode decides what an empty BaseColor should be filled with — see
+    # _default_base_color_texture. Read once here rather than per parameter.
+    try:
+        blend_mode = master.get_editor_property("blend_mode")
+    except Exception:  # noqa: BLE001
+        blend_mode = None
     checks = (
         (unreal.MaterialProperty.MP_BASE_COLOR, False),
         (unreal.MaterialProperty.MP_EMISSIVE_COLOR, False),
@@ -413,7 +443,7 @@ def _repair_null_texture_parameters(master):
             node.set_editor_property(
                 "sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
         else:
-            node.set_editor_property("texture", _default_base_color_texture())
+            node.set_editor_property("texture", _default_base_color_texture(blend_mode))
         repaired += 1
     if repaired:
         edit.recompile_material(master)
