@@ -518,8 +518,13 @@ def _material_rendering_kind(material, rig):
     class_name = material.get("className") or ""
     name_lower = (material.get("name") or "").lower()
 
-    # A real Opacity MaskMaterial that the exporter judged safe to use as a cutout.
+    # A real Opacity MaskMaterial the exporter judged safe to use as coverage.
     if material.get("opacity"):
+        # outputBlending 1/2 (blood splats, drips, decals) means SOFT alpha blend -- a hard
+        # BLEND_MASKED clip gives a jagged 1-bit edge and reads as "a weird texture". A genuine
+        # hole (bMasked, e.g. wallhole_*) stays a hard cutout.
+        if material.get("outputBlending") in (1, 2) and not material.get("masked"):
+            return "translucent_mask"
         return "mask"
     # `bMasked` alone is NOT a reliable hard-cutout signal in this game. 35 of 1-Medical's 55
     # masked=True materials have no Opacity struct and are SOLID surfaces -- Walltech panels,
@@ -554,24 +559,33 @@ def _material_rendering_kind(material, rig):
 def _blend_mode_for_kind(kind):
     if kind == "mask":
         return unreal.BlendMode.BLEND_MASKED
-    if kind == "translucent":
+    if kind in ("translucent", "translucent_mask"):
         return unreal.BlendMode.BLEND_TRANSLUCENT
     if kind == "additive":
         return unreal.BlendMode.BLEND_ADDITIVE
     return unreal.BlendMode.BLEND_OPAQUE
 
 
-def _wire_opacity_mask(master, opacity_texture=None):
-    """Make an authored RGB coverage texture drive a masked master's clip input."""
+def _wire_opacity_mask(master, opacity_texture=None, soft=False):
+    """Make an authored RGB coverage texture drive the master's opacity.
+
+    soft=False (a genuine cutout): BLEND_MASKED, the texture's R clips MP_OPACITY_MASK -- a hard
+    1-bit edge, right for a hole punched through a wall.
+    soft=True (a blood splat / drip / decal, outputBlending 1-2): BLEND_TRANSLUCENT, the texture's
+    R drives MP_OPACITY -- a soft alpha blend. A hard clip here is the jagged-edge "weird texture".
+    """
     edit = unreal.MaterialEditingLibrary
-    master.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
-    node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY_MASK)
+    prop = unreal.MaterialProperty.MP_OPACITY if soft else unreal.MaterialProperty.MP_OPACITY_MASK
+    master.set_editor_property(
+        "blend_mode",
+        unreal.BlendMode.BLEND_TRANSLUCENT if soft else unreal.BlendMode.BLEND_MASKED)
+    node = edit.get_material_property_input_node(master, prop)
     if (not isinstance(node, unreal.MaterialExpressionTextureSampleParameter2D)
             or str(node.get_editor_property("parameter_name")) != "OpacityMask"):
         node = edit.create_material_expression(
             master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 450)
         node.set_editor_property("parameter_name", "OpacityMask")
-        edit.connect_material_property(node, "R", unreal.MaterialProperty.MP_OPACITY_MASK)
+        edit.connect_material_property(node, "R", prop)
     node.set_editor_property("texture", opacity_texture or _default_base_color_texture())
     node.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
     edit.recompile_material(master)
@@ -605,7 +619,7 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     existing = _load_if_exists(path)
     if existing is not None:
         if material.get("opacity"):
-            _wire_opacity_mask(existing, opacity_texture)
+            _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
@@ -663,7 +677,7 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     roughness.set_editor_property("default_value", 0.5)
     edit.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
     if material.get("opacity"):
-        _wire_opacity_mask(master, opacity_texture)
+        _wire_opacity_mask(master, opacity_texture, soft=(kind == "translucent_mask"))
     edit.recompile_material(master)
     unreal.EditorAssetLibrary.save_loaded_asset(master)
     return master
