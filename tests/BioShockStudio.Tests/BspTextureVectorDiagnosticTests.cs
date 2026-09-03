@@ -74,4 +74,63 @@ public sealed class BspTextureVectorDiagnosticTests(GameFixture game)
 
         Assert.NotEmpty(byMat);
     }
+
+    /// <summary>
+    /// Cross-check the FBspSurf field reading against Nyko's spec: vNormal should index a
+    /// unit-length entry of Vectors that agrees with the node's own plane, and the texture axes'
+    /// magnitudes (texels per unit) should cluster. A material whose vNormal is not unit, or not
+    /// aligned with the plane, has a shifted or mis-indexed surface record.
+    /// </summary>
+    [RequiresGameFact]
+    public void ReportSurfaceVectorSanityPerMaterial()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var model = ModelReader.BuiltWorld(package);
+        var world = BspWorldReader.Read(package, package.Exports[model!.Source.ExportIndex])!;
+
+        var rows = new Dictionary<int, (int N, int NormalBad, int PlaneBad, List<float> UMag, List<float> VMag, List<int> UIdx)>();
+        foreach (var node in world.Nodes)
+        {
+            if (!node.IsPolygon || node.Surface < 0 || node.Surface >= world.Surfaces.Count) continue;
+            var s = world.Surfaces[node.Surface];
+            if (!s.IsDrawn) continue;
+            if (!rows.TryGetValue(s.Material.Value, out var r))
+                r = (0, 0, 0, [], [], []);
+
+            r.N++;
+            if (s.Normal >= 0 && s.Normal < world.Vectors.Count)
+            {
+                var vn = world.Vectors[s.Normal];
+                if (MathF.Abs(vn.Length() - 1f) > 0.05f) r.NormalBad++;
+                else if (MathF.Abs(Vector3.Dot(Vector3.Normalize(vn), node.Plane.Normal)) < 0.9f) r.PlaneBad++;
+            }
+            else r.NormalBad++;
+
+            if (s.TextureU >= 0 && s.TextureU < world.Vectors.Count)
+            {
+                r.UMag.Add(world.Vectors[s.TextureU].Length());
+                r.UIdx.Add(s.TextureU);
+            }
+            if (s.TextureV >= 0 && s.TextureV < world.Vectors.Count)
+                r.VMag.Add(world.Vectors[s.TextureV].Length());
+            rows[s.Material.Value] = r;
+        }
+
+        Log("=== FBspSurf vector sanity by material (Medical) — |Vn|~1, Vn·plane~1, |Vu|/|Vv| = texels/unit ===");
+        Log($"  Vectors array: {world.Vectors.Count} entries");
+        foreach (var (matIdx, r) in rows.OrderBy(k => k.Key))
+        {
+            string name = matIdx > 0 && matIdx <= package.Exports.Count ? package.Exports[matIdx - 1].ObjectName
+                : matIdx < 0 && -matIdx <= package.Imports.Count ? package.Imports[-matIdx - 1].ObjectName : "?";
+            r.UMag.Sort();
+            r.VMag.Sort();
+            float um = r.UMag.Count > 0 ? r.UMag[r.UMag.Count / 2] : 0;
+            float vm = r.VMag.Count > 0 ? r.VMag[r.VMag.Count / 2] : 0;
+            int uiMin = r.UIdx.Count > 0 ? r.UIdx.Min() : -1;
+            int uiMax = r.UIdx.Count > 0 ? r.UIdx.Max() : -1;
+            Log($"  mat {matIdx,6} {name,-36} n {r.N,4}  normalBad {r.NormalBad,3} planeBad {r.PlaneBad,3}  |Vu|med {um,7:0.000} |Vv|med {vm,7:0.000}  Uidx {uiMin}-{uiMax}");
+        }
+
+        Assert.NotEmpty(rows);
+    }
 }
