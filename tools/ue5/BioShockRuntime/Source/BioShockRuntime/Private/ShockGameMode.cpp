@@ -1568,6 +1568,26 @@ void AShockGameMode::TickScreenshotCapture()
 		FRotator CamRot = FRotator::ZeroRotator;
 		PC->GetPlayerViewPoint(CamLoc, CamRot);
 
+		// -bioshockshotmove=F,R,U walks the capture from the PlayerStart along the view axes
+		// (forward, right, up) before aiming. The slice spawn faces the airlock static meshes;
+		// the compiled-world BSP walls are down the corridor and need the camera moved to them.
+		{
+			FString MoveStr;
+			if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotmove="), MoveStr, false))
+			{
+				TArray<FString> P;
+				MoveStr.ParseIntoArray(P, TEXT(","));
+				if (P.Num() == 3)
+				{
+					const FRotator YawOnly(0.f, CamRot.Yaw, 0.f);
+					CamLoc += YawOnly.RotateVector(FVector(
+						FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])));
+					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_MOVE %s -> %s"),
+						*MoveStr, *CamLoc.ToCompactString());
+				}
+			}
+		}
+
 		// Aim the capture somewhere other than wherever the PlayerStart happens to face.
 		// Every shot so far looks at the bathysphere airlock, which is all static meshes, so the
 		// compiled world - the BSP shell that carries the reported "blown out, zoomed in" wall UVs
