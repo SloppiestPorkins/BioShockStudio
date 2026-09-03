@@ -32,7 +32,16 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         Assert.Null(solidDoor.Door.InitiallyOpen);
         Assert.Null(solidDoor.Door.CloseAnimationRate);
         Assert.Null(solidDoor.Door.StayOpenDuration);
-        Assert.Empty(solidDoor.Door.Attachments);
+
+        // The placed actor has no Attachments property of its own; these come from the
+        // MedicalDoors class default (MedicalDoors_Solid inherits it up the super chain).
+        // Before the class-defaults fallback the pipeline saw an empty array here and placed
+        // only Med_DoorAnim, the 26-vertex animation proxy -- so the doors drew grey.
+        Assert.Equal(2, solidDoor.Door.Attachments.Count);
+        Assert.All(solidDoor.Door.Attachments, a =>
+            Assert.Equal("Med_DoorSolidRight", a.StaticMesh?.ObjectName));
+        Assert.Equal(new[] { "LeftDoor", "rIGHTdOOR" },
+            solidDoor.Door.Attachments.Select(a => a.AttachSocket));
 
         var openDoor = context.Actors.Single(actor => actor.Source.ExportIndex == 3447);
         Assert.Equal("MedicalDoors", openDoor.Source.ClassName);
@@ -137,10 +146,20 @@ public sealed class DoorActorSchemaTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var attached = context.Actors.Where(actor => actor.Door is { Attachments.Count: > 0 }).ToList();
 
-        Assert.Equal(13, attached.Count);
-        Assert.All(attached, actor =>
+        // Every attachment that resolves has a mesh and a socket -- the shape the importer needs,
+        // whether it came from the actor or (with the class-defaults fallback) from the class.
+        Assert.All(attached, actor => Assert.All(actor.Door!.Attachments, a =>
         {
-            Assert.Equal("MedicalDoor", actor.Source.ClassName);
+            Assert.False(string.IsNullOrEmpty(a.AttachSocket));
+            Assert.False(string.IsNullOrEmpty(a.StaticMesh?.ObjectName));
+        }));
+
+        // The 13 MedicalDoor actors all set Attachments on the actor (Gate01solidPreviewMesh on
+        // socket "Door", physical-interaction flagged).
+        var medical = attached.Where(a => a.Source.ClassName == "MedicalDoor").ToList();
+        Assert.Equal(13, medical.Count);
+        Assert.All(medical, actor =>
+        {
             Assert.True(actor.Door is { Complete: true });
             var attachment = Assert.Single(actor.Door!.Attachments);
             Assert.Equal("Door", attachment.AttachSocket);
@@ -148,6 +167,13 @@ public sealed class DoorActorSchemaTests(GameFixture game)
             Assert.True(attachment.InteractWithPhysicalObjects);
             Assert.Equal(System.Numerics.Vector3.Zero, attachment.LocationOffset);
         });
+
+        // Total doubles to 26: the class-defaults fallback now also surfaces attachments on door
+        // classes that only declare them on the class (LowRentDoorsWide, FishFreezerDoorDown, ...),
+        // where before the array was read from the actor payload alone and came back empty. This is
+        // the same fallback that gives 1-Medical its Med_DoorRight / Med_DoorSolidRight geometry.
+        Assert.Equal(26, attached.Count);
+        Assert.Contains(attached, a => a.Source.ClassName != "MedicalDoor");
 
         var exported = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false)
             .Actors.Single(actor => actor.ExportIndex == 3645).Door;

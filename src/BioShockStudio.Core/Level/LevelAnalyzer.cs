@@ -924,13 +924,15 @@ public static class LevelAnalyzer
         float? closeRate = Float("CloseAnimationRate");
         float? delay = Float("DelayBeforeOpening");
         float? stayOpen = Float("StayOpenDuration");
-        bool hasAttachments = payload.Find("Attachments") is { Type: UnrealPropertyType.Array };
+        bool hasAttachments =
+            payload.Find("Attachments") is { Type: UnrealPropertyType.Array }
+            || defaults.Lookup(payload.Export.ClassIndex, "Attachments") is { Type: UnrealPropertyType.Array };
 
         if (portal is null && locked is null && initiallyOpen is null && openRate is null
             && closeRate is null && delay is null && stayOpen is null && !hasAttachments)
             return null;
 
-        var attachments = ReadDoorAttachments(package, payload, out bool attachmentsComplete);
+        var attachments = ReadDoorAttachments(package, defaults, payload, out bool attachmentsComplete);
 
         return new DoorActorData
         {
@@ -953,10 +955,19 @@ public static class LevelAnalyzer
     /// as a struct array.
     /// </summary>
     private static IReadOnlyList<DoorAttachmentData> ReadDoorAttachments(
-        BioShockPackage package, ActorPayload payload, out bool complete)
+        BioShockPackage package, ClassDefaults defaults, ActorPayload payload, out bool complete)
     {
         complete = true;
-        if (payload.Find("Attachments") is not { Type: UnrealPropertyType.Array } property)
+
+        // BioShock stores `Attachments` on the MedicalDoors class default object, not on
+        // the placed actor (verified: MedicalDoors35's payload has no Attachments property
+        // at all). Without this fallback every door's attachments array was empty, so the
+        // pipeline placed only the 26-vertex animation proxy (`Mesh`) and never the real
+        // door geometry the two Attachments name. Same class-defaults path `Reference`
+        // already uses for `DoorPortal`.
+        var property = payload.Find("Attachments") as UnrealProperty
+            ?? defaults.Lookup(payload.Export.ClassIndex, "Attachments");
+        if (property is not { Type: UnrealPropertyType.Array })
             return [];
         if (ReadStructArrayElements(package, property) is not { } elements)
         {
