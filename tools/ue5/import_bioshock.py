@@ -518,7 +518,19 @@ def _material_rendering_kind(material, rig):
     class_name = material.get("className") or ""
     name_lower = (material.get("name") or "").lower()
 
-    if material.get("opacity") or material.get("masked"):
+    # A real Opacity MaskMaterial that the exporter judged safe to use as a cutout.
+    if material.get("opacity"):
+        return "mask"
+    # `bMasked` alone is NOT a reliable hard-cutout signal in this game. 35 of 1-Medical's 55
+    # masked=True materials have no Opacity struct and are SOLID surfaces -- Walltech panels,
+    # carpets, arrivals boards, concrete barriers -- whose diffuse alpha is packed spec/gloss/
+    # self-illum data, not coverage. Forcing BLEND_MASKED on those wires diffuse.A to the opacity
+    # mask and speckles the surface with holes wherever the packed alpha is low. Only trust
+    # masked=True when the NAME says cutout (foliage, grating, alpha-test).
+    cutout_name = any(t in name_lower for t in (
+        "alphatest", "alpha_test", "leaf", "leaves", "foliage", "plant", "ivy", "vine", "kelp",
+        "grate", "grating", "fence", "chain", "mesh_wire", "wire_mesh", "net", "lattice"))
+    if material.get("masked") and cutout_name:
         return "mask"
     if _material_declares_alpha_texture(material, rig):
         return "translucent"
