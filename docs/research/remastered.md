@@ -93,3 +93,28 @@ which is what a flat blob store looks like.
 
 `UNKNOWN`: the exact record layout and the header. But this is a name-to-(chunk, offset, size) table,
 not a compressed archive, so recovering the stripped mips looks tractable rather than speculative.
+
+---
+
+## Original (non-Remastered) BioShock 1 — installed, but the packages are COMPRESSED
+
+`G:/SteamLibrary/steamapps/common/Bioshock/` (6.1 GB) is the 2007 UE2.5 game.
+
+- Package version **141/56** (Remastered is 142/56). `BioShockPackage.Open` rejects it.
+- **The `.bsm` files are compressed.** `Entry.bsm` is 4,038 bytes on disk but its summary declares
+  `names@10065`, `imports@15987`, `exports@16422` — offsets well past the end of the file. UE2.5
+  `FCompressedChunk` (LZO / zlib) package compression; Remastered ships them decompressed. Reading
+  original packages directly means implementing the chunk decompressor first — a real task, not a
+  version-gate widen. `f1-bsm-version-141`'s "identical layout" assumption failed exactly here
+  (`ReadNames` → `EndOfStreamException`).
+- **`Builds/Release/umodel_win32/`** — UModel is bundled and has already been run once:
+  `Builds/Release/UmodelExport/1-Medical/` holds 1,714 texture PNGs at their **original** sizes
+  (`med_wall_public_dirt` 1024, `Med_Tile_white_Dirty_Diffuse` 512 — vs Remastered's 2048). UModel
+  handles the decompression.
+
+### What the original sizes are used for
+
+The BSP UV normaliser (`LevelSceneExporter.AuthoredTextureSize`) reads these PNG dimensions via
+`BIOSHOCK_ORIGINAL_TEXTURE_DIR` and divides texel UVs by the real authored size instead of the
+guessed `shipped / 4`. The upscale factor is per-texture (2x or 4x), not constant. Extending this
+past 1-Medical needs UModel run on the other level packages, or the compressed-package reader.
