@@ -374,16 +374,130 @@ public static class BspGeometry
     {
         var vertices = geometry.Vertices.ToArray();
 
-        for (int section = 0; section < geometry.Sections.Count && section < sizes.Count; section++)
+        for (int section = 0; section < geometry.Sections.Count; section++)
         {
-            if (sizes[section] is not { } size || size.Width <= 0 || size.Height <= 0) continue;
-
             var range = geometry.Sections[section];
-            for (int i = range.FirstVertex; i <= range.LastVertex && i < vertices.Length; i++)
-                vertices[i] = vertices[i] with { Uv = NormaliseUvs(vertices[i].Uv, size.Width, size.Height) };
+            var size = section < sizes.Count ? sizes[section] : null;
+
+            if (size is { Width: > 0, Height: > 0 } s)
+            {
+                for (int i = range.FirstVertex; i <= range.LastVertex && i < vertices.Length; i++)
+                    vertices[i] = vertices[i] with { Uv = NormaliseUvs(vertices[i].Uv, s.Width, s.Height) };
+
+                // Runaway faces are measured in tiles now that the UVs are normalised.
+                ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles);
+            }
+            else
+            {
+                // No texture resolved for this section, so its UVs are still raw texels — a state a
+                // brush face with no bound texture ships in anyway. A runaway face here (a water or
+                // ocean shader with no diffuse, an untextured zoning surface) would still drive the
+                // whole draw to the smallest mip, so clamp it in texel space against a nominal
+                // texture size rather than leaving it at tens of thousands.
+                ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles * NominalTextureSize);
+            }
         }
 
         return geometry with { Vertices = vertices };
+    }
+
+    /// <summary>
+    /// How many times a single compiled-world face is allowed to tile its texture before its UVs
+    /// are rescaled down. <c>BIOSHOCK_BSP_UV_MAX_TILES</c> overrides the default of 16; a value
+    /// below 1 disables the clamp.
+    /// </summary>
+    private static float MaxFaceTiles =>
+        float.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_MAX_TILES"), out float tiles)
+            ? tiles
+            : 16f;
+
+    /// <summary>
+    /// The texture size assumed when a section resolved none, so the tile cap can still be applied
+    /// to its raw texel UVs. BioShock's brush textures are almost all 256–512; 256 is the
+    /// conservative choice — it clamps a little sooner rather than a little later.
+    /// </summary>
+    private const float NominalTextureSize = 256f;
+
+    /// <summary>
+    /// Rescales the UVs of any single BSP face that still tiles absurdly after normalisation.
+    /// </summary>
+    /// <remarks>
+    /// <b>A safety net, not the fix.</b> <see cref="BspWorld.TexelsAtLocal"/> recovers a usable
+    /// texture origin for ~93% of 1-Medical's drawn surfaces; for the rest the stored
+    /// <c>pBase</c> — and, on a handful, the texture-axis vectors themselves — resolve to
+    /// something this decoder does not yet understand, and the face comes out tiling its texture
+    /// hundreds to thousands of times. At that magnitude the renderer samples the smallest mip
+    /// and the surface reads as shimmering moiré rather than a wall — which is what a user looking
+    /// at the level reports as "the walls are broken again". Rescaling such a face's UVs about
+    /// their own centre so it tiles at most <see cref="MaxFaceTiles"/> makes the texel density
+    /// wrong on that one face but lets the surface read as its material instead of noise. The
+    /// 93% that resolved correctly are untouched — their span never approaches the cap.
+    ///
+    /// Faces are recovered from the index buffer: <see cref="ToGeometry(BspWorld)"/> emits each
+    /// polygon as a triangle fan around its first vertex and never shares a vertex between
+    /// polygons, so a run of triangles with the same pivot index is one face.
+    /// </remarks>
+    private static void ClampRunawayFaceUvs(MeshVertex[] vertices, IReadOnlyList<int> indices, MeshSection range, float cap)
+    {
+        if (cap < 1f || MaxFaceTiles < 1f) return;
+
+        int triangleStart = range.FirstIndex / 3;
+        int faceStart = 0;
+        int pivot = -1;
+
+        for (int t = 0; t <= range.TriangleCount; t++)
+        {
+            int at = (triangleStart + t) * 3;
+            int thisPivot = t < range.TriangleCount && at < indices.Count ? indices[at] : int.MinValue;
+            if (t == 0)
+            {
+                pivot = thisPivot;
+                faceStart = 0;
+                continue;
+            }
+
+            if (thisPivot == pivot) continue;
+
+            RescaleFace(vertices, indices, (triangleStart + faceStart) * 3, (t - faceStart) * 3, cap);
+            pivot = thisPivot;
+            faceStart = t;
+        }
+    }
+
+    private static void RescaleFace(MeshVertex[] vertices, IReadOnlyList<int> indices, int firstIndex, int indexCount, float cap)
+    {
+        // The distinct vertices of this fan. The pivot appears once per triangle in the index
+        // buffer, so walking index positions would transform it once per triangle — compounding
+        // the rescale and driving it further out of range than it started.
+        var faceVertices = new HashSet<int>();
+        for (int i = firstIndex; i < firstIndex + indexCount && i < indices.Count; i++)
+        {
+            int v = indices[i];
+            if (v >= 0 && v < vertices.Length) faceVertices.Add(v);
+        }
+        if (faceVertices.Count == 0) return;
+
+        float minU = float.MaxValue, minV = float.MaxValue, maxU = float.MinValue, maxV = float.MinValue;
+        foreach (int v in faceVertices)
+        {
+            var uv = vertices[v].Uv;
+            minU = Math.Min(minU, uv.X);
+            maxU = Math.Max(maxU, uv.X);
+            minV = Math.Min(minV, uv.Y);
+            maxV = Math.Max(maxV, uv.Y);
+        }
+
+        float span = Math.Max(maxU - minU, maxV - minV);
+        if (span <= cap) return;
+
+        // Anchor the face at the origin and shrink it uniformly so its larger axis spans exactly
+        // the cap. A face this far out of range carries no meaningful texture offset, so dropping
+        // the phase costs nothing; keeping the face centred on its old position (tens of thousands
+        // of texels away) is what left it in the wrong mip.
+        var min = new Vector2(minU, minV);
+        float factor = cap / span;
+        foreach (int v in faceVertices)
+            vertices[v] = vertices[v] with { Uv = (vertices[v].Uv - min) * factor };
     }
 
     private static Vector2 Project(BspPolygon polygon, Vector3 position)
