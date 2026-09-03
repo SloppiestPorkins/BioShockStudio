@@ -187,20 +187,16 @@ public static class MaterialExporter
             NormalMap = Lookup(files, material.NormalTexture, material, "NormalMap"),
             Specular = Lookup(files, material.SpecularTexture, material,
                 "SpecularColorMap", "FacingSpecularColorMap", "EdgeSpecularColorMap"),
-            // An Opacity binding that resolves to the SAME image as the diffuse is not a cutout,
-            // and must not be exported as one. 85 materials in 1-Medical carry an Opacity
-            // MaskMaterial; 44 name a genuinely separate mask (bloodsplat3opa,
-            // ConcreteWall_Hole_Opacity, BabyJane03_MASK, drips_SO) and 41 resolve back to their
-            // own diffuse — Carpet_PatternC_WetDirt_Diffuse, walltech_01_diffuse and the like.
-            // Consuming that second group as a mask forces the surface to BLEND_MASKED and cuts
-            // holes through it wherever the COLOUR is dark, so carpets and wall panels would come
-            // apart. These textures are DXT1 with no alpha, so their RGB is genuinely all there is.
-            // The reader still reports OpacityTexture faithfully for whatever the bytes name; the
-            // judgement about what is usable as a mask belongs here, at the point of harm.
-            Opacity = Lookup(files, material.OpacityTexture, material, "Opacity") is { } opacityFile
-                && opacityFile != Lookup(files, material.DiffuseTexture, material, MaterialReader.DiffuseSlots)
-                    ? opacityFile
-                    : null,
+            // Only export an Opacity binding the UE5 side can safely consume as a single-channel
+            // BLEND_MASKED cutout -- see UsableAsOpacityMask. A BioShock `Opacity` MaskMaterial
+            // often points at a PACKED texture (AlphaSpecGloss), the material's own glass diffuse,
+            // or a specular map, and carries a channel selector this pipeline does not decode yet.
+            // Feeding one of those in as an R-channel mask forced glass, damaged ceilings and wall
+            // panels to BLEND_MASKED and cut them apart wherever the colour was dark.
+            Opacity = UsableAsOpacityMask(
+                Lookup(files, material.OpacityTexture, material, "Opacity"),
+                Lookup(files, material.DiffuseTexture, material, MaterialReader.DiffuseSlots),
+                material.Masked),
             Glossiness = material.Glossiness,
             SpecularBrightness = material.SpecularBrightness,
             EmissiveBrightness = material.EmissiveBrightness,
@@ -215,6 +211,43 @@ public static class MaterialExporter
             Partial = material.Truncated,
             Uninterpreted = material.UnhandledProperties.Distinct(StringComparer.Ordinal).ToList(),
         };
+    }
+
+
+    /// <summary>
+    /// True when a resolved <c>Opacity</c> mask file is safe to hand the UE5 importer as a
+    /// single-channel <c>BLEND_MASKED</c> cutout.
+    /// </summary>
+    /// <remarks>
+    /// A BioShock <c>Opacity</c> <c>MaskMaterial</c> is not always a cutout. Measured on 1-Medical:
+    /// <c>marble_ceiling_damage2_diffuse_shader</c> points it at
+    /// <c>marble_ceiling_damage2_AlphaSpecGloss</c> (a packed spec/gloss map), and
+    /// <c>Exterior_Window_Glass_Shader</c> points it at the window's own diffuse. The struct
+    /// carries a channel selector (R/G/B/A) that is not decoded yet, so the importer always samples
+    /// R -- correct for a grey single-channel mask like <c>bloodsplat3opa</c>, garbage for a packed
+    /// or colour texture. Until the channel is read, only pass the unambiguous cutouts through: the
+    /// material's own <c>bMasked</c> flag (the game says it is a cutout), or a filename that says
+    /// so, and never a packed / colour / data map.
+    /// </remarks>
+    internal static string? UsableAsOpacityMask(string? opacityFile, string? diffuseFile, bool masked)
+    {
+        if (opacityFile is null) return null;
+        if (string.Equals(opacityFile, diffuseFile, StringComparison.OrdinalIgnoreCase)) return null;
+
+        string stem = Path.GetFileNameWithoutExtension(opacityFile);
+        bool Has(string token) => stem.Contains(token, StringComparison.OrdinalIgnoreCase);
+
+        // A packed, colour or data map -- never a pure coverage mask, whatever its other name parts.
+        if (Has("specgloss") || Has("_spec") || Has("specular") || Has("_diffuse") || Has("_diff")
+            || Has("_normal") || Has("_nor") || Has("height"))
+            return null;
+
+        bool nameSaysMask =
+            stem.EndsWith("opa", StringComparison.OrdinalIgnoreCase)
+            || stem.EndsWith("_o", StringComparison.OrdinalIgnoreCase)
+            || Has("opacity") || Has("_mask") || Has("_masks") || Has("_alpha") || Has("cutout");
+
+        return (masked || nameSaysMask) ? opacityFile : null;
     }
 
     private static string? Lookup(

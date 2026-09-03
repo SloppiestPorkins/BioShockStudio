@@ -968,6 +968,83 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
         # had none.
         handled.add(instance["actorKey"])
 
+
+def _import_door_attachments(manifest, meshes, existing, report, handled):
+    """Place the static-mesh geometry carried by each door attachment."""
+    instances = _instances_by_actor_key(manifest)
+    by_name = {
+        asset["name"]: meshes[asset["key"]]
+        for asset in manifest.get("assets") or []
+        if asset.get("key") in meshes
+    }
+
+    def components(value):
+        if value is None:
+            return 0.0, 0.0, 0.0
+        if isinstance(value, dict):
+            return value.get("x", 0.0), value.get("y", 0.0), value.get("z", 0.0)
+        return value[0], value[1], value[2]
+
+    for entry in manifest.get("actors") or []:
+        attachments = (entry.get("door") or {}).get("attachments") or []
+        if not attachments:
+            continue
+
+        actor_instances = instances.get(entry["key"]) or []
+        transform = actor_instances[0].get("transform") if actor_instances else entry.get("transform")
+        if transform is None:
+            report["doorAttachmentsSkipped"] = report.get("doorAttachmentsSkipped", 0) + 1
+            continue
+
+        location, rotation, scale = _decompose(transform)
+        for att in attachments:
+            static_mesh = att.get("staticMesh")
+            object_name = static_mesh.get("objectName") if isinstance(static_mesh, dict) else None
+            mesh = by_name.get(object_name)
+            if mesh is None:
+                report["doorAttachmentsSkipped"] = report.get("doorAttachmentsSkipped", 0) + 1
+                continue
+
+            lx, ly, lz = components(att.get("attachLocationOffset"))
+            pitch, yaw, roll = components(att.get("attachRotationOffset"))
+            attachment_location = unreal.Vector(
+                location.x + lx, location.y + ly, location.z + lz)
+            attachment_rotation = unreal.Rotator(
+                pitch=rotation.pitch + pitch * ROTATOR_TO_DEGREES,
+                yaw=rotation.yaw + yaw * ROTATOR_TO_DEGREES,
+                roll=rotation.roll + roll * ROTATOR_TO_DEGREES)
+
+            socket = att.get("attachSocket") or ""
+            dkey = "door:" + entry["key"] + ":" + socket + ":" + object_name
+            actor = existing.get(dkey)
+            if actor is not None and not isinstance(actor, unreal.StaticMeshActor):
+                _actor_subsystem().destroy_actor(actor)
+                actor = None
+
+            if actor is None:
+                actor = _actor_subsystem().spawn_actor_from_class(
+                    unreal.StaticMeshActor, attachment_location, attachment_rotation)
+                if actor is None:
+                    report["skipped"] += 1
+                    continue
+                report["created"] += 1
+            else:
+                report["updated"] += 1
+                actor.set_actor_location(attachment_location, False, False)
+                actor.set_actor_rotation(attachment_rotation, False)
+
+            actor.static_mesh_component.set_static_mesh(mesh)
+            actor.static_mesh_component.set_editor_property(
+                "mobility", unreal.ComponentMobility.MOVABLE)
+            actor.set_actor_scale3d(scale)
+            actor.set_actor_label((entry.get("label") or entry.get("name") or entry["key"])
+                                  + ":" + socket)
+            actor.tags = [unreal.Name(KEY_TAG_PREFIX + dkey)]
+            existing[dkey] = actor
+            handled.add(dkey)
+            report["doorAttachmentsPlaced"] = report.get("doorAttachmentsPlaced", 0) + 1
+
+
 def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
          character_content_root="/Game/BioShockCharacters", rig_names=None):
     """Import one level manifest. Returns the created/updated/skipped/unsupported report."""
@@ -1017,6 +1094,7 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
     _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)
+    _import_door_attachments(manifest, meshes, existing, report, handled)
     _import_region_volumes(manifest, manifest_dir, existing, report, handled)
 
     if import_actors:
@@ -1024,10 +1102,12 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
 
     _log("import report: %d created, %d updated, %d skipped, %d unsupported, "
          "%d mesh instance(s) not drawn, %d volume(s) placed, %d volume(s) skipped, "
+         "%d door attachment(s) placed, %d door attachment(s) skipped, "
          "%d mesh(es) with a material assigned, %d material slot(s) resolved"
          % (report["created"], report["updated"], report["skipped"], report["unsupported"],
             report.get("meshInstancesSkipped", 0), report.get("volumesPlaced", 0),
-            report.get("volumesSkipped", 0), report.get("materialsAssigned", 0),
+            report.get("volumesSkipped", 0), report.get("doorAttachmentsPlaced", 0),
+            report.get("doorAttachmentsSkipped", 0), report.get("materialsAssigned", 0),
             report.get("materialSlotsResolved", 0)))
 
     main.last_report = report
