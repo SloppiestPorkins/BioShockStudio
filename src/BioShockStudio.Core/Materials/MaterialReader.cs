@@ -17,6 +17,15 @@ public sealed record MaterialTexture
     /// <summary>True when the texture lives in another package and only its name is available here.</summary>
     public bool IsExternal => Reference.IsImport;
 
+    /// <summary>
+    /// For a texture bound through a <c>MaskMaterial</c> struct (<c>Opacity</c>, <c>SpecularMask</c>,
+    /// <c>EmissiveMask</c>, <c>HeightMap</c>): the struct's <c>Channel</c> byte -- which channel of
+    /// the texture carries the mask. Null for an ordinary binding. See the MaskMaterial section of
+    /// docs/research/materials.md; the {0,1,2,3} -&gt; channel mapping is not yet pinned, so this is
+    /// carried verbatim.
+    /// </summary>
+    public byte? MaskChannel { get; init; }
+
     public override string ToString() => $"{Slot} = {TextureName}";
 }
 
@@ -219,6 +228,11 @@ public sealed record BioShockMaterial
 
     /// <summary>Coverage texture named by the shader's nested <c>Opacity</c> mask material.</summary>
     public string? OpacityTexture => TextureFor("Opacity");
+
+    /// <summary>The <c>Channel</c> byte of the <c>Opacity</c> MaskMaterial, or null. Verbatim --
+    /// the byte-to-channel mapping is not pinned; see docs/research/materials.md.</summary>
+    public byte? OpacityChannel =>
+        Textures.FirstOrDefault(t => string.Equals(t.Slot, "Opacity", StringComparison.OrdinalIgnoreCase))?.MaskChannel;
 
     public string? TextureFor(string slot) =>
         Textures.FirstOrDefault(t => string.Equals(t.Slot, slot, StringComparison.OrdinalIgnoreCase))?.TextureName;
@@ -807,11 +821,18 @@ public static class MaterialReader
             return null;
         }
 
+        byte? channel = null;
+        foreach (var field in fields)
+        {
+            if (string.Equals(field.Name, "Channel", StringComparison.OrdinalIgnoreCase)
+                && field.Type == UnrealPropertyType.Byte && field.Value.Length >= 1)
+                channel = field.Value[0];
+        }
         foreach (var field in fields)
         {
             if (field.Type != UnrealPropertyType.Object) continue;
             var texture = ReadTexture(package, field);
-            if (texture is not null) return texture with { Slot = property.Name };
+            if (texture is not null) return texture with { Slot = property.Name, MaskChannel = channel };
         }
 
         return null;

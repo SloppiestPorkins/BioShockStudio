@@ -554,3 +554,41 @@ Worth checking for directly before starting any item that claims something is un
 or a switch-selection rule from those — action ordinals stay raw, and which candidate a running
 game picks remains `UNKNOWN`.
 
+
+---
+
+## MaskMaterial — the nested mask struct  `CONFIRMED_BYTES`
+
+A shader binds `Opacity`, `SpecularMask`, `EmissiveMask`, `HeightMap` and `CoverageMask` as a
+nested `MaskMaterial` **struct**, not a plain object. Decoded (`ReadMaskTexture`, and
+`UnrealPropertyReader` on the struct value) it has exactly two fields:
+
+```
+struct MaskMaterial {
+    Object Material    // the texture
+    Byte   Channel     // which channel carries the mask: {0,1,2,3}, mapping UNKNOWN
+}
+```
+
+Measured on 1-Medical (`properties <shader> --raw`):
+
+| shader | slot | texture | Channel |
+|---|---|---|---:|
+| `bloodsplat3_shader` | Opacity | `bloodsplat3opa` (grey) | 1 |
+| `Barrier_Rubble_marble_shader` | Opacity | `Concrete_Barrier_Alpha` | 1 |
+| `BadyJaneBlue_Shader` | Opacity | `BabyJane03_MASK` | 1 |
+| `marble_ceiling_damage2_diffuse_shader` | Opacity | `..._AlphaSpecGloss` (packed) | 1 |
+| `marble_ceiling_damage2_diffuse_shader` | HeightMap | `..._AlphaSpecGloss`+ | 1 |
+| `wallhole03_shader` | Opacity | `wallhole03_opacity` | 2 |
+| `dripping_shader` | Opacity | `drips_SO` | 2 |
+| `Exterior_Window_Glass_Shader` | SpecularMask / EmissiveMask | — | 2 |
+| `ConcreteWall_Hole_Diffuse_shader` | Opacity | `ConcreteWall_Hole_Opacity` | 3 |
+| `Exterior_Window_Glass_Shader` | Opacity | `Exterior_Window_Glass_Diffuse` | 0 |
+
+**`Channel` is carried verbatim** (`MaterialTexture.MaskChannel`, `BioShockMaterial.OpacityChannel`).
+The `{0,1,2,3}` → R/G/B/A mapping is `UNKNOWN` — no source read so far states it, and the data is
+consistent with several conventions. The dedicated single-channel opacity textures (`*opa`,
+`*_opacity`) are greyscale so any channel works for them; the ambiguous cases
+(`AlphaSpecGloss` packed as Opacity, glass diffuse as Opacity channel 0) are where it would
+matter, and those are exactly the ones `MaterialExporter.UsableAsOpacityMask` currently refuses
+to export as a cutout (fb277d2). So nothing downstream depends on the mapping yet.
