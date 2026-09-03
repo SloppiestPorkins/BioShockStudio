@@ -81,15 +81,15 @@ public sealed class BspRunawayUvClampTests
 
         var clamped = BspGeometry.NormaliseUvs(geometry, [(512, 512)]);
 
-        Assert.True(MaxUv(clamped) <= 17f,
+        Assert.True(MaxUv(clamped) <= 6f,
             $"the runaway face still tiles {MaxUv(clamped):0} times after the clamp");
     }
 
     [Fact]
     public void ASectionThatResolvedNoTextureSizeIsStillClamped()
     {
-        // Water/ocean shaders carry no diffuse, so NormaliseUvs gets a null size and never
-        // divides. The clamp must still catch a raw-texel face here.
+        // Water/ocean shaders carry no diffuse, so NormaliseUvs gets a null size. It must still
+        // divide by the nominal size and clamp the runaway face like any other.
         var geometry = Quad(
             new Vector2(0, 0),
             new Vector2(2_000_000, 0),
@@ -99,9 +99,8 @@ public sealed class BspRunawayUvClampTests
         var noSize = new List<(int Width, int Height)?> { null };
         var clamped = BspGeometry.NormaliseUvs(geometry, noSize);
 
-        // Nominal 256 texture, cap 16 -> ~4,096 texels.
-        Assert.True(MaxUv(clamped) <= 4_500f,
-            $"an untextured runaway face still spans {MaxUv(clamped):0} texels after the clamp");
+        Assert.True(MaxUv(clamped) <= 6f,
+            $"an untextured runaway face still tiles {MaxUv(clamped):0} times after the clamp");
     }
 
     [Fact]

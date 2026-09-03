@@ -58,9 +58,8 @@ public sealed class BspRunawayUvClampMedicalTests(GameFixture game)
 
         Log($"clamped compiled-world UVs: worst {worst:0} texels in section {worstSection}");
 
-        // Nominal 256, cap 16 tiles -> 4,096 texels, plus a little slack for a face whose centre
-        // sat far from the origin before anchoring.
-        Assert.True(worst <= 4_600f,
-            $"section {worstSection} still spans {worst:0} texels after the clamp — a runaway face got past it");
+        // Every section divided (real or nominal size) and clamped to MaxFaceTiles.
+        Assert.True(worst <= 6f,
+            $"section {worstSection} still tiles {worst:0.#}x after the clamp — a runaway face got past it");
     }
 }

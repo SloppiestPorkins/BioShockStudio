@@ -379,44 +379,40 @@ public static class BspGeometry
             var range = geometry.Sections[section];
             var size = section < sizes.Count ? sizes[section] : null;
 
-            if (size is { Width: > 0, Height: > 0 } s)
-            {
-                for (int i = range.FirstVertex; i <= range.LastVertex && i < vertices.Length; i++)
-                    vertices[i] = vertices[i] with { Uv = NormaliseUvs(vertices[i].Uv, s.Width, s.Height) };
+            // A section that resolved no texture still has raw texel UVs — a water/ocean shader
+            // with no diffuse, the untextured zoning batch. Divide those by a nominal size too, or
+            // they tile hundreds of times against whatever the master samples.
+            int w = size is { Width: > 0 } sz ? sz.Width : (int)NominalTextureSize;
+            int h = size is { Height: > 0 } sh ? sh.Height : (int)NominalTextureSize;
 
-                // Runaway faces are measured in tiles now that the UVs are normalised.
-                ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles);
-            }
-            else
-            {
-                // No texture resolved for this section, so its UVs are still raw texels — a state a
-                // brush face with no bound texture ships in anyway. A runaway face here (a water or
-                // ocean shader with no diffuse, an untextured zoning surface) would still drive the
-                // whole draw to the smallest mip, so clamp it in texel space against a nominal
-                // texture size rather than leaving it at tens of thousands.
-                ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles * NominalTextureSize);
-            }
+            for (int i = range.FirstVertex; i <= range.LastVertex && i < vertices.Length; i++)
+                vertices[i] = vertices[i] with { Uv = NormaliseUvs(vertices[i].Uv, w, h) };
+
+            ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles);
         }
 
         return geometry with { Vertices = vertices };
     }
 
     /// <summary>
-    /// How many times a single compiled-world face is allowed to tile its texture before its UVs
-    /// are rescaled down. <c>BIOSHOCK_BSP_UV_MAX_TILES</c> overrides the default of 16; a value
-    /// below 1 disables the clamp.
+    /// How many times a single compiled-world face may tile its texture before its UVs are
+    /// rescaled down. Most 1-Medical surfaces resolve to 1–4 tiles per face; a handful come out
+    /// far higher because <c>pBase</c> and, on a few, the texture-axis vectors are still misread
+    /// (<c>medical_pillar_texture</c> at ~13). The default of 5 leaves the correct ones untouched
+    /// and pulls the rest back to something that reads as a wall. <c>BIOSHOCK_BSP_UV_MAX_TILES</c>
+    /// overrides it; a value below 1 disables the clamp.
     /// </summary>
     private static float MaxFaceTiles =>
         float.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_MAX_TILES"), out float tiles)
             ? tiles
-            : 16f;
+            : 5f;
 
     /// <summary>
-    /// The texture size assumed when a section resolved none, so the tile cap can still be applied
-    /// to its raw texel UVs. BioShock's brush textures are almost all 256–512; 256 is the
-    /// conservative choice — it clamps a little sooner rather than a little later.
+    /// The texture size assumed when a section resolved none, so its raw texel UVs can still be
+    /// normalised. BioShock's brush textures are almost all 256–512; 512 is the common case for
+    /// the water and zoning shaders this path handles.
     /// </summary>
-    private const float NominalTextureSize = 256f;
+    private const float NominalTextureSize = 512f;
 
     /// <summary>
     /// Rescales the UVs of any single BSP face that still tiles absurdly after normalisation.

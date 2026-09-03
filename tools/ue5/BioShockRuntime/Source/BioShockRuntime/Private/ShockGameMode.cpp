@@ -1593,6 +1593,38 @@ void AShockGameMode::TickScreenshotCapture()
 		// compiled world - the BSP shell that carries the reported "blown out, zoomed in" wall UVs
 		// - has never actually been photographed. A UV scale cannot be judged from a number; it
 		// has to be looked at against a wall of known size.
+		// -bioshockshotabs=X,Y,Z puts the capture at an absolute world position, and
+		// -bioshockshotlook=X,Y,Z aims it at a world point. The PlayerStart-relative move and
+		// yaw/pitch cannot reach a specific BSP wall when the start sits in a static-mesh room
+		// tens of metres from the compiled world; a commandlet that has loaded the level can
+		// compute the pair and hand them here.
+		{
+			FString AbsStr;
+			if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotabs="), AbsStr, false))
+			{
+				TArray<FString> P;
+				AbsStr.ParseIntoArray(P, TEXT(","));
+				if (P.Num() == 3)
+				{
+					CamLoc = FVector(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2]));
+					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_ABS -> %s"), *CamLoc.ToCompactString());
+				}
+			}
+			FString LookStr;
+			if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotlook="), LookStr, false))
+			{
+				TArray<FString> P;
+				LookStr.ParseIntoArray(P, TEXT(","));
+				if (P.Num() == 3)
+				{
+					const FVector LookAt(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2]));
+					CamRot = (LookAt - CamLoc).Rotation();
+					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_LOOK %s -> %s"),
+						*LookAt.ToCompactString(), *CamRot.ToCompactString());
+				}
+			}
+		}
+
 		float ShotYaw = 0.0f;
 		float ShotPitch = 0.0f;
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotyaw="), ShotYaw))
