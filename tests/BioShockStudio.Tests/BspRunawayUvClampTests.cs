@@ -81,7 +81,7 @@ public sealed class BspRunawayUvClampTests
 
         var clamped = BspGeometry.NormaliseUvs(geometry, [(512, 512)]);
 
-        Assert.True(MaxUv(clamped) <= 6f,
+        Assert.True(MaxUv(clamped) <= 13f,
             $"the runaway face still tiles {MaxUv(clamped):0} times after the clamp");
     }
 
@@ -99,7 +99,7 @@ public sealed class BspRunawayUvClampTests
         var noSize = new List<(int Width, int Height)?> { null };
         var clamped = BspGeometry.NormaliseUvs(geometry, noSize);
 
-        Assert.True(MaxUv(clamped) <= 6f,
+        Assert.True(MaxUv(clamped) <= 13f,
             $"an untextured runaway face still tiles {MaxUv(clamped):0} times after the clamp");
     }
 

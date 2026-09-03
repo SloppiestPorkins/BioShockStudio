@@ -11,9 +11,10 @@ import unreal
 import import_bioshock as ib
 import import_level
 
-CONTENT = "/Game/BioShockSlice/Content"
-DEST = CONTENT + "/1-Medical"
-SLICE_DIR = r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\1-Medical"
+CONTENT = os.environ.get("BIOSHOCK_REIMPORT_CONTENT", "/Game/BioShockSlice/Content")
+DEST = os.environ.get("BIOSHOCK_REIMPORT_DEST", CONTENT + "/1-Medical")
+SLICE_DIR = os.environ.get("BIOSHOCK_REIMPORT_SRCDIR",
+                           r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\1-Medical")
 MANIFEST = os.path.join(SLICE_DIR, "1-Medical.ue5-level.json")
 OUT = os.path.join(os.environ["TEMP"], "reimport_compiled_world_only.json")
 res = {"error": None, "steps": []}

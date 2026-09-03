@@ -49,16 +49,16 @@ else:
                 world, p, end, "BlockAll", False, [], unreal.DrawDebugTrace.NONE, True)
             if hr is None:
                 continue
-            if not hr.get_editor_property("blocking_hit"):
+            hcomp = hr.get_editor_property("component")
+            if hcomp is None:
                 continue
-            ch = hr.get_editor_property("component")
-            if ch is None or "Model1_20761" not in str(ch.get_path_name()):
+            if "Model1_20761" not in str(hcomp.get_path_name()):
                 continue
-            loc = hr.get_editor_property("location")
-            nrm = hr.get_editor_property("impact_normal")
-            dist = ((loc.x - p.x) ** 2 + (loc.y - p.y) ** 2 + (loc.z - p.z) ** 2) ** 0.5
+            hloc = hr.get_editor_property("location")
+            himpnorm = hr.get_editor_property("impact_normal")
+            dist = ((hloc.x - p.x) ** 2 + (hloc.y - p.y) ** 2 + (hloc.z - p.z) ** 2) ** 0.5
             if 150 < dist < 3000:
-                hits.append((dist, [loc.x, loc.y, loc.z], [nrm.x, nrm.y, nrm.z]))
+                hits.append((dist, [hloc.x, hloc.y, hloc.z], [himpnorm.x, himpnorm.y, himpnorm.z]))
 
     res["candidates"] = len(hits)
     if hits:

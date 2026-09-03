@@ -59,7 +59,7 @@ public sealed class BspRunawayUvClampMedicalTests(GameFixture game)
         Log($"clamped compiled-world UVs: worst {worst:0} texels in section {worstSection}");
 
         // Every section divided (real or nominal size) and clamped to MaxFaceTiles.
-        Assert.True(worst <= 6f,
+        Assert.True(worst <= 13f,
             $"section {worstSection} still tiles {worst:0.#}x after the clamp — a runaway face got past it");
     }
 }

@@ -396,16 +396,21 @@ public static class BspGeometry
 
     /// <summary>
     /// How many times a single compiled-world face may tile its texture before its UVs are
-    /// rescaled down. Most 1-Medical surfaces resolve to 1–4 tiles per face; a handful come out
-    /// far higher because <c>pBase</c> and, on a few, the texture-axis vectors are still misread
-    /// (<c>medical_pillar_texture</c> at ~13). The default of 5 leaves the correct ones untouched
-    /// and pulls the rest back to something that reads as a wall. <c>BIOSHOCK_BSP_UV_MAX_TILES</c>
-    /// overrides it; a value below 1 disables the clamp.
+    /// rescaled down — a backstop for a genuinely broken face, not a tuning knob.
     /// </summary>
+    /// <remarks>
+    /// <b>This must sit well above what a correctly-decoded surface produces.</b> After the
+    /// <c>polygon[0]</c> origin fix, 1-Medical's tiled floors, ceilings and dado panels
+    /// legitimately run 4–6 tiles across a large face — that is a tiled floor, not a fault — and a
+    /// low cap (tried 5) chops that tail and squashes every big floor. 12 clears the real data
+    /// with headroom and still catches the pathological cases (an untextured face against a
+    /// nominal size, a <c>medical_pillar_texture</c> face whose axis vector is ~25× too long).
+    /// <c>BIOSHOCK_BSP_UV_MAX_TILES</c> overrides it; a value below 1 disables the clamp.
+    /// </remarks>
     private static float MaxFaceTiles =>
         float.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_MAX_TILES"), out float tiles)
             ? tiles
-            : 5f;
+            : 12f;
 
     /// <summary>
     /// The texture size assumed when a section resolved none, so its raw texel UVs can still be
