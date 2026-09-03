@@ -854,42 +854,26 @@ public static class LevelSceneExporter
         for (int i = 0; i < instance.Geometry.Sections.Count; i++)
         {
             var material = i < instance.Materials.Count ? instance.Materials[i] : null;
-            var shipped = AuthoredTextureSize(package, material);
-            sizes.Add(shipped is { } s
-                ? (Math.Max(1, s.Width / RemasterTextureUpscale),
-                   Math.Max(1, s.Height / RemasterTextureUpscale))
-                : null);
+            sizes.Add(AuthoredTextureSize(package, material));
         }
 
         return BspGeometry.NormaliseUvs(instance.Geometry, sizes);
     }
 
     /// <summary>
-    /// How much larger BioShock Remastered's shipped textures are than the art the BSP surface
-    /// parameterisation was authored against.
+    /// Fallback upscale factor when the ORIGINAL BioShock 1 texture size for a surface is not
+    /// known. Remastered ships art upscaled from the UE2.5 original but did not rescale the BSP
+    /// texture vectors, so dividing texel UVs by the shipped size over-zooms by the upscale
+    /// factor. <see cref="OriginalTextureSizes"/> supplies the real per-texture size where
+    /// the original game is available; this constant covers the rest.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A BSP surface's texture vectors encode texels-per-world-unit against the ORIGINAL texture
-    /// size. Remastered ships upscaled art and did not rescale the vectors, so dividing by the
-    /// shipped <c>USize</c> over-zooms every surface by the upscale factor. Nothing in the
-    /// remastered package records the original size: <c>MinLOD</c> is just <c>UBits - 6</c>,
-    /// <c>StrippedNumMips</c> is a constant 5 across every texture, and there is no authored-size
-    /// property. So this is measured, not read.
-    /// </para>
-    /// <para>
-    /// Two independent measurements on 1-Medical, against textures of different kinds, both give
-    /// exactly 4 (two mip levels — a standard remaster upscale):
-    /// <c>Med_Tile_white_Dirty_Diffuse</c> is an 8x8 grid of ceramic tiles, so the sheet should
-    /// span ~1.3m; dividing by the shipped 2048 spans 5.12m, making each ceramic tile 64cm.
-    /// <c>med_wall_public_dirt</c> is a complete floor-to-dado wall elevation with a brass rail
-    /// and a Deco wainscot band; it should span ~1.9m of wall height, and dividing by the shipped
-    /// size spans 7.68m — a skirting board a metre and a half tall.
-    /// </para>
-    /// <para>
-    /// Override with <c>BIOSHOCK_BSP_UV_UPSCALE</c> to re-tune against a render without a rebuild.
-    /// Set it to 1 to restore the raw shipped-size divisor.
-    /// </para>
+    /// The factor is <b>not</b> constant. Checked against the original game
+    /// (<c>G:/SteamLibrary/steamapps/common/Bioshock</c>): <c>med_wall_public_dirt</c> is 1024
+    /// original vs 2048 shipped (2x), while <c>Med_Tile_white_Dirty_Diffuse</c> and
+    /// <c>Loadroom_Wall_Diffuse</c> are 512 vs 2048 (4x). 4 is the common case and the
+    /// least-bad default; <c>BIOSHOCK_BSP_UV_UPSCALE</c> overrides it, 1 restores the raw
+    /// shipped divisor.
     /// </remarks>
     private static int RemasterTextureUpscale =>
         int.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_UPSCALE"), out int scale)
@@ -897,7 +881,53 @@ public static class LevelSceneExporter
             ? scale
             : 4;
 
-    /// <summary>The shipped pixel dimensions of a material's diffuse texture, or null.</summary>
+    private static readonly Lazy<IReadOnlyDictionary<string, (int Width, int Height)>> _originalTextureSizes =
+        new(LoadOriginalTextureSizes);
+
+    /// <summary>
+    /// <c>name (lower-case) -&gt; (width, height)</c> for the ORIGINAL BioShock 1 textures, read
+    /// from a directory of reference PNGs named after the texture object
+    /// (<c>BIOSHOCK_ORIGINAL_TEXTURE_DIR</c>, e.g. a UModel export of the 2007 game). Empty when
+    /// the variable is unset or the directory is missing - the pipeline then falls back to
+    /// <see cref="RemasterTextureUpscale"/>.
+    /// </summary>
+    private static IReadOnlyDictionary<string, (int Width, int Height)> OriginalTextureSizes => _originalTextureSizes.Value;
+
+    private static IReadOnlyDictionary<string, (int Width, int Height)> LoadOriginalTextureSizes()
+    {
+        var map = new Dictionary<string, (int, int)>(StringComparer.OrdinalIgnoreCase);
+        string? dir = Environment.GetEnvironmentVariable("BIOSHOCK_ORIGINAL_TEXTURE_DIR");
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return map;
+
+        foreach (string file in Directory.EnumerateFiles(dir, "*.png", SearchOption.AllDirectories))
+        {
+            var size = ReadPngSize(file);
+            if (size is { } s) map[Path.GetFileNameWithoutExtension(file)] = s;
+        }
+        return map;
+    }
+
+    /// <summary>Width/height straight out of a PNG's IHDR chunk - no image decode.</summary>
+    private static (int Width, int Height)? ReadPngSize(string file)
+    {
+        try
+        {
+            using var stream = File.OpenRead(file);
+            Span<byte> head = stackalloc byte[24];
+            if (stream.Read(head) != 24) return null;
+            if (head[12] != (byte)'I' || head[13] != (byte)'H' || head[14] != (byte)'D' || head[15] != (byte)'R') return null;
+            int w = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
+            int h = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
+            return w > 0 && h > 0 ? (w, h) : null;
+        }
+        catch (IOException) { return null; }
+    }
+
+    /// <summary>
+    /// The pixel dimensions the BSP UVs of a surface with this material were authored against:
+    /// the ORIGINAL BioShock 1 texture size where known, otherwise the shipped size divided by
+    /// <see cref="RemasterTextureUpscale"/>. Null when the material has no resolvable diffuse.
+    /// </summary>
     private static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
     {
         if (material is not { } id || id.ExportIndex < 0 || id.ExportIndex >= package.Exports.Count) return null;
@@ -911,6 +941,9 @@ public static class LevelSceneExporter
 
         if (decoded?.DiffuseTexture is not { } name) return null;
 
+        if (OriginalTextureSizes.TryGetValue(name, out var authored))
+            return authored;
+
         var export = package.Exports
             .Where(e => e.ObjectName == name && package.GetClassName(e) == TextureReader.ClassName)
             .MaxBy(e => e.SerialSize);
@@ -919,7 +952,9 @@ public static class LevelSceneExporter
         try
         {
             var header = TextureReader.ReadHeader(package, export);
-            return header is { Width: > 0, Height: > 0 } ? (header.Value.Width, header.Value.Height) : null;
+            if (header is not { Width: > 0, Height: > 0 }) return null;
+            return (Math.Max(1, header.Value.Width / RemasterTextureUpscale),
+                    Math.Max(1, header.Value.Height / RemasterTextureUpscale));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
