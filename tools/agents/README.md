@@ -13,12 +13,13 @@ tree.
 | `worker:` | Backed by | Cost | Parallelism | Notes |
 |---|---|---|---|---|
 | `chatgpt`  | `codex exec`, signed in with the machine's **ChatGPT account** | ChatGPT plan quota | full (cloud) | The "use ChatGPT as a worker" path. `codex login status` shows the account. Smoke-tested working. |
-| `qwen`     | `codex exec --oss --local-provider ollama -m qwen2.5-coder:14b` | free | one at a time | ~9 GB (fits the 12 GB card) **and** exposes tool-calling, which codex needs. The reliable local worker. |
+| `aider`    | `aider` + Ollama `deepseek-coder-v2:16b` (repo `.aider.conf.yml`) | free | one at a time | **The reliable local worker.** aider parses its own SEARCH/REPLACE blocks, so needs no tool-calling. Prompt via `--message-file`; cwd = worktree. Needs the venv at `~/.backup-agent-venv` (`tools/backup-agent/README.md`). |
+| `qwen`     | `codex exec --oss --local-provider ollama -m qwen2.5-coder:14b` | free | one at a time | **Unreliable** — codex needs tool-calling the local models don't reliably expose; on 2 Sept 2026 it emitted a file as a JSON blob instead of writing it. Prefer `aider`. |
 | `qwen-big` | `codex exec --oss --local-provider ollama -m qwen3-coder:30b` | free | one at a time | Stronger, but 18 GB on a 12 GB card — has hung 600 s+ before (`.aider.conf.yml`). Only with someone watching. |
 | `cursor`   | standalone `cursor-agent` CLI | Cursor plan quota | full (cloud) | Installed at `%LOCALAPPDATA%\cursor-agent\` (3.x), logged in. The orchestrator resolves the `.cmd` shim directly (it is on the *user* PATH, not always this process's, and bypasses Restricted execution policy). The Cursor **GUI** is a separate lane via `.cursor/hooks`. |
 
-`deepseek-coder-v2:16b` is **not** an option here — it doesn't expose tools to codex. It still works
-via `tools/backup-agent/` (aider parses its own edit blocks).
+`tools/backup-agent/` is the older single-worker version of this same aider+deepseek path; the
+`aider` worker above folds it into the orchestrator's worktree isolation and review flow.
 
 Local workers share one GPU, so the orchestrator serialises them with a lock regardless of
 `-Parallel`.

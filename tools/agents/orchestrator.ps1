@@ -151,6 +151,25 @@ function Get-WorkerSpec {
             # with someone watching.
             @{ Exe = 'codex'; Args = ($codexCommon + $gate + @('--oss', '--local-provider', 'ollama', '-m', 'qwen3-coder:30b', '-')); Local = $true }
         }
+        'aider' {
+            # deepseek-coder-v2:16b driven by aider. aider parses its own SEARCH/REPLACE blocks and
+            # needs NO tool-calling -- exactly why `qwen` (codex --oss) fails here: codex requires
+            # tools the local Ollama models do not reliably expose, and on 2 Sept the qwen worker
+            # emitted a file as a JSON blob instead of writing it. Model, --no-auto-commits and the
+            # test-cmd live in .aider.conf.yml at the repo root; this is the proven local path from
+            # tools/backup-agent. Prompt goes via --message-file (aider has no stdin message mode),
+            # so this spec is PromptFile and the job runs it with cwd = worktree.
+            $aiderExe = Join-Path $env:USERPROFILE '.backup-agent-venv\Scripts\aider.exe'
+            if (-not (Test-Path $aiderExe)) {
+                throw "aider not found at $aiderExe -- create the venv per tools/backup-agent/README.md"
+            }
+            @{ Exe        = $aiderExe
+               Args       = @('--no-pretty', '--no-stream', '--no-restore-chat-history',
+                              '--no-auto-commits', '--yes-always', '--subtree-only',
+                              '--message-file', '{PROMPT_FILE}')
+               Local      = $true
+               PromptFile = $true }
+        }
         'cursor' {
             # Standalone cursor-agent CLI. Install: see tools/agents/README.md. -p = print mode
             # (non-interactive), --force lets it edit without per-tool prompts.
@@ -163,7 +182,7 @@ function Get-WorkerSpec {
             # workspace-trust prompt; -p --force = non-interactive with all tools allowed.
             @{ Exe = $cursorExe; Args = @('--workspace', $Worktree, '--trust', '-p', '--force', '--output-format', 'text'); Local = $false }
         }
-        default { throw "Unknown worker '$Worker' in task (want: chatgpt | qwen | qwen-big | cursor)" }
+        default { throw "Unknown worker '$Worker' in task (want: chatgpt | aider | qwen | qwen-big | cursor)" }
     }
 }
 
@@ -234,13 +253,29 @@ $jobBody = {
                       "everything left in the worktree is captured as the review patch.`n`n" +
                       "LANE (stay inside): $($Task.Lane)`n`n--- TASK ---`n$($Task.Prompt)"
             Log "worker: $($WorkerSpec.Exe) $($WorkerSpec.Args -join ' ')"
+            $prompt | Out-File -LiteralPath (Join-Path $outDir 'prompt.txt') -Encoding utf8
+
             # codex writes its agent transcript to stdout and only diagnostics to stderr. Keep
             # stderr OUT of the pipeline (-> its own file): merged in, PS 5.1 turns each stderr line
             # into an ErrorRecord that crosses the job boundary as a RemoteException and spams the
             # console. stdout is teed to the log live.
             $errFile = Join-Path $outDir 'worker.stderr.log'
-            $prompt | & $WorkerSpec.Exe @($WorkerSpec.Args) 2>$errFile | Tee-Object -FilePath $log -Append
-            $workerExit = $LASTEXITCODE
+
+            if ($WorkerSpec.PromptFile) {
+                # aider has no stdin-message mode: hand it the prompt file and run with the
+                # worktree as cwd (aider keys off cwd for the git repo; no --cd/--workspace).
+                $promptPath = Join-Path $outDir 'prompt.txt'
+                $specArgs   = $WorkerSpec.Args | ForEach-Object { $_ -replace '\{PROMPT_FILE\}', $promptPath }
+                $env:OLLAMA_API_BASE = 'http://localhost:11434'
+                Push-Location $wt
+                & $WorkerSpec.Exe @($specArgs) 2>$errFile | Tee-Object -FilePath $log -Append
+                $workerExit = $LASTEXITCODE
+                Pop-Location
+            }
+            else {
+                $prompt | & $WorkerSpec.Exe @($WorkerSpec.Args) 2>$errFile | Tee-Object -FilePath $log -Append
+                $workerExit = $LASTEXITCODE
+            }
             if (Test-Path $errFile) { "--- worker stderr ---`n$(Get-Content $errFile -Raw)" | Out-File -LiteralPath $log -Append -Encoding utf8 }
             Log "worker exit: $workerExit"
         }
