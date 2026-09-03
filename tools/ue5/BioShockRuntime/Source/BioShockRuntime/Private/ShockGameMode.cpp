@@ -1620,6 +1620,20 @@ void AShockGameMode::TickScreenshotCapture()
 			{
 				Comp->FOVAngle = PC->PlayerCameraManager->GetFOVAngle();
 			}
+
+			// -bioshockshotev=<stops> brightens the CAPTURE only, without touching the level.
+			// The Medical lighting repair pins a dark manual exposure; a wall inspection shot
+			// needs a couple of stops more to actually read the texture scale.
+			float ShotEv = 0.0f;
+			if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotev="), ShotEv)
+				&& !FMath::IsNearlyZero(ShotEv))
+			{
+				Comp->PostProcessSettings.bOverride_AutoExposureBias = true;
+				Comp->PostProcessSettings.AutoExposureBias += ShotEv;
+				Comp->PostProcessBlendWeight = 1.0f;
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_EV +%.1f"), ShotEv);
+			}
+
 			Comp->CaptureScene();
 		}
 
