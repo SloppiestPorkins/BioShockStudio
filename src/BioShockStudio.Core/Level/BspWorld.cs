@@ -387,13 +387,39 @@ public sealed record BspWorld
     /// than being stored on the polygon. In texels: the caller divides by the bound texture's size,
     /// exactly as with <see cref="BspGeometry.NormaliseUvs"/>.
     /// </remarks>
-    public Vector2 TexelsAt(BspSurface surface, Vector3 point)
+    public Vector2 TexelsAt(BspSurface surface, Vector3 point) =>
+        TexelsAtLocal(surface, point, surface.Base >= 0 && surface.Base < Points.Count
+            ? Points[surface.Base] : Vector3.Zero);
+
+    /// <summary>
+    /// Texel-space texture coordinate of <paramref name="point"/> on <paramref name="surface"/>,
+    /// measured from an explicit <paramref name="localBase"/> rather than the surface's stored
+    /// <c>pBase</c> index.
+    /// </summary>
+    /// <remarks>
+    /// <b>The compiled world's <c>pBase</c> cannot be trusted as a Points index.</b> Measured on
+    /// 1-Medical, <c>Points[surface.Base]</c> lands within 20 m of the face's own vertices for only
+    /// 800 of 6,667 drawn surfaces; for the rest it points tens to hundreds of metres away, so
+    /// <c>dot(vertex - Points[pBase], TextureU)</c> comes out at tens of thousands of texels. That
+    /// magnitude does not change the tiling — a sampler wraps — but at that scale the per-pixel UV
+    /// derivatives lose precision and the GPU picks a near-random mip, which is the "walls still
+    /// wrong" the render shows. <c>pBase</c> field is at the byte offset <c>SurfaceBrushPolyTests</c>
+    /// verifies, so this is a semantic mismatch in BioShock's Vengeance <c>Model</c>, not a parse
+    /// slip; recovering the real texture origin is still open (see docs/research/bsp.md §5.3).
+    ///
+    /// The texel <i>span</i> across a face is independent of the base — shifting it shifts every
+    /// vertex's dot product equally — so measuring from the face's own first vertex gives the
+    /// correct tiling with the UVs near the origin. What is lost is cross-face phase alignment: a
+    /// texture continuing across a BSP cut can show a seam. On this game's discrete wall panels
+    /// that is a far smaller error than a 100-tile face, and it is the state the previous
+    /// per-texture-size work was actually looking at.
+    /// </remarks>
+    public Vector2 TexelsAtLocal(BspSurface surface, Vector3 point, Vector3 localBase)
     {
-        if (surface.Base < 0 || surface.Base >= Points.Count) return Vector2.Zero;
         if (surface.TextureU < 0 || surface.TextureU >= Vectors.Count) return Vector2.Zero;
         if (surface.TextureV < 0 || surface.TextureV >= Vectors.Count) return Vector2.Zero;
 
-        var offset = point - Points[surface.Base];
+        var offset = point - localBase;
         return new Vector2(
             Vector3.Dot(offset, Vectors[surface.TextureU]),
             Vector3.Dot(offset, Vectors[surface.TextureV]));

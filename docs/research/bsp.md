@@ -925,3 +925,33 @@ serialise `Axis`; three of 13 `FluidVolume` actors serialise `MovingInWaterPenal
 override; `DefaultPhysicsVolume` carries typed priority and `bNoDelete`. No class-specific gameplay
 field from the retained 253-actor census remains only as hex.
 
+
+### 5.3a `pBase` cannot be used as a Points index — measure UVs from the face's own vertex
+
+**`CONFIRMED_BYTES` (the failure), root cause open.** The field at `FBspSurf +4` is `pBase` and its
+byte offset is right — `SurfaceBrushPolyTests` verifies `+20` = `iBrushPoly` past it. But
+`Points[surface.Base]` is **not** the texture origin for most compiled-world surfaces:
+
+| 1-Medical, drawn surfaces | |
+|---|---|
+| total | 6,667 |
+| `Points[Base]` within 20 m of the face's own vertices | **800** |
+| `Points[Base]` tens–hundreds of metres away | **5,867** |
+
+`Base` ranges `0..1776` while the real texture-origin points cluster around Points index
+1,700–3,500. There is no constant delta (observed 763, 880, 917, 936, 1527, 2341, 9907…). Reading
+`Base` as an index into `Verts` instead is no better (535 / 6,667). So it is a semantic mismatch in
+BioShock's Vengeance `Model` — `pBase` means something other than a `Model.Points` index here —
+not a parse slip. Recovering the real origin is open.
+
+**Effect and workaround.** `dot(vertex − Points[badBase], TextureU)` comes out at tens of thousands
+of texels (1-Medical raw median **62,353**, max 33 M). A sampler wraps, so the *tiling* is
+unchanged, but at that magnitude the per-pixel UV derivatives lose float precision and the GPU
+picks a near-random mip — the "walls still wrong after the UV-size fix" a render shows.
+
+The texel **span across a face is independent of the base** (shifting the base shifts every
+vertex's dot product equally), so `BspGeometry.ToGeometry(BspWorld)` and `BspWorld.TexelsAtLocal`
+now measure from `polygon[0]`. 1-Medical raw texel UV then: median **600** (1.17 tiles of a 512
+texture), p90 2,048 (4.0 tiles) — correct. What is lost is cross-face phase alignment: a texture
+continuing across a BSP cut can seam. On this game's discrete wall panels that is far smaller than
+a 100-tile face.

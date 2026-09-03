@@ -168,13 +168,17 @@ public static class BspGeometry
                 var surface = world.Surfaces[node.Surface];
                 int start = vertices.Count;
 
+                // Measure texel UVs from this polygon's own first vertex, not the surface's stored
+                // pBase -- see BspWorld.TexelsAtLocal. pBase is mis-indexed for ~88% of drawn
+                // surfaces and blows the UVs up to tens of thousands of texels.
+                var uvBase = polygon[0];
                 foreach (var position in polygon)
                 {
                     vertices.Add(new MeshVertex
                     {
                         Position = position,
                         Normal = node.Plane.Normal,
-                        Uv = world.TexelsAt(surface, position),
+                        Uv = world.TexelsAtLocal(surface, position, uvBase),
                         Influences = [],
                     });
                 }
