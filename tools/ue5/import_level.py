@@ -230,7 +230,16 @@ def _import_cubemap_faces(manifest, export_directory, destination, report):
             task.set_editor_property("destination_path", "%s/CubemapFaces" % destination)
             task.set_editor_property("automated", True)
             task.set_editor_property("replace_existing", True)
-            task.set_editor_property("save", True)
+            # save=True and the default (Interchange) factory both trip
+            # Assertion failed: CurrentApplication.IsValid() under -run=pythonscript -- Interchange
+            # fires a Slate completion notification, and save routes through
+            # InternalPromptForCheckoutAndSave. Pin the legacy factory (there is no
+            # Interchange.FeatureFlags.Import.Texture CVar) and persist explicitly below.
+            task.set_editor_property("save", False)
+            try:
+                task.set_editor_property("factory", unreal.TextureFactory())
+            except Exception as exc:  # noqa: BLE001
+                _log("  could not pin the legacy texture factory for cubemap faces (%s)" % exc)
             import_bioshock._asset_tools().import_asset_tasks([task])
             texture = next((o for o in task.get_objects() if isinstance(o, unreal.Texture2D)), None)
             if texture is None:
