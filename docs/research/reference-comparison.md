@@ -310,3 +310,97 @@ five for five: read the reference projects first.**
 and its parser carries measurements his prose does not — the exhaustive offset probe that settled
 `FBspNode.NumVertices`, and the UV division at upload time. It also contradicts his own spec in one
 place (§7b), which is only visible if both are read.
+
+---
+
+## 8. The compiled-world UV work (Sept 2026) cross-referenced
+
+Four sessions of BSP-UV fixes. Every decision re-checked against Nyko's `bioshock1-bsm.md`,
+his `tools/level_editor/` parser and viewport, UELib's `Poly.cs`, and UModel's game database.
+
+### 8.1 `FBspSurf` field layout — our read matches the spec, verified independently
+
+| field | offset | Nyko `§C.1.3` | our read | cross-check |
+|---|---|---|---|---|
+| `flags` | +0 | `int32 PolyFlags` | `uint32` | — |
+| `pBase` | +4 | `int32`, index into Points | `int32` | see 8.2 |
+| `vNormal` | +8 | `int32`, index into Vectors | `int32` | **`Vectors[vNormal]` is unit length and within 25° of the node plane for 13,041 / 13,041 drawn Medical surfaces, all 67 materials** (`BspTextureVectorDiagnosticTests.ReportSurfaceVectorSanityPerMaterial`) |
+| `vTextureU/V` | +12/+16 | `int32`, index into Vectors | `int32` | magnitudes land on authored round scales — see 8.3 |
+| `iBrushPoly` | +20 | `int32 iBrushPoly` (spec) vs `iLightMap` (his editor) | `int32 iBrushPoly` | **spec confirmed, editor wrong** — 6,372 / 6,372 name a polygon of their own brush with a matching normal (`SurfaceBrushPolyTests`, §7b) |
+| `Actor` | +24 | `CI` ABrush ref | `CI` | 33,631 / 33,632 place by `Location − PrePivot` (§5.7) |
+| `SurfNormal` | +28 | `FPlane` (v > 86) | skipped, 16 B | within 0.04° of the node normal (§5.6b) |
+| `LightMapScale` | +44 | `float` (v >= 106) | `float` | 8 / 16 / 32 only |
+
+`iBrushPoly` at +20 is `CONFIRMED_BYTES`, so every field ahead of it is at the right offset by
+construction — a shifted read cannot land +20 on a valid brush-polygon index 100% of the time. The
+`vNormal` sanity check is the second, independent confirmation: it exercises `pBase`'s two
+neighbours (`+8`, and `Vectors` itself) and finds zero faults across every material.
+
+### 8.2 `pBase` does not resolve as a `Model.Points` index — reconciled with the spec
+
+Nyko `§C.1.3`: *"`pBase` — index into Points — the texture origin"*. Our measurement
+(`bsp.md` §5.3a): `Points[pBase]` lands within 20 m of the face for **800 of 6,667** Medical
+surfaces; for the rest it is tens to hundreds of metres away (raw texel median **62,353**).
+`bsp.md` §5.6b had already noted `pBase` is *"up to 1,433 cm off the polygon, so it is not a point
+on the plane at all"*.
+
+**UELib explains why the spec expects this to work and why it can still be right in principle.**
+`Poly.cs::Deserialize`, for `stream.Version < PanUVRemovedFromPoly` (= **78**; BioShock is 142, so
+this branch is skipped):
+
+```csharp
+PanU = ReadInt16(); PanV = ReadInt16();
+newBase -= TextureU / TextureU.LengthSquared() * PanU;   // shift the origin along the tex axes
+newBase -= TextureV / TextureV.LengthSquared() * PanV;
+Base = newBase;
+```
+
+So in stock UE2 the pan offset is folded into the texture origin at load. Past version 78 it is
+**already baked into the stored origin** — a full `FVector` for a source `FPoly`, but an **index**
+(`pBase`) for a compiled `FBspSurf`. For the brushes we handle this correctly (the `FPoly` `Base`
+is a vector and carries the bake). For the compiled world the pan-baked origin would have to be
+`Model.Points[pBase]`, and that array — proven correct for vertex positions by the planarity check
+(81,554 / 81,566 exactly on plane) — does not contain it at `pBase`.
+
+**Conclusion:** not a decode fault on our side and not a documentation error on Nyko's — a genuine
+Vengeance-`Model` divergence. The pan-baked texture origin lives in an array this project has not
+identified (candidate: the **13.9% of `Model` bytes still unread** after the vertex pool, §5.5b),
+or `pBase` indexes something other than `Model.Points` in this engine. **OPEN.**
+
+Our workaround — measure the projection from the polygon's own first vertex — recovers the
+**scale** exactly (it is base-independent) and loses only cross-face **phase**, i.e. a texture
+that should flow unbroken across a BSP cut can seam. Justified: the alternative is a face in the
+wrong mip. `bsp.md` §5.3a, `BspGeometry.TexelsAtLocal`.
+
+### 8.3 The texture-axis vectors are authored tiling scales — `medical_pillar` is real data
+
+`|Vectors[vTextureU]|` / `|Vectors[vTextureV]|` per Medical material (texels per game unit):
+
+- **almost all land on 1, 2, 2.667, 4, 8, 16, 32** — the round scales a level texture-alignment
+  tool produces, and `U == V` for the large majority.
+- **`medical_pillar_texture`: U 66.667, V 10.000** — the one gross outlier. `vNormal` is still
+  clean, so the *index* is not shifted; the surface genuinely carries a ~6.7× U-stretched axis.
+  A handful of trims agree it is a real range: `MetalFloorTrim` 10/30, `girder_01` 20/10,
+  `floor_tiles_trim` 32/8.
+
+This is why the fix for the residual over-tiling is a **per-face clamp**
+(`BIOSHOCK_BSP_UV_MAX_TILES`, default 5), not a field correction — there is no wrong field to
+correct. Nyko's viewport does the same division we do (`viewport.cpp`: `invW = 1/texW; v.u *= invW`,
+`bsp.md` §4) and has no clamp; whether his editor shows `medical_pillar` over-tiled is not
+recorded.
+
+### 8.4 What each reference was worth this time
+
+| finding | source | worth |
+|---|---|---|
+| `FBspSurf` field list + version gates | Nyko `§C.1.3` | the layout we verified |
+| `iLightMap` at +20 is wrong; `iBrushPoly` is right | Nyko's spec **over** his editor | kept us from hunting lightmap atlases with a brush index |
+| pan folds into the texture origin, removed at v78 | **UELib `Poly.cs`** | explained why `pBase` *should* be a usable origin — and, once measured, that the gap is engine-specific, not ours |
+| UV = texels ÷ texture size, at upload | Nyko `viewport.cpp` | confirms the two-stage shape `NormaliseUvs` implements |
+| BioShock is `ArVer 141` (orig) / 142 (Remastered) | **UModel `GameDatabase.cpp`** | confirms the version split behind `pBase`'s pan bake and the original-vs-Remastered texture sizes |
+| UModel has **no** `UModel`/BSP path | UModel source | the compiled world has exactly one external reference — Nyko's — and no second opinion exists |
+
+**Pattern holds (§7b, fourth time): read the reference's code and its docs, believe neither until
+the bytes agree with one.** Here the bytes agreed with Nyko's *spec* on the field list, agreed with
+UELib on the pan mechanism, and agreed with *neither* on where BioShock keeps the compiled-world
+texture origin — which is now a named open question instead of a vague "walls look wrong".

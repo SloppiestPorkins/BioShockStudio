@@ -944,6 +944,22 @@ byte offset is right — `SurfaceBrushPolyTests` verifies `+20` = `iBrushPoly` p
 BioShock's Vengeance `Model` — `pBase` means something other than a `Model.Points` index here —
 not a parse slip. Recovering the real origin is open.
 
+**Not a shifted read — confirmed twice more.** `iBrushPoly` at `+20` is `CONFIRMED_BYTES`, so
+`pBase` at `+4` is at the right offset by construction. And
+`BspTextureVectorDiagnosticTests.ReportSurfaceVectorSanityPerMaterial` exercises `pBase`'s
+neighbour `vNormal` (`+8`): `Vectors[vNormal]` is unit length and plane-aligned for **13,041 of
+13,041** drawn Medical surfaces across all 67 materials. The surface record is read correctly; the
+gap is in what `pBase` points *at*.
+
+**Why the spec expects `Points[pBase]` to work — UELib.** `Poly.cs::Deserialize` folds `PanU/PanV`
+into the texture origin at load (`newBase -= TextureU/|TextureU|² · PanU`), and stops serialising
+the pair at package version **78**. Past that the pan is pre-baked into the stored origin: a full
+`FVector` for a source `FPoly` (which is why the brushes are fine), an **index** (`pBase`) for a
+compiled `FBspSurf`. The pan-baked origin for the compiled world would therefore be
+`Model.Points[pBase]` — and that array, proven correct for vertex positions by the planarity
+check, does not carry it there. Candidate location: the **13.9% of `Model` bytes still unread**
+after the vertex pool (§5.5b). See `reference-comparison.md` §8.2.
+
 **Effect and workaround.** `dot(vertex − Points[badBase], TextureU)` comes out at tens of thousands
 of texels (1-Medical raw median **62,353**, max 33 M). A sampler wraps, so the *tiling* is
 unchanged, but at that magnitude the per-pixel UV derivatives lose float precision and the GPU
