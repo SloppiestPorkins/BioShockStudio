@@ -31,7 +31,9 @@ def load_tex(rel):
     return None
 
 try:
-    unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level("/Game/BioShockSlice/1-Medical")
+    # Do NOT load the level: that references the compiled-world mesh and blocks its re-import
+    # on a force-delete prompt under -run=pythonscript. The masters, instances and the mesh
+    # asset are all standalone, and replace_existing on the import handles the swap.
     manifest = json.load(open(MANIFEST, encoding="utf-8"))
 
     # --- 1. materials: re-parent to the correct-kind master (textures loaded off disk) ---
@@ -71,9 +73,6 @@ try:
     model = next((f for f in os.listdir(mesh_dir) if f.startswith("Model1_") and f.endswith(".obj")), None)
     if model:
         stem = os.path.splitext(model)[0]
-        ap = "%s/Meshes/%s" % (CONTENT, stem)
-        if unreal.EditorAssetLibrary.does_asset_exist(ap):
-            unreal.EditorAssetLibrary.delete_asset(ap)
         t = unreal.AssetImportTask()
         t.set_editor_property("filename", os.path.join(mesh_dir, model))
         t.set_editor_property("destination_path", "%s/Meshes" % CONTENT)
@@ -90,9 +89,7 @@ try:
         else:
             res["steps"].append("compiled world: IMPORT FAILED")
 
-    world = unreal.EditorLevelLibrary.get_editor_world()
-    unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/BioShockSlice/1-Medical")
-    res["saved"] = True
+    res["saved"] = True  # assets saved individually above; no map save
 except Exception as exc:
     res["error"] = str(exc); res["traceback"] = traceback.format_exc()
 with open(OUT, "w") as h: json.dump(res, h, indent=2, default=str)
