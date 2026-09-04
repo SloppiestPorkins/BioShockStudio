@@ -9,6 +9,8 @@ Environment:
   BIOSHOCK_IMPORT_LIGHTING_STOPGAP=0   disable dynamic fill (default on)
   BIOSHOCK_IMPORT_RIGS              none (default) | all | comma-separated mesh names
   BIOSHOCK_IMPORT_OUT               report JSON (default %TEMP%/bioshock_import_all_levels.json)
+  BIOSHOCK_IMPORT_KEEP_EXPORTS=1    keep each map's %TEMP%/bioshock-import-all-levels/<map>/ tree
+                                   (default: delete it after the map imports)
 """
 
 import json

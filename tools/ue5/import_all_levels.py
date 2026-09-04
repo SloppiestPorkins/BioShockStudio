@@ -14,12 +14,16 @@ Configure via environment (headless drivers cannot rely on argv under -run=pytho
   BIOSHOCK_IMPORT_FORCE=1       re-import even when key count matches
   BIOSHOCK_IMPORT_LIGHTING_STOPGAP=0   disable dynamic fill (default on)
   BIOSHOCK_IMPORT_OUT           report JSON path (default %TEMP%/bioshock_import_all_levels.json)
+  BIOSHOCK_IMPORT_KEEP_EXPORTS=1  keep each map's %TEMP%/bioshock-import-all-levels/<map>/ export
+                               tree after its import (default: delete it once the map is done, so a
+                               multi-map run does not accumulate every map's FBX/textures in %TEMP%)
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 
@@ -83,10 +87,42 @@ def _package_bsm(map_name):
     raise RuntimeError("map package not found: %s (set BIOSHOCK_REMASTERED_PATH)" % path)
 
 
+def _export_root():
+    return os.path.join(os.environ.get("TEMP", "."), "bioshock-import-all-levels")
+
+
+def _map_export_dir(map_name):
+    return os.path.join(_export_root(), map_name)
+
+
+def _keep_exports():
+    return os.environ.get("BIOSHOCK_IMPORT_KEEP_EXPORTS") == "1"
+
+
+def _cleanup_map_exports(map_name):
+    """Delete one map's re-exported manifest/FBX/texture tree once its import is finished.
+
+    A multi-map run otherwise leaves every map's export under %TEMP%: this reached 44 GB over the
+    21-map run on 1 Sept 2026, filled the C: drive, and killed the run at map 16. The per-map JSON
+    report is written to BIOSHOCK_IMPORT_OUT, not into this tree, so it is untouched. Opt out with
+    BIOSHOCK_IMPORT_KEEP_EXPORTS=1 when debugging an export.
+    """
+    if _keep_exports():
+        return
+    path = _map_export_dir(map_name)
+    if not os.path.isdir(path):
+        return
+    failed = []
+    shutil.rmtree(path, onerror=lambda _f, p, _e: failed.append(p))
+    if failed:
+        _log("export dir not fully removed: %s (%d paths left)" % (path, len(failed)))
+    else:
+        _log("removed export dir %s" % path)
+
+
 def _export_manifest_to_temp(map_name):
     """Run export-level into %TEMP%; return manifest path."""
-    out_root = os.path.join(os.environ.get("TEMP", "."), "bioshock-import-all-levels")
-    out_dir = os.path.join(out_root, map_name)
+    out_dir = _map_export_dir(map_name)
     os.makedirs(out_dir, exist_ok=True)
     package_bsm = _package_bsm(map_name)
     cli = os.path.join(_repo_root(), "src", "BioShockStudio.Cli")
@@ -411,6 +447,8 @@ def _import_one(map_name, force=False, lighting_stopgap=True, rig_names=None, pr
     except Exception as exc:  # noqa: BLE001 -- one map failing must not abort the batch
         entry["error"] = str(exc)
         _log("%s: FAILED — %s" % (map_name, exc))
+    finally:
+        _cleanup_map_exports(map_name)
 
     entry["elapsed_seconds"] = round(time.monotonic() - started, 2)
     return entry
@@ -465,6 +503,12 @@ def main(report_path=None, maps=None, force=None, lighting_stopgap=None, rig_nam
         )
         report["results"][map_name] = entry
         _write_report(report, report_path)
+
+    if not _keep_exports():
+        try:
+            os.rmdir(_export_root())  # only succeeds once every map's dir is cleaned up
+        except OSError:
+            pass
 
     report["summary"]["total"] = len(report["results"])
     report["summary"]["imported"] = sum(
