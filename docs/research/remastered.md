@@ -36,10 +36,9 @@ variants of the same maps and are skipped by the scanner.
 
 ## Bulk content
 
-`UNKNOWN`. 201 `BulkChunk0_*.blk` files, ~8 GB. The name table contains `CachedBulkDataSize`, so
-packages reference bulk data rather than embedding it — this is almost certainly where
-high-resolution texture data lives (brief §17). Not yet parsed, and not on the critical path for
-the pistol animation target.
+`CONFIRMED_BYTES`, fully decoded — see [bulkcontent.md](bulkcontent.md). 201 `BulkChunk0_*.blk`
+files, ~8 GB, indexed by `Catalog.bdc`; this is where the high-resolution texture data most
+packaged textures are stripped down from actually lives.
 
 ## Related installs available for cross-referencing
 
@@ -48,51 +47,13 @@ the pistol animation target.
 that its game-specific structures are its own. See [external-projects.md](external-projects.md).
 
 
-## Most textures are stripped, and the rest lives in the bulk store (CONFIRMED_BYTES)
+## Most textures are stripped, and the rest lives in the bulk store
 
-A `Texture` export says how big it really is and how much of itself is missing.
-`ChemThrow_Pickup_Kero_Diffuse` in `1-Medical`:
-
-| Property | Value |
-|---|---|
-| `USize`, `VSize` | 2048, 2048 |
-| `UBits`, `VBits` | 11, 11 |
-| `HasBeenStripped` | true |
-| `StrippedNumMips` | 5 |
-| `MinLOD` | 5 |
-| `CachedBulkDataSize` | 0 |
-| Mips actually in the package | 5, topping out at **64x64** |
-
-2048 down five levels — 1024, 512, 256, 128, 64 — is exactly the 64-square top mip the package
-holds. The texture is not low resolution; the package is carrying its tail.
-
-`Hand_DIFF`, which really is 2048 in the package, has no `HasBeenStripped` and no `StrippedNumMips`;
-it has `bStreamable` false instead.
-
-**How much of the game this is:** in `1-Medical`, of ~1,937 textures, **1,639 top out at 64x64**.
-Only 11 are 2048 and 13 are 1024. So the great majority of what the tool draws is the bottom of a
-mip chain.
-
-### The bulk store is indexed and looks readable
-
-`ContentBaked/pc/BulkContent/` holds 201 `BulkChunk*_*.blk` files, ~8 GB, and — the part that had
-been missed — a **`Catalog.bdc`** of 516,961 bytes.
-
-The catalog is not opaque. It opens with a header, then UTF-16 strings with a length prefix, and the
-first entries read plainly:
-
-```
-BulkChunk0_0.blk
-  HarvestSlugFish_Diff   HarvestSlugfish   ... 00000080  00000aa0  00000aa0  00000001
-  HarvestSlugFish_Norm   HarvestSlugfish   ... 00000b80  00000aa0  00000aa0  00000002
-```
-
-Each entry names the texture, names its group, and carries what look like an offset into the chunk
-(128, then 2944), a size twice over (2720), and a sequential index. The offsets advance by the size,
-which is what a flat blob store looks like.
-
-`UNKNOWN`: the exact record layout and the header. But this is a name-to-(chunk, offset, size) table,
-not a compressed archive, so recovering the stripped mips looks tractable rather than speculative.
+`CONFIRMED_BYTES`, fully decoded, catalogue format and all — see [bulkcontent.md](bulkcontent.md).
+Short version: a `Texture` export's `StrippedNumMips`/`HasBeenStripped` say how much of itself is
+missing (in `1-Medical`, 1,639 of ~1,937 textures top out at 64×64 in-package), `Catalog.bdc`
+indexes the 8 GB bulk store by name to a `(chunk, offset, size)` triple, and the recovered mips
+verify against what the package kept.
 
 ---
 

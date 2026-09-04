@@ -94,7 +94,9 @@ transform. Nothing in the mesh, skeleton or material path uses them. See
 ## 6. ~~The first-person pistol mesh~~ — CLOSED
 
 `CONFIRMED_BYTES`. It is `WP_PistolMesh` in `Build/Final/BakedScripts/pc/ShockGame.U`, not in any map
-package, and it has a skeleton and animations of its own. See [firstperson.md](firstperson.md).
+package, and it has a skeleton and animations of its own. See [context.md](context.md) §"Weapon
+viewmodels live in ShockGame.U" — the resolving section; `firstperson.md` names the asset but its
+own closing paragraph predates this and should not be read as still-open.
 
 ## 7. The 34-byte Unreal prefix on `AnimationPackageWrapper`
 
@@ -250,12 +252,13 @@ first. The same source also gives the full payload order and shows that the "tag
 searches for is a versioned object header whose subversion selects the layout. See
 [skeletalmesh.md](skeletalmesh.md) and [reference-comparison.md](reference-comparison.md) §3–§4.
 
-## 12. Unreal import
+## 12. ~~Unreal import~~ — CLOSED, and overtaken by events
 
-`UNKNOWN`. The FBX the exporter writes is validated by round trip through Blender, but nothing has
-been imported into Unreal Engine 5 and `tools/ue5/import_bioshock.py` has never been run. Two things
-would be settled by one import: whether Unreal takes the `SOCKET_*` null nodes as sockets or as
-bones, and whether the notify API in that script exists under the name it uses.
+`CONFIRMED_BYTES`, live UE5.7. This question predates the whole UE5 runtime effort: rigs, levels,
+materials, lighting, AI, weapons and script actions all import and run, verified in a live editor —
+see `docs/FULL_GAME_CONVERSION.md` for current status and `tools/ue5/README.md` for the dated
+verification log. `SOCKET_*` null nodes come in as sockets, restored through the
+`BioShockImportTools` editor plugin after Blender normalization strips them (`tools/ue5/README.md`).
 
 ## 13. ~~Bulk content (`.blk`)~~ — CLOSED
 

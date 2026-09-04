@@ -23,19 +23,25 @@ Every claim in these documents carries a confidence label:
 | [binding.md](binding.md) | Track-to-bone binding, and why it must precede decoding. |
 | [root-motion.md](root-motion.md) | Havok root motion (`m_extractedMotion`) — present on 39.6% of animations, previously unread. |
 | [havok-physics.md](havok-physics.md) | Havok collision/ragdoll data — `hkpCapsuleShape` decoded; census and a scoped plan for the rest. |
-| [skeletalmesh.md](skeletalmesh.md) | Skinned mesh — header, sockets, bone map, geometry, weights. |
-| [staticmesh.md](staticmesh.md) | Static mesh — the props that hang off sockets. |
+| [skeletalmesh.md](skeletalmesh.md) | Skinned mesh — header, sockets, bone map, geometry, weights, the per-material section table. |
+| [staticmesh.md](staticmesh.md) | Static mesh — the props that hang off sockets, and its own section table. |
 | [animationpackage.md](animationpackage.md) | `AnimationPackageWrapper` / `AnimationPackageRoot`. |
-| [firstperson.md](firstperson.md) | First-person hands, weapons and the pistol target case. |
-| [fbx.md](fbx.md) | The FBX the exporter writes, and what it cannot carry. |
+| [firstperson.md](firstperson.md) | First-person hands and weapon asset *location* (which exports, what they're named). For the arm-position decode bug, see `FIRST_PERSON_ANIMATION.md`; for weapon-mesh resolution via `ShockGame.U`, see `context.md`. |
+| [FIRST_PERSON_ANIMATION.md](FIRST_PERSON_ANIMATION.md) | The left-hand/arm-position bug — an omitted Havok transform channel is identity, not the reference pose — root cause, blast radius, the still-open `smg_fire` anomaly. |
+| [context.md](context.md) | Asset relationships via the package object graph: socket attachments, weapon-mesh resolution in `ShockGame.U`, animation sets as loadouts. |
+| [fbx.md](fbx.md) | The FBX the exporter writes, what it cannot carry, and the live UE5.7 import result. |
 | [bulkcontent.md](bulkcontent.md) | The 8 GB of stripped texture mips, and the catalogue into them. |
+| [textures.md](textures.md) | Whole-game texture census — colour space, UE2 flags, the `AsByte()`/`AsInt()` trap, cubemap face decoding. |
 | [materials.md](materials.md) | `Shader` objects, and how a mesh names the one it uses. |
+| [decal-alpha.md](decal-alpha.md) | Blood-splat decals: no alpha channel is lost, opacity comes from a separate mask texture. |
 | [effects.md](effects.md) | Particle emitters — the whole-game template census Gate 4 item 3's Niagara mapping has to be built against. |
-| [interaction.md](interaction.md) | Movers, doors and trigger wiring — `TriggeredBy` as the interaction object graph, door state, and what's deliberately deferred (keyframe paths, `TriggerOnlyByLabels`, plasmid/weapon effects). |
-| [bsp.md](bsp.md) | `Model` / `Polys` — the source brushes (decoded) and the built world (documented, not implemented). |
+| [interaction.md](interaction.md) | Movers, doors and trigger wiring — `TriggeredBy` as the interaction object graph, door state, weapon/plasmid effect classes, and what's deliberately deferred (keyframe paths). |
+| [door-and-import-materials.md](door-and-import-materials.md) | **Closed, kept for the record.** The two `1-Medical` root causes it diagnosed (doors placing an animation-proxy mesh; cross-package BSP material imports dropped) are both fixed — see the banner at the top of the file for what to read instead. |
+| [bsp.md](bsp.md) | `Model` / `Polys` — both the source brushes and the compiled world (nodes, surfaces, zones, portals, lightmaps, UVs) are `CONFIRMED_BYTES` and drawn. |
 | [lights.md](lights.md) | Placed `Light` actors — the seven parameters each carries, the whole-game census, and why the "falloff exponent" was a non-question. |
 | [spawning.md](spawning.md) | AI archetypes — what a `Spawner.OverriddenAiArchetypeNames` / `TriggerOnlyByLabels` name points at: an `AIArchetype` record (class, mesh, health, loadout). |
 | [config.md](config.md) | `ConfigINI.IBF` — the baked bundle of all 21 game inis (`Spawning.ini`, `Weapons.ini` + resistance sets, `LootTables.ini`, `Ai.ini`, …). The data layer behind every by-name reference. |
+| [audio.md](audio.md) | Animation event → sound name → sample: `SoundEffectSpecification`, FSB5 banks, embedded MP3, 94.5% of placed sound actors resolved to a sample. |
 | [external-projects.md](external-projects.md) | Prior art and the cross-game Havok matrix. |
 | [reference-comparison.md](reference-comparison.md) | **What each reference project says about the structures we read, field by field, and where they disagree.** Read before deriving anything from bytes. |
 | [open-questions.md](open-questions.md) | What is still unknown, in priority order. |

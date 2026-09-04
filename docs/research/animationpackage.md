@@ -15,8 +15,9 @@ export payload      920,658 bytes
 havok packfile      920,624 bytes, starting at payload offset 34
 ```
 
-So the Unreal wrapper is a 34-byte prefix plus the packfile. `UNKNOWN`: the meaning of those 34
-bytes. They are preserved, not skipped blindly — detection is by magic search, not a hardcoded 34.
+So the Unreal wrapper is a 34-byte prefix plus the packfile. The first 18 of those 34 bytes are a
+header shared with `SkeletalMesh` payloads (see [skeletalmesh.md](skeletalmesh.md)); the remaining
+16 are `UNKNOWN`, preserved rather than skipped — detection is by magic search, not a hardcoded 34.
 
 Naming convention `UAPW_<AssetName>` pairs the wrapper with its mesh: `UAPW_NEWPlayerHands` ↔
 SkeletalMesh `NEWPlayerHands`. `LIKELY` as a resolution heuristic, but naming alone is explicitly
@@ -44,7 +45,8 @@ class-name table alongside it lists stock Havok classes (`hkaSkeleton`, `hkaAnim
 `hkaSplineCompressedAnimation`). So the work is to decode 2K's root object and then hand off to
 standard Havok 2012.2.0-r1 structures, rather than to reverse-engineer a bespoke animation format.
 
-`UNKNOWN`: the layout of `AnimationPackageRoot` itself. It is the next target.
+`AnimationPackageRoot`'s own layout is closed — see [open-questions.md](open-questions.md) item 1:
+a skeleton reference plus a flat table of `{animationName, ownerName, hkaAnimationBinding*}`.
 
 ## Per-weapon sectioning
 

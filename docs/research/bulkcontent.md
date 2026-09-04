@@ -169,24 +169,8 @@ added to the enum, which is what gates the reader.
 
 ### Ordinal 12 is DXT5N, not 3DC/BC5
 
-The two reference projects disagree. Nyko's note says "3DC — BC5/ATI2, two BC4 alpha blocks giving R
-and G". UModel's BioShock branch remaps it: `Format = TEXF_DXT5N`, commented *"Bioshock used 3DC
-name, but real format is DXT5N"*, and nvtt then rebuilds the normal from `(alpha, green)` rather than
-`(red, green)`.
-
-**The bytes side with UModel**, and the check is an invariant rather than a preference:
-
-| | as BC5 | as DXT5N |
-|---|---|---|
-| X (red) mean | 127 | 127 |
-| **Y (green) mean** | **57** | **128** |
-| Z (blue) mean | 209 | 252 |
-| texels with `x² + y² > 1` | many | **0 of 4,096** |
-
-A tangent-space normal map's X and Y both centre on 128 and every texel is a unit vector. Read as
-BC5, the second half of the block — which is really the DXT5 colour block — is parsed as a BC4
-endpoint pair, and the image comes out magenta. `NormalMapFormatTests` asserts the invariants, so it
-fails on the wrong reading rather than merely describing the right one.
-
-**274 exports, 64 distinct names, every one a normal map.** They decoded to nothing before this, so
-every mesh using one had no normal map at all.
+Two reference projects disagreed (Nyko: 3DC/BC5; UModel: DXT5N) and the bytes settled it for
+UModel — full comparison, the invariant that discriminates them, and why the wrong reading comes
+out magenta: [reference-comparison.md](reference-comparison.md) §1, the canonical home for this
+contest. Recovered **274 exports, 64 distinct names, every one a normal map** — they decoded to
+nothing before this, so every mesh using one had no normal map at all.

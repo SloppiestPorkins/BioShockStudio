@@ -169,30 +169,18 @@ textured weapons.
 The 18 exports that still fail are all doors — `LowRentDoor_Mesh`, `Sliding512SingleDoorMesh`,
 `Atlas_labs_doorAnim` and `GathererDoorAnimMesh`, four distinct meshes across the packages.
 
-## UModel has the whole payload, and it says there IS a section table
+## Where the section table prediction came from
 
-`CONFIRMED_EXTERNAL`, from `UModel-master/Unreal/UnMeshBioshock.cpp`. **Not implemented — recorded so
-the next session starts from it rather than from bytes.** Full detail and cross-checks in
-[reference-comparison.md](reference-comparison.md) §3.
+`CONFIRMED_EXTERNAL`, from `UModel-master/Unreal/UnMeshBioshock.cpp`, and since fully implemented —
+see "Section table" below for the decode and its verification. Recorded here only for provenance:
+`FStaticLODModelBio`'s `TArray<FSkelMeshSection> Sections` (nine `uint16`s each, commented "1
+section = 1 material") is what said a per-material table existed at all, before this project found
+it in shipped bytes. Full detail and cross-checks: [reference-comparison.md](reference-comparison.md)
+§3.
 
-Two things it settles that this note and `HANDOFF.md` currently record as unknown:
-
-1. **A skeletal mesh carries a per-material section table.** `FStaticLODModelBio` begins
-   `TArray<FSkelMeshSection> Sections` — nine `uint16`s each, `MaterialIndex, MinStreamIndex,
-   MinWedgeIndex, MaxWedgeIndex, NumStreamIndices, BoneIndex, fE, FirstFace, NumFaces` — with the
-   comment "1 section = 1 material". That is the same pairing the `StaticMesh` path already uses, and
-   it is the **153** meshes the diagnostic sweep reports as
-   `mesh-materials-without-sections`, which today draw entirely in one material.
-2. **The payload can be walked from the front.** The order is bounds, versioned header, `Textures`
-   (the material array), scale/origin/rotation, four unknown scalars, `RefSkeleton`, `Animation`,
-   `SkeletalDepth`, the three socket arrays, then the LOD models. This project locates the vertex
-   chain by *search*, and open question 4 records byte-exact accounting as the thing that would
-   settle the container outright.
-
-**Caveat, and it is a real one.** UModel targets the **original** game. The Remastered static vertex
-is already 48 bytes against the original's 24, so a field-by-field check against shipped Remastered
-bytes is required before any of this becomes a parser. `t3_hdrSV` (§below) is what selects layout
-variants and is the first thing to read.
+**The caveat that mattered:** UModel targets the **original** game, whose static vertex is 24 bytes
+against Remastered's 48 — so the layout could not be taken on faith and needed the field-by-field
+check against shipped Remastered bytes that "Section table" below records.
 
 ## The "tag block" is a versioned object header
 
@@ -216,13 +204,13 @@ detail one.
 
 ## Still unknown
 
-- **Per-triangle material sections.** Three of `ShockGame.U`'s ten meshes name two materials —
-  `WP_CrossbowMesh` uses `Crossbow_Shader` and `group_02_mat`, `TommyGunMESH` uses
-  `tommygun2_diffuse` and `ammostandard_diffuse_shader`, `PlasmidEquipMESH` two of its own. Which
-  triangles use which is not decoded, so only the first is applied and part of the mesh is textured
-  wrongly. Searching the payload for a table of (firstIndex, triangleCount) pairs that tiles the
-  index buffer finds nothing at either 16- or 32-bit width, so the sections are stored some other
-  way. **The preview and the details panel now say so** rather than showing it silently.
+- ~~**Per-triangle material sections.**~~ **Decoded — see "Section table" below.** The three
+  `ShockGame.U` meshes named here as an example (`WP_CrossbowMesh`, `TommyGunMESH`,
+  `PlasmidEquipMESH`) are now covered by the section table; the (firstIndex, triangleCount) pairs
+  were never a flat array tiling the index buffer (why the search below found nothing) — they sit
+  in `FSkelMeshSection`, immediately after the socket table. 331 of 944 geometry-bearing meshes
+  (35%) reach a resolved table this way; the rest genuinely still lack one, tracked in
+  `docs/QUALITY.md`, not here.
 - LODs. See above: there is more than one, and only the first is read.
 - The declared bounds cover the animated range rather than the bind pose, so they are not a hull of
   the rest-pose geometry.

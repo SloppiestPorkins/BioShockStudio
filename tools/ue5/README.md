@@ -644,7 +644,7 @@ material *expression graph* for level geometry, and `TextureCube` assembly (face
 
 ## Headless gotchas
 
-Both documented the hard way; see `docs/HANDOFF_UE5_IMPORT.md` for the full record.
+Both documented the hard way, immediately below.
 
 - **Interchange asserts under `-unattended`** for FBX, PNG, *and* OBJ once the OBJ writer emits
   UV/group data (`CurrentApplication.IsValid()`, via Slate/ContentBrowser) — a single-section,

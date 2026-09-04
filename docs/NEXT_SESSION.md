@@ -17,7 +17,7 @@ UE5 plan Phases 0/3/4; stay in it unless the user says otherwise.
 **Best opening for a new chat**
 
 1. `@docs/NEXT_SESSION.md` and `@docs/DUAL_AGENT_ROADMAP.md` (and `@docs/ROADMAP.md` for C#-lane
-   work, or `@docs/UE5_FULL_PORT_PLAN.md` for UE5-lane work).
+   work, or `@docs/FULL_GAME_CONVERSION.md` for UE5-lane work).
 2. Name one concrete ask from the resume block / your lane's item list, e.g. "wire ActionSpawnAI
    execution in-world" or `Gate 4 item 4: DecoyHumanAbility.TargetIndicatorClassString`.
 3. Optionally `@` the research note for that area (`docs/research/interaction.md`, `audio.md`, …).
@@ -37,31 +37,22 @@ buildable, and give the user the paste-ready opening for a **new** chat.
 
 ### Resume here (keep current; wipe when the named item lands)
 
+**4 Sept 2026 — rewritten to point at sections instead of quoting a status snapshot.** The block
+below went stale the way every dated snapshot in this file eventually did (see `docs/HANDOFF.md`'s
+own note about the same failure mode) — it still described 29 Aug's wall-texture bug days after a
+much deeper wall/floor UV fix (the compiled-world texture-origin work, `44e5e7a`..`83e1804`) had
+landed and superseded it. Point the resume block at the living status docs' own "what's next"
+sections rather than re-describing them here; update only the one-line pointer below, not a
+growing paragraph.
+
 ```
-@docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/UE5_FULL_PORT_PLAN.md
-Cursor lane, on main (push as you go). Item 0 landed at 4d2247e.
-Phase 0 mechanical fire landed 28 Aug. Human PIE 29 Aug: roof spawn +
-viewmodel were the other tracks; **wall textures** diagnosed 29 Aug as (a)
-not (b)/(c): 176 masters under BioShockSlice Content/Materials/Masters had
-NULL Normal TextureSampleParameter2D defaults
-(`Found NULL, requires Texture2D` → Default Material in game).
-CONFIRMED_BYTES from BioShockUE5.log + audit_level_materials.py.
-Repaired 176/176 via repair_null_master_textures.py; import_bioshock now
-loads Engine defaults with unreal.load_object (EditorAssetLibrary misses
-DefaultNormal) and re-repairs on reuse. Re-audit: nullTextureMasterCount=0.
-54 unresolved door slots remain (separate, PLAUSIBLE). PIE/screenshot
-headless still impossible (AV) — human Play to confirm walls look right.
-Lighting fill/movable still in ShockGameMode PostLogin (movable=4250 in
-that PIE log); no LIGHTING NEEDS TO BE REBUILT lines.
-The action census is COMPLETE — do NOT run more census batches.
-PlayAnimation (#12) still only records LastPlayedAnimation — skip until imported
-AnimSequences exist (Gate 5). Skip Open/Close/Lock/UnlockDoor until door actors
-exist; skip ChangeSkin / CinematicFade / AISpeech; skip ChangeLevel (dangerous).
-Hitscan is pawn-object-type only (world static does not block). Not real ammo
-or fire anims.
-Rebuild: tools/ue5/rebuild_runtime_fast.ps1 (HostProject re-seeded via
+@docs/NEXT_SESSION.md @docs/DUAL_AGENT_ROADMAP.md @docs/FULL_GAME_CONVERSION.md
+Cursor lane, on main (push as you go).
+Take the next unclaimed item from docs/DUAL_AGENT_ROADMAP.md's "Cursor lane" list, or
+docs/FULL_GAME_CONVERSION.md's current phase if that list is exhausted. Check
+docs/HANDOFF.md's Active work claim table first. Rebuild:
+tools/ue5/rebuild_runtime_fast.ps1 (HostProject re-seeded via
 tools/ue5/seed_hostproject.ps1 when PluginBuild is wiped).
-Lane split: docs/DUAL_AGENT_ROADMAP.md. Branch: main only.
 ```
 
 **What wastes time here**
@@ -78,15 +69,11 @@ Standing rule copy: `docs/ENGINEERING_RULES.md` §60 "Cursor session start".
 
 ## Read first, in this order
 
-*Only when the user did not already name a Gate item* — otherwise skip straight to that item's
-research note and the claim table, and use this list as a lookup rather than a full read-through.
-
-1. `CLAUDE.md`, then `docs/ENGINEERING_RULES.md` — how to work here. Non-negotiable.
-2. **`docs/ROADMAP.md`** — status and what's next (Part 1 done / Part 2 gates). If this file and
-   `ROADMAP.md` disagree, trust `ROADMAP.md` and fix this file.
-3. **`docs/UE5_FULL_PORT_PLAN.md`** if the work is UE5-facing — strategy + Phase 4 record.
-4. `docs/HANDOFF.md` — Active work claim table at the top, then architecture / landmines as needed.
-5. Area research notes under `docs/research/` for the files you will touch.
+*Only when the user did not already name a Gate item.* Same list `docs/HANDOFF.md`'s own "Reading
+order for a new session" gives — kept in one place there rather than restated here:
+`CLAUDE.md`/`ENGINEERING_RULES.md` → `docs/ROADMAP.md` (C# lane) or
+`docs/FULL_GAME_CONVERSION.md` (UE5 lane) → `docs/HANDOFF.md`'s claim table and landmines → the
+area research note under `docs/research/` for the files you'll touch.
 
 ## State of the tree
 

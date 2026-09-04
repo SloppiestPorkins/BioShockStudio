@@ -114,22 +114,20 @@ replaces the stock root container with its own, which is exactly why generic Hav
 
 ## Compression
 
-`CONFIRMED_BYTES` that `hkaSplineCompressedAnimation` is present and is the dominant — so far the
-only observed — animation class. `hkaInterleavedUncompressedAnimation` was **not** found in
-`1-Medical.bsm`.
-
-This settles an open question in the brief ("do not assume BioShock uses spline compression"): it
-does. Spline decompression is therefore on the critical path, and DSAnimStudio / HavokLib are the
-relevant prior art. Not yet implemented.
+`hkaSplineCompressedAnimation` is the game's dominant — and, whole-game, only — animation class; see
+[havok-compression.md](havok-compression.md) for the format, the quantisation census, and the block
+layout. That file is now the canonical home for this fact; kept here only as a pointer.
 
 ## What is implemented
 
-- Packfile detection inside arbitrary buffers, byte-granular.
-- Header and section headers.
-- Class-name table.
-- Root class resolution.
+Everything this file's earlier "not yet implemented" list named is now decoded, elsewhere in this
+directory — this section is a container-format reference, not a status page:
 
-## What is not
-
-Fixups (local/global/virtual), imports/exports, object graph reconstruction, `hkaSkeleton`,
-`hkaAnimationBinding`, and spline decompression. See [open-questions.md](open-questions.md).
+- Packfile detection inside arbitrary buffers, byte-granular; header and section headers;
+  class-name table; root class resolution (this file).
+- Fixups (local/global/virtual) — [open-questions.md](open-questions.md) item 2.
+- Spline decompression — [havok-compression.md](havok-compression.md).
+- `hkaSkeleton` / `hkaAnimationBinding` — [animationpackage.md](animationpackage.md),
+  [binding.md](binding.md).
+- Object graph reconstruction (walking the fixups to real objects) —
+  [havok-physics.md](havok-physics.md), [root-motion.md](root-motion.md).

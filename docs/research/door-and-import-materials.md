@@ -1,5 +1,15 @@
 # 1-Medical: why 54 StaticMeshActor Element0 slots resolve to nothing
 
+> **CLOSED, kept for the record.** Both root causes this file diagnoses are fixed. Category A
+> (doors placing the animation-proxy mesh instead of the real door) — `LevelAnalyzer.Door`/
+> `ReadDoorAttachments` now fall back to the class default `Attachments` property, landed with the
+> door-placement work (`docs/HANDOFF.md`, `ea5f0cc`). Category B (cross-package BSP material
+> imports silently dropped) — `LevelInstance.MaterialReferences` now carries the raw
+> `PackageIndex` past `Describe`'s single-package limit, and `bsp.md` §5.6d measures **0 of 74,091**
+> drawn compiled-world polygons unresolved for it, down from the 1,530 this file found. The
+> byte-level diagnosis below is still accurate as a worked example of how the bug was found; do not
+> read either category as still open.
+
 Analysis only. Nothing was run in Unreal, nothing outside this file was modified.
 
 Evidence sources:

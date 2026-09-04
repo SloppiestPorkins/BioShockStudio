@@ -153,15 +153,10 @@ value across all 25 occurrences it has: the literal string `"Player"`.** It is a
 an object reference — there is nothing to resolve, and the mover mechanism (§2) doesn't apply here
 at all. Confirmed rather than assumed: 25/25, not "mostly".
 
-**`TriggerOnlyByLabels` — despite its name, also not resolvable against `Label`.** It's a separate
-already-decoded array field, mostly `"Player"` again but also carrying what read at first like
-character names: `Steinman`, `Cohen`, `FinalAmbushDude`, `BerserkDude1`, and 21 others across the
-game. All 62 non-`"Player"` occurrences were checked against every already-decoded name-shaped field
-on every actor in the same package — `Tag`, `Label`, and `Spawner.InitialLabel` — and **none of the
-three resolves more than 1 of 62.** `LIKELY` these are AI-archetype or character-identity filters
-("only a Cohen-type enemy trips this"), resolved through a system this project hasn't decoded
-rather than a placed-actor name lookup. Left open rather than guessed at further — this is a
-different, unopened investigation, not a variant of §2's mechanism.
+**`TriggerOnlyByLabels` — despite its name, also not resolvable against `Label`.** Mostly
+`"Player"` again, but 62 occurrences across the game carry what read at first like character names
+(`Steinman`, `Cohen`, `FinalAmbushDude`, `BerserkDude1`...) and matched none of `Tag`, `Label` or
+`Spawner.InitialLabel` on any actor in the same package.
 
 **Resolved, 28 Aug 2026 — they are `AIArchetype` names.** `Cohen`, `Steinman` and the rest are
 entries in `SpawningManager.ArchetypeNames` (313 game-wide), each shipping as an `AIArchetype`
@@ -269,8 +264,6 @@ not an object reference). `LoopCount` is the tagged `Min`/`Max` `Range` already 
 
 ## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
 
-## 6. Weapon effects — `OnFiredEffects`/`TracerEffects`, decoded from class defaults
-
 A weapon class (`MachineGun`, `Pistol`, `Shotgun`, ...) is never a placed level actor, so this is
 the one interaction-metadata source in this note that isn't `ActorPayload` at all — it's a `Class`
 export's own defaults, read via the existing `ClassDefaults` reader. Each weapon declares two
@@ -346,8 +339,8 @@ The same Str-path shape also appears as `DecoyHumanAbility.DecoyHumanClassString
 - **`ScriptedSequence` decoded 25 Aug 2026** — 109 actors, none of them doors; nested
   `ScriptedAnimations` is `Chance`+`Animation` (FName). See §5. `RunNext` meaning remains
   `PLAUSIBLE` only.
-- **`TriggerOnlyByLabels`' real reference mechanism remains unidentified** — see §4. Not `Tag`,
-  `Label`, or `Spawner.InitialLabel`; genuinely open, not merely unchecked.
+- ~~`TriggerOnlyByLabels`' real reference mechanism remains unidentified~~ — **resolved 28 Aug
+  2026, see §4.** `AIArchetype` names via `SpawningManager.ArchetypeNames`.
 - **A `ClassDefaults` earliest-vs-longest false positive was fixed 25 Aug 2026** — see §6. Prefer
   the longest clean walk to EOF; do not reopen as an Object-size bug.
 - **Where `FXClass.DecoyHumanTarget` (and `ShockAIClasses.SpawnedDecoyHumanAI`) ship as class

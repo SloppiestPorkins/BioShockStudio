@@ -44,40 +44,22 @@ There are 15,998 `SharedSkeletonAnimationMetadata` exports game-wide.
 
 ## Weapon association is structural, not name-based
 
-`CONFIRMED_BYTES`. The brief warns that naming alone is insufficient for classification. It does not
-have to be: the hands animation packfile is partitioned into per-weapon Havok sections
+`CONFIRMED_BYTES`. The hands animation packfile is partitioned into per-weapon Havok sections
 (`pistol`, `shotgun`, `tommygun`, `wrench`, `crossbow`, `chemical…`, `grenadel…`, `scripted…`,
-`default`). See [animationpackage.md](animationpackage.md).
+`default`), and third-person characters carry ragdoll/physics classes the hands package does not
+(`hkaRagdollInstance`, `hkaSkeletonMapper`, `hkpRigidBody`…). Both are structural signals from
+shipped bytes rather than naming. Full detail, including the third-person contrast table:
+[animationpackage.md](animationpackage.md).
 
-That gives a first-class structural signal for `ViewModelDetector`:
+## Third-person and NPC-carried weapon meshes
 
-- an `AnimationPackageWrapper` whose packfile carries weapon-named sections is a **first-person**
-  hands package;
-- the section tag names the weapon the contained animations belong to.
+`CONFIRMED_BYTES`. `WP_AI_Pistol` is a `StaticMesh` in `1-Medical.bsm` (361,898 bytes) — the
+`WP_AI_` prefix marks the NPC-carried weapon, a different asset from the first-person viewmodel.
+The full `WP_AI_*` census and resolver logic live in [context.md](context.md) §4.
 
-`CONFIRMED_BYTES`: third-person packages do lack this partitioning. `UAPW_AggressorBabyJane` ships
-four sections — `__classnames__`, `__types__`, `default`, `__data__` — and nothing per weapon.
+## The first-person pistol mesh — CLOSED
 
-A second, independent discriminator falls out of the class tables. Third-person characters carry
-ragdoll and physics classes that the first-person hands package does not:
-
-| Class | Third-person character | First-person hands |
-|---|---|---|
-| `hkaRagdollInstance` | yes | no |
-| `hkaSkeletonMapper` | yes | no |
-| `hkpRigidBody`, `hkpRagdollConstraintData`, `hkpCapsuleShape` | yes | no |
-| per-weapon sections | no | yes |
-
-Both signals come from shipped bytes rather than naming, which is what `ViewModelDetector` should
-classify on.
-
-## Third-person weapon meshes
-
-`CONFIRMED_BYTES`. `WP_AI_Pistol` is a `StaticMesh` in `1-Medical.bsm` (361,898 bytes). The `WP_AI_`
-prefix and `StaticMesh` class together indicate the NPC-carried weapon, which is a **different
-asset** from whatever the first-person pistol uses. This supports the brief's instruction not to
-assume first- and third-person assets share anything.
-
-`UNKNOWN`: the first-person pistol mesh itself has not been located. It is not a `SkeletalMesh`
-named `Pistol`. Next step is to follow object references out of `UAPW_NEWPlayerHands` and the
-pistol section rather than to keep searching by name.
+`CONFIRMED_BYTES`. It is `WP_PistolMesh`, in `Build/Final/BakedScripts/pc/ShockGame.U` — not in any
+map package, and not found by following references out of `UAPW_NEWPlayerHands`, which is why it
+took a script-package search rather than an object-graph walk. Has its own skeleton and animations.
+Full resolution: [context.md](context.md) §"Weapon viewmodels live in ShockGame.U".

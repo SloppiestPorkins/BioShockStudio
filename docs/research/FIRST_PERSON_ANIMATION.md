@@ -10,28 +10,10 @@ and this reader filled it from the bound bone's reference pose.**
 
 ## 1. The cause
 
-Havok's `hkaSplineCompressedAnimation::recompose`, from the 2012.2.0-r1 SDK:
-
-```cpp
-/// \param S Static values
-/// \param I Identity values
-void hkaSplineCompressedAnimation::recompose( hkUint8 mask, const hkVector4& S, const hkVector4& I, hkVector4& inOut )
-{
-    int stat = mask & 0x0F;                       // statically stored components
-    int iden = ~mask & ( ~mask >> 4 ) & 0x0F;     // neither static nor spline
-
-    int shift = 0x01;
-    for ( int i = 0; i < 4; i++ )
-    {
-        if ( stat & shift )      inOut( i ) = S( i );
-        else if ( iden & shift ) inOut( i ) = I( i );
-        shift <<= 1;
-    }
-}
-```
-
-Identity is `0` for a translation, `1` for a scale and `(0,0,0,1)` for a rotation, which is why
-Havok passes it as a parameter rather than hard-coding it.
+`hkaSplineCompressedAnimation::recompose` — the `mask`/static/identity bit logic, the SDK source,
+and why an omitted component is identity rather than the bound bone's reference pose — is documented
+once, canonically, in [havok-compression.md](havok-compression.md)'s "identity vs reference pose"
+section. This file is the specific bug story: which bones it hit, by how much, and how it was found.
 
 **Why it hid for three sessions:** the two readings agree for every bone whose bind translation is
 zero in the components the track omits — which is nearly every bone in the game, because a Biped's

@@ -271,9 +271,10 @@ this project into something countable.
 
 ### The goal is FAITHFUL — user decision, 23 Aug 2026
 
-Confirmed directly when asked. It also matches the standing instruction already recorded in
-`docs/HANDOFF_UE5_IMPORT.md` section 1: port everything over faithfully first, modify or improve
-only after the port is in place.
+Confirmed directly when asked, and also the standing instruction from the original UE5/FBX
+investigation record (`docs/HANDOFF_UE5_IMPORT.md`, since deleted — superseded — but this decision
+outlived it): port everything over faithfully first, modify or improve only after the port is in
+place.
 
 **What "faithful" means here, precisely, because one reading of it is not achievable:**
 

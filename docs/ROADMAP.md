@@ -111,10 +111,14 @@ had of any UE5-imported asset. Static pose only — animation playback in-editor
 status doc; `README.md`, `HANDOFF.md` and `NEXT_SESSION.md` each dropped their own status table and
 now link here (`README.md` line 19, `HANDOFF.md` "Current state"). `QUALITY.md` and `research/*.md`
 stay as the evidence record. Gate 5's item-by-item detail moved wholesale into
-`UE5_FULL_PORT_PLAN.md` §9 (25 Aug). `HANDOFF_UE5_IMPORT.md` is a scoped historical record, marked
-"Superseded" at its head and linked as history from four places — kept deliberately, not a loose
-end. The recurring drift between §5 (plan) and §9 (record) in `UE5_FULL_PORT_PLAN.md` is handled by
-giving each §5 item a bold status marker pointing at its §9 entry (done for Phases 1–2, 28 Aug).
+`UE5_FULL_PORT_PLAN.md` §9 (25 Aug). `HANDOFF_UE5_IMPORT.md` — **deleted 4 Sept 2026**, not merely
+superseded; its one durable finding (the FBX Cluster `SubDeformer` tag bug) was already carried
+forward into `HANDOFF.md`'s landmines and `tools/ue5/README.md`, and everything else in it was
+either resolved elsewhere or a dated status snapshot nothing still points to as current. The
+recurring drift between §5 (plan) and §9 (record) in `UE5_FULL_PORT_PLAN.md` is handled by giving
+each §5 item a bold status marker pointing at its §9 entry (done for Phases 1–2, 28 Aug); that file
+itself is now `FULL_GAME_CONVERSION.md`'s explicitly-kept "reasoning" companion, not a second status
+doc — see its own header note.
 
 **0.7 — Work Part 2's gate items in order, not by jumping around.** Added 22 Aug 2026, user
 instruction — `ENGINEERING_RULES.md` §60 "Roadmap discipline" is the canonical text. Take the next
@@ -378,6 +382,20 @@ material.
      throughout — `docs/research/bsp.md` already establishes that 17,802 of 93,264 brush polygons
      carry neither texture axes nor a material, which is content; the import branch was scoped to the
      compiled world and brushes were not swept for imports.
+   - **The compiled world's texture *origin* (`pBase`) — 3-4 Sept 2026, `44e5e7a`..`83e1804`.**
+     Material coverage was fine; the UVs it painted with were not. `pBase` decodes correctly (a
+     resolver rebuilding it independently from the source brush lands on the identical
+     `Model.Points[pBase]` point every time), but the pan it names is genuinely tens of metres from
+     the face — the format's own design, not a bug. Measuring from `polygon[0]` instead (span is
+     base-independent) gave the right scale but lost cross-face phase — a 1,085-texel jump at every
+     BSP cut, the visible seam a user kept calling "still broken". Production now projects from the
+     real origin (phase exact, `Δfrac` median 0) and rebases each face by whole texture periods
+     (`frac` unchanged, stored magnitude ~1 tile instead of ~60,000) — see `docs/research/bsp.md`
+     §5.3a and §8.2 for the full derivation. A runaway-face clamp
+     (`BspGeometry.NormaliseUvs`/`BIOSHOCK_BSP_UV_MAX_TILES`, default 12) remains as a backstop for
+     the tail this doesn't reach: `medical_pillar_texture`'s texture-axis vector is genuinely ~25×
+     longer than every other material's (confirmed against the source poly, not a mis-index) — open,
+     scoped to that one material.
 3. ~~**Lightmaps to default-on** — the remaining 10 of 21 maps need their atlas-pool location traced
    the same way the first 11 were.~~ **Atlas-pool binding done, 19 Aug 2026 — 20 of 21 maps proven**
    (the 21st, `Entry`, has no `LightMaps_BSP` group to bind). What's left before this becomes a
@@ -537,7 +555,7 @@ material.
      - `FbxRig.Textures` now carries the intent; the importer applies it and tags provenance.
        `ManifestTextureIntentTests` pins the manifest half. Headless traps (Interchange PNG
        crashing under `-unattended`, `unreal.log` not reaching the captured log) are recorded in
-       `docs/HANDOFF_UE5_IMPORT.md`.
+       `tools/ue5/README.md`.
    - **A gap found in passing, not chased:** a few materials' diffuse slot resolves to a normal map
      or heightmap (`GraniteColor_NOR`, `facade_side_normal`, `BulletConcDecal_Heightmap`). Whether
      that is the game's authoring or this project's slot walk is `UNKNOWN`.
@@ -1658,8 +1676,7 @@ This file is orientation, not the record. For anything load-bearing:
 - `docs/QUALITY.md` — every headline mesh/material/texture/animation figure, each pinned by a test.
 - `docs/research/*.md` — one file per format area, with confidence labels
   (`CONFIRMED_BYTES`/`PLAUSIBLE`/`UNKNOWN`) and the byte evidence behind each claim.
-- `docs/HANDOFF_UE5_IMPORT.md` — the full UE5/FBX investigation record (superseded by `tools/ue5/`
-  for current usage, kept as investigation history).
+- `tools/ue5/README.md` — the UE5 import pipeline, dated verification log and headless traps.
 - `tools/ue5/README.md` — how to actually run the UE5 import bridge today.
 
 ## Explicitly not a shortcut

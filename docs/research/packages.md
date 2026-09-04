@@ -125,4 +125,6 @@ Zero → null. A null `ClassIndex` means the export is a `UClass`.
 | 962 | `SkeletalMesh` |
 | 870 | `AnimationPackageWrapper` |
 
-`HkMeshProxy` is a 2K class and a likely bridge between mesh and Havok data — an open question.
+`HkMeshProxy` is closed, and the guess above was wrong: it's a collision proxy (a
+restitution/friction triple plus a transform), not a mesh↔Havok or mesh↔material bridge — see
+[materials.md](materials.md) §"`HkMeshProxy` is not the material link".

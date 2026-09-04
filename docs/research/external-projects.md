@@ -33,16 +33,14 @@ validated against UEViewer; Remastered's is 48 with full float basis vectors. Bo
 their own target. A finding ported from UEViewer or the original game may need the record widening.
 
 **`UModel-master` is now partly mined and it was worth it.** Its `#if BIOSHOCK` branches settled
-texture `Format` ordinal 12 (**against** Nyko's note — see below), and `UnMeshBioshock.cpp` holds a
-complete `SkeletalMesh` serialisation including a **section table**, which this project had recorded
-as `UNKNOWN`. `Unreal-Library-master` is still untouched.
+texture `Format` ordinal 12 (**against** Nyko's note — see below), and `UnMeshBioshock.cpp` held a
+complete `SkeletalMesh` serialisation including a **section table**, this project's lead into what
+`skeletalmesh.md`'s "Section table" now implements and verifies.
 
-**Two sources have now contradicted each other on a live question.** Nyko's texture note gives
-ordinal 12 as 3DC/BC5 with two BC4 blocks; UModel remaps it to `TEXF_DXT5N` with the comment
-"Bioshock used 3DC name, but real format is DXT5N", and the shipped bytes side with UModel. The full
-field-by-field comparison, and which source won each contest, is in
-[reference-comparison.md](reference-comparison.md). **Corroboration is not agreement: check the layer
-you actually depend on.**
+**Two sources contradicted each other on the texture-format question, and the bytes settled it for
+UModel.** Full field-by-field comparison, and every other contest between the reference projects:
+[reference-comparison.md](reference-comparison.md) — the canonical home for this, kept here only as
+the one-line pointer. **Corroboration is not agreement: check the layer you actually depend on.**
 
 That second finding is load-bearing. UEViewer handles BioShock's export table through its generic
 UE2 path, but the Remastered export record is **not** stock UE2 — it carries an extra int32 after

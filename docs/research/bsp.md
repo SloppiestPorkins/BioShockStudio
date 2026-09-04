@@ -791,22 +791,11 @@ solid, and the match is made on the plane precisely so that this does not look l
 
 ---
 
-## 7. Lights — the answer is in the same document. `CONFIRMED_EXTERNAL`, not implemented
+## 7. Lights
 
-Not BSP, but it is Phase 2 item 3 and §C.6 of the same unread file answers it outright. BioShock
-writes light parameters with **different types** from stock UE2.5, which is why they sit unread in
-`UninterpretedProperties`:
-
-| field | BioShock | stock UE2.5 |
-|---|---|---|
-| `LightBrightness` | **FloatProperty**, 0.0–3.1, median 1.0 | byte 0–255 |
-| `LightColor` | **StructProperty `Color`** — FColor BGRA | `LightHue` + `LightSaturation` bytes |
-| `LightRadius` | **FloatProperty**, 0–120,000 world units, median 2048 | byte, radius = 25 × (b+1) |
-
-`bStatic` and `bNoDelete` are **never written to disk** — a probe across all 184 Light actors on
-Lighthouse. The class default applies.
-
-`0-Lighthouse` has 318 light actors. Reading three float/struct properties is the whole job.
+Not BSP. Fully decoded, whole-game censused and implemented — moved to its own file:
+[lights.md](lights.md). Kept here only as a pointer, since this section briefly carried an earlier,
+narrower draft of that file's content.
 
 ## Portal geometry, and two bytes the reference had backwards
 
