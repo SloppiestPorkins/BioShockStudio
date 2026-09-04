@@ -114,8 +114,12 @@ def _slot_report(slot_name, material):
         return entry
 
     edit = unreal.MaterialEditingLibrary
-    base = edit.get_material_instance_texture_parameter_value(material, "BaseColor")
-    normal = edit.get_material_instance_texture_parameter_value(material, "Normal")
+    # GetMaterialInstanceTextureParameterValue only accepts a MaterialInstanceConstant --
+    # passing a plain Material (a Master, no instance) raises a NativizeObject TypeError.
+    base = normal = None
+    if isinstance(material, unreal.MaterialInstanceConstant):
+        base = edit.get_material_instance_texture_parameter_value(material, "BaseColor")
+        normal = edit.get_material_instance_texture_parameter_value(material, "Normal")
     # Masters expose the same parameter names via the expression default texture.
     if base is None and isinstance(material, unreal.Material):
         node = edit.get_material_property_input_node(
