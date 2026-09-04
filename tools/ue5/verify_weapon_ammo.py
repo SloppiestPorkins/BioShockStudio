@@ -1,4 +1,8 @@
-"""Headless verify: TommyGun magazine, reload, reserve pool, pickup, fire rate."""
+"""Headless verify: TommyGun magazine, reload, reserve pool, pickup, fire rate.
+
+Also asserts data-driven automatic hold-fire: TommyGun fires more than once across a held
+trigger spanning >1 fire-rate interval; Pistol still fires exactly once per press.
+"""
 
 import json
 import os
@@ -168,6 +172,63 @@ def main(out):
             report["fireRateTimed"] = timed
             if timed < 10 or timed > 12:
                 failures.append("fire-rate timed expected ~11 got %d" % timed)
+
+        # --- Automatic hold-fire (TommyGun) vs semi-auto (Pistol) ---
+        # DriveFireInputForVerify mirrors ActionMapping Fire press/release; AdvanceHeldFire
+        # advances the rate clock and re-triggers only when bAutomatic.
+        tommy = player.give_weapon_by_def(unreal.Name("TommyGun"), 2)
+        pistol = player.give_weapon_by_def(unreal.Name("Pistol"), 1)
+        if not tommy or not pistol:
+            failures.append("GiveWeaponByDef TommyGun/Pistol for auto-fire verify")
+        else:
+            if not bool(tommy.is_automatic()):
+                failures.append("TommyGun def should be automatic")
+            if bool(pistol.is_automatic()):
+                failures.append("Pistol def should be semi-auto (not automatic)")
+
+            tommy.set_auto_reload(False)
+            tommy.initialize_ammo_full_mag(150)
+            player.equip_weapon(tommy)
+            tommy.clear_fire_cooldown_for_verify()
+            mag_before = int(tommy.get_rounds_in_magazine())
+            player.drive_fire_input_for_verify(True)
+            # >1 fire-rate interval at 10 rps (0.1s): hold across ~0.35s → expect ≥3 shots
+            for _ in range(7):
+                player.advance_held_fire_for_verify(0.05)
+            player.drive_fire_input_for_verify(False)
+            mag_after = int(tommy.get_rounds_in_magazine())
+            tommy_shots = mag_before - mag_after
+            report["tommyAutoHold"] = {
+                "shots": tommy_shots,
+                "magBefore": mag_before,
+                "magAfter": mag_after,
+            }
+            if tommy_shots < 2:
+                failures.append(
+                    "TommyGun hold-fire expected >1 shot over >1 fire interval, got %d"
+                    % tommy_shots
+                )
+
+            pistol.set_auto_reload(False)
+            pistol.initialize_ammo_full_mag(48)
+            player.equip_weapon(pistol)
+            pistol.clear_fire_cooldown_for_verify()
+            p_before = int(pistol.get_rounds_in_magazine())
+            player.drive_fire_input_for_verify(True)
+            for _ in range(7):
+                player.advance_held_fire_for_verify(0.05)
+            player.drive_fire_input_for_verify(False)
+            p_after = int(pistol.get_rounds_in_magazine())
+            pistol_shots = p_before - p_after
+            report["pistolSemiHold"] = {
+                "shots": pistol_shots,
+                "magBefore": p_before,
+                "magAfter": p_after,
+            }
+            if pistol_shots != 1:
+                failures.append(
+                    "Pistol hold should fire exactly once per press, got %d" % pistol_shots
+                )
 
     for actor in spawned:
         if actor:

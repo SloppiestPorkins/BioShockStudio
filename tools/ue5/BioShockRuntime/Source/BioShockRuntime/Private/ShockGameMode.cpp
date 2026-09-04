@@ -1224,6 +1224,24 @@ void AShockGameMode::BeginVerifyWeaponTrack(AShockPlayer* Player)
 		WeaponTrackFirstRot.Yaw,
 		WeaponTrackFirstRot.Roll);
 
+	{
+		const FVector AlignSocket = Player->GetActiveGripSocketWorldLocationForVerify();
+		const FVector AlignBounds = Player->GetEquippedWeaponBoundsCenterForVerify();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_WEAPON_TRACK_ALIGN rootDist=%.2f boundsLateral=%.2f "
+				 "socket=(%.1f,%.1f,%.1f) bounds=(%.1f,%.1f,%.1f)"),
+			Player->GetGripToWeaponRootDistanceForVerify(),
+			Player->GetGripToWeaponBoundsLateralDistanceForVerify(),
+			AlignSocket.X,
+			AlignSocket.Y,
+			AlignSocket.Z,
+			AlignBounds.X,
+			AlignBounds.Y,
+			AlignBounds.Z);
+	}
+
 	World->GetTimerManager().SetTimer(
 		WeaponTrackSampleTimer,
 		this,

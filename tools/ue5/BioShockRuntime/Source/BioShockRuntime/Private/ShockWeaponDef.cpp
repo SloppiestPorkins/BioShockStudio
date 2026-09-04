@@ -134,6 +134,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("Antipersonnel Auto"), 18.0f, EAmmoEffect::AntiPersonnel, 150);
 		AddAmmoType(Def, TEXT("Armor-piercing Auto"), 30.0f, EAmmoEffect::ArmorPiercing, 150);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_TommyGun"));
+		Def->bAutomatic = true; // Machine Gun — hold trigger to keep firing at FireRate
 	}
 	else if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
@@ -162,6 +163,8 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 	{
 		// weapons-config: mag 6 rate 1 reload 1; Frag Grenade GenericPiercing 30 / Explosive 30;
 		// GrenadeLauncher_FragGrenade.uc OuterDamageRadius=650.
+		// Viewmodel: WP_GrenadeLauncherMesh (SkeletalMesh) + UAPW_WP_GrenadeLauncher in ShockGame.U.
+		// Hands socket is "Launcher"; export-firstperson Launcher --group=WP_GrenadeLauncher.
 		Def = MakeDef(
 			EWeaponFireMode::Projectile,
 			TEXT("GrenadeLauncher"),
@@ -178,6 +181,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			2500.0f,
 			650.0f,
 			10.0f);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_GrenadeLauncher"));
 	}
 	else if (Key.Equals(TEXT("Pistol"), ESearchCase::IgnoreCase))
 	{
@@ -258,6 +262,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			800.0f, // PLAUSIBLE beam reach
 			EBeamStatus::Burning);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_ChemicalThrower"));
+		Def->bAutomatic = true; // Beam ticks while Fire is held
 	}
 	else if (Key.Equals(TEXT("Crossbow"), ESearchCase::IgnoreCase))
 	{

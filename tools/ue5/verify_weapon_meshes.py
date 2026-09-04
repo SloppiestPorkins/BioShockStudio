@@ -44,6 +44,7 @@ _SKELETAL_STARTERS = (
     ("Pistol", 1, "/Game/BioShockWeapons/WP_Pistol/WP_Pistol.WP_Pistol"),
     ("TommyGun", 2, "/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun"),
     ("Shotgun", 3, "/Game/BioShockWeapons/WP_Shotgun/WP_Shotgun.WP_Shotgun"),
+    ("GrenadeLauncher", 4, "/Game/BioShockWeapons/WP_GrenadeLauncher/WP_GrenadeLauncher.WP_GrenadeLauncher"),
     ("ChemicalThrower", 5, "/Game/BioShockWeapons/WP_ChemicalThrower/WP_ChemicalThrower.WP_ChemicalThrower"),
     ("Crossbow", 6, "/Game/BioShockWeapons/WP_Crossbow/WP_Crossbow.WP_Crossbow"),
 )

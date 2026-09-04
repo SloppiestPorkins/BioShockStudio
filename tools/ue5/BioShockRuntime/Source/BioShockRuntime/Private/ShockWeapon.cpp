@@ -8,6 +8,8 @@
 #include "ShockProjectile.h"
 #include "ShockWaterVolume.h"
 #include "ShockWeaponDef.h"
+#include "Animation/AnimSequence.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
@@ -24,6 +26,11 @@ AShockWeapon::AShockWeapon()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Mesh->SetCastShadow(false);
+	// Same AlwaysTickPose reason as ViewHands: a first-person weapon mesh must keep evaluating
+	// its own bones (barrel/hammer/drum) even when bounds briefly go stale.
+	Mesh->VisibilityBasedAnimTickOption =
+		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	Mesh->SetBoundsScale(4.0f);
 }
 
 void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
@@ -40,6 +47,7 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 	MagazineSize = FMath::Max(1, Def->MagazineSize);
 	ReserveAmmo = FMath::Max(0, Def->ReserveAmmo);
 	FireRate = FMath::Max(0.1f, Def->FireRate);
+	bAutomatic = Def->bAutomatic;
 	ReloadSeconds = FMath::Max(0.01f, Def->ReloadSeconds);
 	MeleeArc = Def->MeleeArc;
 	MeleeReach = Def->MeleeReach;
@@ -399,11 +407,107 @@ bool AShockWeapon::Reload()
 		ReloadSeconds,
 		false);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD start seconds=%.2f"), ReloadSeconds);
+	// Two-rig performance: ViewHands plays the arms clip; this mesh plays the weapon's own
+	// moving parts (barrel hinge, bolt, etc.). h10 only sampled the actor world transform —
+	// that proved socket-follow, not that Mesh::PlayAnimation was ever called.
+	PlayReloadMeshAnimation();
 	if (AShockPlayer* OwnerPlayer = Cast<AShockPlayer>(GetOwner()))
 	{
 		OwnerPlayer->NotifyViewHandsWeaponReloadStarted();
 	}
 	return true;
+}
+
+const TCHAR* AShockWeapon::ResolveReloadMeshAnimLeaf() const
+{
+	// Leaf names under /Game/BioShockWeapons/WP_<Def>/Animations/ — casing from disk.
+	// Hands clips carry the weapon suffix (FastReloadPistol); weapon clips do not (FastReload).
+	if (DefWeaponName == FName(TEXT("Pistol")))
+	{
+		return TEXT("FastReload");
+	}
+	if (DefWeaponName == FName(TEXT("TommyGun"))
+		|| DefWeaponName == FName(TEXT("Crossbow"))
+		|| DefWeaponName == FName(TEXT("Shotgun"))
+		|| DefWeaponName == FName(TEXT("ChemicalThrower")))
+	{
+		return TEXT("Reload");
+	}
+	return nullptr;
+}
+
+UAnimSequence* AShockWeapon::LoadMeshAnim(const TCHAR* LeafName) const
+{
+	if (!LeafName || DefWeaponName.IsNone())
+	{
+		return nullptr;
+	}
+	const FString Path = FString::Printf(
+		TEXT("/Game/BioShockWeapons/WP_%s/Animations/%s.%s"),
+		*DefWeaponName.ToString(),
+		LeafName,
+		LeafName);
+	return LoadObject<UAnimSequence>(nullptr, *Path);
+}
+
+void AShockWeapon::PlayMeshAnimation(UAnimSequence* Sequence, bool bLoop)
+{
+	if (!Mesh || !Sequence)
+	{
+		return;
+	}
+	Mesh->PlayAnimation(Sequence, bLoop);
+	Mesh->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
+	Mesh->RefreshBoneTransforms();
+	LastMeshAnim = Sequence;
+}
+
+void AShockWeapon::PlayReloadMeshAnimation()
+{
+	const TCHAR* Leaf = ResolveReloadMeshAnimLeaf();
+	if (!Leaf)
+	{
+		return;
+	}
+	if (UAnimSequence* Sequence = LoadMeshAnim(Leaf))
+	{
+		PlayMeshAnimation(Sequence, false);
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_WEAPON_MESH_ANIM reload=%s weapon=%s"),
+			Leaf,
+			*DefWeaponName.ToString());
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("BIOSHOCK_WEAPON_MESH_ANIM missing reload leaf=%s weapon=%s"),
+			Leaf,
+			*DefWeaponName.ToString());
+	}
+}
+
+FName AShockWeapon::GetPlayingMeshAnimationNameForVerify() const
+{
+	if (LastMeshAnim)
+	{
+		return LastMeshAnim->GetFName();
+	}
+	if (Mesh)
+	{
+		if (const UAnimSingleNodeInstance* Single =
+				Cast<UAnimSingleNodeInstance>(Mesh->GetAnimInstance()))
+		{
+			if (const UAnimationAsset* Anim = Single->GetAnimationAsset())
+			{
+				return Anim->GetFName();
+			}
+		}
+	}
+	return NAME_None;
 }
 
 void AShockWeapon::FinishReload()

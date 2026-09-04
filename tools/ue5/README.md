@@ -366,6 +366,47 @@ verify not re-run here** (agent Shell blocked by Cursor `rtk hook claude` / bash
 conflict). Report: `%TEMP%/weapon_feedback_report.json`. Human confirms feel in
 PIE afterward.
 
+## Tommy Gun fire mode + grip socket align (h12) — 5 Sept 2026
+
+User report (first in-editor weapon test after movement/collision): Tommy Gun is
+single-shot, and the viewmodel sits off to the side.
+
+**Fire mode (confirmed):** `SetupPlayerInputComponent` bound `Fire` as
+`IE_Pressed` only → `HandleFireInput` → one `TryFireEquippedWeapon`. No hold path.
+`EWeaponFireMode` is hitscan/projectile/melee/shotgun/beam (delivery), not
+semi vs full-auto. Fix: `UShockWeaponDef::bAutomatic` / `AShockWeapon::bAutomatic`
+(data-driven). TommyGun + ChemicalThrower `true`; Pistol/Shotgun/Crossbow/GL/Wrench
+stay `false`. Player tracks `bFireInputHeld` on press/release; `TickHeldFire`
+re-calls `TryFireEquippedWeapon` while held when automatic (rate-gated by existing
+`CanFireNow`). Beam release still `StopBeam`.
+
+**Socket (confirmed, not a fudge offset):** h8 still resolves socket name `TommyGun`
+for TommyGun — same socket as the old hardcoded candidate list. RestoreSockets only
+stores name+bone (identity relative). `context.md`: weapon root bone (`R_grip`)
+*is* the hands' socket. `SnapToTarget` puts the mesh *component origin* on the
+socket; when those differ after FBX import the gun floats beside the grip.
+`AlignEquippedWeaponRootToGripSocket` cancels the root bone's component-space
+transform so root lands on the socket — correction read from the mesh, not a
+hand-tuned XYZ. `ViewmodelOffset` framing is unchanged (still look-and-tune).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_weapon_ammo.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_viewmodel_anims.py -unattended -nopause -nosplash
+```
+
+`verify_weapon_ammo.py`: hold Fire via `DriveFireInputForVerify` /
+`AdvanceHeldFireForVerify` — TommyGun >1 shot across >1 fire interval; Pistol
+exactly 1. `verify_viewmodel_anims.py`: grip-to-root distance ≤5 uu; TommyGun
+bounds lateral in camera space ≤80 uu. Weapon-track logs
+`BIOSHOCK_WEAPON_TRACK_ALIGN` (parsed into the report).
+
+**5 Sept 2026 — code + verify extensions landed in this worktree; no live UE
+session here** (isolated agent worktree). Rebuild + headless verifies above are
+the evidence path; socket framing feel still needs a human look in PIE afterward.
+
 ## First-person viewmodel anims (h8) — grip socket + per-weapon fidget/fire/reload
 
 Root cause (confirmed): `EquipWeapon` picked grip sockets from a hardcoded
@@ -411,7 +452,48 @@ designed). Report: `%TEMP%/viewmodel_anims_report.json`. Socket framing feel and
 fire timing still worth a human look in PIE, but the state machine itself is
 confirmed correct per-weapon.
 
-## Starter weapon viewmodel meshes (h3)
+## Weapon-mesh reload anims (h13) — Mesh PlayAnimation, not screen-pin
+
+User report 5 Sept 2026: "the gun doesn't respond to the reload animation" means
+the **weapon's own** moving parts (barrel hinge, bolt, …), not input lockout and
+not "does the actor follow the hand socket."
+
+h10's `-bioshockverifyweapontrack` already showed Pistol world-transform follows
+the grip during `Reload()` (socket-follow live; position mostly screen-pinned by
+`FrameViewmodel`). That does **not** prove the weapon skeleton plays a reload
+clip — and it did not: `AShockWeapon::Reload` only called
+`NotifyViewHandsWeaponReloadStarted()` (ViewHands). Nothing called
+`Mesh->PlayAnimation`.
+
+Shipped assets (on disk under `/Game/BioShockWeapons/WP_<Def>/Animations/`):
+
+| Def | Weapon reload leaf | Hands counterpart (h8) |
+|---|---|---|
+| Pistol | `FastReload` | `FastReloadPistol` |
+| TommyGun | `Reload` | `ReloadTommyGun` |
+| Crossbow | `Reload` | `ReloadCrossbow` |
+| Shotgun | `Reload` | *(no hands clip yet)* |
+| ChemicalThrower | `Reload` | *(no hands clip yet)* |
+
+Fix: `Reload()` loads that leaf and `PlayAnimation`s it on `AShockWeapon::Mesh`
+(one-shot), then still notifies ViewHands. Verify asserts the weapon mesh's own
+active AnimSequence name — not world transform.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_weapon_mesh_anims.py -unattended -nopause -nosplash
+```
+
+**Verified live UE5.7, 5 Sept 2026 — `weapon_mesh_anims=ok`, 0 failures.** All five
+skeletal starters load their reload leaf and install it on `Mesh` after `Reload()`
+(`Pistol=FastReload`, TommyGun/Crossbow/Shotgun/ChemicalThrower=`Reload`). Before
+reload the mesh anim was `None` (no prior PlayAnimation) — confirms this was a
+genuine gap (b), not h10 screen-pinning. Report: `%TEMP%/weapon_mesh_anims_report.json`.
+Human should still confirm the barrel/magazine read in PIE; fire/equip weapon-mesh
+clips are not wired here (reload only).
+
+## Starter weapon viewmodel meshes (h3 / h14)
 
 `UShockWeaponDef::MeshAssetPath` + `AShockWeapon::ApplyDef` assign the first-person
 skeletal mesh for every starter gun; `AShockGameMode::EquipStarterWeapon` no longer
@@ -423,32 +505,37 @@ hardcodes Tommy Gun only. Paths follow the TommyGun convention under
 | TommyGun | `WP_TommyGun` (already on disk) | `export-firstperson TommyGun … --fbx` |
 | Pistol | `WP_Pistol` | `export-firstperson Pistol … --fbx --group=WP_Pistol` |
 | Shotgun | `WP_Shotgun` | `export-fbx <ShockGame.U> UAPW_WP_Shotgun … --mesh WP_ShotgunMesh` (no hand socket) |
+| GrenadeLauncher | `WP_GrenadeLauncher` | `export-firstperson Launcher … --fbx --group=WP_GrenadeLauncher` (hands socket `Launcher`) |
 | ChemicalThrower | `WP_ChemicalThrower` | `export-firstperson Chem … --fbx --group=WP_ChemicalThrower` |
 | Crossbow | `WP_Crossbow` | `export-firstperson Crossbow … --fbx --group=WP_Crossbow` |
-| Wrench | *(none)* | **Blocked:** `WP_WrenchMesh` is a plain `StaticMesh` in `ShockGame.U` (no `UAPW` / `SkeletalMesh`); `import_bioshock` cannot ingest it. Not substituted. |
+| Wrench | *(none)* | **Blocked:** `WP_WrenchMesh` is a plain `StaticMesh` in `ShockGame.U` (group `WP_Wrench`: StaticMesh×1, no `UAPW` / `SkeletalMesh`); `export-firstperson Wrench` fails; `import_bioshock` cannot ingest it. Not substituted. Melee doesn't need its own skeleton though — the swing comes from the hands rig (h8) — so the real fix is a `UStaticMeshComponent` attached to the ViewHands Wrench socket, not a skeletal import. Not yet done. |
 
-Export scratch under `%TEMP%\bioshock-h3-weapons\` (not the worktree), then:
+Export scratch under `%TEMP%\bioshock-h14-weapons\` (not the worktree), then:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
-$env:BIOSHOCK_WEAPON_EXPORT_ROOT = "$env:TEMP\bioshock-h3-weapons"
+$env:BIOSHOCK_WEAPON_EXPORT_ROOT = "$env:TEMP\bioshock-h14-weapons"
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
-    -script=tools\ue5\run_import_weapon_meshes.py -unattended -nopause -nosplash
+    -script=<repo>\tools\ue5\run_import_weapon_meshes.py -unattended -nopause -nosplash
 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
-    -script=tools\ue5\run_weapon_meshes.py -unattended -nopause -nosplash
+    -script=<repo>\tools\ue5\run_weapon_meshes.py -unattended -nopause -nosplash
 ```
 
 `run_weapon_meshes.py` drives `verify_weapon_meshes.py`: `GiveWeaponByDef` for each
-starter, asserts `Mesh->GetSkeletalMeshAsset()` matches the expected path for the five
-skeletal guns, and asserts Wrench stays mesh-less (`wrench=static_mesh_blocked`).
-Grip-socket alignment is look-and-tune in the editor afterward — not asserted here.
+starter, asserts `Mesh->GetSkeletalMeshAsset()` matches the expected path for the six
+skeletal guns (incl. GrenadeLauncher slot 4), and asserts Wrench stays mesh-less
+(`wrench=static_mesh_blocked`). Grip-socket alignment is look-and-tune in the editor
+afterward — not asserted here. Projectile/explosive feel for the Grenade Launcher is
+already covered by `verify_weapon_def.py`; this task only landed the viewmodel mesh.
 
-**4 Sept 2026 — code path landed in this worktree; headless import/verify not re-run
-here** (agent Shell blocked by a Cursor `rtk hook claude` / bash conflict before any
-command executes). TommyGun asset confirmed present at
-`Content/BioShockWeapons/WP_TommyGun/WP_TommyGun.uasset`; Pistol / Shotgun /
-ChemicalThrower / Crossbow assets were absent at hand-off. Re-run the three commands
-above once Shell works.
+**5 Sept 2026 (h14) — GrenadeLauncher mesh path wired; Wrench remains StaticMesh-blocked.**
+Confirmed against `ShockGame.U` package context (`WP_GrenadeLauncher`: SkeletalMesh
+`WP_GrenadeLauncherMesh` + `UAPW_WP_GrenadeLauncher`; `WP_Wrench`: StaticMesh×1 only).
+Headless evidence: `weapon_import=ok` (`%TEMP%/h14_weapon_mesh_import_report.json`),
+`weapon_meshes=ok` 0 failures (`%TEMP%/h14_weapon_meshes_report.json`) — GrenadeLauncher
+mesh path `/Game/BioShockWeapons/WP_GrenadeLauncher/WP_GrenadeLauncher.WP_GrenadeLauncher`
+via `GiveWeaponByDef`; Wrench `wrench=static_mesh_blocked`. Projectile/explosive fire for
+the GL was already covered by `verify_weapon_def.py` (not reinvented here).
 
 ## Runtime skeleton (Phase 3)
 

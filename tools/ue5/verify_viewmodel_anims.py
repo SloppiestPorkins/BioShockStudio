@@ -5,6 +5,10 @@ socket matches that weapon's own socket name (not a stale TommyGun match), asser
 weapon-specific fidget is playing after equip finishes, fires once and asserts the fire
 clip, then advances past the fire length and asserts return to that weapon's fidget.
 
+Also samples grip-socket world location vs weapon root bone and mesh bounds center so a
+gross sideways misalignment (TommyGun "off to the side") is headlessly detectable — not
+just "did a socket name resolve". Framing feel still needs a human look afterward.
+
 Shotgun / ChemicalThrower equip cleanly with no animation assertion (zero FP clips imported).
 Wrench is excluded (no skeletal viewmodel — h3). Zoomed-in variants are not wired (no ADS
 signal in this codebase yet).
@@ -161,6 +165,38 @@ def main(out):
             failures.append(
                 "%s grip socket=%r expected %r (stale TommyGun / NAME_None regression)"
                 % (def_name, socket, def_name)
+            )
+
+        # Socket vs mesh: root bone must sit on the grip (context.md attachment rule). Bounds
+        # center is sampled for gross sideways misalignment (camera-space |Y|), not as a
+        # precise framing assert — framing feel remains a human look-and-tune.
+        root_dist = float(player.get_grip_to_weapon_root_distance_for_verify())
+        lateral = float(player.get_grip_to_weapon_bounds_lateral_distance_for_verify())
+        socket_world = player.get_active_grip_socket_world_location_for_verify()
+        bounds_world = player.get_equipped_weapon_bounds_center_for_verify()
+        root_world = player.get_equipped_weapon_root_bone_world_location_for_verify()
+        entry["gripAlign"] = {
+            "rootDist": root_dist,
+            "boundsLateral": lateral,
+            "socket": [socket_world.x, socket_world.y, socket_world.z],
+            "root": [root_world.x, root_world.y, root_world.z],
+            "boundsCenter": [bounds_world.x, bounds_world.y, bounds_world.z],
+        }
+        if root_dist < 0.0:
+            failures.append("%s grip/root distance unreadable" % def_name)
+        elif root_dist > 5.0:
+            failures.append(
+                "%s grip-to-root distance %.2f uu (expected ~0 after root-bone align; "
+                "weapon mesh origin ≠ R_grip)"
+                % (def_name, root_dist)
+            )
+        # Gross sideways only: a forward gun's bounds can sit far along +X; |Y| >> 80 with a
+        # seated root is the "off to the side" class of failure.
+        if def_name == "TommyGun" and lateral > 80.0:
+            failures.append(
+                "TommyGun bounds center %.1f uu lateral of grip in camera space "
+                "(gross sideways misalignment)"
+                % lateral
             )
 
         equip_len = float(report["assets"]["%s.equip" % def_name].get("length", 1.0))

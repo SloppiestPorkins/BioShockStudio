@@ -260,6 +260,13 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 		return WeaponDefName;
 	}
 
+	// Def key is GrenadeLauncher; NEWPlayerHands socket is Launcher (export-firstperson socket name).
+	if (WeaponDefName.ToString().Equals(TEXT("GrenadeLauncher"), ESearchCase::IgnoreCase)
+		&& ViewHands->DoesSocketExist(FName(TEXT("Launcher"))))
+	{
+		return FName(TEXT("Launcher"));
+	}
+
 	if (!LoggedMissingGripSockets.Contains(WeaponDefName))
 	{
 		LoggedMissingGripSockets.Add(WeaponDefName);
@@ -437,6 +444,63 @@ void AShockPlayer::AdvanceViewHandsAnimationForVerify(float DeltaSeconds)
 	TickViewHandsAnimation(DeltaSeconds);
 }
 
+FVector AShockPlayer::GetActiveGripSocketWorldLocationForVerify() const
+{
+	if (ActiveGripSocket.IsNone() || !ViewHands || !ViewHands->DoesSocketExist(ActiveGripSocket))
+	{
+		return FVector::ZeroVector;
+	}
+	return ViewHands->GetSocketLocation(ActiveGripSocket);
+}
+
+FVector AShockPlayer::GetEquippedWeaponBoundsCenterForVerify() const
+{
+	if (!EquippedWeapon || !EquippedWeapon->Mesh || !EquippedWeapon->Mesh->GetSkeletalMeshAsset())
+	{
+		return FVector::ZeroVector;
+	}
+	EquippedWeapon->Mesh->UpdateBounds();
+	return EquippedWeapon->Mesh->Bounds.Origin;
+}
+
+FVector AShockPlayer::GetEquippedWeaponRootBoneWorldLocationForVerify() const
+{
+	if (!EquippedWeapon || !EquippedWeapon->Mesh || EquippedWeapon->Mesh->GetNumBones() <= 0)
+	{
+		return FVector::ZeroVector;
+	}
+	return EquippedWeapon->Mesh->GetBoneLocation(EquippedWeapon->Mesh->GetBoneName(0));
+}
+
+float AShockPlayer::GetGripToWeaponRootDistanceForVerify() const
+{
+	const FVector Socket = GetActiveGripSocketWorldLocationForVerify();
+	const FVector Root = GetEquippedWeaponRootBoneWorldLocationForVerify();
+	if (Socket.IsNearlyZero() && Root.IsNearlyZero())
+	{
+		return -1.0f;
+	}
+	return FVector::Dist(Socket, Root);
+}
+
+float AShockPlayer::GetGripToWeaponBoundsLateralDistanceForVerify() const
+{
+	if (!FirstPersonCamera)
+	{
+		return -1.0f;
+	}
+	const FVector Socket = GetActiveGripSocketWorldLocationForVerify();
+	const FVector BoundsCenter = GetEquippedWeaponBoundsCenterForVerify();
+	if (Socket.IsNearlyZero() && BoundsCenter.IsNearlyZero())
+	{
+		return -1.0f;
+	}
+	const FTransform CamXform = FirstPersonCamera->GetComponentTransform();
+	const FVector SocketCam = CamXform.InverseTransformPosition(Socket);
+	const FVector BoundsCam = CamXform.InverseTransformPosition(BoundsCenter);
+	return FMath::Abs(BoundsCam.Y - SocketCam.Y);
+}
+
 void AShockPlayer::FrameViewmodel(FName GripSocket)
 {
 	if (!FirstPersonCamera || !ViewHands)
@@ -532,11 +596,68 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 	ViewHands->SetRelativeLocation(DesiredLocal - SocketInCameraSpace);
 }
 
+void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
+{
+	// context.md CONFIRMED: the weapon's root bone IS the hands' socket (R_grip ↔ TommyGun/Pistol/…).
+	// SnapToTarget puts the mesh *component origin* on the socket. After FBX import those two are
+	// not always the same point — a non-zero root-bone component-space transform leaves the visible
+	// gun offset from the grip (reported as "off to the side"). Cancel that transform so the root
+	// bone lands on the socket. No authored fudge offset: the correction is read from the mesh.
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+	USkeletalMeshComponent* WeaponMesh = EquippedWeapon->Mesh;
+	if (!WeaponMesh || !WeaponMesh->GetSkeletalMeshAsset() || WeaponMesh->GetNumBones() <= 0)
+	{
+		return;
+	}
+
+	WeaponMesh->RefreshBoneTransforms();
+	const FName RootBoneName = WeaponMesh->GetBoneName(0);
+	const FTransform RootCS = WeaponMesh->GetBoneTransform(RootBoneName, RTS_Component);
+	if (RootCS.Equals(FTransform::Identity, 0.05f))
+	{
+		return;
+	}
+
+	WeaponMesh->SetRelativeTransform(RootCS.Inverse());
+	WeaponMesh->RefreshBoneTransforms();
+
+	const FVector SocketWorld = (!ActiveGripSocket.IsNone() && ViewHands && ViewHands->DoesSocketExist(ActiveGripSocket))
+		? ViewHands->GetSocketLocation(ActiveGripSocket)
+		: FVector::ZeroVector;
+	const FVector RootWorld = WeaponMesh->GetBoneLocation(RootBoneName);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_VIEWMODEL alignRoot weapon=%s rootCS=%s socketToRoot=%.2f"),
+		*EquippedWeapon->GetWeaponDefName().ToString(),
+		*RootCS.GetLocation().ToCompactString(),
+		FVector::Dist(SocketWorld, RootWorld));
+}
+
+void AShockPlayer::TickHeldFire()
+{
+	if (!bFireInputHeld || !EquippedWeapon || !EquippedWeapon->IsAutomatic())
+	{
+		return;
+	}
+	// Empty mag: do not re-call FireAt every tick (would spam dry-fire feedback). Semi-auto
+	// only clicks once on the initial press; automatic should match that once drained.
+	if (EquippedWeapon->bEnforceAmmo && EquippedWeapon->GetRoundsInMagazine() <= 0)
+	{
+		return;
+	}
+	TryFireEquippedWeapon();
+}
+
 void AShockPlayer::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
 	TickViewHandsAnimation(DeltaSeconds);
+	TickHeldFire();
 
 	// Re-pin the grip EVERY FRAME. Framing once at equip time is only correct on the frame it runs:
 	// a looping fidget carries the hands a long way, and the grip socket moves with them. Measured
@@ -576,6 +697,7 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
 			GripSocket);
 		ActiveGripSocket = GripSocket;
+		AlignEquippedWeaponRootToGripSocket();
 		StartViewHandsForEquippedWeapon();
 		FrameViewmodel(GripSocket);
 	}
@@ -600,10 +722,11 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s weapon=%s"),
+		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s weapon=%s auto=%d"),
 		(ViewHands && ViewHands->GetSkeletalMeshAsset()) ? 1 : 0,
 		*GripSocket.ToString(),
-		*DefName.ToString());
+		*DefName.ToString(),
+		Weapon->IsAutomatic() ? 1 : 0);
 }
 
 void AShockPlayer::UpdateWeaponSlotVisibility(int32 VisibleSlot)
@@ -821,6 +944,7 @@ void AShockPlayer::HandleWeaponSlot6Input()
 
 void AShockPlayer::HandleFireReleasedInput()
 {
+	bFireInputHeld = false;
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->StopBeam();
@@ -830,6 +954,31 @@ void AShockPlayer::HandleFireReleasedInput()
 void AShockPlayer::EnablePlayableInput(bool bEnable)
 {
 	bPlayableInputEnabled = bEnable;
+}
+
+void AShockPlayer::DriveFireInputForVerify(bool bPressed)
+{
+	if (bPressed)
+	{
+		HandleFireInput();
+	}
+	else
+	{
+		HandleFireReleasedInput();
+	}
+}
+
+void AShockPlayer::AdvanceHeldFireForVerify(float DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->AdvanceFireRateClockForVerify(DeltaSeconds);
+	}
+	TickHeldFire();
 }
 
 bool AShockPlayer::TryFireEquippedWeapon()
@@ -1035,6 +1184,7 @@ void AShockPlayer::RestoreInventoryStacksForTravel(const TMap<FName, int32>& Sta
 
 void AShockPlayer::HandleFireInput()
 {
+	bFireInputHeld = true;
 	TryFireEquippedWeapon();
 }
 

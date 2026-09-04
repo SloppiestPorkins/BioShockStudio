@@ -85,6 +85,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	float FireRate = 1.0f;
 
+	/**
+	 * When true, holding Fire keeps calling FireAt at FireRate (TommyGun, ChemicalThrower).
+	 * When false, one press = one shot (Pistol, Shotgun, Crossbow, …). Data-driven — not a
+	 * per-weapon special case in the player input path.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bAutomatic = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BioShock")
 	int32 MagazineSize = 1;
 

@@ -33,6 +33,10 @@ END_RE = re.compile(
 START_RE = re.compile(
     r"BIOSHOCK_WEAPON_TRACK_START anim=(\S+) len=([-\d.]+) socket=(\S+)"
 )
+ALIGN_RE = re.compile(
+    r"BIOSHOCK_WEAPON_TRACK_ALIGN rootDist=([-\d.]+) boundsLateral=([-\d.]+) "
+    r"socket=\(([-\d.]+),([-\d.]+),([-\d.]+)\) bounds=\(([-\d.]+),([-\d.]+),([-\d.]+)\)"
+)
 SAMPLE_RE = re.compile(
     r"BIOSHOCK_WEAPON_TRACK_SAMPLE i=(\d+) x=([-\d.]+) y=([-\d.]+) z=([-\d.]+) "
     r"pitch=([-\d.]+) yaw=([-\d.]+) roll=([-\d.]+)"
@@ -120,6 +124,22 @@ def _parse_log():
     if start:
         result["socket"] = start.group(3)
         result["anim_len"] = result.get("anim_len", float(start.group(2)))
+    align = ALIGN_RE.search(text)
+    if align:
+        result["align"] = {
+            "rootDist": float(align.group(1)),
+            "boundsLateral": float(align.group(2)),
+            "socket": {
+                "x": float(align.group(3)),
+                "y": float(align.group(4)),
+                "z": float(align.group(5)),
+            },
+            "bounds": {
+                "x": float(align.group(6)),
+                "y": float(align.group(7)),
+                "z": float(align.group(8)),
+            },
+        }
     result["sample_count_logged"] = len(list(SAMPLE_RE.finditer(text)))
     return result, None
 

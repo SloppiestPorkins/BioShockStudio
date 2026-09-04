@@ -126,6 +126,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryFireEquippedWeapon();
 
+	/**
+	 * Headless verify: drive Fire the same path ActionMapping "Fire" uses (press/release),
+	 * so automatic weapons can be tested without a real input device.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Verify")
+	void DriveFireInputForVerify(bool bPressed);
+
+	/** Headless verify: whether Fire is currently held (after DriveFireInputForVerify / bindings). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|Verify")
+	bool IsFireInputHeldForVerify() const { return bFireInputHeld; }
+
+	/**
+	 * Headless verify: advance the fire-rate clock and re-trigger automatic fire while held,
+	 * without waiting on real time. Mirrors Tick's held-fire path.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Verify")
+	void AdvanceHeldFireForVerify(float DeltaSeconds);
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool TryReloadEquippedWeapon();
 
@@ -533,6 +551,32 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	FName GetActiveGripSocketForVerify() const { return ActiveGripSocket; }
 
+	/** World location of the active grip socket (ZeroVector if unresolved). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	FVector GetActiveGripSocketWorldLocationForVerify() const;
+
+	/** Equipped weapon mesh Bounds.Origin in world space (ZeroVector if no mesh). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	FVector GetEquippedWeaponBoundsCenterForVerify() const;
+
+	/** Equipped weapon skeletal root bone (index 0) in world space. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	FVector GetEquippedWeaponRootBoneWorldLocationForVerify() const;
+
+	/**
+	 * Distance from grip socket to weapon root bone after EquipWeapon alignment.
+	 * Should be near zero — context.md: weapon root bone IS the hands' socket.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	float GetGripToWeaponRootDistanceForVerify() const;
+
+	/**
+	 * Camera-space lateral (|Y|) offset of weapon bounds center from the grip socket.
+	 * A forward-pointing gun has most extent on +X; a large |Y| vs |X| is a gross sideways misalign.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	float GetGripToWeaponBoundsLateralDistanceForVerify() const;
+
 	/** Headless verify: name of the AnimSequence currently installed on ViewHands. */
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	FName GetPlayingViewHandsAnimationNameForVerify() const;
@@ -625,6 +669,8 @@ private:
 	void LookUpAtRate(float Value);
 	void EnsureViewHands();
 	void FrameViewmodel(FName GripSocket);
+	void AlignEquippedWeaponRootToGripSocket();
+	void TickHeldFire();
 	void TickWeaponRecoil();
 	void TickViewHandsAnimation(float DeltaSeconds);
 	void ResolveViewHandsAnimsForWeapon(FName WeaponDefName);
@@ -634,6 +680,9 @@ private:
 
 	/** Grip socket the equipped weapon is attached to, so Tick can re-pin the viewmodel to it. */
 	FName ActiveGripSocket;
+
+	/** Fire ActionMapping held — automatic weapons re-fire from Tick while this is true. */
+	bool bFireInputHeld = false;
 
 	/** FrameViewmodel runs per frame now; these keep its diagnostics to one line each. */
 	bool bLoggedViewmodelFraming = false;

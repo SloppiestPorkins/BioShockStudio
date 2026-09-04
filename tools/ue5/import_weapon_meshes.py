@@ -26,6 +26,7 @@ _WEAPONS = (
     ("WP_ChemicalThrower", "WP_ChemicalThrower"),
     ("WP_Crossbow", "WP_Crossbow"),
     ("WP_TommyGun", "WP_TommyGun"),
+    ("WP_GrenadeLauncher", "WP_GrenadeLauncher"),
 )
 
 

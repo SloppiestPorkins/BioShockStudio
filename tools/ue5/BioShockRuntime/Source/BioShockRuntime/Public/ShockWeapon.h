@@ -6,6 +6,7 @@
 
 class AShockPawn;
 class AShockProjectile;
+class UAnimSequence;
 class UPointLightComponent;
 class USkeletalMeshComponent;
 
@@ -50,6 +51,10 @@ public:
 	/** Rounds per second (TommyGun slice ~10). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
 	float FireRate = 10.0f;
+
+	/** Hold-to-fire when true (from UShockWeaponDef::bAutomatic). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
+	bool bAutomatic = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Ammo")
 	float ReloadSeconds = 2.5f;
@@ -113,6 +118,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
 	EWeaponFireMode GetFireMode() const { return FireMode; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	bool IsAutomatic() const { return bAutomatic; }
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
 	bool IsBeamActiveForVerify() const { return bBeamActive; }
@@ -192,6 +200,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void AdvanceReloadForVerify(float DeltaSeconds);
 
+	/**
+	 * Headless verify: name of the AnimSequence currently installed on this weapon's own Mesh
+	 * (not ViewHands). Empty when nothing has been PlayAnimation'd on the weapon rig.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	FName GetPlayingMeshAnimationNameForVerify() const;
+
 	/** Headless verify: allow the next shot through the fire-rate gate. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void ClearFireCooldownForVerify();
@@ -238,6 +253,11 @@ private:
 	void FinishReload();
 	void LogAmmoState() const;
 	void TryAutoReloadOnEmpty();
+	/** Leaf name under /Game/BioShockWeapons/WP_<Def>/Animations/ for this def's reload clip. */
+	const TCHAR* ResolveReloadMeshAnimLeaf() const;
+	UAnimSequence* LoadMeshAnim(const TCHAR* LeafName) const;
+	void PlayMeshAnimation(UAnimSequence* Sequence, bool bLoop);
+	void PlayReloadMeshAnimation();
 	bool CanMeleeNow(UWorld* World) const;
 	float GetDamageForAmmoIndex(int32 Index) const;
 	void SyncActiveAmmoFacingFields();
@@ -258,6 +278,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPointLightComponent> MuzzleFlashLight;
+
+	/** Last AnimSequence installed via PlayAnimation on Mesh (weapon rig, not ViewHands). */
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LastMeshAnim;
 
 	FTimerHandle ReloadTimerHandle;
 	FTimerHandle MuzzleFlashTimerHandle;
