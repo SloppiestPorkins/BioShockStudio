@@ -492,37 +492,6 @@ def _repair_null_texture_parameters(master):
     return repaired
 
 
-def _repair_translucent_alpha_opacity(master, material, rig):
-    """Sever a BaseColor-alpha-as-Opacity wire on a master imported before the
-    declaresAlphaTexture gate (see _load_or_create_master) existed.
-
-    outputBlending 1/2 alone used to be enough to classify a material "translucent" and wire its
-    diffuse texture's Alpha channel straight into Opacity. For a material whose diffuse never
-    declared real alpha coverage (declaresAlphaTexture False -- the alpha is packed spec/gloss
-    data instead), that channel averages ~15-25% (measured on Wall_Leak_diff/reinforcedglass_
-    diffuse, 4 Sept 2026), so the whole surface renders almost fully transparent -- read by the
-    user as the texture being missing. Replace that wire with a constant fully-opaque value,
-    same as a freshly created master of this kind now gets.
-    """
-    if master is None or not isinstance(master, unreal.Material):
-        return False
-    if _material_rendering_kind(material, rig) != "translucent":
-        return False
-    if _material_declares_alpha_texture(material, rig):
-        return False
-    edit = unreal.MaterialEditingLibrary
-    opacity_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY)
-    base_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
-    if opacity_node is None or base_node is None or opacity_node.get_name() != base_node.get_name():
-        return False
-    constant = edit.create_material_expression(master, unreal.MaterialExpressionConstant, -500, 450)
-    constant.set_editor_property("r", 1.0)
-    edit.connect_material_property(constant, "", unreal.MaterialProperty.MP_OPACITY)
-    edit.recompile_material(master)
-    unreal.EditorAssetLibrary.save_loaded_asset(master)
-    return True
-
-
 def _material_texture_bindings(material, rig):
     """Resolve texture paths, including class-specific shader slots the JSON may omit."""
     name = material["name"]
@@ -676,7 +645,6 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
-        _repair_translucent_alpha_opacity(existing, material, rig)
         return existing
 
     factory = unreal.MaterialFactoryNew()
@@ -707,15 +675,6 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     if edit.get_num_material_expressions(master) > 0:
         edit.delete_all_material_expressions(master)
 
-    # outputBlending alone (1/2) is an uncertain signal -- some materials it flags "translucent"
-    # never actually declare real alpha coverage on their diffuse texture (declaresAlphaTexture
-    # False). Their alpha channel is packed spec/gloss data instead (see MaterialReader.cs's own
-    # census: 136/211 non-opaque-alpha materials in 0-Lighthouse declare nothing). Sampled directly
-    # (Wall_Leak_diff, reinforcedglass_diffuse -- 4 Sept 2026), that data averages ~15-25% alpha,
-    # so wiring it into Opacity makes the whole surface render almost fully transparent -- the
-    # user's "wall leak"/"reinforced glass" textures reading as missing. Only trust diffuse.A as
-    # real coverage when the source data itself says so.
-    diffuse_has_real_alpha = _material_declares_alpha_texture(material, rig)
     base = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, -150)
     base.set_editor_property("parameter_name", "BaseColor")
     base.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
@@ -726,7 +685,7 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
         if kind == "mask":
             edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
-        elif kind == "translucent" and diffuse_has_real_alpha:
+        elif kind == "translucent":
             edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY)
 
     normal = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 50)
