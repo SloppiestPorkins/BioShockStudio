@@ -312,7 +312,14 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->GiveWeaponByDef(TEXT("ChemicalThrower"), 5);
 	Player->GiveWeaponByDef(TEXT("Crossbow"), 6);
 	Player->GiveWeapon(AShockResearchCamera::StaticClass(), 7);
-	Player->SelectWeaponSlot(2);
+
+	// The Wrench (slot 0) is the first weapon the player actually has in BioShock --
+	// start equipped with it, not the Tommy Gun, matching what you'd really be
+	// holding before finding any guns. (Its mesh isn't imported yet either, same gap
+	// as the other non-TommyGun weapons -- see h3-weapon-mesh-import -- so this is
+	// currently a bare-handed viewmodel until that lands, not a regression from the
+	// prior default.)
+	Player->SelectWeaponSlot(0);
 
 	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.
 	Player->MaxEve = 100.0f;
