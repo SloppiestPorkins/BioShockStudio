@@ -352,6 +352,48 @@ verify not re-run here** (agent Shell blocked by Cursor `rtk hook claude` / bash
 conflict). Report: `%TEMP%/weapon_feedback_report.json`. Human confirms feel in
 PIE afterward.
 
+## First-person viewmodel anims (h8) — grip socket + per-weapon fidget/fire/reload
+
+Root cause (confirmed): `EquipWeapon` picked grip sockets from a hardcoded
+`TommyGun` / `R_Grip` / `R_grip` candidate list, so only Tommy Gun ever matched;
+every other weapon got `NAME_None` and no socket correction. Separately,
+`EnsureViewHands` always played `FidgetTommygun` once and never switched by
+weapon — no fire/reload/equip trigger existed.
+
+Fix: resolve the grip socket from `AShockWeapon::GetWeaponDefName()` against the
+hands skeleton (log once and skip correction when missing — no substitute socket).
+ViewHands animation mirrors `ABaseShockAI::TickAnimationDriver`: cache per-weapon
+sequences, play equip → fidget (loop), fire/reload as one-shots that return to
+fidget via `GetPlayLength()`, only call `PlayAnimation` when state changes.
+
+| Def | Equip | Fidget | Fire | Reload |
+|---|---|---|---|---|
+| TommyGun | `EquipTommygun` | `FidgetTommygun` | `FireTommyGun` | `ReloadTommyGun` |
+| Pistol | `EquipPistol` | `FidgetPistol` | `FireSinglePistol` | `FastReloadPistol` |
+| Crossbow | `EquipCrossbow` | `FidgetCrossbow` | `FireCrossbow` | `ReloadCrossbow` |
+| Shotgun / ChemicalThrower | *(none)* | *(none)* | *(none)* | *(none)* — hold bind/last pose pending import |
+| Wrench | excluded (no skeletal mesh — h3) | | | |
+
+Zoomed-in variants (`ZoomedInFidget*`, `ZoomingIn*`, …) are **not** wired — this
+codebase has no ADS / zoom input signal yet; inventing one is out of scope.
+Unequip clips are also skipped (no clean pre-switch wait without delaying equip).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_viewmodel_anims.py -unattended -nopause -nosplash
+```
+
+`run_viewmodel_anims.py` drives `verify_viewmodel_anims.py`: `unreal.load_asset` on
+each hardcoded path, then equip TommyGun/Pistol/Crossbow and assert socket name ==
+def name, fidget is that weapon's (not always TommyGun), fire clip plays, then
+return to fidget. Shotgun/ChemicalThrower equip without crash (no anim assert).
+
+**4 Sept 2026 — code + verify script landed in this worktree; headless rebuild/
+verify not re-run here** (no live UE session in this worktree). Report:
+`%TEMP%/viewmodel_anims_report.json`. Human confirms socket framing and fire
+timing in the editor afterward.
+
 ## Starter weapon viewmodel meshes (h3)
 
 `UShockWeaponDef::MeshAssetPath` + `AShockWeapon::ApplyDef` assign the first-person

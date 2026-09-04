@@ -399,6 +399,10 @@ bool AShockWeapon::Reload()
 		ReloadSeconds,
 		false);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD start seconds=%.2f"), ReloadSeconds);
+	if (AShockPlayer* OwnerPlayer = Cast<AShockPlayer>(GetOwner()))
+	{
+		OwnerPlayer->NotifyViewHandsWeaponReloadStarted();
+	}
 	return true;
 }
 
@@ -624,6 +628,7 @@ void AShockWeapon::PlayFireFeedback(
 		if (bApplyRecoil)
 		{
 			Player->ApplyWeaponRecoil();
+			Player->NotifyViewHandsWeaponFired();
 		}
 	}
 }

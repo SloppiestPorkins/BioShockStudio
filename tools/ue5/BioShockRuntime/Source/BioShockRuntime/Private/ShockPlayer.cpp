@@ -7,6 +7,7 @@
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -27,7 +28,50 @@ constexpr float WeaponRecoilRecoverSeconds = 0.12f;
 constexpr float PlasmidTraceRange = 10000.0f;
 constexpr float HackTraceRange = 800.0f;
 constexpr float HackFailSelfDamage = 5.0f; // PLAUSIBLE — pipe minigame shock stand-in
+
+/** Asset-leaf names under /Game/BioShockWeapons/NEWPlayerHands/Animations/ — casing is per-file. */
+struct FViewHandsAnimNames
+{
+	const TCHAR* Equip = nullptr;
+	const TCHAR* Fidget = nullptr;
+	const TCHAR* Fire = nullptr;
+	const TCHAR* Reload = nullptr;
+};
+
+bool TryGetViewHandsAnimNames(FName WeaponDefName, FViewHandsAnimNames& Out)
+{
+	const FString Key = WeaponDefName.ToString();
+	if (Key.Equals(TEXT("TommyGun"), ESearchCase::IgnoreCase))
+	{
+		// On-disk: EquipTommygun / FidgetTommygun (lower g); FireTommyGun / ReloadTommyGun (upper G).
+		Out = {TEXT("EquipTommygun"), TEXT("FidgetTommygun"), TEXT("FireTommyGun"), TEXT("ReloadTommyGun")};
+		return true;
+	}
+	if (Key.Equals(TEXT("Pistol"), ESearchCase::IgnoreCase))
+	{
+		Out = {TEXT("EquipPistol"), TEXT("FidgetPistol"), TEXT("FireSinglePistol"), TEXT("FastReloadPistol")};
+		return true;
+	}
+	if (Key.Equals(TEXT("Crossbow"), ESearchCase::IgnoreCase))
+	{
+		Out = {TEXT("EquipCrossbow"), TEXT("FidgetCrossbow"), TEXT("FireCrossbow"), TEXT("ReloadCrossbow")};
+		return true;
+	}
+	// Shotgun / ChemicalThrower: zero FP clips imported. Wrench: no mesh yet (h3).
+	return false;
 }
+
+UAnimSequence* LoadViewHandsAnim(const TCHAR* LeafName)
+{
+	if (!LeafName)
+	{
+		return nullptr;
+	}
+	const FString Path = FString::Printf(
+		TEXT("/Game/BioShockWeapons/NEWPlayerHands/Animations/%s.%s"), LeafName, LeafName);
+	return LoadObject<UAnimSequence>(nullptr, *Path);
+}
+} // namespace
 
 AShockPlayer::AShockPlayer()
 {
@@ -193,24 +237,194 @@ void AShockPlayer::EnsureViewHands()
 	ViewHands->SetHiddenInGame(false);
 	ViewHands->SetOnlyOwnerSee(false);
 	ViewHands->SetOwnerNoSee(false);
+	// Idle / equip / fire / reload clips are selected per weapon by StartViewHandsForEquippedWeapon.
+	// Do not hardcode FidgetTommygun here — that locked every weapon to the Tommy Gun pose.
+}
 
-	if (UAnimSequence* Idle = LoadObject<UAnimSequence>(
-			nullptr,
-			TEXT("/Game/BioShockWeapons/NEWPlayerHands/Animations/FidgetTommygun.FidgetTommygun")))
+FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
+{
+	if (!ViewHands || !ViewHands->GetSkeletalMeshAsset() || WeaponDefName.IsNone())
 	{
-		ViewHands->PlayAnimation(Idle, true);
-
-		// Evaluate the pose NOW. PlayAnimation only installs the single-node instance; the bones
-		// are not posed until the component next ticks, so anything reading a socket before then
-		// gets the BIND pose. FrameViewmodel reads the grip socket immediately after this to work
-		// out where to put the mesh, and in the bind pose NEWPlayerHands has its arms at its
-		// sides: the TommyGun socket sits 76 units BELOW the mesh root with no forward offset at
-		// all. Framing against that put the root 52 units above the eye, which is precisely the
-		// reported "animations play above the camera" - the arms hung down into frame from the
-		// ceiling. Posing first makes the correction a property of the pose actually drawn.
-		ViewHands->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
-		ViewHands->RefreshBoneTransforms();
+		return NAME_None;
 	}
+
+	// Hands skeleton carries a separately named socket per weapon (Pistol, TommyGun, …), not a
+	// shared R_Grip. Match the equipped def name; never substitute another weapon's socket.
+	if (ViewHands->DoesSocketExist(WeaponDefName))
+	{
+		return WeaponDefName;
+	}
+
+	if (!LoggedMissingGripSockets.Contains(WeaponDefName))
+	{
+		LoggedMissingGripSockets.Add(WeaponDefName);
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("BIOSHOCK_VIEWMODEL no grip socket for weapon=%s — framing without socket correction"),
+			*WeaponDefName.ToString());
+	}
+	return NAME_None;
+}
+
+void AShockPlayer::ResolveViewHandsAnimsForWeapon(FName WeaponDefName)
+{
+	if (WeaponDefName == ViewHandsAnimWeapon && ViewHandsAnimWeapon != NAME_None)
+	{
+		return;
+	}
+
+	ViewHandsAnimWeapon = WeaponDefName;
+	ViewHandsEquipAnim = nullptr;
+	ViewHandsFidgetAnim = nullptr;
+	ViewHandsFireAnim = nullptr;
+	ViewHandsReloadAnim = nullptr;
+
+	FViewHandsAnimNames Names;
+	if (!TryGetViewHandsAnimNames(WeaponDefName, Names))
+	{
+		return;
+	}
+
+	ViewHandsEquipAnim = LoadViewHandsAnim(Names.Equip);
+	ViewHandsFidgetAnim = LoadViewHandsAnim(Names.Fidget);
+	ViewHandsFireAnim = LoadViewHandsAnim(Names.Fire);
+	ViewHandsReloadAnim = LoadViewHandsAnim(Names.Reload);
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_VIEWMODEL_ANIMS weapon=%s equip=%d fidget=%d fire=%d reload=%d"),
+		*WeaponDefName.ToString(),
+		ViewHandsEquipAnim ? 1 : 0,
+		ViewHandsFidgetAnim ? 1 : 0,
+		ViewHandsFireAnim ? 1 : 0,
+		ViewHandsReloadAnim ? 1 : 0);
+}
+
+void AShockPlayer::PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop)
+{
+	if (!ViewHands || !Sequence)
+	{
+		return;
+	}
+	// Skip only when the same looping idle is already installed. One-shots (equip/fire/reload)
+	// always re-play so automatic fire can restart the fire clip every shot.
+	if (bLoop && Sequence == LastViewHandsAnim && !bViewHandsPlayingOneShot)
+	{
+		return;
+	}
+
+	ViewHands->PlayAnimation(Sequence, bLoop);
+	// Evaluate immediately so FrameViewmodel / socket reads see the posed grip, not bind pose.
+	ViewHands->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
+	ViewHands->RefreshBoneTransforms();
+	LastViewHandsAnim = Sequence;
+
+	if (bLoop)
+	{
+		bViewHandsPlayingOneShot = false;
+		ViewHandsOneShotRemaining = 0.0f;
+	}
+	else
+	{
+		bViewHandsPlayingOneShot = true;
+		ViewHandsOneShotRemaining = Sequence->GetPlayLength();
+	}
+}
+
+void AShockPlayer::StartViewHandsForEquippedWeapon()
+{
+	if (!EquippedWeapon || !ViewHands || !ViewHands->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
+	const FName DefName = EquippedWeapon->GetWeaponDefName();
+	ResolveViewHandsAnimsForWeapon(DefName);
+
+	if (ViewHandsEquipAnim)
+	{
+		PlayViewHandsAnimation(ViewHandsEquipAnim, false);
+	}
+	else if (ViewHandsFidgetAnim)
+	{
+		PlayViewHandsAnimation(ViewHandsFidgetAnim, true);
+	}
+	else
+	{
+		// Shotgun / ChemicalThrower: no FP clips — stop any prior weapon's looping fidget rather
+		// than silently reusing it. Hold last/bind pose pending an asset import.
+		ViewHands->Stop();
+		LastViewHandsAnim = nullptr;
+		bViewHandsPlayingOneShot = false;
+		ViewHandsOneShotRemaining = 0.0f;
+	}
+}
+
+void AShockPlayer::TickViewHandsAnimation(float DeltaSeconds)
+{
+	if (!bViewHandsPlayingOneShot)
+	{
+		return;
+	}
+
+	ViewHandsOneShotRemaining = FMath::Max(0.0f, ViewHandsOneShotRemaining - DeltaSeconds);
+	if (ViewHandsOneShotRemaining > 0.0f)
+	{
+		return;
+	}
+
+	bViewHandsPlayingOneShot = false;
+	if (ViewHandsFidgetAnim)
+	{
+		PlayViewHandsAnimation(ViewHandsFidgetAnim, true);
+	}
+}
+
+void AShockPlayer::NotifyViewHandsWeaponFired()
+{
+	if (ViewHandsFireAnim)
+	{
+		PlayViewHandsAnimation(ViewHandsFireAnim, false);
+	}
+}
+
+void AShockPlayer::NotifyViewHandsWeaponReloadStarted()
+{
+	if (ViewHandsReloadAnim)
+	{
+		PlayViewHandsAnimation(ViewHandsReloadAnim, false);
+	}
+}
+
+FName AShockPlayer::GetPlayingViewHandsAnimationNameForVerify() const
+{
+	if (LastViewHandsAnim)
+	{
+		return LastViewHandsAnim->GetFName();
+	}
+	if (ViewHands)
+	{
+		if (const UAnimSingleNodeInstance* Single =
+				Cast<UAnimSingleNodeInstance>(ViewHands->GetAnimInstance()))
+		{
+			if (const UAnimationAsset* Anim = Single->GetAnimationAsset())
+			{
+				return Anim->GetFName();
+			}
+		}
+	}
+	return NAME_None;
+}
+
+void AShockPlayer::AdvanceViewHandsAnimationForVerify(float DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+	TickViewHandsAnimation(DeltaSeconds);
 }
 
 void AShockPlayer::FrameViewmodel(FName GripSocket)
@@ -312,13 +526,15 @@ void AShockPlayer::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	TickViewHandsAnimation(DeltaSeconds);
+
 	// Re-pin the grip EVERY FRAME. Framing once at equip time is only correct on the frame it runs:
-	// FidgetTommygun is a looping idle whose bones carry the hands a long way, and the grip socket
-	// moves with them. Measured eight seconds after equip, with the framing maths guaranteeing the
-	// grip sits at ViewmodelOffset (28,10,-24), the socket was actually at camera-space
-	// (-26.1, 10.3, 39.2) - behind the eye, and off screen. That is the reported "animations play
-	// above the camera" and "animations aren't lined up with the viewmodel": not a wrong rotation,
-	// a correction computed once against a pose that then changed.
+	// a looping fidget carries the hands a long way, and the grip socket moves with them. Measured
+	// eight seconds after equip, with the framing maths guaranteeing the grip sits at
+	// ViewmodelOffset (28,10,-24), the socket was actually at camera-space (-26.1, 10.3, 39.2) -
+	// behind the eye, and off screen. That is the reported "animations play above the camera" and
+	// "animations aren't lined up with the viewmodel": not a wrong rotation, a correction computed
+	// once against a pose that then changed.
 	//
 	// Pinning the socket rather than the root means the gun holds still in the frame and the arms
 	// animate around it, which is what a first-person viewmodel wants anyway. It also makes the
@@ -341,24 +557,16 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	Weapon->SetOwner(this);
 	EnsureViewHands();
 
-	FName GripSocket = NAME_None;
+	const FName DefName = Weapon->GetWeaponDefName();
+	const FName GripSocket = ResolveGripSocketForWeapon(DefName);
 	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
 	{
-		static const FName Candidates[] = {
-			TEXT("TommyGun"), TEXT("R_Grip"), TEXT("R_grip")};
-		for (const FName Candidate : Candidates)
-		{
-			if (ViewHands->DoesSocketExist(Candidate))
-			{
-				GripSocket = Candidate;
-				break;
-			}
-		}
 		Weapon->AttachToComponent(
 			ViewHands,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
 			GripSocket);
 		ActiveGripSocket = GripSocket;
+		StartViewHandsForEquippedWeapon();
 		FrameViewmodel(GripSocket);
 	}
 	else if (FirstPersonCamera)
@@ -367,6 +575,7 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 			FirstPersonCamera,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector(28.0f, 10.0f, -14.0f));
+		ActiveGripSocket = NAME_None;
 	}
 
 	Weapon->SetActorHiddenInGame(false);
@@ -381,9 +590,10 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s"),
+		TEXT("BIOSHOCK_VIEWMODEL hands=%d socket=%s weapon=%s"),
 		(ViewHands && ViewHands->GetSkeletalMeshAsset()) ? 1 : 0,
-		*GripSocket.ToString());
+		*GripSocket.ToString(),
+		*DefName.ToString());
 }
 
 void AShockPlayer::UpdateWeaponSlotVisibility(int32 VisibleSlot)

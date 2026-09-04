@@ -1,0 +1,262 @@
+"""Headless verify: per-weapon grip sockets + ViewHands fidget/fire/reload.
+
+Equips TommyGun / Pistol / Crossbow via GiveWeaponByDef + EquipWeapon, asserts the grip
+socket matches that weapon's own socket name (not a stale TommyGun match), asserts the
+weapon-specific fidget is playing after equip finishes, fires once and asserts the fire
+clip, then advances past the fire length and asserts return to that weapon's fidget.
+
+Shotgun / ChemicalThrower equip cleanly with no animation assertion (zero FP clips imported).
+Wrench is excluded (no skeletal viewmodel — h3). Zoomed-in variants are not wired (no ADS
+signal in this codebase yet).
+"""
+
+import json
+import os
+
+import unreal
+
+
+# Exact leaf names under /Game/BioShockWeapons/NEWPlayerHands/Animations/ — casing from disk.
+_ANIMATED = {
+    "TommyGun": {
+        "slot": 2,
+        "fidget": "FidgetTommygun",
+        "fire": "FireTommyGun",
+        "reload": "ReloadTommyGun",
+        "equip": "EquipTommygun",
+    },
+    "Pistol": {
+        "slot": 1,
+        "fidget": "FidgetPistol",
+        "fire": "FireSinglePistol",
+        "reload": "FastReloadPistol",
+        "equip": "EquipPistol",
+    },
+    "Crossbow": {
+        "slot": 6,
+        "fidget": "FidgetCrossbow",
+        "fire": "FireCrossbow",
+        "reload": "ReloadCrossbow",
+        "equip": "EquipCrossbow",
+    },
+}
+
+_UNANIMATED = {
+    "Shotgun": 3,
+    "ChemicalThrower": 5,
+}
+
+_ANIM_ROOT = "/Game/BioShockWeapons/NEWPlayerHands/Animations"
+
+
+def _log(message):
+    unreal.log("[bioshock-viewmodel-anims] %s" % message)
+
+
+def _spawn(subsystem, cls, label, loc, rot=None):
+    rot = rot or unreal.Rotator(0.0, 0.0, 0.0)
+    actor = subsystem.spawn_actor_from_class(cls, loc, rot)
+    if actor:
+        actor.set_actor_label(label)
+    return actor
+
+
+def _write(out, report):
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
+
+
+def _anim_path(leaf):
+    return "%s/%s.%s" % (_ANIM_ROOT, leaf, leaf)
+
+
+def _playing(player):
+    if not player:
+        return ""
+    return str(player.get_playing_view_hands_animation_name_for_verify())
+
+
+def _socket(player):
+    if not player:
+        return ""
+    return str(player.get_active_grip_socket_for_verify())
+
+
+def _play_length(asset):
+    if asset is None:
+        return 0.0
+    try:
+        return float(asset.get_editor_property("sequence_length"))
+    except Exception:  # noqa: BLE001
+        try:
+            return float(asset.get_play_length())
+        except Exception:  # noqa: BLE001
+            return 1.0
+
+
+def _advance_past(player, seconds, step=0.05):
+    remaining = float(seconds) + 0.05
+    while remaining > 0.0:
+        chunk = min(step, remaining)
+        player.advance_view_hands_animation_for_verify(chunk)
+        remaining -= chunk
+
+
+def main(out):
+    report = {"failures": [], "assets": {}, "weapons": {}}
+    failures = report["failures"]
+
+    subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
+    if not player_cls:
+        failures.append("ShockPlayer class missing")
+        _write(out, report)
+        raise RuntimeError("viewmodel-anims:\n- " + "\n- ".join(failures))
+
+    # Confirm each hardcoded path resolves before asserting runtime behaviour.
+    for def_name, spec in _ANIMATED.items():
+        for kind in ("fidget", "fire", "reload", "equip"):
+            leaf = spec[kind]
+            path = _anim_path(leaf)
+            asset = unreal.load_asset(path)
+            key = "%s.%s" % (def_name, kind)
+            report["assets"][key] = {"path": path, "ok": asset is not None}
+            if asset is None:
+                failures.append("asset missing: %s (%s)" % (key, path))
+            else:
+                report["assets"][key]["length"] = _play_length(asset)
+
+    hands = unreal.load_asset(
+        "/Game/BioShockWeapons/NEWPlayerHands/NEWPlayerHands.NEWPlayerHands"
+    )
+    report["assets"]["NEWPlayerHands"] = hands is not None
+    if hands is None:
+        failures.append("NEWPlayerHands skeletal mesh missing")
+
+    if failures:
+        _write(out, report)
+        raise RuntimeError("viewmodel-anims:\n- " + "\n- ".join(failures))
+
+    spawned = []
+    player = _spawn(subsystem, player_cls, "ViewmodelAnimPlayer", unreal.Vector(0.0, 0.0, 100.0))
+    spawned.append(player)
+    if not player:
+        failures.append("spawn player")
+        _write(out, report)
+        raise RuntimeError("viewmodel-anims:\n- " + "\n- ".join(failures))
+
+    for def_name, spec in _ANIMATED.items():
+        entry = {"def": def_name}
+        weapon = player.give_weapon_by_def(unreal.Name(def_name), int(spec["slot"]))
+        if not weapon:
+            failures.append("GiveWeaponByDef(%s) null" % def_name)
+            report["weapons"][def_name] = entry
+            continue
+
+        player.equip_weapon(weapon)
+        socket = _socket(player)
+        entry["socketAfterEquip"] = socket
+        if socket != def_name:
+            failures.append(
+                "%s grip socket=%r expected %r (stale TommyGun / NAME_None regression)"
+                % (def_name, socket, def_name)
+            )
+
+        equip_len = float(report["assets"]["%s.equip" % def_name].get("length", 1.0))
+        _advance_past(player, equip_len)
+        fidget = _playing(player)
+        entry["fidgetAfterEquip"] = fidget
+        if spec["fidget"] not in fidget:
+            failures.append(
+                "%s idle anim=%r expected %s (not always FidgetTommygun)"
+                % (def_name, fidget, spec["fidget"])
+            )
+
+        weapon.clear_fire_cooldown_for_verify()
+        weapon.set_auto_reload(False)
+        # Drain mag partially so fire can spend a round; reload test needs room in mag.
+        player.try_fire_equipped_weapon()
+        fire_anim = _playing(player)
+        entry["fireAnim"] = fire_anim
+        if spec["fire"] not in fire_anim:
+            failures.append(
+                "%s fire anim=%r expected %s" % (def_name, fire_anim, spec["fire"])
+            )
+
+        fire_len = float(report["assets"]["%s.fire" % def_name].get("length", 1.0))
+        _advance_past(player, fire_len)
+        after_fire = _playing(player)
+        entry["fidgetAfterFire"] = after_fire
+        if spec["fidget"] not in after_fire:
+            failures.append(
+                "%s did not return to fidget after fire (got %r, want %s)"
+                % (def_name, after_fire, spec["fidget"])
+            )
+
+        # Reload: empty some rounds so Reload() is allowed, then trigger.
+        mag = int(weapon.get_magazine_size())
+        reserve = int(weapon.get_reserve_ammo())
+        if mag > 0 and reserve > 0:
+            weapon.set_ammo_state_for_verify(max(0, mag - 1), reserve)
+            if player.try_reload_equipped_weapon():
+                reload_anim = _playing(player)
+                entry["reloadAnim"] = reload_anim
+                if spec["reload"] not in reload_anim:
+                    failures.append(
+                        "%s reload anim=%r expected %s"
+                        % (def_name, reload_anim, spec["reload"])
+                    )
+                reload_len = float(
+                    report["assets"]["%s.reload" % def_name].get("length", 1.0)
+                )
+                _advance_past(player, reload_len)
+                after_reload = _playing(player)
+                entry["fidgetAfterReload"] = after_reload
+                if spec["fidget"] not in after_reload:
+                    failures.append(
+                        "%s did not return to fidget after reload (got %r)"
+                        % (def_name, after_reload)
+                    )
+            else:
+                entry["reloadSkipped"] = "TryReload returned false"
+
+        report["weapons"][def_name] = entry
+        _log(
+            "%s socket=%s fidget=%s fire=%s"
+            % (def_name, socket, entry.get("fidgetAfterEquip"), entry.get("fireAnim"))
+        )
+
+    for def_name, slot in _UNANIMATED.items():
+        entry = {"def": def_name, "animated": False}
+        weapon = player.give_weapon_by_def(unreal.Name(def_name), int(slot))
+        if not weapon:
+            failures.append("GiveWeaponByDef(%s) null (unanimate — equip must not crash)" % def_name)
+        else:
+            player.equip_weapon(weapon)
+            entry["socket"] = _socket(player)
+            entry["anim"] = _playing(player)
+            entry["equipped"] = True
+            # No fidget/fire assertion — zero clips on disk; holding bind/last pose is correct.
+        report["weapons"][def_name] = entry
+        _log("%s equip-ok (unanimate) socket=%s" % (def_name, entry.get("socket")))
+
+    for actor in spawned:
+        if actor:
+            subsystem.destroy_actor(actor)
+
+    report["ok"] = len(failures) == 0
+    _write(out, report)
+    if failures:
+        raise RuntimeError("viewmodel-anims:\n- " + "\n- ".join(failures))
+    _log("ok")
+    return report
+
+
+if __name__ == "__main__":
+    main(
+        os.environ.get(
+            "BIOSHOCK_ACTION_OUT",
+            os.path.join(os.environ.get("TEMP", "."), "viewmodel_anims_report.json"),
+        )
+    )

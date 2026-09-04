@@ -5,6 +5,7 @@
 
 class AShockWeapon;
 class AShockSecurityDevice;
+class UAnimSequence;
 class UCameraComponent;
 class UInputComponent;
 class UShockPlasmid;
@@ -528,6 +529,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void AdvanceWeaponRecoilForVerify(float DeltaSeconds);
 
+	/** Grip socket currently used by FrameViewmodel / AttachToComponent (NAME_None = no correction). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	FName GetActiveGripSocketForVerify() const { return ActiveGripSocket; }
+
+	/** Headless verify: name of the AnimSequence currently installed on ViewHands. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	FName GetPlayingViewHandsAnimationNameForVerify() const;
+
+	/**
+	 * Headless verify: advance the ViewHands one-shot timer (equip/fire/reload → fidget) without
+	 * waiting on real time. Mirrors ABaseShockAI combat anim one-shot handling.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|ViewHands")
+	void AdvanceViewHandsAnimationForVerify(float DeltaSeconds);
+
+	/** Called from AShockWeapon fire feedback when a discrete shot applies recoil. */
+	void NotifyViewHandsWeaponFired();
+
+	/** Called from AShockWeapon::Reload when a reload actually starts. */
+	void NotifyViewHandsWeaponReloadStarted();
+
 	/** Per-archetype research from the Research Camera (key = BaseShockAI::AITypeName). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Research")
 	TMap<FName, float> ResearchPointsByArchetype;
@@ -593,6 +615,11 @@ private:
 	void EnsureViewHands();
 	void FrameViewmodel(FName GripSocket);
 	void TickWeaponRecoil();
+	void TickViewHandsAnimation(float DeltaSeconds);
+	void ResolveViewHandsAnimsForWeapon(FName WeaponDefName);
+	void PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop);
+	void StartViewHandsForEquippedWeapon();
+	FName ResolveGripSocketForWeapon(FName WeaponDefName);
 
 	/** Grip socket the equipped weapon is attached to, so Tick can re-pin the viewmodel to it. */
 	FName ActiveGripSocket;
@@ -600,6 +627,30 @@ private:
 	/** FrameViewmodel runs per frame now; these keep its diagnostics to one line each. */
 	bool bLoggedViewmodelFraming = false;
 	bool bLoggedViewmodelSocket = false;
+
+	/** Logged once per def name when the hands skeleton has no matching grip socket. */
+	UPROPERTY()
+	TSet<FName> LoggedMissingGripSockets;
+
+	/** Cached first-person sequences for the currently equipped weapon def (nulls = none imported). */
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsEquipAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsFidgetAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsFireAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsReloadAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> LastViewHandsAnim;
+
+	FName ViewHandsAnimWeapon = NAME_None;
+	bool bViewHandsPlayingOneShot = false;
+	float ViewHandsOneShotRemaining = 0.0f;
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;

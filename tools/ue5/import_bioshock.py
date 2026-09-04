@@ -822,8 +822,13 @@ def _delete_existing_mesh_assets(destination, name):
     Measured 4 Sept 2026 on AggressorBabyJane: LogEditorFactories 'Performing atomic reimport'
     then Built Skeletal Mesh [0.12s], then InternalPromptForCheckoutAndSave on the existing
     ~1.2 GiB package, then IntFitsIn In=2499805188 (~2.33 GiB). Same delete-then-import pattern
-    as fix_compiled_world_materials._reimport_mesh. Animations under destination/Animations are
-    left alone — they re-bind to the new skeleton on the next import pass.
+    as fix_compiled_world_materials._reimport_mesh.
+
+    Animations under destination/Animations are left on disk. They do NOT silently re-bind to a
+    newly created Skeleton at the same package path — loading them mid-import was the secondary
+    crash (EditorAssetLibrary.LoadAsset → Error opening file on *_Skeleton.uasset). Re-import
+    clips explicitly against the in-memory Skeleton after mesh save; use BIOSHOCK_ANIMS_ONLY /
+    BIOSHOCK_ANIM_CHUNK on run_reimport_aggressor_babyjane.py rather than assuming orphans heal.
     """
     for suffix in ("", "_Skeleton", "_PhysicsAsset", "_Physics"):
         path = "%s/%s%s" % (destination, name, suffix)
@@ -882,14 +887,23 @@ def _rig_fingerprint(manifest, rig, export_directory):
 
 
 def _animation_names_on_disk(destination):
+    """Names of AnimSequence packages under destination/Animations — path only, no load.
+
+    Do not EditorAssetLibrary.load_asset here. After delete-then-reimport with
+    AssetImportTask.save=False, leftover AnimSequences still reference the prior Skeleton
+    package identity. Loading them re-opens AggressorBabyJane_Skeleton.uasset by path and
+    has asserted (AsyncLoading2 !bHasFailed / 'Error opening file') even after the new
+    mesh+skeleton were already save_loaded_asset'd (measured mesh-only recovery, 4 Sept 2026).
+    Package-path leaf names are enough for fingerprint inventory.
+    """
     folder = "%s/Animations" % destination
     if not unreal.EditorAssetLibrary.does_directory_exist(folder):
         return set()
     names = set()
     for path in unreal.EditorAssetLibrary.list_assets(folder, recursive=False) or []:
-        asset = unreal.EditorAssetLibrary.load_asset(path)
-        if isinstance(asset, unreal.AnimSequence):
-            names.add(asset.get_name())
+        # Soft paths look like /Game/.../Animations/ME_Fidget_A_idle.ME_Fidget_A_idle
+        leaf = path.rsplit("/", 1)[-1]
+        names.add(leaf.split(".", 1)[0] if "." in leaf else leaf)
     return names
 
 
@@ -1018,9 +1032,13 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             _log(f"FAILED to create a Skeleton for {rig['mesh']}; animations skipped")
             continue
         # AssetImportTask no longer saves (see _import); persist mesh + companion Skeleton before
-        # animations refer to it, otherwise packages can be saved with a dangling skeleton ref.
-        unreal.EditorAssetLibrary.save_loaded_asset(skeleton)
-        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        # ANY later step that might resolve the skeleton by package path (texture/material work is
+        # fine; leftover AnimSequence load_asset was the measured crash — see
+        # _animation_names_on_disk). Always use the in-memory `skeleton` / `mesh` objects below.
+        if not unreal.EditorAssetLibrary.save_loaded_asset(skeleton):
+            raise RuntimeError("save_loaded_asset failed for Skeleton of %s" % rig["name"])
+        if not unreal.EditorAssetLibrary.save_loaded_asset(mesh):
+            raise RuntimeError("save_loaded_asset failed for SkeletalMesh %s" % rig["name"])
         restored_sockets = _restore_manifest_sockets(mesh, rig["sockets"])
         if restored_sockets:
             _log(f"  restored {restored_sockets} socket(s) from the manifest")
@@ -1053,13 +1071,17 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
                  f"socket on bone '{attachment['bone']}' — keep the rigs separate and play them together")
             _tag(mesh, {"BioShockAttachedTo": json.dumps(attachment, separators=(",", ":"))})
 
+        # Re-save after materials/tags so later anim imports and fingerprint work see a stable package.
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
         imported[rig["name"]] = mesh
 
         notifies = 0
-        for animation in rig["animations"]:
+        animations = rig.get("animations") or []
+        for animation in animations:
             animation_file = os.path.join(export_directory, animation["file"])
             if normalize_fbx:
                 animation_file = _normalize_fbx(animation_file, export_directory, blender_path)
+            # Pass the in-memory Skeleton from this import — never reload it by path.
             assets = _import(
                 animation_file,
                 f"{destination}/Animations",
@@ -1077,8 +1099,8 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             _tag(sequence, tags)
             unreal.EditorAssetLibrary.save_loaded_asset(sequence)
 
-        _log(f"  {len(rig['animations'])} animations, {notifies} notifies")
-        if rig["undecoded"]:
+        _log(f"  {len(animations)} animations, {notifies} notifies")
+        if rig.get("undecoded"):
             _log(f"  {rig['undecoded']} animations did not decode and are not present")
         _stamp_fingerprint(mesh, rig, destination, fingerprint)
 
