@@ -446,21 +446,53 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
     return {material["key"]: instance for material, instance in zip(materials, instances)}
 
 
-def _assign_asset_material(mesh, asset, materials_by_key, report):
-    """Assign each of a static mesh's sections its own material slot, in section order.
+def _mesh_section_count_mismatch(mesh, asset):
+    """True when LOD0 has fewer render sections than the manifest's section table.
 
-    `BuildAssetObj` now writes one "usemtl BioShock_{index}" group per entry in the manifest's own
-    `sections` list, in that same order -- both are built by iterating the same geometry section
-    table -- so imported material slot N is assumed to correspond to `sections[N]`. One slot is
-    built per section regardless of whether several sections share a material key, so a later
-    section can't shift into an earlier section's slot index. A section with no resolved key gets
-    an empty slot (no material_interface) rather than silently inheriting a neighbour's material.
+    Measured 4 Sept 2026 on 1-Medical: 792 of 793 multi-slot StaticMeshes carried N correctly
+    bound `static_materials` entries but only 1 render section / 1 polygon group. Cause: the mesh
+    was first imported before `BuildAssetObj` emitted `usemtl` groups, and `_import_asset_meshes`
+    reused the existing asset forever, only re-running `_assign_asset_material`. Slot assignment
+    cannot invent sections — every triangle keeps MaterialIndex 0, so every slot shows the first
+    material. A fresh OBJ import of the same file yields the correct section count (confirmed on
+    `ad_horizontal_3702`: existing 1 section / 1 polygon group; fresh import 2 / 2).
+    """
+    sections = asset.get("sections") or []
+    if len(sections) <= 1:
+        return False
+    try:
+        return int(mesh.get_num_sections(0)) < len(sections)
+    except Exception:  # noqa: BLE001 — treat unreadable section count as needing a reimport
+        return True
+
+
+def _assign_asset_material(mesh, asset, materials_by_key, report):
+    """Assign each of a static mesh's material slots from the manifest section table, in order.
+
+    `BuildAssetObj` writes one `usemtl BioShock_{index}` group per manifest `sections` entry, in
+    that same order. A correct OBJ import therefore produces one LOD section per entry, and slot N
+    corresponds to `sections[N]`. This function only writes `static_materials` — it does not create
+    or split render sections. If the mesh still has fewer sections than the manifest (the
+    pre-usemtl import case), reimport the OBJ first; see `_mesh_section_count_mismatch`.
+
+    One slot is built per section regardless of whether several sections share a material key, so
+    a later section can't shift into an earlier section's slot index. A section with no resolved
+    key gets an empty slot (no material_interface) rather than silently inheriting a neighbour's
+    material.
     """
     sections = asset.get("sections") or []
     if not sections:
         # No section table at all: leave whatever material the import gave the mesh alone, exactly
         # as before this function assigned anything. Setting an empty static_materials list here
         # would clear the mesh's material instead of leaving it untouched.
+        return
+
+    if _mesh_section_count_mismatch(mesh, asset):
+        # Do not paper over a 1-section mesh with an N-slot array — that is exactly the state that
+        # made "materialsAssigned" look healthy while every triangle still sampled slot 0.
+        report["materialSectionMismatch"] = report.get("materialSectionMismatch", 0) + 1
+        _log("  skip material assign for %s: mesh has %s section(s), manifest has %d — reimport OBJ"
+             % (asset.get("name") or asset.get("key"), mesh.get_num_sections(0), len(sections)))
         return
 
     static_materials = []
@@ -487,11 +519,27 @@ def _assign_asset_material(mesh, asset, materials_by_key, report):
     report["materialSlotsResolved"] = report.get("materialSlotsResolved", 0) + resolved_slots
 
 
+def _import_static_mesh_obj(source, destination, stem):
+    """Import (or replace) one OBJ as a StaticMesh under destination/stem."""
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", source)
+    task.set_editor_property("destination_path", destination)
+    task.set_editor_property("destination_name", stem)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("save", True)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+    return next((o for o in task.get_objects() if isinstance(o, unreal.StaticMesh)), None)
+
+
 def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key=None):
     """Import each unique asset's local-space mesh once, as a UE5 StaticMesh.
 
     Keyed by asset rather than instance for the reason the exporter writes them that way: a brush
     used forty times is one mesh and forty transforms, not forty meshes.
+
+    An existing mesh whose LOD0 section count is below the manifest section count is reimported
+    rather than reused: material-slot assignment alone cannot fix a single-section import.
     """
     meshes = {}
     materials_by_key = materials_by_key or {}
@@ -510,17 +558,17 @@ def _import_asset_meshes(manifest, manifest_dir, content_root, report, materials
         destination = f"{content_root}/Meshes"
         asset_path = f"{destination}/{stem}"
 
+        mesh = None
         if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
             mesh = unreal.EditorAssetLibrary.load_asset(asset_path)
-        else:
-            task = unreal.AssetImportTask()
-            task.set_editor_property("filename", source)
-            task.set_editor_property("destination_path", destination)
-            task.set_editor_property("automated", True)
-            task.set_editor_property("replace_existing", True)
-            task.set_editor_property("save", True)
-            unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-            mesh = next((o for o in task.get_objects() if isinstance(o, unreal.StaticMesh)), None)
+            if mesh is not None and _mesh_section_count_mismatch(mesh, asset):
+                report["sectionReimports"] = report.get("sectionReimports", 0) + 1
+                _log("  reimport %s: section count %s < manifest %d"
+                     % (stem, mesh.get_num_sections(0), len(asset.get("sections") or [])))
+                mesh = None
+
+        if mesh is None:
+            mesh = _import_static_mesh_obj(source, destination, stem)
 
         if mesh is None:
             report["skipped"] += 1

@@ -103,6 +103,20 @@ total got at least one real material assigned (up from 619 when only single-mate
 handled). A section whose material key doesn't resolve gets an empty slot rather than borrowing a
 neighbour's material.
 
+**Correction + fix, 4 Sept 2026 — that 24 Aug "slot count" check was the wrong evidence.** Slot
+count is what `_assign_asset_material` *writes*; it does not prove the mesh has one render section
+per slot. Live PIE (windows, ad frames): first material on every slot. Headless probe of
+`ad_horizontal_3702` (and a Content/Meshes census): multi-slot meshes commonly had N slots but
+**1** LOD0 section / **1** polygon group. Cause: meshes imported before `usemtl` existed were
+reused forever (`does_asset_exist` → load only), so assignment never saw real sections. Fresh
+import of the same OBJ yields the correct section count. Fix: `_import_asset_meshes` reimports when
+`get_num_sections(0) < len(sections)`; `_assign_asset_material` refuses to paper over a mismatch.
+`verify_static_prop_materials.py` asserts section count + polygon groups + distinct slot materials
+on `ad_horizontal` after that import path (**ok**, `sectionReimports=1`, sections 1→2). Project-wide
+repair of already-imported props (mesh assets only, no map load, `StaticMesh`/`SkeletalMesh` only,
+skips BuiltWorld/Brush): `repair_static_prop_material_slots.py` — dry-run on 1-Medical: 93
+candidates, 92 still need reimport after the canary fix. Single-material props are unaffected.
+
 **A third headless-only crash, found and disabled the same way as the PNG/FBX ones above.**
 `Interchange.FeatureFlags.Import.OBJ` started asserting under `-unattended` only once the OBJ
 writer began emitting UV/group data — the same `CurrentApplication.IsValid()` Slate assertion, on a
