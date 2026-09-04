@@ -4,12 +4,40 @@ import -- none of the slow or headless-hang paths.
 
   UnrealEditor-Cmd <proj> -run=pythonscript -script=tools/ue5/reimport_compiled_world_only.py \
     -unattended -nopause -nosplash -nullrhi
+
+COLLISION: `replace_existing=True` on a plain OBJ AssetImportTask resets the mesh to
+CTF_USE_DEFAULT and auto-generates a convex hull -- for an 18,735-triangle level shell, one solid
+blob enclosing the whole level (verify_collision.py's docstring documents the first time this
+shipped as a regression; it shipped again from this exact script 4 Sept 2026, since nothing here
+re-applied the fix after import). Re-set complex-as-simple every time, not just once.
 """
 import os, sys, json, traceback
 sys.path.append(r"C:\Users\Jack\Documents\BioshockHavok\tools\ue5")
 import unreal
 import import_bioshock as ib
 import import_level
+
+
+def _use_complex_collision(mesh):
+    """Trace level architecture against its own triangles, not an auto convex hull.
+
+    Same fix as fix_compiled_world_materials.py's _use_complex_collision -- duplicated rather than
+    imported so this script keeps its "no other module's import side effects" property.
+    """
+    body = mesh.get_editor_property("body_setup")
+    if body is None:
+        return False
+    body.set_editor_property(
+        "collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+    try:
+        agg = body.get_editor_property("agg_geom")
+        agg.set_editor_property("convex_elems", [])
+        agg.set_editor_property("box_elems", [])
+        agg.set_editor_property("sphere_elems", [])
+        body.set_editor_property("agg_geom", agg)
+    except Exception as exc:  # noqa: BLE001 - the trace flag is the part that matters
+        unreal.log_warning("[reimport-cw] could not clear simple collision: %s" % exc)
+    return True
 
 CONTENT = os.environ.get("BIOSHOCK_REIMPORT_CONTENT", "/Game/BioShockSlice/Content")
 DEST = os.environ.get("BIOSHOCK_REIMPORT_DEST", CONTENT + "/1-Medical")
@@ -50,6 +78,8 @@ try:
         report = {}
         cw = next((a for a in manifest.get("assets") or [] if a.get("name") == "Model1"), None)
         import_level._assign_asset_material(mesh, cw, mats, report)
+        collision_ok = _use_complex_collision(mesh)
+        res["steps"].append("collision: complex-as-simple ok=%s" % collision_ok)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
         res["steps"].append("assigned: %s" % json.dumps(report))
     res["saved"] = True
