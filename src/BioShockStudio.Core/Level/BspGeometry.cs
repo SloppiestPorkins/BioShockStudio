@@ -129,7 +129,7 @@ public static class BspGeometry
     /// authoritative source, and it stays correct on the slivers a cross product cannot resolve.
     /// </para>
     /// </remarks>
-    public static MeshGeometry ToGeometry(BspWorld world) => ToGeometry(world, null);
+    public static MeshGeometry ToGeometry(BspWorld world) => ToGeometry(world, null, null);
 
     /// <summary>
     /// The compiled world, optionally restricted to the nodes a predicate accepts.
@@ -140,7 +140,20 @@ public static class BspGeometry
     /// than a second copy of it. See that method's remarks for what happened when the remainder was
     /// not drawn at all.
     /// </remarks>
-    public static MeshGeometry ToGeometry(BspWorld world, Func<BspNode, bool>? include)
+    public static MeshGeometry ToGeometry(BspWorld world, Func<BspNode, bool>? include) =>
+        ToGeometry(world, include, null);
+
+    /// <summary>
+    /// The compiled world with optional per-surface texture origins.
+    /// </summary>
+    /// <param name="surfaceOrigins">
+    /// World-space origin per surface index. A null entry (or a null list) measures from the face's
+    /// own first vertex. <see cref="BspTextureOrigin.Resolve"/> fills this from the source brush
+    /// poly, but that origin equals <c>Points[pBase]</c> and is far from most faces — production
+    /// must not prefer it over <c>polygon[0]</c> (bsp.md §5.3a).
+    /// </param>
+    public static MeshGeometry ToGeometry(
+        BspWorld world, Func<BspNode, bool>? include, IReadOnlyList<Vector3?>? surfaceOrigins)
     {
         var vertices = new List<MeshVertex>();
         var indices = new List<int>();
@@ -169,9 +182,10 @@ public static class BspGeometry
                 int start = vertices.Count;
 
                 // Measure texel UVs from this polygon's own first vertex, not the surface's stored
-                // pBase -- see BspWorld.TexelsAtLocal. pBase is mis-indexed for ~88% of drawn
-                // surfaces and blows the UVs up to tens of thousands of texels.
-                var uvBase = polygon[0];
+                // pBase and not the source-brush Base — both land far from the face for most
+                // surfaces (same point, actually; see BspTextureOrigin / bsp.md §5.3a). An optional
+                // surfaceOrigins list lets diagnostics override; production leaves it null.
+                var uvBase = ResolvedOrigin(surfaceOrigins, node.Surface) ?? polygon[0];
                 foreach (var position in polygon)
                 {
                     vertices.Add(new MeshVertex
@@ -208,6 +222,11 @@ public static class BspGeometry
         };
     }
 
+    private static Vector3? ResolvedOrigin(IReadOnlyList<Vector3?>? origins, int surfaceIndex) =>
+        origins is not null && surfaceIndex >= 0 && surfaceIndex < origins.Count
+            ? origins[surfaceIndex]
+            : null;
+
     /// <summary>
     /// Triangulates every drawn BSP surface with a verified baked-light atlas, grouped for a
     /// two-texture draw. Vertices retain the normal material UV in <see cref="MeshVertex.Uv"/> and
@@ -240,7 +259,20 @@ public static class BspGeometry
         return atlas >= 0 && atlas < world.LightMapTextures.Count;
     }
 
-    public static IReadOnlyList<LightMapBatch> ToLightMapBatches(BspWorld world)
+    public static IReadOnlyList<LightMapBatch> ToLightMapBatches(BspWorld world) =>
+        ToLightMapBatches(world, null);
+
+    /// <summary>
+    /// Same as <see cref="ToLightMapBatches(BspWorld)"/>, with optional per-surface texture origins.
+    /// </summary>
+    /// <remarks>
+    /// Production leaves <paramref name="surfaceOrigins"/> null and measures from each face's first
+    /// vertex. Passing <see cref="BspTextureOrigin.Resolve"/> recovers the same point as
+    /// <c>Points[pBase]</c> and reintroduces the huge absolute texel magnitudes — do not wire it
+    /// in as the default (bsp.md §5.3a).
+    /// </remarks>
+    public static IReadOnlyList<LightMapBatch> ToLightMapBatches(
+        BspWorld world, IReadOnlyList<Vector3?>? surfaceOrigins)
     {
         var groups = world.Nodes
             .Where(n => n.IsPolygon)
@@ -267,6 +299,7 @@ public static class BspGeometry
                 if (polygon.Count < 3) continue;
 
                 var surface = world.Surfaces[node.Surface];
+                var uvBase = ResolvedOrigin(surfaceOrigins, node.Surface) ?? polygon[0];
                 int start = vertices.Count;
                 foreach (var position in polygon)
                 {
@@ -274,7 +307,7 @@ public static class BspGeometry
                     {
                         Position = position,
                         Normal = node.Plane.Normal,
-                        Uv = world.TexelsAt(surface, position),
+                        Uv = world.TexelsAtLocal(surface, position, uvBase),
                         LightMapUv = world.LightMapUv(node, position, layer),
                         Influences = [],
                     });

@@ -926,48 +926,62 @@ override; `DefaultPhysicsVolume` carries typed priority and `bNoDelete`. No clas
 field from the retained 253-actor census remains only as hex.
 
 
-### 5.3a `pBase` cannot be used as a Points index — measure UVs from the face's own vertex
+### 5.3a `pBase` is a Points index into a pan-baked origin far from the face
 
-**`CONFIRMED_BYTES` (the failure), root cause open.** The field at `FBspSurf +4` is `pBase` and its
-byte offset is right — `SurfaceBrushPolyTests` verifies `+20` = `iBrushPoly` past it. But
-`Points[surface.Base]` is **not** the texture origin for most compiled-world surfaces:
+**`CONFIRMED_BYTES`.** The field at `FBspSurf +4` is `pBase` and its byte offset is right —
+`SurfaceBrushPolyTests` verifies `+20` = `iBrushPoly` past it. `Points[surface.Base]` is a real
+texture origin, but that origin sits tens of metres from most faces because the pan is baked into
+it:
 
 | 1-Medical, drawn surfaces | |
 |---|---|
 | total | 6,667 |
-| `Points[Base]` within 20 m of the face's own vertices | **800** |
-| `Points[Base]` tens–hundreds of metres away | **5,867** |
+| `Points[Base]` within 20 m of the face's own vertices | **800** (earlier count; re-measure with brush resolve: **785**) |
+| `Points[Base]` tens–hundreds of metres away | **~5,880** |
 
-`Base` ranges `0..1776` while the real texture-origin points cluster around Points index
-1,700–3,500. There is no constant delta (observed 763, 880, 917, 936, 1527, 2341, 9907…). Reading
-`Base` as an index into `Verts` instead is no better (535 / 6,667). So it is a semantic mismatch in
-BioShock's Vengeance `Model` — `pBase` means something other than a `Model.Points` index here —
-not a parse slip. Recovering the real origin is open.
+`Base` ranges `0..1776` while face vertices cluster around Points index 1,700–3,500 — the index
+looks "wrong" for a face-local point because the pan-baked origin is not on the face. Reading
+`Base` as a `Verts` index is no better (535 / 6,667).
 
-**Not a shifted read — confirmed twice more.** `iBrushPoly` at `+20` is `CONFIRMED_BYTES`, so
-`pBase` at `+4` is at the right offset by construction. And
+**Not a shifted read.** `iBrushPoly` at `+20` is `CONFIRMED_BYTES`, so `pBase` at `+4` is at the
+right offset by construction. And
 `BspTextureVectorDiagnosticTests.ReportSurfaceVectorSanityPerMaterial` exercises `pBase`'s
 neighbour `vNormal` (`+8`): `Vectors[vNormal]` is unit length and plane-aligned for **13,041 of
-13,041** drawn Medical surfaces across all 67 materials. The surface record is read correctly; the
-gap is in what `pBase` points *at*.
+13,041** drawn Medical surfaces across all 67 materials. The surface record is read correctly.
 
-**Why the spec expects `Points[pBase]` to work — UELib.** `Poly.cs::Deserialize` folds `PanU/PanV`
-into the texture origin at load (`newBase -= TextureU/|TextureU|² · PanU`), and stops serialising
-the pair at package version **78**. Past that the pan is pre-baked into the stored origin: a full
-`FVector` for a source `FPoly` (which is why the brushes are fine), an **index** (`pBase`) for a
-compiled `FBspSurf`. The pan-baked origin for the compiled world would therefore be
-`Model.Points[pBase]` — and that array, proven correct for vertex positions by the planarity
-check, does not carry it there. Candidate location: the **13.9% of `Model` bytes still unread**
-after the vertex pool (§5.5b). See `reference-comparison.md` §8.2.
+**Source-brush Base recovers the same point — and confirms `pBase`.**
+`BspTextureOrigin.Resolve` places `polygons[BrushPoly].Base` by `Location − PrePivot`
+(`BrushPlacementTests`, `CONFIRMED_BYTES`). On 1-Medical:
 
-**Effect and workaround.** `dot(vertex − Points[badBase], TextureU)` comes out at tens of thousands
-of texels (1-Medical raw median **62,353**, max 33 M). A sampler wraps, so the *tiling* is
-unchanged, but at that magnitude the per-pixel UV derivatives lose float precision and the GPU
-picks a near-random mip — the "walls still wrong after the UV-size fix" a render shows.
+| measurement | result | confidence |
+|---|---|---|
+| drawn surfaces with a resolvable brush-Base origin | **6,242 / 6,667 (93.6%)** | `CONFIRMED_BYTES` |
+| resolved origin equals `Points[pBase]` (≤ 1 cm) | **6,242 / 6,242** | `CONFIRMED_BYTES` |
+| resolved origin within 20 m of a face vertex | **785 / 6,242** | `CONFIRMED_BYTES` |
+| median \|brush-space Base → source vertex\| | **~25,750 cm** | `CONFIRMED_BYTES` |
+| median peak \|texel\| from brush-Base / `pBase` | **~60,701** (span median **912**) | `CONFIRMED_BYTES` |
+| source `TextureU`/`TextureV` agree with `Vectors[…]` within 1% | **2,918 / 2,918** each | `CONFIRMED_BYTES` |
+| long-`Vectors` vs sane source-poly axis outliers | **0** | `CONFIRMED_BYTES` |
+| seam \|ΔUV\| median at shared vertex (coplanar same-material pairs) | polygon[0]: **1,085** texels; brush-Base / pBase: **0** | `CONFIRMED_BYTES` |
+
+So `pBase` **is** a `Model.Points` index into the pan-baked origin (UELib's expectation was right
+about the indexing). The pan is already distant on the source `FPoly` itself; CSG copies that
+point into `Points` and stores the index. There is no closer origin hiding in the unread Model
+bytes for these surfaces — the source brush says the same point. Axis vectors are not
+mis-indexed relative to the source poly.
+
+**Effect and workaround.** `dot(vertex − Points[pBase], TextureU)` comes out at tens of thousands
+of texels (1-Medical raw median peak **~60,700**). A sampler wraps, so the *tiling* is unchanged,
+but at that magnitude the per-pixel UV derivatives lose float precision and the GPU picks a
+near-random mip — the "walls still wrong after the UV-size fix" a render shows.
 
 The texel **span across a face is independent of the base** (shifting the base shifts every
 vertex's dot product equally), so `BspGeometry.ToGeometry(BspWorld)` and `BspWorld.TexelsAtLocal`
-now measure from `polygon[0]`. 1-Medical raw texel UV then: median **600** (1.17 tiles of a 512
-texture), p90 2,048 (4.0 tiles) — correct. What is lost is cross-face phase alignment: a texture
-continuing across a BSP cut can seam. On this game's discrete wall panels that is far smaller than
-a 100-tile face.
+still measure from `polygon[0]`. 1-Medical raw texel UV then: median **600** (1.17 tiles of a 512
+texture), p90 2,048 (4.0 tiles) — correct scale. What is lost is cross-face phase alignment: a
+texture continuing across a BSP cut can seam. The brush-Base / `pBase` origin would restore phase
+but reintroduce the absolute-magnitude mip problem; it is **not** wired into the production path
+(`BspTextureOrigin` exists for the measurement; `ToGeometry` keeps the `polygon[0]` fallback).
+Open: how the runtime keeps phase *and* near-zero absolute UVs (fractional pan about the face,
+or a different projection) — `UNKNOWN`, do not invent a third mechanism without bytes.
+

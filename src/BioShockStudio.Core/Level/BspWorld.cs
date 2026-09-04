@@ -397,22 +397,21 @@ public sealed record BspWorld
     /// <c>pBase</c> index.
     /// </summary>
     /// <remarks>
-    /// <b>The compiled world's <c>pBase</c> cannot be trusted as a Points index.</b> Measured on
-    /// 1-Medical, <c>Points[surface.Base]</c> lands within 20 m of the face's own vertices for only
-    /// 800 of 6,667 drawn surfaces; for the rest it points tens to hundreds of metres away, so
-    /// <c>dot(vertex - Points[pBase], TextureU)</c> comes out at tens of thousands of texels. That
-    /// magnitude does not change the tiling — a sampler wraps — but at that scale the per-pixel UV
-    /// derivatives lose precision and the GPU picks a near-random mip, which is the "walls still
-    /// wrong" the render shows. <c>pBase</c> field is at the byte offset <c>SurfaceBrushPolyTests</c>
-    /// verifies, so this is a semantic mismatch in BioShock's Vengeance <c>Model</c>, not a parse
-    /// slip; recovering the real texture origin is still open (see docs/research/bsp.md §5.3).
+    /// <b>The compiled world's <c>pBase</c> names a pan-baked origin far from most faces.</b>
+    /// Measured on 1-Medical, <c>Points[surface.Base]</c> lands within 20 m of the face's own
+    /// vertices for only ~800 of 6,667 drawn surfaces; for the rest it is tens to hundreds of
+    /// metres away, so <c>dot(vertex - Points[pBase], TextureU)</c> comes out at tens of thousands
+    /// of texels. That magnitude does not change the tiling — a sampler wraps — but at that scale
+    /// the per-pixel UV derivatives lose precision and the GPU picks a near-random mip.
+    /// <see cref="BspTextureOrigin.Resolve"/> recovers the same point from the source brush poly
+    /// (equals <c>Points[pBase]</c> on every resolvable surface), so the index is correct and the
+    /// pan is genuinely distant. See docs/research/bsp.md §5.3a.
     ///
     /// The texel <i>span</i> across a face is independent of the base — shifting it shifts every
     /// vertex's dot product equally — so measuring from the face's own first vertex gives the
-    /// correct tiling with the UVs near the origin. What is lost is cross-face phase alignment: a
-    /// texture continuing across a BSP cut can show a seam. On this game's discrete wall panels
-    /// that is a far smaller error than a 100-tile face, and it is the state the previous
-    /// per-texture-size work was actually looking at.
+    /// correct tiling with the UVs near the origin. What is lost is cross-face phase alignment.
+    /// Production keeps the <c>polygon[0]</c> stopgap; do not prefer brush-Base / <c>pBase</c> as
+    /// the draw origin without a plan for the absolute-magnitude mip problem.
     /// </remarks>
     public Vector2 TexelsAtLocal(BspSurface surface, Vector3 point, Vector3 localBase)
     {
