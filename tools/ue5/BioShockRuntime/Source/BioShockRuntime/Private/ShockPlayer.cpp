@@ -398,6 +398,11 @@ void AShockPlayer::NotifyViewHandsWeaponReloadStarted()
 	}
 }
 
+float AShockPlayer::GetViewHandsReloadPlayLengthForVerify() const
+{
+	return ViewHandsReloadAnim ? ViewHandsReloadAnim->GetPlayLength() : 0.0f;
+}
+
 FName AShockPlayer::GetPlayingViewHandsAnimationNameForVerify() const
 {
 	if (LastViewHandsAnim)

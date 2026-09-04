@@ -510,6 +510,31 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 (XY < 1 uu), `playable=1`. **28 Aug:** also logs `BIOSHOCK_SLICE_OK` (BabyJane mesh on,
 hitscan 100→75). Editor viewport Play is still the human check for WASD/look/Fire feel.
 
+### Game-mode movement + weapon-track verifies (4 Sept 2026)
+
+Real `-game` hooks (not editor PIE / not `-run=pythonscript` BeginPlay — those paths AV or
+never tick). Same PostLogin pattern as `bioshockverifyencounter`: flag → timer → drive real
+seconds → log → `RequestExit`.
+
+| Flag | Driver | What it checks |
+|---|---|---|
+| `-bioshockverifymovement` | `run_game_movement.py` / `verify_game_movement.py` | After possess, every-frame `DriveMoveForwardForVerify` → `MoveForward` → `AddMovementInput` for 2.5s; logs start/end, displacement, modes, `bMovementDisabled`, controller/CMC/gravity/vel |
+| `-bioshockverifyweapontrack` | `run_weapon_track.py` / `verify_weapon_track.py` | Equip Pistol, `Reload()`, sample weapon world transform every 0.1s for `FastReloadPistol` `GetPlayLength()` |
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_game_movement.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_weapon_track.py -unattended -nopause -nosplash
+# Or -game alone once Medical is prepped:
+#   ... 1-Medical?game=ShockGameMode -game -bioshockverifymovement -abslog=%TEMP%\...
+```
+
+**Measured live UE5.7, 4 Sept 2026:**
+
+- **Weapon track — PASS.** `BIOSHOCK_WEAPON_TRACK_OK samples=20 range=17.909 first_last=18.594 anim=FastReloadPistol` (len=1.767, socket=`Pistol`). World rotation swings hard during reload; position is mostly screen-pinned (matches `FrameViewmodel` re-pinning the grip each tick). Live socket-follow works — the earlier “gun doesn’t react” report is not “attachment is dead”; feel/framing may still look static in position.
+- **Movement — FAIL.** `BIOSHOCK_MOVEMENT_FAIL reason=move_falling displacement=0.0 mode_start=MOVE_Falling mode_end=MOVE_Falling` with `controller=1 cmc=1 gravity=1.00 vel=(0,0,0)` and `BIOSHOCK_SNAP_FLOOR ... findFloor hit=0 walkable=0 dist≈-30 gravityZ=-980`. Gravity never integrates (Z unchanged for seconds even when forced into clear air in a probe). Root cause of CMC not simulating is still open — do not guess a floor/collision fix until the next session pins why `vel` stays zero with `gravityZ=-980`. Logs: `%TEMP%/game_movement_run.log`, `%TEMP%/weapon_track_run.log`.
+
 ## Script runner (Phase 4 execution head)
 
 `UShockScriptRunner` is a first-slice stand-in for Scripting.U `Script` action lists: authored

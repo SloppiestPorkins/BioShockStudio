@@ -6,6 +6,7 @@
 
 class ABaseShockAI;
 class AShockPlayer;
+class AShockWeapon;
 class UShockDeathRespawnHandler;
 class UShockHudWidget;
 
@@ -100,6 +101,14 @@ private:
 	void SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
+	/** -bioshockverifymovement: drive MoveForward for real seconds, log displacement, exit. */
+	void BeginVerifyMovement(AShockPlayer* Player);
+	void TickVerifyMovementDrive();
+	void FinishVerifyMovement();
+	/** -bioshockverifyweapontrack: reload Pistol, sample weapon world transform, exit. */
+	void BeginVerifyWeaponTrack(AShockPlayer* Player);
+	void TickVerifyWeaponTrackSample();
+	void FinishVerifyWeaponTrack();
 	void EnsureHudForPlayer(APlayerController* PC);
 	UShockDeathRespawnHandler* EnsureDeathHandler();
 
@@ -123,8 +132,29 @@ private:
 	FTimerHandle SliceEncounterSpawnTimer2;
 	FTimerHandle SliceEncounterVerifyTimer;
 	FTimerHandle ScreenshotTimer;
+	FTimerHandle MovementVerifyDriveTimer;
+	FTimerHandle MovementVerifyFinishTimer;
+	FTimerHandle WeaponTrackSampleTimer;
+	FTimerHandle WeaponTrackFinishTimer;
 	int32 ScreenshotTicks = 0;
 	bool bScreenshotRequested = false;
+
+	TWeakObjectPtr<AShockPlayer> MovementVerifyPlayer;
+	FVector MovementVerifyStartLoc = FVector::ZeroVector;
+	uint8 MovementVerifyModeStart = 0;
+	bool bMovementVerifySawDisabled = false;
+
+	TWeakObjectPtr<AShockPlayer> WeaponTrackPlayer;
+	TWeakObjectPtr<AShockWeapon> WeaponTrackWeapon;
+	FVector WeaponTrackFirstLoc = FVector::ZeroVector;
+	FVector WeaponTrackLastLoc = FVector::ZeroVector;
+	FVector WeaponTrackMinLoc = FVector::ZeroVector;
+	FVector WeaponTrackMaxLoc = FVector::ZeroVector;
+	FRotator WeaponTrackFirstRot = FRotator::ZeroRotator;
+	FRotator WeaponTrackLastRot = FRotator::ZeroRotator;
+	int32 WeaponTrackSampleCount = 0;
+	float WeaponTrackAnimLength = 0.0f;
+	FName WeaponTrackAnimName = NAME_None;
 
 	/** -bioshockshotyaw/pitch offset applied to the capture, so the probe can aim the same way. */
 	FRotator ScreenshotAimDelta = FRotator::ZeroRotator;

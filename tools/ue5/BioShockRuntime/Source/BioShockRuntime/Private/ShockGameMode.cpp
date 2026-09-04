@@ -39,6 +39,7 @@
 #include "Components/SkyLightComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "HAL/FileManager.h"
@@ -256,6 +257,8 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 	UWorld* World = Pawn->GetWorld();
 	FVector Loc = Start->GetActorLocation();
 	const FRotator Rot = PlayableStartRotation(Start);
+	FHitResult SnapFloorHit;
+	bool bSnapFloorValid = false;
 
 	// PlayerStart is the authored capsule center. A downward trace that begins above the
 	// room hits the roof first (MedicalStart +400 uu landed at Z=8248 — the hull top).
@@ -267,17 +270,42 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 		{
 			const FVector TraceStart = Loc + FVector(0.0f, 0.0f, 8.0f);
 			const FVector TraceEnd = Loc - FVector(0.0f, 0.0f, HalfHeight + 40.0f);
-			FHitResult Hit;
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(BioShockSnapSpawn), false, Pawn);
-			if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, Params)
-				&& Hit.ImpactNormal.Z > 0.5f)
+			if (World->LineTraceSingleByChannel(SnapFloorHit, TraceStart, TraceEnd, ECC_WorldStatic, Params)
+				&& SnapFloorHit.ImpactNormal.Z > 0.5f)
 			{
-				Loc.Z = Hit.Location.Z + HalfHeight + 2.0f;
+				Loc.Z = SnapFloorHit.Location.Z + HalfHeight + 2.0f;
+				bSnapFloorValid = true;
 			}
 		}
 	}
 
 	Pawn->SetActorLocationAndRotation(Loc, Rot, false, nullptr, ETeleportType::TeleportPhysics);
+
+	// Diagnostic for -bioshockverifymovement: CMC FindFloor vs the WorldStatic snap trace.
+	// Measured 4 Sept 2026 — line-trace places the pawn, but FindFloor reports hit=0 /
+	// walkable=0 / FloorDist≈-30, and gravity never integrates (vel stays 0 in Falling).
+	if (ACharacter* Character = Cast<ACharacter>(Pawn))
+	{
+		if (UCharacterMovementComponent* Move = Character->GetCharacterMovement())
+		{
+			FFindFloorResult FloorCheck;
+			Move->FindFloor(Character->GetActorLocation(), FloorCheck, false);
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_SNAP_FLOOR valid=%d blocking=%d mode=%d gravityZ=%.1f "
+					 "findFloor hit=%d walkable=%d dist=%.1f locZ=%.2f"),
+				bSnapFloorValid ? 1 : 0,
+				SnapFloorHit.bBlockingHit ? 1 : 0,
+				static_cast<int32>(Move->MovementMode),
+				Move->GetGravityZ(),
+				FloorCheck.bBlockingHit ? 1 : 0,
+				FloorCheck.bWalkableFloor ? 1 : 0,
+				FloorCheck.FloorDist,
+				Character->GetActorLocation().Z);
+		}
+	}
 }
 
 void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
@@ -844,6 +872,387 @@ void AShockGameMode::VerifySliceEncounter(AShockPlayer* Player)
 		Targeting);
 }
 
+namespace
+{
+const TCHAR* MovementModeName(EMovementMode Mode)
+{
+	switch (Mode)
+	{
+	case MOVE_None:
+		return TEXT("MOVE_None");
+	case MOVE_Walking:
+		return TEXT("MOVE_Walking");
+	case MOVE_NavWalking:
+		return TEXT("MOVE_NavWalking");
+	case MOVE_Falling:
+		return TEXT("MOVE_Falling");
+	case MOVE_Swimming:
+		return TEXT("MOVE_Swimming");
+	case MOVE_Flying:
+		return TEXT("MOVE_Flying");
+	case MOVE_Custom:
+		return TEXT("MOVE_Custom");
+	default:
+		return TEXT("MOVE_Unknown");
+	}
+}
+} // namespace
+
+void AShockGameMode::BeginVerifyMovement(AShockPlayer* Player)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=no_player"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	MovementVerifyPlayer = Player;
+	MovementVerifyStartLoc = Player->GetActorLocation();
+	bMovementVerifySawDisabled = Player->IsMovementDisabled();
+	MovementVerifyModeStart = MOVE_None;
+	const UCharacterMovementComponent* Move = Player->GetCharacterMovement();
+	if (Move)
+	{
+		MovementVerifyModeStart = static_cast<uint8>(Move->MovementMode);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_MOVEMENT_START x=%.2f y=%.2f z=%.2f mode=%s disabled=%d "
+			 "updated=%d tick=%d role=%d maxspeed=%.0f"),
+		MovementVerifyStartLoc.X,
+		MovementVerifyStartLoc.Y,
+		MovementVerifyStartLoc.Z,
+		MovementModeName(static_cast<EMovementMode>(MovementVerifyModeStart)),
+		bMovementVerifySawDisabled ? 1 : 0,
+		(Move && Move->UpdatedComponent) ? 1 : 0,
+		(Move && Move->IsComponentTickEnabled()) ? 1 : 0,
+		static_cast<int32>(Player->GetLocalRole()),
+		Move ? Move->GetMaxSpeed() : -1.0f);
+
+	// Every frame (rate 0), same cadence real AxisMapping input reaches MoveForward.
+	World->GetTimerManager().SetTimer(
+		MovementVerifyDriveTimer,
+		this,
+		&AShockGameMode::TickVerifyMovementDrive,
+		0.0f,
+		true);
+	World->GetTimerManager().SetTimer(
+		MovementVerifyFinishTimer,
+		this,
+		&AShockGameMode::FinishVerifyMovement,
+		2.5f,
+		false);
+}
+
+void AShockGameMode::TickVerifyMovementDrive()
+{
+	AShockPlayer* Player = MovementVerifyPlayer.Get();
+	if (!Player)
+	{
+		return;
+	}
+	if (Player->IsMovementDisabled())
+	{
+		bMovementVerifySawDisabled = true;
+	}
+	Player->DriveMoveForwardForVerify(1.0f);
+}
+
+void AShockGameMode::FinishVerifyMovement()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(MovementVerifyDriveTimer);
+	}
+
+	AShockPlayer* Player = MovementVerifyPlayer.Get();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=player_gone"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	const FVector EndLoc = Player->GetActorLocation();
+	const float Displacement = FVector::Dist(MovementVerifyStartLoc, EndLoc);
+	EMovementMode ModeEnd = MOVE_None;
+	FVector Velocity = FVector::ZeroVector;
+	float GravityScale = 0.0f;
+	bool bCmcActive = false;
+	bool bHasController = Player->GetController() != nullptr;
+	if (const UCharacterMovementComponent* Move = Player->GetCharacterMovement())
+	{
+		ModeEnd = Move->MovementMode;
+		Velocity = Move->Velocity;
+		GravityScale = Move->GravityScale;
+		bCmcActive = Move->IsActive();
+	}
+	const EMovementMode ModeStart = static_cast<EMovementMode>(MovementVerifyModeStart);
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_MOVEMENT_END start=(%.2f,%.2f,%.2f) end=(%.2f,%.2f,%.2f) "
+			 "displacement=%.1f mode_start=%s mode_end=%s disabled_seen=%d "
+			 "controller=%d cmc=%d gravity=%.2f vel=(%.1f,%.1f,%.1f)"),
+		MovementVerifyStartLoc.X,
+		MovementVerifyStartLoc.Y,
+		MovementVerifyStartLoc.Z,
+		EndLoc.X,
+		EndLoc.Y,
+		EndLoc.Z,
+		Displacement,
+		MovementModeName(ModeStart),
+		MovementModeName(ModeEnd),
+		bMovementVerifySawDisabled ? 1 : 0,
+		bHasController ? 1 : 0,
+		bCmcActive ? 1 : 0,
+		GravityScale,
+		Velocity.X,
+		Velocity.Y,
+		Velocity.Z);
+
+	const bool bModeBroken =
+		ModeStart == MOVE_None || ModeEnd == MOVE_None
+		|| ModeStart == MOVE_Falling || ModeEnd == MOVE_Falling;
+	const bool bNoMove = Displacement < 10.0f;
+	if (bModeBroken || bNoMove || bMovementVerifySawDisabled || !bHasController || !bCmcActive)
+	{
+		FString Reason = TEXT("unknown");
+		if (!bHasController)
+		{
+			Reason = TEXT("no_controller");
+		}
+		else if (!bCmcActive)
+		{
+			Reason = TEXT("cmc_inactive");
+		}
+		else if (bMovementVerifySawDisabled)
+		{
+			Reason = TEXT("movement_disabled");
+		}
+		else if (ModeStart == MOVE_Falling || ModeEnd == MOVE_Falling)
+		{
+			Reason = TEXT("move_falling");
+		}
+		else if (ModeStart == MOVE_None || ModeEnd == MOVE_None)
+		{
+			Reason = TEXT("move_none");
+		}
+		else
+		{
+			Reason = TEXT("no_displacement");
+		}
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_MOVEMENT_FAIL reason=%s displacement=%.1f mode_start=%s mode_end=%s"),
+			*Reason,
+			Displacement,
+			MovementModeName(ModeStart),
+			MovementModeName(ModeEnd));
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_MOVEMENT_OK displacement=%.1f mode_start=%s mode_end=%s"),
+			Displacement,
+			MovementModeName(ModeStart),
+			MovementModeName(ModeEnd));
+	}
+
+	FGenericPlatformMisc::RequestExit(false);
+}
+
+void AShockGameMode::BeginVerifyWeaponTrack(AShockPlayer* Player)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=no_player"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	WeaponTrackPlayer = Player;
+	WeaponTrackSampleCount = 0;
+	WeaponTrackAnimLength = 0.0f;
+	WeaponTrackAnimName = NAME_None;
+
+	// Starter loadout equips Wrench (slot 0); Pistol is slot 1 with FastReloadPistol (h8).
+	if (!Player->SelectWeaponSlot(1))
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=select_pistol"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	AShockWeapon* Weapon = Player->GetEquippedWeapon();
+	if (!Weapon || Weapon->GetWeaponDefName() != FName(TEXT("Pistol")))
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=no_pistol def=%s"),
+			Weapon ? *Weapon->GetWeaponDefName().ToString() : TEXT("none"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+	WeaponTrackWeapon = Weapon;
+
+	// Mag must be below full with reserve left or Reload() refuses.
+	Weapon->SetAmmoStateForVerify(FMath::Max(0, Weapon->GetMagazineSize() - 1), 30);
+
+	WeaponTrackAnimLength = Player->GetViewHandsReloadPlayLengthForVerify();
+	if (WeaponTrackAnimLength <= 0.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=no_reload_anim"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	if (!Weapon->Reload())
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=reload_failed"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	WeaponTrackAnimName = Player->GetPlayingViewHandsAnimationNameForVerify();
+	const FTransform FirstXf = Weapon->GetActorTransform();
+	WeaponTrackFirstLoc = FirstXf.GetLocation();
+	WeaponTrackLastLoc = WeaponTrackFirstLoc;
+	WeaponTrackMinLoc = WeaponTrackFirstLoc;
+	WeaponTrackMaxLoc = WeaponTrackFirstLoc;
+	WeaponTrackFirstRot = FirstXf.Rotator();
+	WeaponTrackLastRot = WeaponTrackFirstRot;
+	WeaponTrackSampleCount = 1;
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_WEAPON_TRACK_START anim=%s len=%.3f socket=%s "
+			 "x=%.2f y=%.2f z=%.2f pitch=%.1f yaw=%.1f roll=%.1f"),
+		*WeaponTrackAnimName.ToString(),
+		WeaponTrackAnimLength,
+		*Player->GetActiveGripSocketForVerify().ToString(),
+		WeaponTrackFirstLoc.X,
+		WeaponTrackFirstLoc.Y,
+		WeaponTrackFirstLoc.Z,
+		WeaponTrackFirstRot.Pitch,
+		WeaponTrackFirstRot.Yaw,
+		WeaponTrackFirstRot.Roll);
+
+	World->GetTimerManager().SetTimer(
+		WeaponTrackSampleTimer,
+		this,
+		&AShockGameMode::TickVerifyWeaponTrackSample,
+		0.1f,
+		true);
+	World->GetTimerManager().SetTimer(
+		WeaponTrackFinishTimer,
+		this,
+		&AShockGameMode::FinishVerifyWeaponTrack,
+		WeaponTrackAnimLength + 0.05f,
+		false);
+}
+
+void AShockGameMode::TickVerifyWeaponTrackSample()
+{
+	AShockWeapon* Weapon = WeaponTrackWeapon.Get();
+	if (!Weapon)
+	{
+		return;
+	}
+	const FTransform Xf = Weapon->GetActorTransform();
+	const FVector Loc = Xf.GetLocation();
+	WeaponTrackLastLoc = Loc;
+	WeaponTrackLastRot = Xf.Rotator();
+	WeaponTrackMinLoc.X = FMath::Min(WeaponTrackMinLoc.X, Loc.X);
+	WeaponTrackMinLoc.Y = FMath::Min(WeaponTrackMinLoc.Y, Loc.Y);
+	WeaponTrackMinLoc.Z = FMath::Min(WeaponTrackMinLoc.Z, Loc.Z);
+	WeaponTrackMaxLoc.X = FMath::Max(WeaponTrackMaxLoc.X, Loc.X);
+	WeaponTrackMaxLoc.Y = FMath::Max(WeaponTrackMaxLoc.Y, Loc.Y);
+	WeaponTrackMaxLoc.Z = FMath::Max(WeaponTrackMaxLoc.Z, Loc.Z);
+	++WeaponTrackSampleCount;
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_WEAPON_TRACK_SAMPLE i=%d x=%.2f y=%.2f z=%.2f pitch=%.1f yaw=%.1f roll=%.1f"),
+		WeaponTrackSampleCount,
+		Loc.X,
+		Loc.Y,
+		Loc.Z,
+		WeaponTrackLastRot.Pitch,
+		WeaponTrackLastRot.Yaw,
+		WeaponTrackLastRot.Roll);
+}
+
+void AShockGameMode::FinishVerifyWeaponTrack()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WeaponTrackSampleTimer);
+	}
+
+	// One last sample at finish so first/last span the full anim window.
+	TickVerifyWeaponTrackSample();
+
+	const FVector Range = WeaponTrackMaxLoc - WeaponTrackMinLoc;
+	const float PosRange = Range.GetAbsMax();
+	const float FirstLastDist = FVector::Dist(WeaponTrackFirstLoc, WeaponTrackLastLoc);
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_WEAPON_TRACK_END samples=%d range=%.3f first_last=%.3f "
+			 "first=(%.2f,%.2f,%.2f) last=(%.2f,%.2f,%.2f) anim=%s len=%.3f"),
+		WeaponTrackSampleCount,
+		PosRange,
+		FirstLastDist,
+		WeaponTrackFirstLoc.X,
+		WeaponTrackFirstLoc.Y,
+		WeaponTrackFirstLoc.Z,
+		WeaponTrackLastLoc.X,
+		WeaponTrackLastLoc.Y,
+		WeaponTrackLastLoc.Z,
+		*WeaponTrackAnimName.ToString(),
+		WeaponTrackAnimLength);
+
+	// Near-zero world motion while a reload plays => attachment is not tracking bone motion
+	// (or something re-pins the grip every frame). Threshold is deliberately low; a live socket
+	// follow during FastReloadPistol moves the gun by tens of units.
+	if (PosRange < 1.0f)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=static_weapon range=%.3f samples=%d"),
+			PosRange,
+			WeaponTrackSampleCount);
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_WEAPON_TRACK_OK samples=%d range=%.3f first_last=%.3f anim=%s"),
+			WeaponTrackSampleCount,
+			PosRange,
+			FirstLastDist,
+			*WeaponTrackAnimName.ToString());
+	}
+
+	FGenericPlatformMisc::RequestExit(false);
+}
+
 void AShockGameMode::SpawnSliceAmmoPickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy)
 {
 	UWorld* World = GetWorld();
@@ -1162,6 +1571,56 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 								FGenericPlatformMisc::RequestExit(false);
 							}),
 							3.5f,
+							false);
+					}
+					return;
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifymovement")))
+				{
+					if (UWorld* World = GetWorld())
+					{
+						TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+						// Brief settle so CharacterMovement has a real mode after snap.
+						World->GetTimerManager().SetTimer(
+							MovementVerifyFinishTimer,
+							FTimerDelegate::CreateLambda([this, WeakPlayer]()
+							{
+								if (WeakPlayer.IsValid())
+								{
+									BeginVerifyMovement(WeakPlayer.Get());
+								}
+								else
+								{
+									UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=player_gone"));
+									FGenericPlatformMisc::RequestExit(false);
+								}
+							}),
+							0.5f,
+							false);
+					}
+					return;
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack")))
+				{
+					if (UWorld* World = GetWorld())
+					{
+						TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+						// Let equip/viewmodel settle (same arming pattern as encounter).
+						World->GetTimerManager().SetTimer(
+							WeaponTrackFinishTimer,
+							FTimerDelegate::CreateLambda([this, WeakPlayer]()
+							{
+								if (WeakPlayer.IsValid())
+								{
+									BeginVerifyWeaponTrack(WeakPlayer.Get());
+								}
+								else
+								{
+									UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_TRACK_FAIL reason=player_gone"));
+									FGenericPlatformMisc::RequestExit(false);
+								}
+							}),
+							1.0f,
 							false);
 					}
 					return;

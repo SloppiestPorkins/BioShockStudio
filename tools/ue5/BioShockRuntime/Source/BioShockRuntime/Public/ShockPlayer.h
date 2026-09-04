@@ -537,6 +537,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	FName GetPlayingViewHandsAnimationNameForVerify() const;
 
+	/** Headless verify: ReloadPistol / FastReloadPistol play length (0 if unresolved). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	float GetViewHandsReloadPlayLengthForVerify() const;
+
+	/**
+	 * Headless verify: drive MoveForward the same path AxisMapping "MoveForward" uses
+	 * (Controller yaw + AddMovementInput), not a lower-level movement call.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Verify")
+	void DriveMoveForwardForVerify(float Value) { MoveForward(Value); }
+
 	/**
 	 * Headless verify: advance the ViewHands one-shot timer (equip/fire/reload → fidget) without
 	 * waiting on real time. Mirrors ABaseShockAI combat anim one-shot handling.

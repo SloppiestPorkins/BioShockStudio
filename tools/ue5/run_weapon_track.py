@@ -1,0 +1,30 @@
+"""Headless driver: prep Medical + -game weapon-track verify."""
+
+import json
+import os
+import sys
+import traceback
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+SCHEMA = os.environ.get(
+    "BIOSHOCK_RUNTIME_SCHEMA",
+    r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\ShockGame.schema.json",
+)
+OUT = os.environ.get(
+    "BIOSHOCK_WEAPON_TRACK_OUT",
+    os.path.join(os.environ.get("TEMP", "."), "weapon_track_report.json"),
+)
+
+result = {"error": None}
+try:
+    import verify_weapon_track
+
+    result = verify_weapon_track.main(SCHEMA, OUT)
+except Exception as exc:  # noqa: BLE001
+    result["error"] = str(exc)
+    result["traceback"] = traceback.format_exc()
+    os.makedirs(os.path.dirname(os.path.abspath(OUT)) or ".", exist_ok=True)
+    with open(OUT, "w", encoding="utf-8") as handle:
+        json.dump(result, handle, indent=2)
+    raise
