@@ -83,8 +83,13 @@ AShockPlayer::AShockPlayer()
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
+		// Radius already matched UE's own standard mannequin capsule (34); half-height was 68 (136uu
+		// total ~1.36m), well short of the standard 88 (176uu ~1.76m, a real human) the rest of this
+		// project's scale assumes everywhere else (room/door dimensions, weapon ranges). Movement
+		// never actually worked until today (see h11), so nobody had ever walked around to notice
+		// the player read as short against doorways and furniture built for a full-height human.
 		Capsule->SetCapsuleRadius(34.0f);
-		Capsule->SetCapsuleHalfHeight(68.0f);
+		Capsule->SetCapsuleHalfHeight(88.0f);
 	}
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
