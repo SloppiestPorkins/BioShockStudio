@@ -3,9 +3,15 @@
 Added 28 Aug 2026. This is a **coordination** document: who works where, and in what order, now that
 two AI agents run against this repository. It is not a status document — status lives in
 [`ROADMAP.md`](ROADMAP.md) (the C# tool and decode work) and
-[`UE5_FULL_PORT_PLAN.md`](UE5_FULL_PORT_PLAN.md) §9 (the UE5 port). Where this file names a task,
-follow the link for the evidence and the detail; this file only says whose lane it is and where it
-sits in sequence.
+[`FULL_GAME_CONVERSION.md`](FULL_GAME_CONVERSION.md) (the UE5 port; supersedes
+`UE5_FULL_PORT_PLAN.md`'s status role 31 Aug 2026 — that file stays as the reasoning/risk
+reference). Where this file names a task, follow the link for the evidence and the detail; this
+file only says whose lane it is and where it sits in sequence.
+
+**The "Cursor lane" work-item list below (§"Cursor lane") is the 28 Aug snapshot and has not been
+re-derived against `FULL_GAME_CONVERSION.md`'s current Phase A/B/C/D structure** (written 31 Aug,
+one Cursor session later) — read `FULL_GAME_CONVERSION.md` §"Immediate next tasks" as the current
+priority order for the UE5 lane; treat the list below as historical framing, not a live queue.
 
 The standing-rule form of this is [`ENGINEERING_RULES.md`](ENGINEERING_RULES.md) §61.
 
@@ -35,8 +41,10 @@ This is close to the split that already exists in practice — it had just never
 
 ## Cursor lane — UE5 runtime and the playable slice
 
-Detail and dated record: [`UE5_FULL_PORT_PLAN.md`](UE5_FULL_PORT_PLAN.md) §5 (the plan) and §9 (what
-has landed). Work items in order:
+**Current priority order: [`FULL_GAME_CONVERSION.md`](FULL_GAME_CONVERSION.md) §"Immediate next
+tasks".** `UE5_FULL_PORT_PLAN.md` §5/§9 is the 25-28 Aug reasoning and record this list below was
+written from; kept for background, not re-checked against it since. Work items in order (28 Aug
+framing):
 
 0. **Land the uncommitted backlog first — before any new Phase 4 work.** As of 28 Aug 2026 the
    working tree carries a large uncommitted diff that spans both lanes and is mostly Cursor's:

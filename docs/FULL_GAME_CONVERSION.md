@@ -68,6 +68,26 @@ run with editor closed; keep `BIOSHOCK_IMPORT_RIGS=none` unless doing A2 in the 
 in `ImportAssetTasks` — recorded, not fixed here). One map per UE invocation recommended so a
 crash does not lose the batch report.
 
+**The actual blocker on a full run is fixed, 4 Sept 2026.** The 1 Sept attempt at this got as far
+as map 16 before dying: every map's re-exported FBX/texture tree accumulates under
+`%TEMP%/bioshock-import-all-levels/<map>/` and was never cleaned up, reaching 44 GB and filling the
+`C:` drive. Recovered from an abandoned worktree and landed (`de3959a`):
+`_cleanup_map_exports` removes each map's tree once its import finishes (success, failure, or
+idempotent-skip alike), opt out with `BIOSHOCK_IMPORT_KEEP_EXPORTS=1` when debugging one map's
+export. **A1's "full 21-map run" — item 1 in "Immediate next tasks" below — is now genuinely
+unblocked, not just next in sequence.**
+
+**What that run will produce is also better than the 4-map proof above measured.** The compiled
+world's texture UVs — walls, floors, ceilings, the dado panels every BSP room is built from — were
+still wrong when this proof ran: `pBase`'s pan-baked origin is genuinely tens of metres from the
+face (format design, not a bug) and the stopgap that used to fill in for it lost cross-face phase,
+a visible seam at every panel edge. Fixed 3-4 Sept (`44e5e7a`..`83e1804`, `docs/research/bsp.md`
+§5.3a): projecting from the real origin then rebasing each face by whole texture periods keeps the
+phase and pulls the stored magnitude back to something UE's texture pipeline samples correctly. A
+re-export of any already-imported map picks this up automatically; `medical_pillar_texture`'s
+texture-axis vector is the one remaining known-bad material (confirmed genuinely long against its
+source brush poly, not a mis-index — scoped to that shader, not a blocker on the wide run).
+
 Original scope:
 `export-level` + `import_level.py` already do one map. This phase:
 - A `tools/ue5/import_all_levels.py` that runs the pipeline for every shipped map into the
@@ -406,7 +426,10 @@ which one this is before Phase C3 (`UE5_FULL_PORT_PLAN.md` §6 "fidelity drift")
 
 ## Immediate next tasks (in order)
 
-1. ~~`import_all_levels.py` + a first wide run~~ — **4-map proof done** (A1 above); full 21 next.
+1. **The full 21-map `import_all_levels.py` run — was blocked, now genuinely next.** 4-map proof
+   done (A1 above); the 1 Sept attempt at all 21 died at map 16 on the disk-fill bug fixed 4 Sept
+   (see A1). Nothing else is in the way of running it now. Re-run with the current compiled-world
+   UV fix in place — every map gets the corrected walls/floors for free, not just Medical.
 2. `import_scripts.py` wide run (B1) — the 20 non-Medical maps, record the gaps.
 3. The Tier-1 archetype/weapon bulk import (A2) — bounded set from the manifests.
 4. `UShockActionVM` skeleton + the state-setter and AI-command handler families (C1).
