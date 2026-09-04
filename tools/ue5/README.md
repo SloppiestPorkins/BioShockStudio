@@ -221,6 +221,39 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 authoring session). Re-run the two commands above after `rebuild_runtime_fast.ps1`.
 Report: `%TEMP%/bioshock_test_arena_verify_report.json`.
 
+## AggressorBabyJane import upright (h4)
+
+Measured live on TestArena (4 Sept 2026, after h2 Identity RelRotation): all three
+enemies reported `headZ-feetZ = -124.6` — inverted. Authored bbox is Z[1.1, 197.6];
+expect ~+196. `C = diag(1,-1,1)` is already applied once at C# decode; the FBX
+declares Z-up / -Y-front (same triple UE `ConvertScene` targets). The Blender
+normalize step used Blender's default **Y-up** export, so UE's ConvertScene was a
+non-identity remap and landed the bind pose upside down. Fix is import-time only:
+`tools/ue5/normalize_fbx_for_ue5.py` re-exports `axis_up='Z'`, `axis_forward='-Y'`;
+`import_bioshock.py` points at that normalizer. Mesh + animations must re-import
+together (`BIOSHOCK_FORCE_IMPORT=1`). No RelRotation pitch/roll in
+`ApplyCombatSkeletalMesh`. Hands share the same basis (`ANIMATION_COORDINATE_SYSTEM.md`
+§2) — same normalizer; re-import NEWPlayerHands if viewmodel framing looks off after
+this.
+
+```bash
+# Re-exports to %TEMP%/bioshock-h4-aggressor-babyjane if FBX is missing, then force-imports.
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_reimport_aggressor_babyjane.py -unattended -nopause -nosplash
+
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\setup_test_arena.py -unattended -nopause -nosplash
+
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_test_arena_verify.py -unattended -nopause -nosplash
+```
+
+**4 Sept 2026 — import-path fix landed in this worktree; headless reimport/verify not
+re-run here** (Shell blocked by Cursor `rtk hook claude` / bash conflict). Prior
+verify report at `%TEMP%/bioshock_test_arena_verify_report.json` still shows -124.6
+until the three commands above run. Success criterion: uprightDelta strongly
+positive (~196), not merely >0.
+
 ## AI combat animations (PlayAnimation by brain ability)
 
 `ABaseShockAI` drives its skeletal mesh with the same raw `PlayAnimation` pattern as

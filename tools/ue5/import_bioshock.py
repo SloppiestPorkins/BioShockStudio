@@ -36,8 +36,14 @@ import subprocess
 import unreal
 
 
+# Prefer the UE5-lane normalizer (Z-up/-Y-front, from h4). CONFIRMED 4 Sept 2026: the
+# animation-import crash (Assertion failed: IntFitsIn<OutType>, UnrealTemplate.h:170,
+# In=2499805188) reproduces identically with BOTH this normalizer and the old tools/blender one
+# -- it is an animation-import bug unrelated to axis normalization. Mesh-only imports (no
+# animations in the manifest) are unaffected by it either way, so this stays pointed at the
+# correct axis fix. See h4-aggressor-babyjane-inverted-import.md and tools/ue5/README.md.
 _NORMALIZER = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "blender", "normalize_fbx_for_ue5.py"))
+    os.path.dirname(__file__), "normalize_fbx_for_ue5.py"))
 _DEFAULT_BLENDER = r"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe"
 
 
@@ -52,9 +58,12 @@ def _asset_tools():
 def _skeletal_mesh_options(uniform_scale=1.0):
     """Import options for a skinned mesh and its skeleton.
 
-    The export is already in Unreal's units and axes, so nothing is converted: `convert_scene` keeps
-    the file's declared Z-up/-Y-front basis, and the unit conversion is off because the game authors
-    in centimetres, as Unreal does.
+    Studio FBX is centimetres, Z-up / -Y-front / RH after one `GameBasis.Convert` at decode
+    (`docs/research/ANIMATION_COORDINATE_SYSTEM.md`). UE's ConvertScene targets that same triple
+    when `force_front_x_axis` is false, so the conversion is a no-op *if* the file still declares
+    those axes — which is why `normalize_fbx_for_ue5.py` must re-export Z-up/-Y, not Blender's
+    default Y-up. `import_rotation` stays identity: a rotation cannot fix handedness, and must not
+    be used to paper over an inverted bind pose (see `ApplyCombatSkeletalMesh`).
     """
     mesh_data = unreal.FbxSkeletalMeshImportData()
     mesh_data.set_editor_property("import_translation", unreal.Vector(0.0, 0.0, 0.0))
@@ -84,6 +93,10 @@ def _skeletal_mesh_options(uniform_scale=1.0):
 
 def _animation_options(skeleton, frame_rate, uniform_scale=1.0):
     """Import options for one animation, sampled at the rate the game authored it.
+
+    Same axis policy as `_skeletal_mesh_options` — animations share the skeleton's basis, so they
+    take the same ConvertScene / force_front_x_axis / identity import_rotation. Re-import mesh and
+    clips together after a normalizer change; do not leave old anims on a newly oriented skeleton.
 
     The shipped rates are not all integers and not all equal — 30.00, 29.94 and 27.02 all occur
     within the pistol set — so the rate is taken per animation from the manifest rather than left at
@@ -784,6 +797,10 @@ SUPPORTED_MANIFEST_VERSION = 2
 # a stale mesh with the same bone count and animation names would be kept silently.
 FINGERPRINT_TAG = "BioShockImportFingerprint"
 
+# Bumped when the Blender→UE normalizer's axis policy changes. Included in the fingerprint so a
+# prior import stamped under Y-up normalize cannot be reused after the Z-up/-Y fix (h4).
+NORMALIZER_AXIS_POLICY = "z_up_neg_y_v1"
+
 
 def _existed(path):
     """Whether an asset is already present, for created-vs-updated reporting."""
@@ -821,6 +838,7 @@ def _rig_fingerprint(manifest, rig, export_directory):
         "vertexCount": rig["vertexCount"],
         "sockets": [(item["name"], item["bone"]) for item in (rig.get("sockets") or [])],
         "mesh": _file_stamp(os.path.join(export_directory, rig["mesh"].replace("/", os.sep))),
+        "normalizerAxisPolicy": NORMALIZER_AXIS_POLICY,
         "animations": animations,
         "textures": [
             {
