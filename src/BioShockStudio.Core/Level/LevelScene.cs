@@ -219,7 +219,7 @@ public static class LevelSceneBuilder
         // by CSG from the source brushes, and it is where the floors and walls a player stands on
         // actually live. Without it a map is its props and its skyline with the rooms missing.
         progress?.Report("Reading the compiled world…");
-        AddBuiltWorld(package, instances, skipped);
+        AddBuiltWorld(package, context, instances, skipped);
 
         return new LevelScene
         {
@@ -268,7 +268,8 @@ public static class LevelSceneBuilder
     /// from the props standing in it.
     /// </remarks>
     private static void AddBuiltWorld(
-        BioShockPackage package, List<LevelInstance> instances, List<(SourceId, string)> skipped)
+        BioShockPackage package, LevelContext context,
+        List<LevelInstance> instances, List<(SourceId, string)> skipped)
     {
         var model = ModelReader.BuiltWorld(package);
         if (model is null) return;
@@ -283,10 +284,13 @@ public static class LevelSceneBuilder
 
         if (world is null || world.PolygonCount == 0) return;
 
-        var geometry = BspGeometry.ToGeometry(world);
+        // Real pan-baked origin (Points[pBase] / brush-Base) for phase; NormaliseUvs then rebases
+        // each face by a whole number of texture periods so stored magnitudes stay small (bsp.md §5.3a).
+        var origins = BspTextureOrigin.Resolve(package, world, context);
+        var geometry = BspGeometry.ToGeometry(world, null, origins);
         if (geometry.Indices.Count < 3) return;
 
-        var batches = BspGeometry.ToLightMapBatches(world);
+        var batches = BspGeometry.ToLightMapBatches(world, origins);
 
         // The drawn surfaces those batches leave behind. Only meaningful when the map is going to be
         // drawn from batches at all — otherwise the whole world goes through Geometry above, and a
@@ -296,7 +300,7 @@ public static class LevelSceneBuilder
         if (batches.Count > 0)
         {
             bool Unbatched(BspNode node) => !BspGeometry.HasLightMapAtlas(world, node);
-            var leftover = BspGeometry.ToGeometry(world, Unbatched);
+            var leftover = BspGeometry.ToGeometry(world, Unbatched, origins);
             if (leftover.Indices.Count >= 3)
             {
                 remainder = leftover;

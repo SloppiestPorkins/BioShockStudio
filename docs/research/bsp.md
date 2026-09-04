@@ -970,18 +970,36 @@ point into `Points` and stores the index. There is no closer origin hiding in th
 bytes for these surfaces — the source brush says the same point. Axis vectors are not
 mis-indexed relative to the source poly.
 
-**Effect and workaround.** `dot(vertex − Points[pBase], TextureU)` comes out at tens of thousands
-of texels (1-Medical raw median peak **~60,700**). A sampler wraps, so the *tiling* is unchanged,
-but at that magnitude the per-pixel UV derivatives lose float precision and the GPU picks a
-near-random mip — the "walls still wrong after the UV-size fix" a render shows.
+**Effect and the production fix (g2).** `dot(vertex − Points[pBase], TextureU)` comes out at tens of
+thousands of texels (1-Medical raw median peak **~60,700**). A sampler wraps, so the *tiling* is
+unchanged, but at that magnitude a UE `StaticMesh` storing UV0 as 16-bit half-float has a step of
+~32 texels — the texture swims and the GPU picks the wrong mip.
 
 The texel **span across a face is independent of the base** (shifting the base shifts every
-vertex's dot product equally), so `BspGeometry.ToGeometry(BspWorld)` and `BspWorld.TexelsAtLocal`
-still measure from `polygon[0]`. 1-Medical raw texel UV then: median **600** (1.17 tiles of a 512
-texture), p90 2,048 (4.0 tiles) — correct scale. What is lost is cross-face phase alignment: a
-texture continuing across a BSP cut can seam. The brush-Base / `pBase` origin would restore phase
-but reintroduce the absolute-magnitude mip problem; it is **not** wired into the production path
-(`BspTextureOrigin` exists for the measurement; `ToGeometry` keeps the `polygon[0]` fallback).
-Open: how the runtime keeps phase *and* near-zero absolute UVs (fractional pan about the face,
-or a different projection) — `UNKNOWN`, do not invent a third mechanism without bytes.
+vertex's dot product equally). g1 measured from `polygon[0]` to keep magnitudes small: 1-Medical
+raw texel UV median **600** (1.17 tiles of a 512 texture), p90 2,048 (4.0 tiles) — correct scale —
+but **cross-face phase was lost**: coplanar same-material pairs at a shared vertex had median
+\|ΔUV\| **1,085** texels under `polygon[0]`, vs **0** from brush-Base / `pBase`.
+
+**Production pipeline (wired):**
+
+1. `LevelScene.AddBuiltWorld` calls `BspTextureOrigin.Resolve` and passes the origins into
+   `BspGeometry.ToGeometry` / `ToLightMapBatches`. Null entries (~6.4% cross-package brushes) still
+   fall back to `polygon[0]`.
+2. `BspGeometry.NormaliseUvs` divides by texture size (tile period = 1.0), then **rebases each face
+   by `round(centroid UV)` whole periods** before the runaway clamp. Subtracting an integer leaves
+   `frac(UV)` byte-identical for the sampler; at a shared vertex the post-rebase ΔUV between faces
+   is an integer, so wrapping draws continuous across the BSP cut. Magnitude drops to roughly one
+   tile plus the face's own span.
+3. `ClampRunawayFaceUvs` remains as a backstop for faces whose own span still exceeds the cap.
+
+| 1-Medical compiled world (`Model1_20761`) | before (polygon[0] only) | after (real origin + rebase) | confidence |
+|---|---|---|---|
+| shared-vertex seam \|Δfrac(UV)\| median (coplanar same-mat) | — (texel seam **1,085**) | **0** tiles (n=1,568) | `CONFIRMED_BYTES` |
+| exported `vt` \|UV\| p50 / p90 / p99 / max | 1.0 / 3.8 / 12 / ~12.7 | **1.13 / 2.75 / 12 / 12** | `CONFIRMED_BYTES` |
+| verts at clamp cap (≥11.99) | ~1,050 | **611** | `CONFIRMED_BYTES` |
+
+Rebase method: **`round(centroid)`** per axis (not `floor(min)`). Frac is preserved for every face
+because the subtract is always an integer; a face spanning multiple periods is unambiguous for the
+sampler. No face needed the `floor(min)` fallback.
 

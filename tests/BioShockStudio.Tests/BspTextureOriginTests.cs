@@ -1,5 +1,6 @@
 using System.Numerics;
 using BioShockStudio.Core.Level;
+using BioShockStudio.Core.Mesh;
 using BioShockStudio.Core.Packages;
 using Xunit;
 
@@ -7,13 +8,14 @@ namespace BioShockStudio.Tests;
 
 /// <summary>
 /// Compiled-world texture origin from the source brush polygon's <c>Base</c> — measured, then
-/// rejected as a replacement for the <c>polygon[0]</c> stopgap.
+/// wired into production with a whole-period UV rebase (bsp.md §5.3a).
 /// </summary>
 /// <remarks>
 /// Resolving the source <c>FPoly.Base</c> via <c>Location − PrePivot</c> works for most drawn
 /// surfaces, and the result is <b>exactly</b> <c>Model.Points[pBase]</c>. That point is already
-/// far from the face in brush space (pan-baked), so absolute texel magnitudes stay huge. Axes
-/// agree with the compiled <c>Vectors</c> at 100%. See <c>docs/research/bsp.md</c> §5.3a.
+/// far from the face in brush space (pan-baked). Production projects from it for phase, then
+/// <see cref="BspGeometry.NormaliseUvs"/> rebases each face by <c>round(centroid)</c> whole
+/// periods so stored magnitudes stay small while <c>frac(UV)</c> is unchanged.
 /// </remarks>
 [Collection(GameCollection.Name)]
 [Trait(Tiers.Name, Tiers.Sweep)]
@@ -254,7 +256,145 @@ public sealed class BspTextureOriginTests(GameFixture game)
         float medB = seamBrush[seamBrush.Count / 2];
         Log($"seam |ΔUV| at shared vertex (texels): polygon[0] median {med0:0.#}, brush-Base median {medB:0.#} "
             + $"(n={seamPoly0.Count} coplanar same-material pairs). "
-            + "Brush-Base phase is the compiled pBase phase; polygon[0] remains the production stopgap.");
+            + "Brush-Base phase is the compiled pBase phase; production uses it then rebases.");
+        Assert.True(medB < 1f,
+            $"brush-Base seam median {medB:0.#} texels — expected ~0 for coplanar same-material pairs");
+    }
+
+    /// <summary>
+    /// Real origin + whole-period rebase: shared-vertex <c>frac(UV)</c> stays continuous across
+    /// coplanar same-material BSP cuts (the seam g1 measured at 1,085 texels under polygon[0]).
+    /// </summary>
+    [RequiresGameFact]
+    public void ProductionPipeline_SharedVertexFracPhaseIsNearZero()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var (world, origins) = LoadWorldAndOrigins(package);
+        var geometry = BspGeometry.ToGeometry(world, null, origins);
+        var sizes = Enumerable.Repeat<(int Width, int Height)?>(null, geometry.Sections.Count).ToList();
+        var normalised = BspGeometry.NormaliseUvs(geometry, sizes);
+
+        // Map each drawn face to its first vertex index in the triangulated geometry (fan pivot).
+        // ToGeometry walks surfaces grouped by material; rebuild the same order to pair faces.
+        var faceFirstVertex = new List<(BspNode Node, IReadOnlyList<Vector3> Poly, BspSurface Surface, int FirstVertex)>();
+        int vertexCursor = 0;
+        foreach (var group in world.Nodes
+            .Where(n => IsDrawnPolygon(world, n))
+            .GroupBy(n => world.Surfaces[n.Surface].Material.Value)
+            .OrderBy(g => g.Key))
+        {
+            foreach (var node in group)
+            {
+                var poly = world.PolygonOf(node);
+                if (poly.Count < 3) continue;
+                faceFirstVertex.Add((node, poly, world.Surfaces[node.Surface], vertexCursor));
+                vertexCursor += poly.Count;
+            }
+        }
+
+        var vertexBuckets = new Dictionary<(int, int, int), List<int>>();
+        for (int i = 0; i < faceFirstVertex.Count; i++)
+        {
+            foreach (var v in faceFirstVertex[i].Poly)
+            {
+                var key = ((int)MathF.Round(v.X), (int)MathF.Round(v.Y), (int)MathF.Round(v.Z));
+                if (!vertexBuckets.TryGetValue(key, out var list))
+                    vertexBuckets[key] = list = [];
+                if (list.Count == 0 || list[^1] != i) list.Add(i);
+            }
+        }
+
+        var fracDeltas = new List<float>();
+        var seenPairs = new HashSet<(int, int)>();
+        foreach (var facesAtVertex in vertexBuckets.Values)
+        {
+            if (facesAtVertex.Count < 2) continue;
+            for (int ai = 0; ai < facesAtVertex.Count; ai++)
+            {
+                for (int bi = ai + 1; bi < facesAtVertex.Count; bi++)
+                {
+                    int a = facesAtVertex[ai], b = facesAtVertex[bi];
+                    if (a > b) (a, b) = (b, a);
+                    if (!seenPairs.Add((a, b))) continue;
+
+                    var fa = faceFirstVertex[a];
+                    var fb = faceFirstVertex[b];
+                    if (fa.Node.Surface == fb.Node.Surface) continue;
+                    if (fa.Surface.Material.Value != fb.Surface.Material.Value) continue;
+                    if (MathF.Abs(Vector3.Dot(fa.Node.Plane.Normal, fb.Node.Plane.Normal)) < 0.999f)
+                        continue;
+                    if (!TrySharedVertex(fa.Poly, fb.Poly, out var shared)) continue;
+
+                    if (!TryUvAtWorldPoint(normalised, fa.FirstVertex, fa.Poly, shared, out var uva)) continue;
+                    if (!TryUvAtWorldPoint(normalised, fb.FirstVertex, fb.Poly, shared, out var uvb)) continue;
+
+                    fracDeltas.Add((Frac(uva) - Frac(uvb)).Length());
+                }
+            }
+        }
+
+        Assert.True(fracDeltas.Count > 50, $"only {fracDeltas.Count} pairs for post-pipeline seam measure");
+        fracDeltas.Sort();
+        float median = fracDeltas[fracDeltas.Count / 2];
+        Log($"post real-origin+rebase seam |Δfrac(UV)| median {median:0.####} tiles (n={fracDeltas.Count})");
+        Assert.True(median < 0.02f,
+            $"shared-vertex frac seam median {median:0.####} tiles — expected well under 0.02");
+    }
+
+    /// <summary>
+    /// After NormaliseUvs, absolute UV magnitudes on 1-Medical's compiled world are small enough
+    /// for half-float storage (median ≲ 2, p99 within the runaway clamp cap).
+    /// </summary>
+    [RequiresGameFact]
+    public void ProductionPipeline_UvMagnitudeIsSaneAfterRebase()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        var (world, origins) = LoadWorldAndOrigins(package);
+        var geometry = BspGeometry.ToGeometry(world, null, origins);
+        var sizes = Enumerable.Repeat<(int Width, int Height)?>(null, geometry.Sections.Count).ToList();
+        var normalised = BspGeometry.NormaliseUvs(geometry, sizes);
+
+        var magnitudes = new List<float>(normalised.Vertices.Count);
+        foreach (var v in normalised.Vertices)
+            magnitudes.Add(MathF.Max(MathF.Abs(v.Uv.X), MathF.Abs(v.Uv.Y)));
+
+        Assert.True(magnitudes.Count > 1_000);
+        magnitudes.Sort();
+        float median = magnitudes[magnitudes.Count / 2];
+        float p99 = magnitudes[(int)(magnitudes.Count * 0.99)];
+        Log($"post-rebase |UV| median {median:0.##}, p99 {p99:0.##}, max {magnitudes[^1]:0.##} "
+            + $"(n={magnitudes.Count})");
+
+        Assert.True(median <= 2.5f,
+            $"median |UV| {median:0.##} — expected ≲ 2 after whole-period rebase");
+        Assert.True(p99 <= 13f,
+            $"p99 |UV| {p99:0.##} — expected within the runaway clamp cap (~12)");
+    }
+
+    private static Vector2 Frac(Vector2 uv) =>
+        new(uv.X - MathF.Floor(uv.X), uv.Y - MathF.Floor(uv.Y));
+
+    private static bool TryUvAtWorldPoint(
+        MeshGeometry geometry, int firstVertex, IReadOnlyList<Vector3> poly,
+        Vector3 point, out Vector2 uv)
+    {
+        const float eps = 1f;
+        for (int i = 0; i < poly.Count; i++)
+        {
+            if ((poly[i] - point).LengthSquared() <= eps * eps)
+            {
+                int vi = firstVertex + i;
+                if (vi < 0 || vi >= geometry.Vertices.Count)
+                {
+                    uv = default;
+                    return false;
+                }
+                uv = geometry.Vertices[vi].Uv;
+                return true;
+            }
+        }
+        uv = default;
+        return false;
     }
 
     private static (BspWorld World, IReadOnlyList<Vector3?> Origins) LoadWorldAndOrigins(BioShockPackage package)

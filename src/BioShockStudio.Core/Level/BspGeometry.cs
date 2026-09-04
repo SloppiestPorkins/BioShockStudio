@@ -147,10 +147,11 @@ public static class BspGeometry
     /// The compiled world with optional per-surface texture origins.
     /// </summary>
     /// <param name="surfaceOrigins">
-    /// World-space origin per surface index. A null entry (or a null list) measures from the face's
-    /// own first vertex. <see cref="BspTextureOrigin.Resolve"/> fills this from the source brush
-    /// poly, but that origin equals <c>Points[pBase]</c> and is far from most faces — production
-    /// must not prefer it over <c>polygon[0]</c> (bsp.md §5.3a).
+    /// World-space origin per surface index. Prefer <see cref="BspTextureOrigin.Resolve"/> so
+    /// cross-face phase is exact; a null entry (or a null list) falls back to the face's first
+    /// vertex. Absolute magnitude after the distant pan-baked origin is corrected by a whole-period
+    /// rebase in <see cref="NormaliseUvs(MeshGeometry, IReadOnlyList{ValueTuple{int, int}?})"/>
+    /// (bsp.md §5.3a).
     /// </param>
     public static MeshGeometry ToGeometry(
         BspWorld world, Func<BspNode, bool>? include, IReadOnlyList<Vector3?>? surfaceOrigins)
@@ -181,10 +182,9 @@ public static class BspGeometry
                 var surface = world.Surfaces[node.Surface];
                 int start = vertices.Count;
 
-                // Measure texel UVs from this polygon's own first vertex, not the surface's stored
-                // pBase and not the source-brush Base — both land far from the face for most
-                // surfaces (same point, actually; see BspTextureOrigin / bsp.md §5.3a). An optional
-                // surfaceOrigins list lets diagnostics override; production leaves it null.
+                // Prefer the pan-baked origin (Points[pBase] / brush-Base) when resolved — that
+                // keeps phase continuous across BSP cuts. Null entries (~6% cross-package brushes)
+                // fall back to polygon[0]. Magnitude is then rebased in NormaliseUvs (bsp.md §5.3a).
                 var uvBase = ResolvedOrigin(surfaceOrigins, node.Surface) ?? polygon[0];
                 foreach (var position in polygon)
                 {
@@ -266,10 +266,9 @@ public static class BspGeometry
     /// Same as <see cref="ToLightMapBatches(BspWorld)"/>, with optional per-surface texture origins.
     /// </summary>
     /// <remarks>
-    /// Production leaves <paramref name="surfaceOrigins"/> null and measures from each face's first
-    /// vertex. Passing <see cref="BspTextureOrigin.Resolve"/> recovers the same point as
-    /// <c>Points[pBase]</c> and reintroduces the huge absolute texel magnitudes — do not wire it
-    /// in as the default (bsp.md §5.3a).
+    /// Prefer <see cref="BspTextureOrigin.Resolve"/> for phase-correct projection; null entries fall
+    /// back to <c>polygon[0]</c>. Whole-period rebase in <see cref="NormaliseUvs"/> keeps stored
+    /// magnitudes small (bsp.md §5.3a).
     /// </remarks>
     public static IReadOnlyList<LightMapBatch> ToLightMapBatches(
         BspWorld world, IReadOnlyList<Vector3?>? surfaceOrigins)
@@ -421,6 +420,10 @@ public static class BspGeometry
             for (int i = range.FirstVertex; i <= range.LastVertex && i < vertices.Length; i++)
                 vertices[i] = vertices[i] with { Uv = NormaliseUvs(vertices[i].Uv, w, h) };
 
+            // After divide, UVs are in tile units (period = 1). Subtract round(face centroid) so
+            // frac(UV) — what a wrapping sampler uses — is unchanged while absolute values drop
+            // near the origin. Needed when projecting from the pan-baked Points[pBase] origin.
+            RebaseFaceUvsByWholePeriods(vertices, geometry.Indices, range);
             ClampRunawayFaceUvs(vertices, geometry.Indices, range, MaxFaceTiles);
         }
 
@@ -453,19 +456,60 @@ public static class BspGeometry
     private const float NominalTextureSize = 512f;
 
     /// <summary>
+    /// Subtracts <c>round(face UV centroid)</c> from every vertex of each face so stored tile
+    /// coordinates sit near the origin while <c>frac(UV)</c> is unchanged.
+    /// </summary>
+    /// <remarks>
+    /// Same fan-pivot face grouping as <see cref="ClampRunawayFaceUvs"/>. A whole period is 1.0
+    /// because this runs after the texture-size divide. Cross-face phase at a shared vertex stays
+    /// an integer apart (so wrapping samplers still match); see bsp.md §5.3a.
+    /// </remarks>
+    private static void RebaseFaceUvsByWholePeriods(
+        MeshVertex[] vertices, IReadOnlyList<int> indices, MeshSection range)
+    {
+        foreach (var (firstIndex, indexCount) in FaceRuns(indices, range))
+            RebaseFace(vertices, indices, firstIndex, indexCount);
+    }
+
+    private static void RebaseFace(
+        MeshVertex[] vertices, IReadOnlyList<int> indices, int firstIndex, int indexCount)
+    {
+        var faceVertices = new HashSet<int>();
+        for (int i = firstIndex; i < firstIndex + indexCount && i < indices.Count; i++)
+        {
+            int v = indices[i];
+            if (v >= 0 && v < vertices.Length) faceVertices.Add(v);
+        }
+        if (faceVertices.Count == 0) return;
+
+        float minU = float.MaxValue, minV = float.MaxValue, maxU = float.MinValue, maxV = float.MinValue;
+        foreach (int v in faceVertices)
+        {
+            var uv = vertices[v].Uv;
+            minU = Math.Min(minU, uv.X);
+            maxU = Math.Max(maxU, uv.X);
+            minV = Math.Min(minV, uv.Y);
+            maxV = Math.Max(maxV, uv.Y);
+        }
+
+        var k = new Vector2(
+            MathF.Round((minU + maxU) * 0.5f),
+            MathF.Round((minV + maxV) * 0.5f));
+        if (k == Vector2.Zero) return;
+
+        foreach (int v in faceVertices)
+            vertices[v] = vertices[v] with { Uv = vertices[v].Uv - k };
+    }
+
+    /// <summary>
     /// Rescales the UVs of any single BSP face that still tiles absurdly after normalisation.
     /// </summary>
     /// <remarks>
-    /// <b>A safety net, not the fix.</b> <see cref="BspWorld.TexelsAtLocal"/> recovers a usable
-    /// texture origin for ~93% of 1-Medical's drawn surfaces; for the rest the stored
-    /// <c>pBase</c> — and, on a handful, the texture-axis vectors themselves — resolve to
-    /// something this decoder does not yet understand, and the face comes out tiling its texture
-    /// hundreds to thousands of times. At that magnitude the renderer samples the smallest mip
-    /// and the surface reads as shimmering moiré rather than a wall — which is what a user looking
-    /// at the level reports as "the walls are broken again". Rescaling such a face's UVs about
-    /// their own centre so it tiles at most <see cref="MaxFaceTiles"/> makes the texel density
-    /// wrong on that one face but lets the surface read as its material instead of noise. The
-    /// 93% that resolved correctly are untouched — their span never approaches the cap.
+    /// <b>A safety net, not the fix.</b> After real-origin projection and whole-period rebase, most
+    /// faces sit well under the cap. A tail — untextured water/zoning, or axis vectors this decoder
+    /// still misreads — can still span hundreds of tiles. Rescaling such a face so it tiles at most
+    /// <see cref="MaxFaceTiles"/> makes texel density wrong on that one face but lets the surface
+    /// read as its material instead of noise.
     ///
     /// Faces are recovered from the index buffer: <see cref="ToGeometry(BspWorld)"/> emits each
     /// polygon as a triangle fan around its first vertex and never shares a vertex between
@@ -475,6 +519,16 @@ public static class BspGeometry
     {
         if (cap < 1f || MaxFaceTiles < 1f) return;
 
+        foreach (var (firstIndex, indexCount) in FaceRuns(indices, range))
+            RescaleFace(vertices, indices, firstIndex, indexCount, cap);
+    }
+
+    /// <summary>
+    /// Yields (firstIndex, indexCount) for each fan-pivot face in a section's index range.
+    /// </summary>
+    private static IEnumerable<(int FirstIndex, int IndexCount)> FaceRuns(
+        IReadOnlyList<int> indices, MeshSection range)
+    {
         int triangleStart = range.FirstIndex / 3;
         int faceStart = 0;
         int pivot = -1;
@@ -492,7 +546,7 @@ public static class BspGeometry
 
             if (thisPivot == pivot) continue;
 
-            RescaleFace(vertices, indices, (triangleStart + faceStart) * 3, (t - faceStart) * 3, cap);
+            yield return ((triangleStart + faceStart) * 3, (t - faceStart) * 3);
             pivot = thisPivot;
             faceStart = t;
         }

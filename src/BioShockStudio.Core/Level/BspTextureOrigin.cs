@@ -9,19 +9,18 @@ namespace BioShockStudio.Core.Level;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Measured on 1-Medical and rejected as a production UV origin</b> (<c>docs/research/bsp.md</c>
-/// §5.3a, <c>BspTextureOriginTests</c>). The chain works: surface actor → brush → Polys →
-/// <c>polygons[BrushPoly].Base</c> placed by <c>Location − PrePivot</c> resolves for <b>6,242 of
-/// 6,667</b> drawn surfaces (93.6%). That world-space point is <b>exactly</b>
-/// <c>Model.Points[pBase]</c> (6,242 / 6,242 comparable), and the source poly's <c>Base</c> is
-/// already tens of metres from its own vertices in brush space (median ~25,750 cm) — the pan is
-/// baked into a distant origin. Absolute texel peaks stay huge (median ~60,700); only the
-/// origin-independent span is sane. <see cref="BspGeometry.ToGeometry(BspWorld)"/> therefore keeps
-/// measuring from <c>polygon[0]</c>.
+/// <b>Wired into production</b> (<c>docs/research/bsp.md</c> §5.3a, <c>BspTextureOriginTests</c>).
+/// The chain: surface actor → brush → Polys → <c>polygons[BrushPoly].Base</c> placed by
+/// <c>Location − PrePivot</c> resolves for <b>6,242 of 6,667</b> drawn surfaces on 1-Medical
+/// (93.6%). That world-space point is <b>exactly</b> <c>Model.Points[pBase]</c>
+/// (6,242 / 6,242 comparable). Absolute texel peaks are huge (median ~60,700) because the pan is
+/// baked into a distant origin; <see cref="BspGeometry.NormaliseUvs(Mesh.MeshGeometry,
+/// System.Collections.Generic.IReadOnlyList{System.ValueTuple{int, int}?})"/> rebases each face by
+/// a whole number of texture periods so stored magnitudes stay small while <c>frac(UV)</c> —
+/// phase and sampler wrapping — is unchanged. Null entries (~6.4% cross-package) keep the
+/// <c>polygon[0]</c> fallback in <see cref="BspGeometry.ToGeometry(BspWorld)"/>.
 /// </para>
 /// <para>
-/// Kept as a resolver because the equality with <c>Points[pBase]</c> is itself a finding: compiled
-/// <c>pBase</c> <i>is</i> a Points index into the pan-baked origin, and the source poly confirms it.
 /// Axis cross-check: source <c>TextureU</c>/<c>TextureV</c> agree with
 /// <c>Vectors[surface.TextureU/V]</c> within 1% on 2,918 / 2,918 drawn surfaces that resolve.
 /// </para>
