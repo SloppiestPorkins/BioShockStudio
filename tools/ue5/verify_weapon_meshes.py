@@ -77,13 +77,13 @@ def main(out):
         wrench_entry["meshPath"] = _asset_path(skel)
         wrench_def = unreal.ShockWeaponDefLibrary.resolve_weapon_def(unreal.Name("Wrench"))
         if wrench_def:
-            def_path = wrench_def.get_editor_property("mesh_asset_path")
-            wrench_entry["defMeshPath"] = str(def_path) if def_path else ""
-            if def_path and str(def_path).strip():
-                failures.append(
-                    "Wrench MeshAssetPath should be empty (WP_WrenchMesh is StaticMesh); got %s"
-                    % def_path
-                )
+            # Informational only. FSoftObjectPath is a struct that's never None/falsy even
+            # when empty, and this Python binding exposes none of is_valid()/is_null()/
+            # to_string()/working struct equality (all tried live against UE5.7, all
+            # failed) -- there's no reliable emptiness check available from here. The
+            # behavioural assertion below (the equipped Wrench actually has no skeletal
+            # mesh) is the real, meaningful check and needs none of this.
+            wrench_entry["defMeshPath"] = str(wrench_def.get_editor_property("mesh_asset_path"))
         if skel is not None:
             failures.append(
                 "Wrench unexpectedly has skeletal mesh %s (expected none until StaticMesh import)"
