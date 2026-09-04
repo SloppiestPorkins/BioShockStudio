@@ -7,6 +7,7 @@
 class UWorld;
 class AShockPlayer;
 class AShockWeapon;
+class UAnimSequence;
 
 UENUM()
 enum class EShockAICombatState : uint8
@@ -388,6 +389,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat|Brain")
 	UShockAIBrain* GetShockAIBrain() const { return Brain; }
 
+	/** Headless verify: name of the AnimSequence currently installed via PlayAnimation. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	FName GetPlayingAnimationNameForVerify() const;
+
 	/** Combat helpers used by UShockAIAbility — surface moved from TickCombat FSM. */
 	AShockPawn* GetCombatTargetPawn() const { return CombatTarget; }
 	AShockPawn* GetCurrentScriptedAttackTargetPawn() const { return CurrentScriptedAttackTarget; }
@@ -540,4 +545,37 @@ private:
 	bool CanPerceivePlayer(const AShockPlayer* Player) const;
 	bool TryAcquireTargetFromPerception();
 	FName GetPlayerPerceptionLabel(const AShockPlayer* Player) const;
+
+	void EnsureCombatMeshAndAnims();
+	void TickAnimationDriver(float DeltaSeconds);
+	void PlayCombatAnimation(UAnimSequence* Sequence, bool bLoop);
+	UAnimSequence* ResolveAnimationForAbility(FName AbilityName) const;
+	static bool IsOneShotAbilityName(FName AbilityName);
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimIdle;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimWalk;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimRun;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimMelee;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimHitReact;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> AnimDeath;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> LastPlayedAnim;
+
+	FName LastAnimAbilityName = NAME_None;
+	bool bAnimAssetsLoaded = false;
+	bool bPlayingOneShotAnim = false;
+	float OneShotAnimRemaining = 0.0f;
+	bool bDeathAnimStarted = false;
 };

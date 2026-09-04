@@ -9,6 +9,8 @@
 #include "ShockPhysicsLibrary.h"
 #include "ShockWeapon.h"
 #include "AIController.h"
+#include "Animation/AnimSequence.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -675,6 +677,15 @@ void ABaseShockAI::OnDeathFromDamage()
 	CombatState = EShockAICombatState::Idle;
 	ClearCombatTarget();
 	StopNavChase();
+
+	EnsureCombatMeshAndAnims();
+	if (AnimDeath)
+	{
+		PlayCombatAnimation(AnimDeath, false);
+		bDeathAnimStarted = true;
+		LastAnimAbilityName = FName(TEXT("Death"));
+	}
+
 	SetActorTickEnabled(false);
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
@@ -743,12 +754,18 @@ void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 			Move->StopMovementImmediately();
 		}
 	}
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->TickAnimation(DeltaSeconds, /*bNeedsValidRootMotion*/ false);
+		Body->RefreshBoneTransforms();
+	}
 }
 
 void ABaseShockAI::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickCombat(DeltaSeconds);
+	TickAnimationDriver(DeltaSeconds);
 }
 
 bool ABaseShockAI::IsCombatLoopGated() const
@@ -1356,6 +1373,185 @@ void ABaseShockAI::TickCombatFsm(float DeltaSeconds)
 		CombatState = EShockAICombatState::Idle;
 		break;
 	}
+}
+
+void ABaseShockAI::EnsureCombatMeshAndAnims()
+{
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		if (!Body->GetSkeletalMeshAsset())
+		{
+			if (USkeletalMesh* MeshAsset = LoadObject<USkeletalMesh>(
+					nullptr,
+					TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
+			{
+				Body->SetSkeletalMesh(MeshAsset);
+				Body->SetHiddenInGame(false);
+			}
+		}
+	}
+
+	if (bAnimAssetsLoaded)
+	{
+		return;
+	}
+	bAnimAssetsLoaded = true;
+
+	auto LoadAnim = [](const TCHAR* Path) -> UAnimSequence*
+	{
+		UAnimSequence* Seq = LoadObject<UAnimSequence>(nullptr, Path);
+		if (!Seq)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_AI_ANIM missing=%s"), Path);
+		}
+		return Seq;
+	};
+
+	AnimIdle = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_Fidget_A_idle.ME_Fidget_A_idle"));
+	AnimWalk = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_WalkFWD_A_agg.ME_WalkFWD_A_agg"));
+	AnimRun = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_runFWD_A_agg.ME_runFWD_A_agg"));
+	AnimMelee = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_attackMelee_A.ME_attackMelee_A"));
+	AnimHitReact = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_hitFWD_A.ME_hitFWD_A"));
+	AnimDeath = LoadAnim(
+		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/Death_StumbleFWD.Death_StumbleFWD"));
+}
+
+bool ABaseShockAI::IsOneShotAbilityName(FName AbilityName)
+{
+	const FString Name = AbilityName.ToString();
+	return Name.Contains(TEXT("MeleeAttack"), ESearchCase::IgnoreCase)
+		|| Name.Contains(TEXT("HitReact"), ESearchCase::IgnoreCase);
+}
+
+UAnimSequence* ABaseShockAI::ResolveAnimationForAbility(FName AbilityName) const
+{
+	const FString Name = AbilityName.ToString();
+	if (Name.Contains(TEXT("HitReact"), ESearchCase::IgnoreCase))
+	{
+		return AnimHitReact;
+	}
+	if (Name.Contains(TEXT("MeleeAttack"), ESearchCase::IgnoreCase))
+	{
+		return AnimMelee;
+	}
+	if (Name.Contains(TEXT("MoveTo"), ESearchCase::IgnoreCase)
+		|| Name.Contains(TEXT("Flee"), ESearchCase::IgnoreCase)
+		|| Name.Contains(TEXT("Patrol"), ESearchCase::IgnoreCase))
+	{
+		if (bMovementShouldRun && AnimRun)
+		{
+			return AnimRun;
+		}
+		return AnimWalk ? AnimWalk : AnimRun;
+	}
+	return AnimIdle;
+}
+
+void ABaseShockAI::PlayCombatAnimation(UAnimSequence* Sequence, bool bLoop)
+{
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body || !Sequence)
+	{
+		return;
+	}
+	if (Sequence == LastPlayedAnim && bLoop == !bPlayingOneShotAnim)
+	{
+		return;
+	}
+
+	Body->PlayAnimation(Sequence, bLoop);
+	Body->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
+	Body->RefreshBoneTransforms();
+	LastPlayedAnim = Sequence;
+
+	if (bLoop)
+	{
+		bPlayingOneShotAnim = false;
+		OneShotAnimRemaining = 0.0f;
+	}
+	else
+	{
+		bPlayingOneShotAnim = true;
+		OneShotAnimRemaining = Sequence->GetPlayLength();
+	}
+}
+
+void ABaseShockAI::TickAnimationDriver(float DeltaSeconds)
+{
+	EnsureCombatMeshAndAnims();
+
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body || !Body->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
+	if (bIsDead || bDeathAnimStarted)
+	{
+		if (bPlayingOneShotAnim)
+		{
+			OneShotAnimRemaining = FMath::Max(0.0f, OneShotAnimRemaining - DeltaSeconds);
+			if (OneShotAnimRemaining <= 0.0f)
+			{
+				bPlayingOneShotAnim = false;
+			}
+		}
+		return;
+	}
+
+	if (bPlayingOneShotAnim)
+	{
+		OneShotAnimRemaining = FMath::Max(0.0f, OneShotAnimRemaining - DeltaSeconds);
+		if (OneShotAnimRemaining <= 0.0f)
+		{
+			bPlayingOneShotAnim = false;
+			if (AnimIdle && LastPlayedAnim != AnimIdle)
+			{
+				PlayCombatAnimation(AnimIdle, true);
+			}
+		}
+	}
+
+	FName AbilityName = NAME_None;
+	if (bUseBrain && Brain)
+	{
+		AbilityName = Brain->GetActiveAbilityName();
+	}
+
+	if (AbilityName == LastAnimAbilityName && LastPlayedAnim != nullptr)
+	{
+		return;
+	}
+
+	LastAnimAbilityName = AbilityName;
+	UAnimSequence* Sequence = ResolveAnimationForAbility(AbilityName);
+	const bool bLoop = !IsOneShotAbilityName(AbilityName);
+	PlayCombatAnimation(Sequence, bLoop);
+}
+
+FName ABaseShockAI::GetPlayingAnimationNameForVerify() const
+{
+	if (LastPlayedAnim)
+	{
+		return LastPlayedAnim->GetFName();
+	}
+	if (const USkeletalMeshComponent* Body = GetMesh())
+	{
+		if (const UAnimSingleNodeInstance* Single =
+				Cast<UAnimSingleNodeInstance>(Body->GetAnimInstance()))
+		{
+			if (const UAnimationAsset* Anim = Single->GetAnimationAsset())
+			{
+				return Anim->GetFName();
+			}
+		}
+	}
+	return NAME_None;
 }
 
 TArray<ABaseShockAI*> ABaseShockAI::CollectLabeled(UWorld* World, FName Label)

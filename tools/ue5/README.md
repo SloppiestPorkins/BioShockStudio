@@ -190,6 +190,33 @@ powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
 
 Do **not** re-run full BuildPlugin for every `.cpp` tweak — only to (re)seed HostProject.
 
+## AI combat animations (PlayAnimation by brain ability)
+
+`ABaseShockAI` drives its skeletal mesh with the same raw `PlayAnimation` pattern as
+`AShockPlayer::EnsureViewHands` — no AnimBlueprint. Ability name from
+`UShockAIBrain::GetActiveAbilityName()` selects a cached `UAnimSequence` (BabyJane ME_
+idle / walk / run / melee / hit-react); `OnDeathFromDamage` plays a non-looping death clip
+and holds the last frame. Mesh is assigned to `AggressorBabyJane` only when unset.
+
+Asset paths confirmed present under
+`Content/BioShockCharacters/AggressorBabyJane/` before hardcoding (4 Sept 2026).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+```
+
+```bash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_ai_animation.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 4 Sept 2026 — `Success - 0 error(s)`** via
+`rebuild_runtime_fast.ps1` + `run_ai_animation.py`. Report: mesh
+`AggressorBabyJane`; idle/move before engagement; `ME_attackMelee_A` while
+`ShockAIMeleeAttackAbility` active; `Death_StumbleFWD` after lethal damage
+(`ai_animation=ok`). No PIE screenshot visual check — human confirms look in
+editor afterward.
+
 ## Runtime skeleton (Phase 3)
 
 `BioShockRuntime/` is a **runtime** plugin (not editor-only). Copy it into the UE project's
