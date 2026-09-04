@@ -172,6 +172,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float PerceptionScanInterval = 0.25f;
 
+	/**
+	 * When true, any player that passes CanPerceivePlayer (distance / sight cone / LOS) is a valid
+	 * combat target — no AttackOnSightLabels entry and no prior damage-aggro required.
+	 * Default false keeps scripted-trigger levels unchanged. EditAnywhere + BlueprintReadWrite so
+	 * level authors and Python (set_editor_property) can set it; unlike bAlwaysSeePlayer.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
+	bool bHostileToAnyPlayer = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float CorpseFadeSeconds = 5.0f;
 
@@ -392,6 +401,23 @@ public:
 	/** Headless verify: name of the AnimSequence currently installed via PlayAnimation. */
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	FName GetPlayingAnimationNameForVerify() const;
+
+	/**
+	 * Headless verify: world-space head.Z - feet.Z after mesh assign. Positive and large means
+	 * upright; large negative means inverted. Returns 0 when bones/mesh are missing.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	float GetMeshUprightDeltaForVerify() const;
+
+	/**
+	 * Assign a full-body BioShock skeletal mesh onto an ACharacter mesh component.
+	 * Sets visibility, optional mesh collision off (capsule keeps collision), and relative
+	 * rotation Identity — see ApplyCombatSkeletalMesh in BaseShockAI.cpp.
+	 */
+	static void ApplyCombatSkeletalMesh(
+		USkeletalMeshComponent* Body,
+		USkeletalMesh* MeshAsset,
+		bool bDisableMeshCollision = true);
 
 	/** Combat helpers used by UShockAIAbility — surface moved from TickCombat FSM. */
 	AShockPawn* GetCombatTargetPawn() const { return CombatTarget; }

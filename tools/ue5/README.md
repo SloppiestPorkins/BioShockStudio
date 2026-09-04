@@ -190,6 +190,37 @@ powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
 
 Do **not** re-run full BuildPlugin for every `.cpp` tweak — only to (re)seed HostProject.
 
+## AI hostility + BabyJane mesh orientation (TestArena PIE)
+
+Live PIE on `/Game/BioShockSlice/TestArena` previously never engaged: target
+acquisition required `AttackOnSightLabels` (or prior damage-aggro), which
+GameMode-spawned players cannot satisfy. `bHostileToAnyPlayer` (default false)
+is a third gate alongside label/aggro. Mesh assign now goes through
+`ABaseShockAI::ApplyCombatSkeletalMesh`, which sets RelRotation to Identity —
+BioShock full-body rigs are +X forward / +Z up (`docs/research/ANIMATION_COORDINATE_SYSTEM.md`);
+`ACharacter`'s mannequin default `(0, -90, 0)` only corrects facing for +Y meshes.
+That yaw fix cannot invert up/down; if `GetMeshUprightDeltaForVerify` is largely
+negative the import itself is inverted — no guessed pitch/roll is applied.
+Mesh `NoCollision` (capsule keeps collision) is unchanged and unrelated to orientation.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+```
+
+```bash
+# Re-save arena enemies with bHostileToAnyPlayer=true (idempotent):
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\setup_test_arena.py -unattended -nopause -nosplash
+
+# Level-loaded verify (not fresh spawn):
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_test_arena_verify.py -unattended -nopause -nosplash
+```
+
+**4 Sept 2026 — code landed; headless verify pending** (Shell hook blocked in the
+authoring session). Re-run the two commands above after `rebuild_runtime_fast.ps1`.
+Report: `%TEMP%/bioshock_test_arena_verify_report.json`.
+
 ## AI combat animations (PlayAnimation by brain ability)
 
 `ABaseShockAI` drives its skeletal mesh with the same raw `PlayAnimation` pattern as
@@ -216,6 +247,45 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 `ShockAIMeleeAttackAbility` active; `Death_StumbleFWD` after lethal damage
 (`ai_animation=ok`). No PIE screenshot visual check — human confirms look in
 editor afterward.
+
+## Starter weapon viewmodel meshes (h3)
+
+`UShockWeaponDef::MeshAssetPath` + `AShockWeapon::ApplyDef` assign the first-person
+skeletal mesh for every starter gun; `AShockGameMode::EquipStarterWeapon` no longer
+hardcodes Tommy Gun only. Paths follow the TommyGun convention under
+`/Game/BioShockWeapons/WP_<Name>/WP_<Name>`.
+
+| Def | Mesh asset | Export |
+|---|---|---|
+| TommyGun | `WP_TommyGun` (already on disk) | `export-firstperson TommyGun … --fbx` |
+| Pistol | `WP_Pistol` | `export-firstperson Pistol … --fbx --group=WP_Pistol` |
+| Shotgun | `WP_Shotgun` | `export-fbx <ShockGame.U> UAPW_WP_Shotgun … --mesh WP_ShotgunMesh` (no hand socket) |
+| ChemicalThrower | `WP_ChemicalThrower` | `export-firstperson Chem … --fbx --group=WP_ChemicalThrower` |
+| Crossbow | `WP_Crossbow` | `export-firstperson Crossbow … --fbx --group=WP_Crossbow` |
+| Wrench | *(none)* | **Blocked:** `WP_WrenchMesh` is a plain `StaticMesh` in `ShockGame.U` (no `UAPW` / `SkeletalMesh`); `import_bioshock` cannot ingest it. Not substituted. |
+
+Export scratch under `%TEMP%\bioshock-h3-weapons\` (not the worktree), then:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+$env:BIOSHOCK_WEAPON_EXPORT_ROOT = "$env:TEMP\bioshock-h3-weapons"
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_import_weapon_meshes.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_weapon_meshes.py -unattended -nopause -nosplash
+```
+
+`run_weapon_meshes.py` drives `verify_weapon_meshes.py`: `GiveWeaponByDef` for each
+starter, asserts `Mesh->GetSkeletalMeshAsset()` matches the expected path for the five
+skeletal guns, and asserts Wrench stays mesh-less (`wrench=static_mesh_blocked`).
+Grip-socket alignment is look-and-tune in the editor afterward — not asserted here.
+
+**4 Sept 2026 — code path landed in this worktree; headless import/verify not re-run
+here** (agent Shell blocked by a Cursor `rtk hook claude` / bash conflict before any
+command executes). TommyGun asset confirmed present at
+`Content/BioShockWeapons/WP_TommyGun/WP_TommyGun.uasset`; Pistol / Shotgun /
+ChemicalThrower / Crossbow assets were absent at hand-off. Re-run the three commands
+above once Shell works.
 
 ## Runtime skeleton (Phase 3)
 

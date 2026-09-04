@@ -295,19 +295,7 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 
 	Player->GiveWeaponByDef(TEXT("Wrench"), 0);
 	Player->GiveWeaponByDef(TEXT("Pistol"), 1);
-
-	AShockWeapon* TommyGun = Player->GiveWeaponByDef(TEXT("TommyGun"), 2);
-	if (TommyGun)
-	{
-		TommyGun->InitializeAmmoFullMag(150);
-		if (USkeletalMesh* TommyGunMesh = LoadObject<USkeletalMesh>(
-				nullptr,
-				TEXT("/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun")))
-		{
-			TommyGun->Mesh->SetSkeletalMesh(TommyGunMesh);
-		}
-	}
-
+	Player->GiveWeaponByDef(TEXT("TommyGun"), 2);
 	Player->GiveWeaponByDef(TEXT("Shotgun"), 3);
 	Player->GiveWeaponByDef(TEXT("ChemicalThrower"), 5);
 	Player->GiveWeaponByDef(TEXT("Crossbow"), 6);
@@ -315,10 +303,9 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 
 	// The Wrench (slot 0) is the first weapon the player actually has in BioShock --
 	// start equipped with it, not the Tommy Gun, matching what you'd really be
-	// holding before finding any guns. (Its mesh isn't imported yet either, same gap
-	// as the other non-TommyGun weapons -- see h3-weapon-mesh-import -- so this is
-	// currently a bare-handed viewmodel until that lands, not a regression from the
-	// prior default.)
+	// holding before finding any guns. Viewmodel meshes come from UShockWeaponDef::MeshAssetPath
+	// via AShockWeapon::ApplyDef (TommyGun / Pistol / Shotgun / ChemicalThrower / Crossbow).
+	// Wrench stays mesh-less until WP_WrenchMesh (StaticMesh in ShockGame.U) has an import path.
 	Player->SelectWeaponSlot(0);
 
 	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.
@@ -452,9 +439,7 @@ void ApplySliceBabyJaneMeshFallback(ABaseShockAI* AI, FName ArchetypeKey)
 					nullptr,
 					TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
 			{
-				Body->SetSkeletalMesh(MeshAsset);
-				Body->SetHiddenInGame(false);
-				Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				ABaseShockAI::ApplyCombatSkeletalMesh(Body, MeshAsset, /*bDisableMeshCollision*/ true);
 			}
 		}
 	}

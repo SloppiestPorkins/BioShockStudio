@@ -144,6 +144,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
 	TArray<FShockAmmoType> AmmoTypes;
 
+	/**
+	 * First-person viewmodel under /Game/BioShockWeapons/WP_<Name>/WP_<Name>.
+	 * Empty when the viewmodel is not a skeletal mesh (e.g. Wrench is StaticMesh in ShockGame.U).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
+	FSoftObjectPath MeshAssetPath;
+
 	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun / ChemicalThrower / Crossbow. Unknown keys return nullptr. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	static UShockWeaponDef* Resolve(FName InWeaponName);

@@ -11,6 +11,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
@@ -76,6 +77,14 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 		ActiveAmmoTypeIndex = 0;
 		ChamberedAmmoTypeIndex = 0;
 		SyncActiveAmmoFacingFields();
+	}
+
+	if (Mesh && !Def->MeshAssetPath.IsNull())
+	{
+		if (USkeletalMesh* MeshAsset = Cast<USkeletalMesh>(Def->MeshAssetPath.TryLoad()))
+		{
+			Mesh->SetSkeletalMesh(MeshAsset);
+		}
 	}
 }
 

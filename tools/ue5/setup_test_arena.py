@@ -14,9 +14,8 @@ open, and the project must not be open elsewhere while this runs):
 After it finishes: open the editor, let it finish compiling, open
 /Game/BioShockSlice/TestArena, and Play In Editor. The player auto-equips a
 starter weapon on possession (AShockGameMode::EquipStarterWeapon) so gunplay
-works immediately; the enemies use bAlwaysSeePlayer for general perception
-(no scripted attack-on-sight trigger needed), so they engage on their own once
-the player is in range.
+works immediately; enemies use bHostileToAnyPlayer so they engage any perceived
+player without a scripted AttackOnSightLabels trigger.
 
 Idempotent: re-running loads the existing map, skips actors that already
 exist by label, and re-saves. Report written to
@@ -162,7 +161,14 @@ def _nav_data_ready(world, loc):
 
 def _spawn_enemy(subsystem, ai_cls, weapon_cls, label, loc, has_weapon, existing):
     if label in existing:
-        return existing[label], "already-present"
+        ai = existing[label]
+        # Re-runs must still apply hostility so a map built before bHostileToAnyPlayer
+        # existed becomes playable without a full arena rebuild.
+        try:
+            ai.set_editor_property("bHostileToAnyPlayer", True)
+        except Exception:
+            pass
+        return ai, "already-present"
     yaw = 180.0 if loc.x >= 0 else 0.0  # face back toward the player start
     ai = _spawn(subsystem, ai_cls, label, loc, unreal.Rotator(0.0, yaw, 0.0))
     if not ai:
@@ -170,10 +176,11 @@ def _spawn_enemy(subsystem, ai_cls, weapon_cls, label, loc, has_weapon, existing
     ai.configure_identity("Agg_BabyJane", label)
     ai.ensure_health_initialized()
     ai.set_editor_property("bUseBrain", True)
-    # bAlwaysSeePlayer is BlueprintReadOnly (debug-only omniscience switch) - leave it
-    # false. Default CanPerceivePlayer() already does real distance + sight-cone + LOS
-    # trace via TryAcquireTargetFromPerception(), which is the correct behaviour for a
-    # playable arena: enemies engage once the player is actually in range and in view.
+    # Hostile on sight without a scripted AttackOnSightLabels entry. Real PIE players are
+    # GameMode-spawned (engine labels like ShockPlayer_C_0) — label matching cannot work.
+    # bAlwaysSeePlayer is BlueprintReadOnly and only widens CanPerceivePlayer; it does not
+    # bypass the label/aggro gate. bHostileToAnyPlayer is the authoring flag for arenas.
+    ai.set_editor_property("bHostileToAnyPlayer", True)
 
     weapon = None
     if has_weapon and weapon_cls:

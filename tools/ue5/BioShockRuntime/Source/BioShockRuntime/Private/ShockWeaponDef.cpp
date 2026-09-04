@@ -2,9 +2,20 @@
 
 #include "ShockProjectile.h"
 #include "UObject/Package.h"
+#include "UObject/SoftObjectPath.h"
 
 namespace
 {
+/** Content path convention matching import_bioshock into /Game/BioShockWeapons. */
+FSoftObjectPath WeaponMeshPath(const TCHAR* FolderAndAsset)
+{
+	return FSoftObjectPath(FString::Printf(
+		TEXT("/Game/BioShockWeapons/%s/%s.%s"),
+		FolderAndAsset,
+		FolderAndAsset,
+		FolderAndAsset));
+}
+
 void AddAmmoType(
 	UShockWeaponDef* Def,
 	FName AmmoName,
@@ -122,10 +133,14 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("MG Rounds"), 25.0f, EAmmoEffect::None, 150);
 		AddAmmoType(Def, TEXT("Antipersonnel Auto"), 18.0f, EAmmoEffect::AntiPersonnel, 150);
 		AddAmmoType(Def, TEXT("Armor-piercing Auto"), 30.0f, EAmmoEffect::ArmorPiercing, 150);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_TommyGun"));
 	}
 	else if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
 		// weapons-config: mag 10 acc 0 rate 1 reload 1; WrenchAmmo AIBludgeoning 20.
+		// WP_WrenchMesh in ShockGame.U is a plain StaticMesh (no UAPW / SkeletalMesh) — confirmed
+		// ROADMAP Gate 5 / research/context.md. import_bioshock cannot ingest it; MeshAssetPath
+		// stays empty until a StaticMesh→viewmodel path exists. Do not point at a substitute.
 		Def = MakeDef(
 			EWeaponFireMode::Melee,
 			TEXT("Wrench"),
@@ -186,6 +201,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("Pistol Rounds"), 40.0f, EAmmoEffect::None, 48);
 		AddAmmoType(Def, TEXT("Armor-piercing"), 40.0f, EAmmoEffect::ArmorPiercing, 48);
 		AddAmmoType(Def, TEXT("Antipersonnel"), 40.0f, EAmmoEffect::AntiPersonnel, 48);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Pistol"));
 	}
 	else if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
@@ -212,6 +228,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("00 Buck"), 35.0f, EAmmoEffect::None, 24);
 		AddAmmoType(Def, TEXT("Electric Buck"), 35.0f, EAmmoEffect::Electric, 24);
 		AddAmmoType(Def, TEXT("Exploding Buck"), 49.0f, EAmmoEffect::Explosive, 24);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Shotgun"));
 	}
 	else if (
 		Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)
@@ -240,6 +257,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.1f,
 			800.0f, // PLAUSIBLE beam reach
 			EBeamStatus::Burning);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_ChemicalThrower"));
 	}
 	else if (Key.Equals(TEXT("Crossbow"), ESearchCase::IgnoreCase))
 	{
@@ -262,6 +280,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			6000.0f,
 			0.0f,
 			10.0f);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Crossbow"));
 	}
 
 	if (Def)

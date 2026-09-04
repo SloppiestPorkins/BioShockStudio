@@ -129,9 +129,7 @@ void UShockAiArchetypeLibrary::ApplyToAI(ABaseShockAI* AI, const UShockAiArchety
 		{
 			if (USkeletalMeshComponent* Body = AI->GetMesh())
 			{
-				Body->SetSkeletalMesh(MeshAsset);
-				Body->SetHiddenInGame(false);
-				Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				ABaseShockAI::ApplyCombatSkeletalMesh(Body, MeshAsset, /*bDisableMeshCollision*/ true);
 			}
 		}
 	}

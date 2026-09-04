@@ -59,6 +59,46 @@ bool SlotNameLooksRanged(const FString& SlotName)
 	return false;
 }
 
+FName FirstPresentBone(const USkeletalMeshComponent* Body, const TCHAR* const* Names, int32 Count)
+{
+	if (!Body)
+	{
+		return NAME_None;
+	}
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const FName Candidate(Names[i]);
+		if (Body->GetBoneIndex(Candidate) != INDEX_NONE)
+		{
+			return Candidate;
+		}
+	}
+	return NAME_None;
+}
+
+float MeasureMeshUprightDelta(USkeletalMeshComponent* Body)
+{
+	if (!Body || !Body->GetSkeletalMeshAsset())
+	{
+		return 0.0f;
+	}
+
+	static const TCHAR* HeadNames[] = {TEXT("Bip01_Head"), TEXT("Bip01 Head"), TEXT("Head")};
+	static const TCHAR* FootNames[] = {TEXT("Bip01_L_Foot"), TEXT("Bip01_R_Foot"), TEXT("Bip01 L Foot")};
+	const FName HeadBone = FirstPresentBone(Body, HeadNames, UE_ARRAY_COUNT(HeadNames));
+	const FName FootBone = FirstPresentBone(Body, FootNames, UE_ARRAY_COUNT(FootNames));
+	if (HeadBone.IsNone() || FootBone.IsNone())
+	{
+		return 0.0f;
+	}
+
+	Body->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
+	Body->RefreshBoneTransforms();
+	const float HeadZ = Body->GetBoneLocation(HeadBone).Z;
+	const float FootZ = Body->GetBoneLocation(FootBone).Z;
+	return HeadZ - FootZ;
+}
+
 bool ArchetypeHasRangedWeapon(const UShockAiArchetype* Archetype)
 {
 	if (!Archetype)
@@ -976,7 +1016,7 @@ bool ABaseShockAI::TryAcquireTargetFromPerception()
 		const FName PlayerLabel = GetPlayerPerceptionLabel(Player);
 		const bool bLabelMatch = HasAttackOnSightLabel(PlayerLabel);
 		const bool bAggroMatch = bAggroOnDamage && Player == AggroInstigator;
-		if (!bLabelMatch && !bAggroMatch)
+		if (!bLabelMatch && !bAggroMatch && !bHostileToAnyPlayer)
 		{
 			continue;
 		}
@@ -1375,6 +1415,51 @@ void ABaseShockAI::TickCombatFsm(float DeltaSeconds)
 	}
 }
 
+void ABaseShockAI::ApplyCombatSkeletalMesh(
+	USkeletalMeshComponent* Body,
+	USkeletalMesh* MeshAsset,
+	bool bDisableMeshCollision)
+{
+	if (!Body || !MeshAsset)
+	{
+		return;
+	}
+
+	Body->SetSkeletalMesh(MeshAsset);
+	Body->SetHiddenInGame(false);
+	if (bDisableMeshCollision)
+	{
+		// Pre-existing ApplyToAI choice: capsule keeps QueryAndPhysics; mesh is display-only.
+		// Unrelated to orientation — flagged here so it is not "fixed" as part of a mesh-up bug.
+		Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	// ACharacter defaults mesh RelRotation to (0, -90, 0) for the UE mannequin (+Y mesh forward).
+	// BioShock full-body rigs are authored +X forward, +Z up (docs/research/ANIMATION_COORDINATE_SYSTEM.md,
+	// CONFIRMED_BYTES on AggressorBabyJane). Identity maps mesh forward onto character forward.
+	// That is a fixed yaw-convention correction only — it cannot flip up/down. If world-space
+	// head.Z - feet.Z is still large and negative after this, the imported asset itself is inverted;
+	// do not invent a pitch/roll here (a wrong guess looks "less wrong" but is still wrong).
+	Body->SetRelativeRotation(FRotator::ZeroRotator);
+
+	const float UprightDelta = MeasureMeshUprightDelta(Body);
+	if (UprightDelta < -50.0f)
+	{
+		UE_LOG(
+			LogTemp, Warning,
+			TEXT("BIOSHOCK_AI_MESH inverted uprightDelta=%.1f mesh=%s — import/bind pose fault; "
+				 "no compensating pitch/roll applied"),
+			UprightDelta, *MeshAsset->GetName());
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp, Display,
+			TEXT("BIOSHOCK_AI_MESH relRot=Identity uprightDelta=%.1f mesh=%s"),
+			UprightDelta, *MeshAsset->GetName());
+	}
+}
+
 void ABaseShockAI::EnsureCombatMeshAndAnims()
 {
 	if (USkeletalMeshComponent* Body = GetMesh())
@@ -1385,8 +1470,17 @@ void ABaseShockAI::EnsureCombatMeshAndAnims()
 					nullptr,
 					TEXT("/Game/BioShockCharacters/AggressorBabyJane/AggressorBabyJane.AggressorBabyJane")))
 			{
-				Body->SetSkeletalMesh(MeshAsset);
-				Body->SetHiddenInGame(false);
+				ApplyCombatSkeletalMesh(Body, MeshAsset, /*bDisableMeshCollision*/ true);
+			}
+		}
+		else
+		{
+			// Level-serialized actors may already carry the mesh from an earlier assign while
+			// still holding ACharacter's mannequin RelRotation (0, -90, 0). Re-assert Identity.
+			const FRotator Rel = Body->GetRelativeRotation();
+			if (!Rel.Equals(FRotator::ZeroRotator, 0.25f))
+			{
+				Body->SetRelativeRotation(FRotator::ZeroRotator);
 			}
 		}
 	}
@@ -1552,6 +1646,11 @@ FName ABaseShockAI::GetPlayingAnimationNameForVerify() const
 		}
 	}
 	return NAME_None;
+}
+
+float ABaseShockAI::GetMeshUprightDeltaForVerify() const
+{
+	return MeasureMeshUprightDelta(const_cast<USkeletalMeshComponent*>(GetMesh()));
 }
 
 TArray<ABaseShockAI*> ABaseShockAI::CollectLabeled(UWorld* World, FName Label)
