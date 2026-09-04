@@ -83,15 +83,36 @@ void EnableDynamicLighting(UWorld* World)
 		Settings->bForceNoPrecomputedLighting = true;
 	}
 	int32 Converted = 0;
+	int32 RestoredCompiledWorld = 0;
 	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
 	{
-		if (UStaticMeshComponent* Mesh = It->GetStaticMeshComponent())
+		UStaticMeshComponent* Mesh = It->GetStaticMeshComponent();
+		if (!Mesh)
 		{
-			if (Mesh->Mobility == EComponentMobility::Static)
+			continue;
+		}
+		// Keep/restore the CSG level shell as Static. CTF_USE_COMPLEX_AS_SIMPLE collision is only
+		// valid for static shapes (Chaos); a prior lighting pass flipped the shell to Movable,
+		// which made FindFloor miss (hit=0) while WorldStatic line traces still hit.
+		const FString Label = It->GetActorLabel();
+		const UStaticMesh* Asset = Mesh->GetStaticMesh();
+		const FString AssetName = Asset ? Asset->GetName() : FString();
+		const bool bCompiledWorld =
+			Label.Equals(TEXT("compiled world"), ESearchCase::IgnoreCase)
+			|| (AssetName.StartsWith(TEXT("Model")) && AssetName.Contains(TEXT("_")));
+		if (bCompiledWorld)
+		{
+			if (Mesh->Mobility != EComponentMobility::Static)
 			{
-				Mesh->SetMobility(EComponentMobility::Movable);
-				++Converted;
+				Mesh->SetMobility(EComponentMobility::Static);
+				++RestoredCompiledWorld;
 			}
+			continue;
+		}
+		if (Mesh->Mobility == EComponentMobility::Static)
+		{
+			Mesh->SetMobility(EComponentMobility::Movable);
+			++Converted;
 		}
 	}
 
@@ -136,7 +157,13 @@ void EnableDynamicLighting(UWorld* World)
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d fill=%d"), Converted, bHasFill ? 0 : 1);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SLICE_LIGHTING movable=%d restoreCompiled=%d fill=%d"),
+		Converted,
+		RestoredCompiledWorld,
+		bHasFill ? 0 : 1);
 }
 
 void EnsureSliceNavMeshBounds(UWorld* World, const FVector& Center)
@@ -176,6 +203,31 @@ void EnsureSliceNavMeshBounds(UWorld* World, const FVector& Center)
 AShockGameMode::AShockGameMode()
 {
 	DefaultPawnClass = AShockPlayer::StaticClass();
+}
+
+APawn* AShockGameMode::SpawnDefaultPawnAtTransform_Implementation(
+	AController* NewPlayer,
+	const FTransform& SpawnTransform)
+{
+	// AGameModeBase hardcodes AdjustIfPossibleButDontSpawnIfColliding. After volume scales were
+	// corrected, MedicalStart sits inside real BlockingVolume brushes and that path returns
+	// nullptr — PostLogin then never arms -bioshockverifymovement and the process hangs.
+	// SnapPawnToStart is the real placement; spawn must always succeed.
+	UClass* PawnClass = GetDefaultPawnClassForController(NewPlayer);
+	if (!PawnClass)
+	{
+		return nullptr;
+	}
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.Instigator = GetInstigator();
+	Params.ObjectFlags |= RF_Transient;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	return World->SpawnActor<APawn>(PawnClass, SpawnTransform, Params);
 }
 
 AActor* AShockGameMode::ChoosePlayerStart_Implementation(AController* Player)
@@ -274,7 +326,9 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 			if (World->LineTraceSingleByChannel(SnapFloorHit, TraceStart, TraceEnd, ECC_WorldStatic, Params)
 				&& SnapFloorHit.ImpactNormal.Z > 0.5f)
 			{
-				Loc.Z = SnapFloorHit.Location.Z + HalfHeight + 2.0f;
+				// Clearance above the line-hit: complex mesh + capsule radius can still report
+				// start-penetrating at +2uu (FindFloor FloorDist≈-30). Sit a step higher.
+				Loc.Z = SnapFloorHit.Location.Z + HalfHeight + 8.0f;
 				bSnapFloorValid = true;
 			}
 		}
@@ -282,15 +336,35 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 
 	Pawn->SetActorLocationAndRotation(Loc, Rot, false, nullptr, ETeleportType::TeleportPhysics);
 
-	// Diagnostic for -bioshockverifymovement: CMC FindFloor vs the WorldStatic snap trace.
-	// Measured 4 Sept 2026 — line-trace places the pawn, but FindFloor reports hit=0 /
-	// walkable=0 / FloorDist≈-30, and gravity never integrates (vel stays 0 in Falling).
 	if (ACharacter* Character = Cast<ACharacter>(Pawn))
 	{
 		if (UCharacterMovementComponent* Move = Character->GetCharacterMovement())
 		{
+			// Pull out of residual penetration so FindFloor can see a walkable surface. Without
+			// this, CMC stays in MOVE_Falling / jammed and Velocity is zeroed every blocked step.
 			FFindFloorResult FloorCheck;
+			for (int32 Step = 0; Step < 24; ++Step)
+			{
+				Move->FindFloor(Character->GetActorLocation(), FloorCheck, false);
+				if (FloorCheck.bWalkableFloor)
+				{
+					break;
+				}
+				const FVector Raised = Character->GetActorLocation() + FVector(0.0f, 0.0f, 10.0f);
+				Character->SetActorLocation(Raised, false, nullptr, ETeleportType::TeleportPhysics);
+			}
 			Move->FindFloor(Character->GetActorLocation(), FloorCheck, false);
+			if (FloorCheck.bWalkableFloor)
+			{
+				Move->CurrentFloor = FloorCheck;
+				Move->SetMovementMode(MOVE_Walking);
+			}
+			else
+			{
+				Move->SetDefaultMovementMode();
+			}
+			Move->Velocity = FVector::ZeroVector;
+
 			UE_LOG(
 				LogTemp,
 				Display,
@@ -933,12 +1007,13 @@ void AShockGameMode::BeginVerifyMovement(AShockPlayer* Player)
 		static_cast<int32>(Player->GetLocalRole()),
 		Move ? Move->GetMaxSpeed() : -1.0f);
 
-	// Every frame (rate 0), same cadence real AxisMapping input reaches MoveForward.
+	// UE5 FTimerManager ignores Rate<=0 (see InternalSetTimer InRate > 0.f). A rate of 0.0
+	// never armed the drive timer. Use a short positive period so MoveForward reaches CMC.
 	World->GetTimerManager().SetTimer(
 		MovementVerifyDriveTimer,
 		this,
 		&AShockGameMode::TickVerifyMovementDrive,
-		0.0f,
+		0.016f,
 		true);
 	World->GetTimerManager().SetTimer(
 		MovementVerifyFinishTimer,
@@ -1524,6 +1599,16 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 	}
 
 	APawn* Pawn = NewPlayer ? NewPlayer->GetPawn() : nullptr;
+	if (!Pawn && NewPlayer
+		&& (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifymovement"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))))
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=no_pawn_spawned"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
 	if (Pawn && NewPlayer)
 	{
 		if (AActor* Start = ChoosePlayerStart_Implementation(NewPlayer))

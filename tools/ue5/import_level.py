@@ -801,6 +801,24 @@ def _try_set_box_extent(actor, half_extent):
     return False
 
 
+# AVolume's default CubeBuilder is 200uu on a side (local half-extent 100). Scaling the actor
+# by the desired half-extent in uu (e.g. scale=112 for a 112uu half-box) makes BlockingVolumes
+# ~100x too large — solid boxes tens of thousands of uu across that trap the player and zero
+# CMC velocity. Measured 4 Sept 2026 on 1-Medical: scale=(112,60,180) → extent=(11200,6000,18000).
+_DEFAULT_VOLUME_BRUSH_HALF = 100.0
+
+
+def _set_volume_half_extent(actor, half_extent):
+    """Size a spawned volume to the manifest brush bounds, without the 100x scale bug."""
+    if _try_set_box_extent(actor, half_extent):
+        return "box_extent"
+    actor.set_actor_scale3d(unreal.Vector(
+        half_extent.x / _DEFAULT_VOLUME_BRUSH_HALF,
+        half_extent.y / _DEFAULT_VOLUME_BRUSH_HALF,
+        half_extent.z / _DEFAULT_VOLUME_BRUSH_HALF))
+    return "brush_scale"
+
+
 def _volume_tags(entry):
     tags = [unreal.Name(KEY_TAG_PREFIX + entry["key"]),
             unreal.Name("BioShockClass=" + entry.get("className", ""))]
@@ -877,9 +895,9 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
             actor.set_actor_location(center, False, False)
             actor.set_actor_rotation(rotation, False)
 
-        if not _try_set_box_extent(actor, half_extent):
-            # Fallback: scale the actor root when no box component API is exposed.
-            actor.set_actor_scale3d(half_extent)
+        sized = _set_volume_half_extent(actor, half_extent)
+        report["volumeSizeMethod"] = report.get("volumeSizeMethod") or {}
+        report["volumeSizeMethod"][sized] = report["volumeSizeMethod"].get(sized, 0) + 1
 
         actor.set_actor_label(entry.get("label") or entry.get("name") or key)
         actor.tags = _volume_tags(entry)

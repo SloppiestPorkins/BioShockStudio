@@ -265,10 +265,21 @@ def _enable_dynamic_lighting():
         settings.set_editor_property("force_no_precomputed_lighting", True)
 
     movable = 0
+    skipped_compiled = 0
     for actor in import_level._actor_subsystem().get_all_level_actors():
         if not isinstance(actor, unreal.StaticMeshActor):
             continue
         mesh = actor.static_mesh_component
+        label = (actor.get_actor_label() or "").strip().lower()
+        asset = mesh.get_editor_property("static_mesh") if mesh else None
+        asset_name = asset.get_name() if asset else ""
+        # Complex-as-simple shell must stay Static (Chaos). See ShockGameMode::EnableDynamicLighting.
+        if label == "compiled world" or (
+                asset_name.startswith("Model") and "_" in asset_name):
+            if mesh.get_editor_property("mobility") != unreal.ComponentMobility.STATIC:
+                mesh.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+            skipped_compiled += 1
+            continue
         if mesh.get_editor_property("mobility") == unreal.ComponentMobility.STATIC:
             mesh.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
             movable += 1
@@ -300,8 +311,9 @@ def _enable_dynamic_lighting():
                 sky_comp.recapture_sky()
         fill_added = True
 
-    _log("dynamic lighting: movable=%d fill=%s" % (movable, "added" if fill_added else "existing"))
-    return {"movableMeshes": movable, "fillAdded": fill_added}
+    _log("dynamic lighting: movable=%d skipCompiled=%d fill=%s" % (
+        movable, skipped_compiled, "added" if fill_added else "existing"))
+    return {"movableMeshes": movable, "skipCompiled": skipped_compiled, "fillAdded": fill_added}
 
 
 def _parse_maps():

@@ -20,6 +20,10 @@ public:
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 
+	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(
+		AController* NewPlayer,
+		const FTransform& SpawnTransform) override;
+
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 
 	/** Vita-Chamber-style in-place reset after death (default). */

@@ -37,6 +37,16 @@ def _use_complex_collision(mesh):
     return True
 
 
+def _ensure_static_mobility(comp):
+    """Complex-as-simple only works for Static mobility (Chaos)."""
+    if comp is None:
+        return False
+    if comp.get_editor_property("mobility") == unreal.ComponentMobility.STATIC:
+        return False
+    comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+    return True
+
+
 def main():
     report = {"maps": []}
     lvl = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -61,9 +71,15 @@ def main():
             if label != "compiled world" and not _MODEL_ASSET.match(name):
                 continue
             ok = _use_complex_collision(mesh)
+            restored = _ensure_static_mobility(comp)
             if ok:
                 unreal.EditorAssetLibrary.save_loaded_asset(mesh)
-            entry["fixed"].append({"actor": actor.get_actor_label(), "mesh": name, "ok": ok})
+            entry["fixed"].append({
+                "actor": actor.get_actor_label(),
+                "mesh": name,
+                "ok": ok,
+                "restoredStatic": restored,
+            })
 
         lvl.save_current_level()
         report["maps"].append(entry)
