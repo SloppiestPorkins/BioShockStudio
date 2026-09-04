@@ -492,6 +492,41 @@ def _repair_null_texture_parameters(master):
     return repaired
 
 
+def _repair_translucent_opacity_sampler(master):
+    """Give Opacity its own Masks-sampler node on a "translucent" kind master built before that
+    split existed (see _load_or_create_master).
+
+    Detected purely structurally -- no rig/JSON needed -- by Opacity and BaseColor sharing the
+    exact same input node. Sampling that node's Alpha for Opacity is a hard SM5 compile error in
+    this project ("Sampler type is Color, should be Masks"), not a benign warning; confirmed live
+    in-editor on Wall_Leak_diff_shader/reinforcedglass_diffuse_shader (4 Sept 2026), both showing
+    the default checkerboard fallback with that exact error banner on the BaseColor node.
+    """
+    if master is None or not isinstance(master, unreal.Material):
+        return False
+    try:
+        if master.get_editor_property("blend_mode") != unreal.BlendMode.BLEND_TRANSLUCENT:
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    edit = unreal.MaterialEditingLibrary
+    opacity_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY)
+    base_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+    if (not isinstance(opacity_node, unreal.MaterialExpressionTextureSampleParameter2D)
+            or base_node is None or opacity_node.get_name() != base_node.get_name()):
+        return False
+    texture = opacity_node.get_editor_property("texture")
+    opacity_src = edit.create_material_expression(
+        master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
+    opacity_src.set_editor_property("parameter_name", "Opacity")
+    opacity_src.set_editor_property("texture", texture)
+    opacity_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+    edit.connect_material_property(opacity_src, "A", unreal.MaterialProperty.MP_OPACITY)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _material_texture_bindings(material, rig):
     """Resolve texture paths, including class-specific shader slots the JSON may omit."""
     name = material["name"]
@@ -645,6 +680,7 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
+        _repair_translucent_opacity_sampler(existing)
         return existing
 
     factory = unreal.MaterialFactoryNew()
@@ -686,7 +722,18 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         if kind == "mask":
             edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
         elif kind == "translucent":
-            edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY)
+            # Sampling BaseColor's own Alpha output for Opacity reuses a Color-sampler node for a
+            # mask read -- a hard SM5 compile error in this project ("Sampler type is Color,
+            # should be Masks"), not a benign warning; confirmed live in-editor on
+            # Wall_Leak_diff_shader/reinforcedglass_diffuse_shader, 4 Sept 2026 (both fell back to
+            # the default checkerboard material). Give Opacity its own Masks-sampler node reading
+            # the same texture instead of sharing BaseColor's.
+            opacity_src = edit.create_material_expression(
+                master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
+            opacity_src.set_editor_property("parameter_name", "Opacity")
+            opacity_src.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
+            opacity_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+            edit.connect_material_property(opacity_src, "A", unreal.MaterialProperty.MP_OPACITY)
 
     normal = edit.create_material_expression(master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 50)
     normal.set_editor_property("parameter_name", "Normal")
