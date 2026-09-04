@@ -389,10 +389,13 @@ each hardcoded path, then equip TommyGun/Pistol/Crossbow and assert socket name 
 def name, fidget is that weapon's (not always TommyGun), fire clip plays, then
 return to fidget. Shotgun/ChemicalThrower equip without crash (no anim assert).
 
-**4 Sept 2026 — code + verify script landed in this worktree; headless rebuild/
-verify not re-run here** (no live UE session in this worktree). Report:
-`%TEMP%/viewmodel_anims_report.json`. Human confirms socket framing and fire
-timing in the editor afterward.
+**Verified live UE5.7, 4 Sept 2026 — `viewmodel_anims=ok`, 0 failures.** TommyGun/
+Pistol/Crossbow each resolved their own grip socket, own fidget, own fire clip,
+and returned to their own fidget after fire and after reload — not a stale
+TommyGun match. Shotgun/ChemicalThrower equip cleanly with no animation (as
+designed). Report: `%TEMP%/viewmodel_anims_report.json`. Socket framing feel and
+fire timing still worth a human look in PIE, but the state machine itself is
+confirmed correct per-weapon.
 
 ## Starter weapon viewmodel meshes (h3)
 
