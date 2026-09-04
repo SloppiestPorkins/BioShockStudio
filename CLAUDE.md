@@ -3,6 +3,10 @@
 **Read `docs/ENGINEERING_RULES.md` in full before changing anything.** It is the canonical ruleset;
 this file is the entry point, and it is deliberately short so the two cannot drift apart.
 
+**`docs/EFFICIENCY_RULES.md` is the peer document for iteration speed and verification economy** —
+how to not repeat an expensive, unreliable, or unmeasured verification step. `ENGINEERING_RULES.md`
+governs rigor; that one governs not wasting a day proving it slowly.
+
 **Starting a Cursor chat:** do not re-survey the whole repo. Use the pattern in
 `docs/NEXT_SESSION.md` §"How to start in Cursor" — one Gate item named in the first message, Fast
 tier only, claim table before touching shared files. Full rule: `ENGINEERING_RULES.md` §60
@@ -60,4 +64,5 @@ package instead of all 33. Every test class declares its tier and `TierCoverageT
 does not, so nothing can fall out of both tiers and stop running.
 
 Tests read the installed game. Close the app before `dotnet publish` — a running instance locks the
-DLLs. Do not commit unless asked.
+DLLs. Commit small and often, by filename (never `git add -A`) — see `docs/EFFICIENCY_RULES.md` and
+`docs/ENGINEERING_RULES.md` §60's "Do not commit unless asked" entry, superseded 4 Sept 2026.

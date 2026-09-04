@@ -3,13 +3,16 @@
 **This is the canonical copy.** `CLAUDE.md` in the repository root points here and is what an agent
 loads automatically; this file is what it should read in full.
 
-Two other documents carry rules and neither is superseded by this one:
+Three other documents carry rules and none is superseded by this one:
 
 - **`docs/HANDOFF.md` §7 "Working rules"** — the project's own reverse-engineering rules (no
   hypothesis becomes a hardcoded parser; every structure gets a regression test against real bytes;
   confidence labels; fail honestly; correct the record when wrong). §4 "Landmines" is the list of
   things that have already cost real time.
 - **§60 below** — standing instructions the user has given directly, which are not in either.
+- **`docs/EFFICIENCY_RULES.md`** — a different axis from this file's rigor: iteration speed and
+  verification economy, so a change that follows every rule here doesn't still cost ten times what
+  it should by looping on an expensive or unreliable check.
 
 ---
 
@@ -595,8 +598,18 @@ measured: an unrun tier is reported as unrun (see the stamp's own wording), neve
   project's history. A reader is not finished until something has been drawn from it and looked at.
 - **Update `docs/HANDOFF.md` before finishing any substantial task**, including failed approaches.
   If a discovery exists only in chat, it does not exist.
-- **Do not commit unless asked.**
-- **Do not use subagents or workflows unless asked.**
+- ~~**Do not commit unless asked.**~~ **Superseded, 4 Sept 2026.** Stopped matching practice well
+  before it was corrected — 62 commits landed in the first four days of September alone, in small
+  logical units, with no per-commit ask, which is what the user's standing "run the roadmap
+  autonomously" instruction means in practice. Commit small, in logical groups, by filename (never
+  `git add -A`) — the discipline §48 and §61 already ask for. Keep asking only for what's genuinely
+  ambiguous or destructive: a force-push, a history rewrite, a change outside the current task's
+  scope. See `docs/EFFICIENCY_RULES.md` §"Commit as you go, small and often."
+- **Subagents and workflows may be used when they genuinely fit the task** — read-heavy fan-out
+  (surveying a large doc set, cross-checking many files) or delegating a well-scoped, well-evidenced
+  investigation to an external worker (`tools/agents/`). Still ask before spinning up something
+  large or costly the user hasn't clearly invited. See `docs/EFFICIENCY_RULES.md` §"Delegate what's
+  mechanical, keep what needs judgement."
 
 ### Audio — current standing state
 
