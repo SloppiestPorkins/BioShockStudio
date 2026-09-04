@@ -7,17 +7,27 @@ used. Otherwise this exports into %TEMP%/bioshock-h4-aggressor-babyjane via:
 
 Fingerprint reuse cannot keep the inverted asset (`NORMALIZER_AXIS_POLICY` + force).
 
+Mesh-only recovery (skip the 457 animation FBX imports):
+
+  set BIOSHOCK_MESH_ONLY=1
+
+That writes a temp manifest copy with animations=[] under %TEMP% and imports against it; the
+original export cache is not modified. Use after a crash left AggressorBabyJane.uasset bloated —
+import_bioshock deletes the prior mesh/skeleton/physics before reimport.
+
     UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \\
         -script=tools\\ue5\\run_reimport_aggressor_babyjane.py -unattended -nopause -nosplash
 
 Report: %TEMP%/bioshock_reimport_aggressor_babyjane.json
 Then: setup_test_arena.py + run_test_arena_verify.py — uprightDelta must be strongly positive.
+Health check: tools/ue5/verify_aggressor_babyjane_health.py (file size + load seconds).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -88,12 +98,44 @@ def _ensure_export(export_dir):
     return export_dir, True
 
 
+def _mesh_only_export(export_dir):
+    """Copy mesh FBX + a manifest with animations=[] into a temp dir; leave the cache untouched."""
+    out = os.path.join(
+        os.environ.get("TEMP", "."), "bioshock-h6-aggressor-babyjane-mesh-only"
+    )
+    if os.path.isdir(out):
+        shutil.rmtree(out)
+    os.makedirs(out, exist_ok=True)
+
+    shutil.copy2(
+        os.path.join(export_dir, "AggressorBabyJane.fbx"),
+        os.path.join(out, "AggressorBabyJane.fbx"),
+    )
+    textures_src = os.path.join(export_dir, "Textures")
+    if os.path.isdir(textures_src):
+        shutil.copytree(textures_src, os.path.join(out, "Textures"))
+
+    with open(os.path.join(export_dir, "ue5_manifest.json"), "r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    for rig in manifest.get("rigs") or []:
+        rig["animations"] = []
+    with open(os.path.join(out, "ue5_manifest.json"), "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    return out
+
+
 def main():
     export = os.environ.get("BIOSHOCK_BABYJANE_EXPORT", DEFAULT_EXPORT)
+    mesh_only = os.environ.get("BIOSHOCK_MESH_ONLY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     report = {
         "export": export,
         "content_root": CONTENT_ROOT,
         "exported": False,
+        "mesh_only": mesh_only,
         "error": None,
     }
 
@@ -101,7 +143,11 @@ def main():
     report["export"] = export
     report["exported"] = did_export
 
-    # Fingerprint reuse would keep the inverted mesh; this run must rebuild from FBX.
+    if mesh_only:
+        export = _mesh_only_export(export)
+        report["export"] = export
+
+    # Fingerprint reuse would keep the inverted / bloated mesh; this run must rebuild from FBX.
     os.environ["BIOSHOCK_FORCE_IMPORT"] = "1"
 
     import import_bioshock

@@ -657,7 +657,11 @@ void AShockPlayer::ApplyWeaponRecoil()
 	if (AController* C = GetController())
 	{
 		FRotator Rot = C->GetControlRotation();
-		Rot.Pitch = FMath::Clamp(Rot.Pitch - KickDegrees, -89.0f, 89.0f);
+		// ClampAngle (same path as APlayerCameraManager::LimitViewPitch), not raw Clamp.
+		// GetControlRotation().Pitch is often a wrapped equivalent outside [-90, 90] (e.g. 350 for
+		// "-10 looking down"). FMath::Clamp(350 - Kick, -89, 89) snaps straight to +89 (ceiling)
+		// on the first shot; ClampAngle normalizes before limiting.
+		Rot.Pitch = FMath::ClampAngle(Rot.Pitch - KickDegrees, -89.0f, 89.0f);
 		C->SetControlRotation(Rot);
 	}
 
@@ -674,6 +678,34 @@ void AShockPlayer::ApplyWeaponRecoil()
 				0.01f,
 				true);
 		}
+	}
+}
+
+void AShockPlayer::EnsureControllerForVerify()
+{
+	if (!GetController())
+	{
+		SpawnDefaultController();
+	}
+}
+
+float AShockPlayer::GetControlRotationPitchForVerify() const
+{
+	if (const AController* C = GetController())
+	{
+		return C->GetControlRotation().Pitch;
+	}
+	return 0.0f;
+}
+
+void AShockPlayer::SetControlRotationPitchForVerify(float PitchDegrees)
+{
+	EnsureControllerForVerify();
+	if (AController* C = GetController())
+	{
+		FRotator Rot = C->GetControlRotation();
+		Rot.Pitch = PitchDegrees;
+		C->SetControlRotation(Rot);
 	}
 }
 
@@ -697,7 +729,7 @@ void AShockPlayer::AdvanceWeaponRecoilForVerify(float DeltaSeconds)
 	if (AController* C = GetController())
 	{
 		FRotator Rot = C->GetControlRotation();
-		Rot.Pitch = FMath::Clamp(Rot.Pitch + Step, -89.0f, 89.0f);
+		Rot.Pitch = FMath::ClampAngle(Rot.Pitch + Step, -89.0f, 89.0f);
 		C->SetControlRotation(Rot);
 	}
 	WeaponRecoilKickRemaining -= Step;

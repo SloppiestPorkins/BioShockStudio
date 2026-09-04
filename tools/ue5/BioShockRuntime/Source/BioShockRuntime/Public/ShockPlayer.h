@@ -512,6 +512,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	float GetWeaponRecoilKickRemainingForVerify() const { return WeaponRecoilKickRemaining; }
 
+	/** Headless verify: spawn a default controller so ApplyWeaponRecoil can touch ControlRotation. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void EnsureControllerForVerify();
+
+	/** Raw GetControlRotation().Pitch (may be wrapped outside [-90, 90]). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	float GetControlRotationPitchForVerify() const;
+
+	/** Set ControlRotation.Pitch without normalizing — used to reproduce wrapped-pitch recoil. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetControlRotationPitchForVerify(float PitchDegrees);
+
 	/** Headless verify: ease recoil back without real-time wait. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void AdvanceWeaponRecoilForVerify(float DeltaSeconds);

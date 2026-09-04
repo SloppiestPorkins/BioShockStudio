@@ -36,12 +36,11 @@ import subprocess
 import unreal
 
 
-# Prefer the UE5-lane normalizer (Z-up/-Y-front, from h4). CONFIRMED 4 Sept 2026: the
-# animation-import crash (Assertion failed: IntFitsIn<OutType>, UnrealTemplate.h:170,
-# In=2499805188) reproduces identically with BOTH this normalizer and the old tools/blender one
-# -- it is an animation-import bug unrelated to axis normalization. Mesh-only imports (no
-# animations in the manifest) are unaffected by it either way, so this stays pointed at the
-# correct axis fix. See h4-aggressor-babyjane-inverted-import.md and tools/ue5/README.md.
+# Prefer the UE5-lane normalizer (Z-up/-Y-front, from h4). Axis policy is independent of the
+# 4 Sept 2026 IntFitsIn reimport crash (UnrealTemplate.h:170, In=2499805188): that assert fires
+# during mesh AssetImportTask save (InternalPromptForCheckoutAndSave) on atomic reimport over a
+# bloated package — reproduced with Z-up and Y-up normalizers and with animations emptied. See
+# `_delete_existing_mesh_assets` / `_import` and tools/ue5/README.md.
 _NORMALIZER = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "normalize_fbx_for_ue5.py"))
 _DEFAULT_BLENDER = r"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe"
@@ -74,6 +73,8 @@ def _skeletal_mesh_options(uniform_scale=1.0):
     mesh_data.set_editor_property("force_front_x_axis", False)
     mesh_data.set_editor_property("import_morph_targets", False)
     mesh_data.set_editor_property("update_skeleton_reference_pose", False)
+    # SOCKET_* nulls must stay bones-to-be-stripped / restored as sockets, not nested meshes.
+    mesh_data.set_editor_property("import_meshes_in_bone_hierarchy", False)
     # The game ships tangents, binormals and normals per vertex; recomputing them would discard the
     # shading the original meshes were authored with.
     mesh_data.set_editor_property("normal_import_method", unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS_AND_TANGENTS)
@@ -84,6 +85,10 @@ def _skeletal_mesh_options(uniform_scale=1.0):
     options.set_editor_property("import_animations", False)
     options.set_editor_property("import_materials", False)
     options.set_editor_property("import_textures", False)
+    # Auto physics on a first forced reimport of a large character package is unnecessary here
+    # (import_level creates physics when a pawn needs it) and is one less build step on the
+    # headless path that already asserts inside InternalPromptForCheckoutAndSave.
+    options.set_editor_property("create_physics_asset", False)
     options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
     options.set_editor_property("original_import_type", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
     options.set_editor_property("automated_import_should_detect_type", False)
@@ -139,7 +144,11 @@ def _import(filename, destination, options):
     task.set_editor_property("options", options)
     task.set_editor_property("automated", True)
     task.set_editor_property("replace_existing", True)
-    task.set_editor_property("save", True)
+    # save=True routes through InternalPromptForCheckoutAndSave. Under -run=pythonscript that
+    # path is unsafe (texture import already documents the Slate toast assert). On AggressorBabyJane
+    # forced reimport it hung ~9 minutes after a successful 0.12s mesh build, then asserted
+    # IntFitsIn In=2499805188 while still inside ImportAssetTasks. Persist via save_loaded_asset.
+    task.set_editor_property("save", False)
 
     _asset_tools().import_asset_tasks([task])
     return list(task.get_objects())
@@ -807,6 +816,25 @@ def _existed(path):
     return unreal.EditorAssetLibrary.does_asset_exist(path)
 
 
+def _delete_existing_mesh_assets(destination, name):
+    """Delete mesh/skeleton/physics so reimport is a fresh create, not atomic reimport.
+
+    Measured 4 Sept 2026 on AggressorBabyJane: LogEditorFactories 'Performing atomic reimport'
+    then Built Skeletal Mesh [0.12s], then InternalPromptForCheckoutAndSave on the existing
+    ~1.2 GiB package, then IntFitsIn In=2499805188 (~2.33 GiB). Same delete-then-import pattern
+    as fix_compiled_world_materials._reimport_mesh. Animations under destination/Animations are
+    left alone — they re-bind to the new skeleton on the next import pass.
+    """
+    for suffix in ("", "_Skeleton", "_PhysicsAsset", "_Physics"):
+        path = "%s/%s%s" % (destination, name, suffix)
+        if not _existed(path):
+            continue
+        if unreal.EditorAssetLibrary.delete_asset(path):
+            _log("  deleted existing %s before reimport" % path)
+        else:
+            _log("  WARNING: could not delete %s before reimport" % path)
+
+
 def _file_stamp(path):
     if not os.path.isfile(path):
         return None
@@ -968,6 +996,10 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
                 continue
 
         mesh_existed = _existed(f"{destination}/{rig['name']}")
+        if mesh_existed:
+            # Fresh create avoids atomic reimport over a half-written / bloated package.
+            _delete_existing_mesh_assets(destination, rig["name"])
+            mesh_existed = _existed(f"{destination}/{rig['name']}")
 
         mesh_file = os.path.join(export_directory, rig["mesh"])
         if normalize_fbx:
@@ -985,9 +1017,8 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         if skeleton is None:
             _log(f"FAILED to create a Skeleton for {rig['mesh']}; animations skipped")
             continue
-        # AssetImportTask saves its primary returned object, but the legacy FBX factory creates the
-        # companion Skeleton as a secondary object. Persist both explicitly before animations refer
-        # to it, otherwise the mesh/sequence packages can be saved with a dangling skeleton ref.
+        # AssetImportTask no longer saves (see _import); persist mesh + companion Skeleton before
+        # animations refer to it, otherwise packages can be saved with a dangling skeleton ref.
         unreal.EditorAssetLibrary.save_loaded_asset(skeleton)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
         restored_sockets = _restore_manifest_sockets(mesh, rig["sockets"])
@@ -1044,6 +1075,7 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             if animation.get("pairedWith"):
                 tags["BioShockPairedWith"] = animation["pairedWith"]
             _tag(sequence, tags)
+            unreal.EditorAssetLibrary.save_loaded_asset(sequence)
 
         _log(f"  {len(rig['animations'])} animations, {notifies} notifies")
         if rig["undecoded"]:

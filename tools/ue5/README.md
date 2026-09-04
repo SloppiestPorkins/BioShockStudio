@@ -254,6 +254,49 @@ verify report at `%TEMP%/bioshock_test_arena_verify_report.json` still shows -12
 until the three commands above run. Success criterion: uprightDelta strongly
 positive (~196), not merely >0.
 
+## AggressorBabyJane forced-reimport IntFitsIn crash (h6)
+
+Measured three times 4 Sept 2026 (mesh+anims Z-up, mesh+anims Y-up, mesh-only): after
+`Built Skeletal Mesh [0.12s]` the task entered `InternalPromptForCheckoutAndSave` /
+`Saving Package` on the existing asset, hung ~9 minutes, then:
+
+`Assertion failed: IntFitsIn<OutType>(In) … In = 2499805188` (~2.33 GiB)
+
+Still inside `AssetTools.ImportAssetTasks` — **not** animation import and **not** axis
+normalization. The live `AggressorBabyJane.uasset` had ballooned to ~1.2 GiB / ~130s
+load (`verify` probe). FBX sources are normal (~400–500 KB).
+
+Mitigation in `import_bioshock.py` (same pattern as texture import /
+`fix_compiled_world_materials._reimport_mesh`):
+
+1. Delete existing mesh/skeleton/physics before reimport (fresh create, no atomic
+   reimport over the bloated package).
+2. `AssetImportTask.save = False`; persist with `save_loaded_asset` (avoids
+   `InternalPromptForCheckoutAndSave` under `-run=pythonscript`).
+3. `create_physics_asset = False` and `import_meshes_in_bone_hierarchy = False` on
+   skeletal options.
+
+```bash
+# Mesh+skeleton only (fastest recovery path):
+set BIOSHOCK_MESH_ONLY=1
+set BIOSHOCK_REMASTERED_PATH=G:\SteamLibrary\steamapps\common\BioShock Remastered
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_reimport_aggressor_babyjane.py -unattended -nopause -nosplash
+
+# Size + load-time gate:
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\verify_aggressor_babyjane_health.py -unattended -nopause -nosplash
+```
+
+Reports: `%TEMP%/bioshock_reimport_aggressor_babyjane.json`,
+`%TEMP%/bioshock_aggressor_babyjane_health.json`. Healthy: uasset ≪ 50 MiB and load
+≪ 30s. Then drop `BIOSHOCK_MESH_ONLY` and re-run to bring back the 457 animations
+(chunk if a full batch crashes — unconfirmed until mesh recovery lands).
+
+**4 Sept 2026 — code mitigation in this worktree; live reimport not executed here**
+(Shell blocked by the same `rtk hook claude` failure). Re-run the two commands above
+and record sizeMiB / loadSeconds in this section once green.
+
 ## AI combat animations (PlayAnimation by brain ability)
 
 `ABaseShockAI` drives its skeletal mesh with the same raw `PlayAnimation` pattern as
@@ -280,6 +323,34 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 `ShockAIMeleeAttackAbility` active; `Death_StumbleFWD` after lethal damage
 (`ai_animation=ok`). No PIE screenshot visual check — human confirms look in
 editor afterward.
+
+## Weapon recoil ceiling snap (h5)
+
+Live PIE (4 Sept 2026): firing any gun once snapped the camera straight to the
+ceiling. Not the sustained-auto accumulation case already fixed in comments —
+`KickDegrees` is only 0.6°. Root cause: `ApplyWeaponRecoil` used raw
+`FMath::Clamp(Pitch - Kick, -89, 89)` while `GetControlRotation().Pitch` can be a
+wrapped equivalent outside that range (e.g. 350 ≈ looking 10° down). Raw Clamp
+then snaps to +89 on the first call. Fix mirrors `APlayerCameraManager::LimitViewPitch`:
+`FMath::ClampAngle` on kick and recovery. No other fire-path `SetControlRotation`
+writers. `bUseControllerRotationPitch = false` is unrelated (camera still reads
+control rotation via `bUsePawnControlRotation`).
+
+`verify_weapon_feedback.py` now `ensure_controller_for_verify()`s the shooter,
+seeds wrapped pitch 350, fires once, and asserts the normalized pitch delta is
+KickDegrees-sized (fails on the old Clamp; passes after ClampAngle). Report also
+records raw before/after pitch.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_weapon_feedback.py -unattended -nopause -nosplash
+```
+
+**4 Sept 2026 — code + verify script landed in this worktree; headless rebuild/
+verify not re-run here** (agent Shell blocked by Cursor `rtk hook claude` / bash
+conflict). Report: `%TEMP%/weapon_feedback_report.json`. Human confirms feel in
+PIE afterward.
 
 ## Starter weapon viewmodel meshes (h3)
 
