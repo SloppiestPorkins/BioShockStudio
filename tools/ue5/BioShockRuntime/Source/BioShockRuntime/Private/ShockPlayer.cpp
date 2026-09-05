@@ -764,9 +764,23 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	// animate around it, which is what a first-person viewmodel wants anyway. It also makes the
 	// framing offset an actual screen-space placement instead of a value that is only true for an
 	// instant.
-	if (!ActiveGripSocket.IsNone() && ViewHands && ViewHands->GetSkeletalMeshAsset())
+	//
+	// EXCEPT melee: the Wrench swing (Swing_A_Wrench) is meant to arc the wrench across the screen.
+	// Pinning the moving grip socket every frame cancels that arc — the arm flails but the wrench
+	// barely travels ("animation looks wrong"). Pin the hands' root bone (Bip01_Spine) instead so
+	// the whole arm assembly, wrench included, swings relative to a steady body anchor.
+	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
 	{
-		FrameViewmodel(ActiveGripSocket);
+		const bool bMelee = EquippedWeapon
+			&& EquippedWeapon->GetFireMode() == EWeaponFireMode::Melee;
+		if (bMelee && ViewHands->DoesSocketExist(FName(TEXT("Bip01_Spine"))))
+		{
+			FrameViewmodel(FName(TEXT("Bip01_Spine")));
+		}
+		else if (!ActiveGripSocket.IsNone())
+		{
+			FrameViewmodel(ActiveGripSocket);
+		}
 	}
 }
 
