@@ -4,21 +4,6 @@ Writes to %TEMP%/BioShockHudUi/import by default. Uses BioShockStudio.Cli SWF co
 does not reimplement SWF decoding.
 
 Requires BIOSHOCK_REMASTERED_PATH (or a detectable Steam install) and a built CLI.
-
-Icon search (5 Sept 2026 layout pass) — do not re-derive without re-running swf-find:
-  Terms: weapon, plasmid, ammo, cross, hypo, frame, sunburst, compass (+ Reticle, Needle,
-  icon, Health, Eve, HUD_, Med, Cap, …) over HUDPC.swf / PCWeaponSelection.swf /
-  GeneBankPC.swf (and sharedlibrary.swf for named HUD chrome).
-
-  Usable vector export found: HUDPC Needle_Drain (id 130) — research-camera needle, NOT the
-  EVE hypo cap; not wired into the widget.
-
-  Named but empty ImportAssets stubs in HUDPC: PlasmidReticle, *Reticle, iconHolder,
-  HypoCancel, WrenchAmmo.
-
-  sharedlibrary HUD_HealthEve_Cap / HUD_Health_CoverCap / HUD_PlasmidBG / HUD_MedPack /
-  HUD_BioAmmoCircle / HUD_Ammo_Base / HUD_Ret_* / HUD_*Bar_Frame* export as grey Scaleform
-  tag-512 placeholders — blocked; do not import as art.
 """
 
 from __future__ import annotations
@@ -160,43 +145,16 @@ def main(argv=None):
             {"name": "T_Hud_EveArc", "file": "T_Hud_EveArc.png", "srgb": True},
             {"name": "T_Hud_MeterUnderlay", "file": "T_Hud_MeterUnderlay.png", "srgb": True},
         ],
-        "iconSearch": {
-            "date": "2026-09-05",
-            "files": ["HUDPC.swf", "PCWeaponSelection.swf", "GeneBankPC.swf", "sharedlibrary.swf"],
-            "terms": [
-                "weapon", "plasmid", "ammo", "cross", "hypo", "frame", "sunburst", "compass",
-                "Reticle", "Needle", "icon", "Health", "Eve", "HUD_", "Med", "Cap",
-            ],
-            "usableVector": [
-                {
-                    "file": "HUDPC.swf",
-                    "id": 130,
-                    "name": "Needle_Drain",
-                    "note": "research-camera needle silhouette — not the EVE hypo cap; not imported",
-                }
-            ],
-            "blockedTag512OrEmpty": [
-                "HUDPC PlasmidReticle/*Reticle/iconHolder/HypoCancel/WrenchAmmo (empty ImportAssets)",
-                "sharedlibrary HUD_HealthEve_Cap, HUD_Health_CoverCap, HUD_PlasmidBG, HUD_MedPack, "
-                "HUD_BioAmmoCircle, HUD_Ammo_Base, HUD_Ret_*, HUD_*Bar_Frame* (tag-512 grey)",
-            ],
-            "missingNamed": ["sunburst", "compass", "crosshair", "medical"],
-        },
         "blockers": [
             (
-                "sharedlibrary.swf HUD_HealthBar_Frame01..21 and HUD_EveBar_Frame01..21 (plus "
-                "HUD_Ammo_Base*, HUD_HealthEve_Cap, HUD_PlasmidBG, HUD_Ret_*) use Bitmap fills "
-                "backed by Scaleform tag 512 (not classic DefineBits*); export yields grey "
+                "sharedlibrary.swf HUD_HealthBar_Frame01..21 and HUD_EveBar_Frame01..21 use Bitmap "
+                "fills backed by Scaleform tag 512 (not classic DefineBits*); export yields grey "
                 "placeholders until tag-512 decode exists"
             ),
             (
                 "FrozenHealth_DangerBar (id 98) has 20 frames animated via PlaceObject2 ColorTransform "
                 "(not Ratio/morph); export-swf-sprite renders frame 0 only — widget maps health%/eve% "
                 "to UImage opacity"
-            ),
-            (
-                "Weapon / plasmid / medical-cross / hypo-cap icons for the in-game HUD are not "
-                "available as decodable vectors in HUDPC — UShockHudWidget uses UMG Deco stand-ins"
             ),
         ],
     }

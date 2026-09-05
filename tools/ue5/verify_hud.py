@@ -1,9 +1,8 @@
 """Headless verify: player HUD widget shows live health + weapon ammo, updates on damage.
 
 Also requires imported Scaleform textures under /Game/BioShockUI/HUD (see import_hud_ui.py).
-Visual likeness to BioShock's HUD layout (bottom-left arcs / plasmid / ammo cluster) is a
-human PIE check — this script only asserts construction, text/ammo behaviour, viewport add,
-and non-null UImage textures.
+Visual likeness to BioShock's HUD is a human PIE check — this script only asserts construction,
+text updates, viewport add, and non-null UImage textures.
 """
 
 import json
@@ -49,8 +48,7 @@ def main(out):
 
     report["hud"] = "ok" if not failures else "fail"
     report["visual"] = (
-        "headless cannot judge BioShock likeness — confirm bottom-left health/EVE arcs, "
-        "plasmid ring, weapon ammo cluster (no black box) in PIE after import"
+        "headless cannot judge BioShock likeness — confirm health/EVE arcs in PIE after import"
     )
     _write(out, report)
     if failures:

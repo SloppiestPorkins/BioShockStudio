@@ -1,39 +1,5 @@
 # UE5 import bridge
 
-## HUD layout match BioShock 1 PC — 5 Sept 2026
-
-`UShockHudWidget::EnsureWidgetTree` rebuilt to the real PC HUD arrangement (no black
-backing box):
-
-- **Bottom-left:** stacked health (crimson arc + medical-cross cap slot) over EVE (blue arc
-  + hypo cap slot); plasmid Deco ring + EVE-cost numeral inboard/above; weapon cluster
-  (icon slot + mag numeral + reserve `+` + ammo type) to the right of the meters.
-- **Top-left:** objective / map-HUD region text. **Center:** simple crosshair stand-in.
-- Damage flash still tints the health arc/cap; ammo panel still hides when
-  `bEnforceAmmo` is false.
-
-**Icon search (this pass)** — `swf-find` on `HUDPC.swf` / `PCWeaponSelection.swf` /
-`GeneBankPC.swf` (+ `sharedlibrary.swf` for named chrome) for weapon / plasmid / ammo /
-cross / hypo / frame / sunburst / compass (and Reticle, Needle, Cap, HUD_, …):
-
-| Result | Detail |
-|---|---|
-| Usable vector | `HUDPC` `Needle_Drain` (id 130) — research needle, **not** hypo cap; not wired |
-| Empty ImportAssets | `PlasmidReticle`, `*Reticle`, `iconHolder`, `HypoCancel`, `WrenchAmmo` |
-| Tag-512 grey | `sharedlibrary` `HUD_HealthEve_Cap`, `HUD_PlasmidBG`, `HUD_MedPack`, `HUD_BioAmmoCircle`, `HUD_Ammo_Base`, `HUD_Ret_*`, `HUD_*Bar_Frame*` |
-| No named export | sunburst, compass, medical cross |
-
-Cap / plasmid-ring / weapon-icon slots are **UMG Deco stand-ins** until tag-512 decode.
-Arc textures unchanged: `/Game/BioShockUI/HUD/T_Hud_{HealthArc,EveArc,MeterUnderlay}`.
-
-**Verify (measured live UE5.7, 5 Sept 2026):** `rebuild_runtime_fast.ps1 -CleanModule`
-then `run_hud.py` — `Success - 0 error(s)`, `BIOSHOCK_HUD_OK … layout=bioshock_bl`,
-report `%TEMP%/BioShockHudUi/hud_report.json`. Headless asserts construct, non-null arc
-textures, ammo numerals (`50` + `+`), damage health drop, ammo hide for non-enforce
-weapons. **Visual BioShock likeness is a human PIE check** — not claimed headlessly.
-
----
-
 ## HUD reskin with decoded Scaleform art — 5 Sept 2026
 
 `UShockHudWidget` now draws health/EVE with `UImage` textures decoded from BioShock's
