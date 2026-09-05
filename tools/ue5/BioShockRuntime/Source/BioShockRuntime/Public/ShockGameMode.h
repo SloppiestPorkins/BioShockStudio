@@ -2,6 +2,7 @@
 
 #include "GameFramework/GameModeBase.h"
 #include "TimerManager.h"
+#include "ShockStationTypes.h"
 #include "ShockGameMode.generated.h"
 
 class ABaseShockAI;
@@ -11,8 +12,14 @@ class UShockDeathRespawnHandler;
 class UShockHudWidget;
 class UShockPauseMenu;
 class UShockRadialMenu;
+class UShockStationMenu;
 class UShockStatusMenu;
 class UShockWeaponSelectScreen;
+class UShockVendingMenu;
+class UShockGeneBankMenu;
+class UShockUInventMenu;
+class UShockGathererGardenMenu;
+class UShockComboLockMenu;
 
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
@@ -49,6 +56,10 @@ public:
 	/** Off by default — optional FirstAidKit world pickup near the encounter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
 	bool bEnableSlicePickup = false;
+
+	/** Off by default — spawn one of each U5 station (vend/gene/invent/garden/combo) near start. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Slice")
+	bool bEnableSliceStations = false;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Death")
 	void BindPlayerDeathHandling(AShockPlayer* Player, AActor* RespawnStart);
@@ -96,11 +107,13 @@ public:
 	void ForceOpenRadialForCapture(AShockPlayer* Player);
 	void ForceOpenStatusForCapture(AShockPlayer* Player);
 	void ForceOpenPauseForCapture(AShockPlayer* Player);
+	void ForceOpenStationForCapture(AShockPlayer* Player, EShockStationKind Kind);
 
 	UShockRadialMenu* GetPlayerRadial() const { return PlayerRadial; }
 	UShockWeaponSelectScreen* GetPlayerSelectScreen() const { return PlayerSelect; }
 	UShockStatusMenu* GetPlayerStatusMenu() const { return PlayerStatus; }
 	UShockPauseMenu* GetPlayerPauseMenu() const { return PlayerPause; }
+	UShockStationMenu* GetCaptureStationMenu() const { return CaptureStationMenu; }
 
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
@@ -127,6 +140,7 @@ private:
 	void SpawnSliceConsumablePickup(AShockPlayer* Player, AActor* StartSpot, ABaseShockAI* Enemy);
 	void SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* StartSpot);
+	void SpawnSliceStations(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
 	/** -bioshockverifymovement: drive MoveForward for real seconds, log displacement, exit. */
 	void BeginVerifyMovement(AShockPlayer* Player);
@@ -203,4 +217,8 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UShockPauseMenu> PlayerPause;
+
+	/** Transient station widget used by -bioshockshotvend / genebank / invent / garden / combo. */
+	UPROPERTY()
+	TObjectPtr<UShockStationMenu> CaptureStationMenu;
 };

@@ -184,9 +184,16 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player")
 	float GetMaxEve() const { return MaxEve; }
 
-	/** Three plasmid slots (UnrealScript ActivePlasmid array). */
+	/** Plasmid slots (UnrealScript ActivePlasmid array). Gatherer's Garden can grow this. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
 	TArray<TObjectPtr<UShockPlasmid>> EquippedPlasmids;
+
+	/**
+	 * Gene Bank "owned" plasmids (bank storage). EquippedPlasmids are the active slots.
+	 * Gap: no gene-tonic ownership — plasmids only (U5).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
+	TArray<TSubclassOf<UShockPlasmid>> OwnedPlasmidClasses;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player")
 	int32 ActivePlasmidSlot = 0;
@@ -196,6 +203,22 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void ClearAllPlasmids();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void GrantOwnedPlasmid(TSubclassOf<UShockPlasmid> PlasmidClass);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void AddPlasmidSlot();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void IncreaseMaxHealth(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void IncreaseMaxEve(float Amount);
+
+	/** Trace nearby AShockStationBase and open/close its menu (U5). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool TryInteractNearbyStation();
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	UShockPlasmid* GetActivePlasmid() const;
@@ -265,11 +288,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
 	void AddMoney(int32 Amount);
 
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	bool SpendMoney(int32 Amount);
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	int32 GetMoney() const { return PlayerMoney; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
 	void AddAdam(int32 Amount);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	bool SpendAdam(int32 Amount);
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	int32 GetAdam() const { return PlayerAdam; }

@@ -4,6 +4,7 @@
 #include "ShockPlasmid.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
+#include "ShockStationActor.h"
 #include "ShockTurret.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
@@ -1423,6 +1424,82 @@ void AShockPlayer::ClearAllPlasmids()
 	}
 }
 
+void AShockPlayer::GrantOwnedPlasmid(TSubclassOf<UShockPlasmid> PlasmidClass)
+{
+	if (!PlasmidClass)
+	{
+		return;
+	}
+	for (const TSubclassOf<UShockPlasmid>& Existing : OwnedPlasmidClasses)
+	{
+		if (Existing == PlasmidClass)
+		{
+			return;
+		}
+	}
+	OwnedPlasmidClasses.Add(PlasmidClass);
+}
+
+void AShockPlayer::AddPlasmidSlot()
+{
+	EquippedPlasmids.Add(nullptr);
+}
+
+void AShockPlayer::IncreaseMaxHealth(float Amount)
+{
+	if (Amount <= 0.0f)
+	{
+		return;
+	}
+	EnsureHealthInitialized();
+	const float NewMax = GetMaxHealth() + Amount;
+	AuthoredMaxHealth = NewMax;
+	CurrentHealth = FMath::Min(CurrentHealth + Amount, NewMax);
+}
+
+void AShockPlayer::IncreaseMaxEve(float Amount)
+{
+	if (Amount <= 0.0f)
+	{
+		return;
+	}
+	MaxEve += Amount;
+	CurrentEve = FMath::Min(CurrentEve + Amount, MaxEve);
+}
+
+bool AShockPlayer::TryInteractNearbyStation()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	AShockStationBase* Best = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	const FVector Origin = GetActorLocation();
+	for (TActorIterator<AShockStationBase> It(World); It; ++It)
+	{
+		AShockStationBase* Station = *It;
+		if (!Station)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Origin, Station->GetActorLocation());
+		const float Range = Station->InteractRadius;
+		if (DistSq <= Range * Range && DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Station;
+		}
+	}
+	if (!Best)
+	{
+		return false;
+	}
+	return Best->TryInteract(this);
+}
+
 UShockPlasmid* AShockPlayer::GetActivePlasmid() const
 {
 	if (ActivePlasmidSlot < 0 || ActivePlasmidSlot >= EquippedPlasmids.Num())
@@ -1841,12 +1918,40 @@ void AShockPlayer::AddMoney(int32 Amount)
 	}
 }
 
+bool AShockPlayer::SpendMoney(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return true;
+	}
+	if (PlayerMoney < Amount)
+	{
+		return false;
+	}
+	PlayerMoney -= Amount;
+	return true;
+}
+
 void AShockPlayer::AddAdam(int32 Amount)
 {
 	if (Amount > 0)
 	{
 		PlayerAdam += Amount;
 	}
+}
+
+bool AShockPlayer::SpendAdam(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return true;
+	}
+	if (PlayerAdam < Amount)
+	{
+		return false;
+	}
+	PlayerAdam -= Amount;
+	return true;
 }
 
 void AShockPlayer::TryAutoFirstAidAfterDamage()

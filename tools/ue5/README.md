@@ -140,6 +140,37 @@ Content: `/Game/BioShockUI/Status/T_Status_{Tab_*,Panel_*,Nameplate_*,Help_*}` a
 
 ---
 
+## Phase U5 — station UIs (vend / gene / invent / garden / combo) — 5 Sept 2026
+
+`UShockStationMenu` base (Deco frame, `SetGamePaused` on open, Esc closes,
+`ForceOpenForCapture` skips pause) plus:
+
+| Widget | SWF / art | Binding |
+|---|---|---|
+| `UShockVendingMenu` | pausePC 62/740 faces | `TArray<FShockVendItem>` on `AShockStationBase`; buy spends Money; hacked = cheaper + bonus stock |
+| `UShockGeneBankMenu` | GeneBankPC 53/204 | `OwnedPlasmidClasses` ↔ `EquippedPlasmids` equip/unequip. **Gap: no tonic system** |
+| `UShockUInventMenu` | craftingStationPC 334/325 | recipes vs inventory stacks (Glue/Rubber/Screws/Oil). **Gap: no component bag** |
+| `UShockGathererGardenMenu` | PlasmidEquipStation 87/59 | spend ADAM: +MaxHealth, +MaxEve, plasmid slot, buy plasmid |
+| `UShockComboLockMenu` | ComboLockPC 1/15 | 3 dials; correct `Code` unlocks linked `AShockDoor` |
+
+`AShockStationBase::TryInteract` / `AShockPlayer::TryInteractNearbyStation`. Slice flag
+`bEnableSliceStations` spawns one of each near start (like `bEnableSliceTurret`).
+
+```powershell
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: -script=...\run_stations.py
+# regression: run_hud / run_radial / run_status_pause
+# capture: tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+#   -Extra '-bioshockshothud','-bioshockshotvend'
+#   (also -bioshockshotgenebank / invent / garden / combo)
+```
+
+Content: `/Game/BioShockUI/Station/T_Station_{DecoFrame,Vend_*,Gene_*,Invent_*,Garden_*,Combo_*}`.
+
+---
+
 ## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
 
 Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).

@@ -5,12 +5,15 @@
 #include "ShockCarryState.h"
 #include "ShockConsumablePickup.h"
 #include "ShockDeathRespawnHandler.h"
+#include "ShockDoor.h"
 #include "ShockGameInstance.h"
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPauseMenu.h"
 #include "ShockPlayer.h"
 #include "ShockRadialMenu.h"
+#include "ShockStationActor.h"
+#include "ShockStationMenu.h"
 #include "ShockStatusMenu.h"
 #include "ShockWeaponSelectScreen.h"
 #include "ShockElectroBoltPlasmid.h"
@@ -442,6 +445,12 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->EquipPlasmid(UShockInsectSwarmPlasmid::StaticClass(), 4);
 	Player->EquipPlasmid(UShockEnragePlasmid::StaticClass(), 5);
 	Player->ActivePlasmidSlot = 0;
+	Player->GrantOwnedPlasmid(UShockElectroBoltPlasmid::StaticClass());
+	Player->GrantOwnedPlasmid(UShockIncineratePlasmid::StaticClass());
+	Player->GrantOwnedPlasmid(UShockTelekinesisPlasmid::StaticClass());
+	Player->GrantOwnedPlasmid(UShockWinterBlastPlasmid::StaticClass());
+	Player->GrantOwnedPlasmid(UShockInsectSwarmPlasmid::StaticClass());
+	Player->GrantOwnedPlasmid(UShockEnragePlasmid::StaticClass());
 
 	Player->AddStackToInventory(FName(TEXT("FirstAidKit")), 1);
 	Player->AddStackToInventory(FName(TEXT("EveHypo")), 1);
@@ -810,6 +819,7 @@ void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot
 
 	SpawnSliceTurret(Player, StartSpot);
 	SpawnSliceSecurityCamera(Player, StartSpot);
+	SpawnSliceStations(Player, StartSpot);
 }
 
 void AShockGameMode::SpawnSliceTurret(AShockPlayer* Player, AActor* StartSpot)
@@ -912,6 +922,89 @@ void AShockGameMode::SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* Star
 #if WITH_EDITOR
 	Camera->SetActorLabel(TEXT("SliceSecurityCamera"));
 #endif
+}
+
+void AShockGameMode::SpawnSliceStations(AShockPlayer* Player, AActor* StartSpot)
+{
+	if (!bEnableSliceStations || !Player || !StartSpot)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AShockStationBase> It(World); It; ++It)
+	{
+		if (*It && It->Tags.Contains(FName(TEXT("SliceStation"))))
+		{
+			return;
+		}
+	}
+
+	FVector Forward = PlayableStartRotation(StartSpot).Vector();
+	Forward.Z = 0.0f;
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::YAxisVector;
+	}
+	Forward.Normalize();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	const FVector Base = Player->GetActorLocation() + Forward * 350.0f;
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	auto SpawnOne = [&](EShockStationKind Kind, const FVector& Offset, const TCHAR* Label) -> AShockStationBase*
+	{
+		AShockStationBase* Station = World->SpawnActor<AShockStationBase>(
+			AShockStationBase::StaticClass(), Base + Offset, (-Forward).Rotation(), Params);
+		if (!Station)
+		{
+			return nullptr;
+		}
+		Station->StationKind = Kind;
+		Station->StationLabel = FName(Label);
+		Station->Tags.Add(FName(TEXT("SliceStation")));
+#if WITH_EDITOR
+		Station->SetActorLabel(Label);
+#endif
+		return Station;
+	};
+
+	if (AShockStationBase* Vend = SpawnOne(
+			EShockStationKind::Vending, Right * -200.0f, TEXT("SliceVending")))
+	{
+		Vend->ConfigureVendingDefaults(false);
+	}
+	SpawnOne(EShockStationKind::GeneBank, Right * -100.0f, TEXT("SliceGeneBank"));
+	SpawnOne(EShockStationKind::UInvent, FVector::ZeroVector, TEXT("SliceUInvent"));
+	SpawnOne(EShockStationKind::GathererGarden, Right * 100.0f, TEXT("SliceGarden"));
+
+	AShockDoor* ComboDoor = World->SpawnActor<AShockDoor>(
+		AShockDoor::StaticClass(),
+		Base + Right * 280.0f + Forward * 80.0f,
+		(-Forward).Rotation(),
+		Params);
+	if (ComboDoor)
+	{
+		ComboDoor->ConfigureForVerify(FName(TEXT("SliceComboDoor")), true, false);
+		ComboDoor->Tags.Add(FName(TEXT("SliceStation")));
+#if WITH_EDITOR
+		ComboDoor->SetActorLabel(TEXT("SliceComboDoor"));
+#endif
+	}
+	if (AShockStationBase* Lock = SpawnOne(
+			EShockStationKind::ComboLock, Right * 200.0f, TEXT("SliceComboLock")))
+	{
+		Lock->Code = 247;
+		Lock->LinkedDoorLabel = FName(TEXT("SliceComboDoor"));
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SLICE_STATIONS spawned=5"));
 }
 
 void AShockGameMode::VerifySliceEncounter(AShockPlayer* Player)
@@ -1825,6 +1918,92 @@ void AShockGameMode::ForceOpenPauseForCapture(AShockPlayer* Player)
 	PlayerPause->ForceOpenForCapture();
 }
 
+void AShockGameMode::ForceOpenStationForCapture(AShockPlayer* Player, EShockStationKind Kind)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (CaptureStationMenu)
+	{
+		CaptureStationMenu->CloseStationMenu();
+		CaptureStationMenu->RemoveFromParent();
+		CaptureStationMenu = nullptr;
+	}
+
+	UShockStationMenu* Menu = nullptr;
+	switch (Kind)
+	{
+	case EShockStationKind::Vending:
+		Menu = CreateWidget<UShockVendingMenu>(PC, UShockVendingMenu::StaticClass());
+		break;
+	case EShockStationKind::GeneBank:
+		Menu = CreateWidget<UShockGeneBankMenu>(PC, UShockGeneBankMenu::StaticClass());
+		break;
+	case EShockStationKind::UInvent:
+		Menu = CreateWidget<UShockUInventMenu>(PC, UShockUInventMenu::StaticClass());
+		break;
+	case EShockStationKind::GathererGarden:
+		Menu = CreateWidget<UShockGathererGardenMenu>(PC, UShockGathererGardenMenu::StaticClass());
+		break;
+	case EShockStationKind::ComboLock:
+		Menu = CreateWidget<UShockComboLockMenu>(PC, UShockComboLockMenu::StaticClass());
+		break;
+	default:
+		break;
+	}
+	if (!Menu)
+	{
+		return;
+	}
+
+	// Prefer a placed slice station of this kind so stock/code bind correctly.
+	AShockStationBase* Bound = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AShockStationBase> It(World); It; ++It)
+		{
+			if (*It && It->StationKind == Kind)
+			{
+				Bound = *It;
+				break;
+			}
+		}
+	}
+	if (!Bound && Kind == EShockStationKind::Vending && GetWorld())
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Bound = GetWorld()->SpawnActor<AShockStationBase>(
+			AShockStationBase::StaticClass(),
+			Player->GetActorLocation() + FVector(200.0f, 0.0f, 0.0f),
+			FRotator::ZeroRotator,
+			Params);
+		if (Bound)
+		{
+			Bound->ConfigureVendingDefaults(false);
+		}
+	}
+
+	CaptureStationMenu = Menu;
+	Menu->BindDisplayPlayer(Player);
+	if (Bound)
+	{
+		Menu->BindStation(Bound);
+	}
+	if (!Menu->IsInViewport())
+	{
+		Menu->AddToViewport(50);
+	}
+	Menu->ForceOpenForCapture();
+}
+
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 {
 	if (!Player || !Enemy)
@@ -2526,6 +2705,38 @@ void AShockGameMode::TickScreenshotCapture()
 			const bool bForceRadial = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotradial"));
 			const bool bForceStatus = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotstatus"));
 			const bool bForcePause = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotpause"));
+			const bool bForceVend = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotvend"));
+			const bool bForceGene = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotgenebank"));
+			const bool bForceInvent = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotinvent"));
+			const bool bForceGarden = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotgarden"));
+			const bool bForceCombo = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotcombo"));
+			EShockStationKind CaptureStationKind = EShockStationKind::Vending;
+			bool bForceStation = false;
+			if (bForceVend)
+			{
+				CaptureStationKind = EShockStationKind::Vending;
+				bForceStation = true;
+			}
+			else if (bForceGene)
+			{
+				CaptureStationKind = EShockStationKind::GeneBank;
+				bForceStation = true;
+			}
+			else if (bForceInvent)
+			{
+				CaptureStationKind = EShockStationKind::UInvent;
+				bForceStation = true;
+			}
+			else if (bForceGarden)
+			{
+				CaptureStationKind = EShockStationKind::GathererGarden;
+				bForceStation = true;
+			}
+			else if (bForceCombo)
+			{
+				CaptureStationKind = EShockStationKind::ComboLock;
+				bForceStation = true;
+			}
 			if (AShockPlayer* ShotPlayer = Cast<AShockPlayer>(PC->GetPawn()))
 			{
 				if (bForceRadial)
@@ -2539,6 +2750,10 @@ void AShockGameMode::TickScreenshotCapture()
 				if (bForcePause)
 				{
 					ForceOpenPauseForCapture(ShotPlayer);
+				}
+				if (bForceStation)
+				{
+					ForceOpenStationForCapture(ShotPlayer, CaptureStationKind);
 				}
 			}
 			if (PlayerHud)
@@ -2565,6 +2780,11 @@ void AShockGameMode::TickScreenshotCapture()
 					WidgetRenderer.DrawWidget(
 						HudRT, PlayerPause->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
 				}
+				if (bForceStation && CaptureStationMenu && CaptureStationMenu->IsStationOpen())
+				{
+					WidgetRenderer.DrawWidget(
+						HudRT, CaptureStationMenu->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				}
 				FlushRenderingCommands();
 				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));
 				UKismetRenderingLibrary::ExportRenderTarget(
@@ -2572,11 +2792,12 @@ void AShockGameMode::TickScreenshotCapture()
 				UE_LOG(
 					LogTemp,
 					Display,
-					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d status=%d pause=%d"),
+					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d status=%d pause=%d station=%d"),
 					*HudPath,
 					(bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen()) ? 1 : 0,
 					(bForceStatus && PlayerStatus && PlayerStatus->IsStatusOpen()) ? 1 : 0,
-					(bForcePause && PlayerPause && PlayerPause->IsPauseOpen()) ? 1 : 0);
+					(bForcePause && PlayerPause && PlayerPause->IsPauseOpen()) ? 1 : 0,
+					(bForceStation && CaptureStationMenu && CaptureStationMenu->IsStationOpen()) ? 1 : 0);
 			}
 			else
 			{

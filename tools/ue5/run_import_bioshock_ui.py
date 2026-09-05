@@ -1,7 +1,7 @@
 """Headless driver for import_bioshock_ui.py.
 
-Stages HUD/Radial/Status/Pause crops via system Python (Pillow), then imports into
-/Game/BioShockUI/{HUD,Radial,Status,Pause}.
+Stages HUD/Radial/Status/Pause/Station crops via system Python (Pillow), then imports into
+/Game/BioShockUI/{HUD,Radial,Status,Pause,Station}.
 """
 
 import json
@@ -32,6 +32,10 @@ PAUSE_STAGING = os.environ.get(
     "BIOSHOCK_UI_PAUSE_STAGING",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-pause-staging"),
 )
+STATION_STAGING = os.environ.get(
+    "BIOSHOCK_UI_STATION_STAGING",
+    os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-station-staging"),
+)
 EXPORT = os.environ.get(
     "BIOSHOCK_UI_EXPORT",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui"),
@@ -56,6 +60,8 @@ try:
             STATUS_STAGING,
             "--pause-staging",
             PAUSE_STAGING,
+            "--station-staging",
+            STATION_STAGING,
         ],
         capture_output=True,
         text=True,
@@ -72,6 +78,7 @@ try:
         radial_staging_dir=RADIAL_STAGING,
         status_staging_dir=STATUS_STAGING,
         pause_staging_dir=PAUSE_STAGING,
+        station_staging_dir=STATION_STAGING,
         out=OUT,
         prepare_if_needed=False,
     )

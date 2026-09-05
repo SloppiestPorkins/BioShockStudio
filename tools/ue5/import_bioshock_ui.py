@@ -1,9 +1,11 @@
-"""Import real BioShock HUD + Radial + Status + Pause tag-512 art into /Game/BioShockUI.
+"""Import real BioShock HUD + Radial + Status + Pause + Station tag-512 art into /Game/BioShockUI.
 
 Phase U2: HUDPC crops → /Game/BioShockUI/HUD.
 Phase U3: HUDRadial ring + digits → /Game/BioShockUI/Radial.
 Phase U4: mapsPC/ingamemanual/HUDPC help → /Game/BioShockUI/Status;
           pausePC logo/chevrons → /Game/BioShockUI/Pause.
+Phase U5: pausePC Deco/vend faces + GeneBankPC / craftingStationPC /
+          PlasmidEquipStation / ComboLockPC → /Game/BioShockUI/Station.
 PNGs stay outside git.
 
 Prepare (no Unreal):
@@ -25,11 +27,15 @@ CONTENT_FOLDER = "/Game/BioShockUI/HUD"
 RADIAL_CONTENT_FOLDER = "/Game/BioShockUI/Radial"
 STATUS_CONTENT_FOLDER = "/Game/BioShockUI/Status"
 PAUSE_CONTENT_FOLDER = "/Game/BioShockUI/Pause"
+STATION_CONTENT_FOLDER = "/Game/BioShockUI/Station"
 DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
 DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
 DEFAULT_RADIAL_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging")
 DEFAULT_STATUS_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-status-staging")
 DEFAULT_PAUSE_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-pause-staging")
+DEFAULT_STATION_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-station-staging")
+# Optional partial export of station SWFs (orchestrator / manual export-swf-images).
+DEFAULT_STATION_EXPORT = os.path.join(os.environ.get("TEMP", "."), "ui_u5")
 
 # Status tab icons (mapsPC): compass N / ! / tape / ?
 STATUS_TAB_IDS = {
@@ -61,6 +67,20 @@ PAUSE_ART_IDS = {
     "T_Pause_Logo": ("pausePC", 1248),
     "T_Pause_ChevronUp": ("pausePC", 223),
     "T_Pause_ChevronDown": ("pausePC", 228),
+}
+# U5 station chrome — pause Deco frame + vend faces; per-SWF panels for the other four.
+STATION_ART_IDS = {
+    "T_Station_DecoFrame": ("pausePC", 1405),
+    "T_Station_Vend_Face": ("pausePC", 62),
+    "T_Station_Vend_Alt": ("pausePC", 740),
+    "T_Station_Gene_Panel": ("GeneBankPC", 53),
+    "T_Station_Gene_Banner": ("GeneBankPC", 204),
+    "T_Station_Invent_Face": ("craftingStationPC", 334),
+    "T_Station_Invent_Icon": ("craftingStationPC", 325),
+    "T_Station_Garden_Banner": ("PlasmidEquipStation", 87),
+    "T_Station_Garden_Icon": ("PlasmidEquipStation", 59),
+    "T_Station_Combo_Dial": ("ComboLockPC", 1),
+    "T_Station_Combo_Banner": ("ComboLockPC", 15),
 }
 
 # Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
@@ -136,6 +156,79 @@ def _ensure_export(export_root, force=False):
     script = os.path.join(_tools_dir(), "export_all_ui_images.py")
     _log("shelling export_all_ui_images.py -> %s" % export_root)
     subprocess.check_call([sys.executable, script, "--out", export_root], cwd=_repo_root(), env=env)
+
+
+def _resolve_station_png(export_root, movie, image_id, station_export=None):
+    """Find a station bitmap under bioshock-ui or the optional ui_u5 partial export."""
+    candidates = [
+        os.path.join(export_root, movie, "%d.png" % image_id),
+    ]
+    station_export = station_export or os.environ.get(
+        "BIOSHOCK_UI_STATION_EXPORT", DEFAULT_STATION_EXPORT
+    )
+    if station_export:
+        candidates.append(os.path.join(station_export, movie, "%d.png" % image_id))
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def prepare_station_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage pause Deco/vend + GeneBank/craft/garden/combo art for /Game/BioShockUI/Station."""
+    from PIL import Image
+
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_STATION_STAGING", DEFAULT_STATION_STAGING
+    )
+    station_export = os.environ.get("BIOSHOCK_UI_STATION_EXPORT", DEFAULT_STATION_EXPORT)
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+    for asset_name, (movie, image_id) in STATION_ART_IDS.items():
+        src = _resolve_station_png(export_root, movie, image_id, station_export)
+        if not src:
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            continue
+        dst_file = asset_name + ".png"
+        Image.open(src).convert("RGBA").save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": asset_name,
+                "source": "%s/%d.png" % (movie, image_id),
+            }
+        )
+
+    gaps.append(
+        "Gene Bank: no gene-tonic system in BioShockRuntime — menu is plasmids only"
+    )
+    gaps.append(
+        "U-Invent: no dedicated crafting-component inventory — recipes use AShockPlayer "
+        "inventory stacks (Glue/Rubber/Screws/Oil)"
+    )
+    gaps.append(
+        "Gatherer's Garden face art is PlasmidEquipStation banner/icon only "
+        "(SWF has no large machine face); Deco frame = pausePC 1405"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "stationExport": station_export,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": STATION_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "station_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d station textures -> %s" % (len(textures), staging_dir))
+    return manifest
 
 
 def _draw_cross_icon(size=64):
@@ -645,6 +738,7 @@ def main(
     radial_staging_dir=None,
     status_staging_dir=None,
     pause_staging_dir=None,
+    station_staging_dir=None,
     out=None,
     content_folder=CONTENT_FOLDER,
     prepare_if_needed=True,
@@ -661,6 +755,9 @@ def main(
     pause_staging_dir = pause_staging_dir or os.environ.get(
         "BIOSHOCK_UI_PAUSE_STAGING", DEFAULT_PAUSE_STAGING
     )
+    station_staging_dir = station_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_STATION_STAGING", DEFAULT_STATION_STAGING
+    )
     out = out or os.environ.get(
         "BIOSHOCK_UI_IMPORT_OUT",
         os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
@@ -672,10 +769,12 @@ def main(
         "radialStagingDir": radial_staging_dir,
         "statusStagingDir": status_staging_dir,
         "pauseStagingDir": pause_staging_dir,
+        "stationStagingDir": station_staging_dir,
         "contentFolder": content_folder,
         "radialContentFolder": RADIAL_CONTENT_FOLDER,
         "statusContentFolder": STATUS_CONTENT_FOLDER,
         "pauseContentFolder": PAUSE_CONTENT_FOLDER,
+        "stationContentFolder": STATION_CONTENT_FOLDER,
         "imported": {},
         "deleted": [],
         "failures": [],
@@ -687,11 +786,13 @@ def main(
     radial_man = os.path.join(radial_staging_dir, "radial_import_manifest.json")
     status_man = os.path.join(status_staging_dir, "status_import_manifest.json")
     pause_man = os.path.join(pause_staging_dir, "pause_import_manifest.json")
+    station_man = os.path.join(station_staging_dir, "station_import_manifest.json")
     need_prepare = (
         not os.path.isfile(man_path)
         or not os.path.isfile(radial_man)
         or not os.path.isfile(status_man)
         or not os.path.isfile(pause_man)
+        or not os.path.isfile(station_man)
     )
     if prepare_if_needed and need_prepare:
         # Unreal's Python often lacks Pillow — prepare via system py.
@@ -711,6 +812,8 @@ def main(
                 status_staging_dir,
                 "--pause-staging",
                 pause_staging_dir,
+                "--station-staging",
+                station_staging_dir,
             ],
             cwd=_repo_root(),
             capture_output=True,
@@ -735,6 +838,9 @@ def main(
     _import_manifest(
         pause_staging_dir, "pause_import_manifest.json", PAUSE_CONTENT_FOLDER, report
     )
+    _import_manifest(
+        station_staging_dir, "station_import_manifest.json", STATION_CONTENT_FOLDER, report
+    )
 
     report["ok"] = not failures
     _write(out, report)
@@ -758,6 +864,9 @@ def _cli(argv=None):
     parser.add_argument(
         "--pause-staging", default=None, help="staging directory for Pause PNGs"
     )
+    parser.add_argument(
+        "--station-staging", default=None, help="staging directory for Station PNGs"
+    )
     parser.add_argument("--force-export", action="store_true")
     args = parser.parse_args(argv)
     if args.prepare:
@@ -771,6 +880,9 @@ def _cli(argv=None):
         prepare_pause_staging(
             args.export, args.pause_staging, force_export=args.force_export
         )
+        prepare_station_staging(
+            args.export, args.station_staging, force_export=args.force_export
+        )
         return 0
     # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
     main(
@@ -778,6 +890,7 @@ def _cli(argv=None):
         radial_staging_dir=args.radial_staging,
         status_staging_dir=args.status_staging,
         pause_staging_dir=args.pause_staging,
+        station_staging_dir=args.station_staging,
     )
     return 0
 
