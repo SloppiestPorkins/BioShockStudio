@@ -169,8 +169,16 @@ void UShockRadialMenu::EnsureWidgetTree()
 	RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("RadialCanvas"));
 	WidgetTree->RootWidget = RootCanvas;
 
-	// Full-screen dim under the wheel (BioShock hold-to-select backdrop).
+	// Full-screen dim under the wheel (BioShock hold-to-select backdrop). A default UBorder brush
+	// only paints its edges, so give it an explicit filled box brush or the backdrop is invisible.
 	DimOverlay = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("RadialDim"));
+	{
+		FSlateBrush FillBrush;
+		FillBrush.DrawAs = ESlateBrushDrawType::Box;
+		FillBrush.TintColor = FSlateColor(FLinearColor::White);
+		FillBrush.Margin = FMargin(0.5f);
+		DimOverlay->SetBrush(FillBrush);
+	}
 	DimOverlay->SetBrushColor(DimBackdrop());
 	DimOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
 	if (UCanvasPanelSlot* DimSlot = RootCanvas->AddChildToCanvas(DimOverlay))

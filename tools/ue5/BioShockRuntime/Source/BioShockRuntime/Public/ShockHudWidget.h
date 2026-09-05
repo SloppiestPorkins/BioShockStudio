@@ -223,6 +223,9 @@ private:
 	bool bAmmoDigitsVisible = false;
 
 	float LastObservedHealth = -1.0f;
+	// Smoothly-animated fill fractions (-1 = uninitialised, snap on first frame).
+	float DisplayedHealthPct = -1.0f;
+	float DisplayedEvePct = -1.0f;
 	float DamageFlashEndTime = -1.0f;
 	bool bDamageFlashLeft = false;
 	bool bDamageFlashRight = false;

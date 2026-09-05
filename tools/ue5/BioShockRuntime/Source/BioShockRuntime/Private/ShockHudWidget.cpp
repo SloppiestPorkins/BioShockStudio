@@ -40,8 +40,12 @@ constexpr float RefreshIntervalSeconds = 0.1f;
 constexpr float DamageFlashSeconds = 0.35f;
 
 // Slightly under U2b's 560×116 — tucked into the corner like BioShock's HUD.
-constexpr float MeterDisplayWidth = 480.0f;
-constexpr float MeterDisplayHeight = 100.0f;
+// BioShock 1's corner meters are small — roughly a fifth of the screen width, not a third.
+constexpr float MeterDisplayWidth = 230.0f;
+constexpr float MeterDisplayHeight = 48.0f;
+// Fill lerp speed (fraction/second) — the bar drains/fills smoothly toward the real value
+// rather than snapping, like the game.
+constexpr float FillLerpSpeed = 3.5f;
 // Highlight line sits just under the rim (punch tighten in import is the overshoot fix).
 constexpr float FillInsetLeft = 4.0f;
 constexpr float FillInsetTop = 3.0f;
@@ -890,7 +894,14 @@ void UShockHudWidget::RefreshDisplay()
 	LastObservedHealth = Health;
 
 	CachedHealthText = FString::FromInt(FMath::RoundToInt(Health));
-	SetMeterFill(HealthFillBar, HealthFillMID, Health / MaxHealth, HudHealthFill());
+	{
+		const float Target = FMath::Clamp(Health / MaxHealth, 0.0f, 1.0f);
+		const float Step = FMath::Clamp(RefreshIntervalSeconds * FillLerpSpeed, 0.0f, 1.0f);
+		DisplayedHealthPct = DisplayedHealthPct < 0.0f
+			? Target
+			: FMath::FInterpConstantTo(DisplayedHealthPct, Target, 1.0f, Step);
+		SetMeterFill(HealthFillBar, HealthFillMID, DisplayedHealthPct, HudHealthFill());
+	}
 	if (HealthFillHighlight)
 	{
 		HealthFillHighlight->SetVisibility(
@@ -904,7 +915,14 @@ void UShockHudWidget::RefreshDisplay()
 		MaxEve = FMath::Max(Eve, 1.0f);
 	}
 	CachedEveText = FString::Printf(TEXT("EVE %d"), FMath::RoundToInt(Eve));
-	SetMeterFill(EveFillBar, EveFillMID, Eve / MaxEve, HudEveFill());
+	{
+		const float Target = FMath::Clamp(Eve / FMath::Max(MaxEve, 1.0f), 0.0f, 1.0f);
+		const float Step = FMath::Clamp(RefreshIntervalSeconds * FillLerpSpeed, 0.0f, 1.0f);
+		DisplayedEvePct = DisplayedEvePct < 0.0f
+			? Target
+			: FMath::FInterpConstantTo(DisplayedEvePct, Target, 1.0f, Step);
+		SetMeterFill(EveFillBar, EveFillMID, DisplayedEvePct, HudEveFill());
+	}
 	if (EveFillHighlight)
 	{
 		EveFillHighlight->SetVisibility(
