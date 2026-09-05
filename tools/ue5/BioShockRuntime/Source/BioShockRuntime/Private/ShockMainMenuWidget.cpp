@@ -1,5 +1,6 @@
 #include "ShockMainMenuWidget.h"
 
+#include "ShockDecoStyle.h"
 #include "ShockDifficultySelect.h"
 #include "ShockGameInstance.h"
 #include "ShockLoadingScreen.h"
@@ -13,6 +14,9 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -85,6 +89,22 @@ void UShockMainMenuRow::Configure(
 		Chevron->SetVisibility(
 			bPendingSelected ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 	}
+	if (PlateImage)
+	{
+		UShockDecoStyle::ApplyBanner(PlateImage, FVector2D(420.0f, 48.0f));
+		PlateImage->SetColorAndOpacity(
+			bPendingSelected ? FLinearColor(1.15f, 1.1f, 0.95f, 1.0f) : FLinearColor::White);
+	}
+	if (RowButton)
+	{
+		FButtonStyle Clear = RowButton->GetStyle();
+		FSlateBrush None;
+		None.DrawAs = ESlateBrushDrawType::NoDrawType;
+		Clear.SetNormal(None);
+		Clear.SetHovered(None);
+		Clear.SetPressed(None);
+		RowButton->SetStyle(Clear);
+	}
 }
 
 TSharedRef<SWidget> UShockMainMenuRow::RebuildWidget()
@@ -93,6 +113,16 @@ TSharedRef<SWidget> UShockMainMenuRow::RebuildWidget()
 	{
 		RowButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("MainRowButton"));
 		WidgetTree->RootWidget = RowButton;
+
+		RowOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("MainRowOverlay"));
+		PlateImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("MainRowPlate"));
+		UShockDecoStyle::ApplyBanner(PlateImage, FVector2D(420.0f, 48.0f));
+		if (UOverlaySlot* PlateSlot = RowOverlay->AddChildToOverlay(PlateImage))
+		{
+			PlateSlot->SetHorizontalAlignment(HAlign_Fill);
+			PlateSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+
 		RowBox = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("MainRowBox"));
 		Chevron = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("MainChevron"));
 		Chevron->SetDesiredSizeOverride(FVector2D(36.0f, 36.0f));
@@ -111,14 +141,32 @@ TSharedRef<SWidget> UShockMainMenuRow::RebuildWidget()
 		}
 		if (UHorizontalBoxSlot* ChevSlot = RowBox->AddChildToHorizontalBox(Chevron))
 		{
-			ChevSlot->SetPadding(FMargin(4.0f, 2.0f, 12.0f, 2.0f));
+			ChevSlot->SetPadding(FMargin(16.0f, 2.0f, 12.0f, 2.0f));
 			ChevSlot->SetVerticalAlignment(VAlign_Center);
 		}
 		if (UHorizontalBoxSlot* TextSlot = RowBox->AddChildToHorizontalBox(RowText))
 		{
 			TextSlot->SetVerticalAlignment(VAlign_Center);
 		}
-		RowButton->AddChild(RowBox);
+		if (UOverlaySlot* BoxSlot = RowOverlay->AddChildToOverlay(RowBox))
+		{
+			BoxSlot->SetHorizontalAlignment(HAlign_Left);
+			BoxSlot->SetVerticalAlignment(VAlign_Center);
+			BoxSlot->SetPadding(FMargin(8.0f, 4.0f));
+		}
+		USizeBox* RowSize =
+			WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("MainRowSize"));
+		RowSize->SetWidthOverride(420.0f);
+		RowSize->SetHeightOverride(48.0f);
+		RowSize->AddChild(RowOverlay);
+		RowButton->AddChild(RowSize);
+		FButtonStyle Clear = RowButton->GetStyle();
+		FSlateBrush None;
+		None.DrawAs = ESlateBrushDrawType::NoDrawType;
+		Clear.SetNormal(None);
+		Clear.SetHovered(None);
+		Clear.SetPressed(None);
+		RowButton->SetStyle(Clear);
 		RowButton->OnClicked.AddDynamic(this, &UShockMainMenuRow::HandleClicked);
 	}
 	return Super::RebuildWidget();
@@ -185,21 +233,21 @@ void UShockMainMenuWidget::EnsureWidgetTree()
 		return;
 	}
 
-	// Dark Deco gradient stand-in — no still menu plate found in sharedlibrary /
-	// BinkMovies (attractMovie / Bathy_BG are motion loops, not UMG plates).
+	// Dark Deco vignette (GeneBankPC 42 tile) — no still menu plate in sharedlibrary.
 	RootBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MenuRootBorder"));
 	WidgetTree->RootWidget = RootBorder;
-	RootBorder->SetBrushColor(FLinearColor(0.02f, 0.06f, 0.09f, 1.0f));
-	RootBorder->SetPadding(FMargin(48.0f, 40.0f));
+	UShockDecoStyle::ApplyVignetteBackground(RootBorder);
+	RootBorder->SetPadding(FMargin(64.0f, 48.0f, 64.0f, 40.0f));
 
 	RootBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuRoot"));
 	RootBorder->AddChild(RootBox);
 
 	LogoImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("MenuLogo"));
-	LogoImage->SetDesiredSizeOverride(FVector2D(512.0f, 256.0f));
+	LogoImage->SetDesiredSizeOverride(FVector2D(420.0f, 210.0f));
 	if (UVerticalBoxSlot* LogoSlot = RootBox->AddChildToVerticalBox(LogoImage))
 	{
-		LogoSlot->SetHorizontalAlignment(HAlign_Center);
+		// Left-aligned under the logo like BioShock's PC main menu.
+		LogoSlot->SetHorizontalAlignment(HAlign_Left);
 		LogoSlot->SetPadding(FMargin(0.0f, 24.0f, 0.0f, 16.0f));
 	}
 
@@ -210,14 +258,14 @@ void UShockMainMenuWidget::EnsureWidgetTree()
 	TitleFallback->SetVisibility(ESlateVisibility::Collapsed);
 	if (UVerticalBoxSlot* TitleSlot = RootBox->AddChildToVerticalBox(TitleFallback))
 	{
-		TitleSlot->SetHorizontalAlignment(HAlign_Center);
+		TitleSlot->SetHorizontalAlignment(HAlign_Left);
 		TitleSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 24.0f));
 	}
 
 	ListBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuList"));
 	if (UVerticalBoxSlot* ListSlot = RootBox->AddChildToVerticalBox(ListBox))
 	{
-		ListSlot->SetHorizontalAlignment(HAlign_Center);
+		ListSlot->SetHorizontalAlignment(HAlign_Left);
 		ListSlot->SetPadding(FMargin(0.0f, 8.0f));
 	}
 
@@ -235,11 +283,18 @@ void UShockMainMenuWidget::RebuildList()
 	EnsureWidgetTree();
 	EnsureTextures();
 
+	if (RootBorder)
+	{
+		UShockDecoStyle::ApplyVignetteBackground(RootBorder);
+	}
+
 	if (LogoImage)
 	{
 		if (LogoTexture)
 		{
-			LogoImage->SetBrushFromTexture(LogoTexture, true);
+			LogoImage->SetBrushFromTexture(LogoTexture, /*bMatchSize*/ false);
+			LogoImage->SetBrushSize(FVector2D(420.0f, 210.0f));
+			LogoImage->SetDesiredSizeOverride(FVector2D(420.0f, 210.0f));
 			LogoImage->SetVisibility(ESlateVisibility::Visible);
 			if (TitleFallback)
 			{

@@ -1,4 +1,4 @@
-"""Import real BioShock HUD + Radial + Status + Pause + Station + Hacking tag-512 art into /Game/BioShockUI.
+"""Import real BioShock HUD + Radial + Status + Pause + Station + Hacking + Deco tag-512 art into /Game/BioShockUI.
 
 Phase U2: HUDPC crops → /Game/BioShockUI/HUD.
 Phase U3: HUDRadial ring + digits → /Game/BioShockUI/Radial.
@@ -8,6 +8,8 @@ Phase U5: pausePC Deco/vend faces + GeneBankPC / craftingStationPC /
           PlasmidEquipStation / ComboLockPC → /Game/BioShockUI/Station.
 Phase U6: hackingPC bezel / hazard strip / banners / ring → /Game/BioShockUI/Hacking
           (pipe tiles are UMG shapes — vector sprites deferred).
+Phase U8b: shared menu chrome → /Game/BioShockUI/Deco (list buttons, panel,
+          banner, nameplates, slot grid, row plates, scrollbar).
 PNGs stay outside git.
 
 Prepare (no Unreal):
@@ -31,6 +33,7 @@ STATUS_CONTENT_FOLDER = "/Game/BioShockUI/Status"
 PAUSE_CONTENT_FOLDER = "/Game/BioShockUI/Pause"
 STATION_CONTENT_FOLDER = "/Game/BioShockUI/Station"
 HACKING_CONTENT_FOLDER = "/Game/BioShockUI/Hacking"
+DECO_CONTENT_FOLDER = "/Game/BioShockUI/Deco"
 DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
 DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
 DEFAULT_RADIAL_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging")
@@ -38,6 +41,7 @@ DEFAULT_STATUS_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-
 DEFAULT_PAUSE_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-pause-staging")
 DEFAULT_STATION_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-station-staging")
 DEFAULT_HACKING_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hacking-staging")
+DEFAULT_DECO_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-deco-staging")
 # Optional partial export of station SWFs (orchestrator / manual export-swf-images).
 DEFAULT_STATION_EXPORT = os.path.join(os.environ.get("TEMP", "."), "ui_u5")
 DEFAULT_HACKING_EXPORT = os.path.join(os.environ.get("TEMP", "."), "ui_u6")
@@ -98,6 +102,35 @@ HACKING_ART_IDS = {
     "T_Hack_BannerWide": ("hackingPC", 537),
     "T_Hack_BannerPlate": ("hackingPC", 607),
     "T_Hack_Ring": ("hackingPC", 556),
+}
+# U8b shared Deco chrome — list buttons / panel / banner / plates / slot grid.
+# List buttons: pausePC 565/567 (horizontal plates). mapsPC 1845/1840 are square
+# insets — kept as panel accents (T_Deco_ListButtonSquare*); 1383 multi-row sheet deferred.
+DECO_ART_IDS = {
+    "T_Deco_ListButton": ("pausePC", 565),
+    "T_Deco_ListButtonHover": ("pausePC", 567),
+    "T_Deco_ListButtonSquare": ("mapsPC", 1845),
+    "T_Deco_ListButtonSquareHover": ("mapsPC", 1840),
+    "T_Deco_PanelFrame": ("mapsPC", 1811),
+    "T_Deco_PanelFill": ("GeneBankPC", 42),
+    "T_Deco_Nameplate": ("mapsPC", 1773),
+    "T_Deco_NameplateWide": ("mapsPC", 1860),
+    "T_Deco_Banner": ("pausePC", 565),
+    "T_Deco_SlotGrid": ("GeneBankPC", 148),
+    "T_Deco_RowPlate": ("GeneBankPC", 159),
+    "T_Deco_RowPlateAlt": ("GeneBankPC", 30),
+    "T_Deco_Scrollbar": ("mapsPC", 1793),
+}
+# Crop-to-alpha for these (large padded SWF bitmaps) — hand-measured 9-slice lives in C++.
+DECO_CROP_ALPHA = {
+    "T_Deco_ListButton",
+    "T_Deco_ListButtonHover",
+    "T_Deco_ListButtonSquare",
+    "T_Deco_ListButtonSquareHover",
+    "T_Deco_PanelFrame",
+    "T_Deco_Banner",
+    "T_Deco_SlotGrid",
+    "T_Deco_RowPlate",
 }
 
 # Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
@@ -311,6 +344,81 @@ def prepare_hacking_staging(export_root=None, staging_dir=None, force_export=Fal
     with open(man_path, "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
     _log("staged %d hacking textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
+def _crop_to_alpha(image, pad=4, alpha_thresh=8):
+    """Tight crop around non-transparent pixels (SWF bitmaps often ship heavily padded)."""
+    alpha = image.split()[-1]
+    bbox = alpha.point(lambda p: 255 if p > alpha_thresh else 0).getbbox()
+    if not bbox:
+        return image
+    left, top, right, bottom = bbox
+    left = max(0, left - pad)
+    top = max(0, top - pad)
+    right = min(image.width, right + pad)
+    bottom = min(image.height, bottom + pad)
+    return image.crop((left, top, right, bottom))
+
+
+def prepare_deco_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage shared Deco chrome for /Game/BioShockUI/Deco (U8b menu polish)."""
+    from PIL import Image
+
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_DECO_STAGING", DEFAULT_DECO_STAGING
+    )
+    station_export = os.environ.get("BIOSHOCK_UI_STATION_EXPORT", DEFAULT_STATION_EXPORT)
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+    for asset_name, (movie, image_id) in DECO_ART_IDS.items():
+        src = _resolve_station_png(export_root, movie, image_id, station_export)
+        if not src:
+            candidate = os.path.join(export_root, movie, "%d.png" % image_id)
+            src = candidate if os.path.isfile(candidate) else None
+        if not src:
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            continue
+        image = Image.open(src).convert("RGBA")
+        if asset_name in DECO_CROP_ALPHA:
+            image = _crop_to_alpha(image)
+        dst_file = asset_name + ".png"
+        image.save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": asset_name,
+                "source": "%s/%d.png" % (movie, image_id),
+                "cropped": asset_name in DECO_CROP_ALPHA,
+            }
+        )
+
+    gaps.append(
+        "List buttons use pausePC 565/567 (horizontal Deco plates); mapsPC 1845/1840 "
+        "are square insets staged as T_Deco_ListButtonSquare* (pausePC 1383 multi-row "
+        "sheet — single-cell crop deferred)"
+    )
+    gaps.append(
+        "9-slice corner insets are hand-measured in UShockDecoStyle (not SWF tag 12)"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "stationExport": station_export,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": DECO_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "deco_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d deco textures -> %s" % (len(textures), staging_dir))
     return manifest
 
 
@@ -965,6 +1073,7 @@ def main(
     pause_staging_dir=None,
     station_staging_dir=None,
     hacking_staging_dir=None,
+    deco_staging_dir=None,
     out=None,
     content_folder=CONTENT_FOLDER,
     prepare_if_needed=True,
@@ -987,6 +1096,9 @@ def main(
     hacking_staging_dir = hacking_staging_dir or os.environ.get(
         "BIOSHOCK_UI_HACKING_STAGING", DEFAULT_HACKING_STAGING
     )
+    deco_staging_dir = deco_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_DECO_STAGING", DEFAULT_DECO_STAGING
+    )
     out = out or os.environ.get(
         "BIOSHOCK_UI_IMPORT_OUT",
         os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
@@ -1000,12 +1112,14 @@ def main(
         "pauseStagingDir": pause_staging_dir,
         "stationStagingDir": station_staging_dir,
         "hackingStagingDir": hacking_staging_dir,
+        "decoStagingDir": deco_staging_dir,
         "contentFolder": content_folder,
         "radialContentFolder": RADIAL_CONTENT_FOLDER,
         "statusContentFolder": STATUS_CONTENT_FOLDER,
         "pauseContentFolder": PAUSE_CONTENT_FOLDER,
         "stationContentFolder": STATION_CONTENT_FOLDER,
         "hackingContentFolder": HACKING_CONTENT_FOLDER,
+        "decoContentFolder": DECO_CONTENT_FOLDER,
         "imported": {},
         "deleted": [],
         "failures": [],
@@ -1019,12 +1133,14 @@ def main(
     pause_man = os.path.join(pause_staging_dir, "pause_import_manifest.json")
     station_man = os.path.join(station_staging_dir, "station_import_manifest.json")
     hacking_man = os.path.join(hacking_staging_dir, "hacking_import_manifest.json")
+    deco_man = os.path.join(deco_staging_dir, "deco_import_manifest.json")
     need_prepare = (
         not os.path.isfile(man_path)
         or not os.path.isfile(radial_man)
         or not os.path.isfile(status_man)
         or not os.path.isfile(pause_man)
         or not os.path.isfile(station_man)
+        or not os.path.isfile(deco_man)
     )
     if prepare_if_needed and need_prepare:
         # Unreal's Python often lacks Pillow — prepare via system py.
@@ -1048,6 +1164,8 @@ def main(
                 station_staging_dir,
                 "--hacking-staging",
                 hacking_staging_dir,
+                "--deco-staging",
+                deco_staging_dir,
             ],
             cwd=_repo_root(),
             capture_output=True,
@@ -1058,8 +1176,11 @@ def main(
             report["ok"] = False
             _write(out, report)
             raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
-    elif prepare_if_needed and not os.path.isfile(hacking_man):
-        prepare_hacking_staging(export_root, hacking_staging_dir)
+    else:
+        if prepare_if_needed and not os.path.isfile(hacking_man):
+            prepare_hacking_staging(export_root, hacking_staging_dir)
+        if prepare_if_needed and not os.path.isfile(deco_man):
+            prepare_deco_staging(export_root, deco_staging_dir)
 
     _disable_interchange()
     _ensure_dir("/Game/BioShockUI")
@@ -1080,6 +1201,9 @@ def main(
     )
     _import_manifest(
         hacking_staging_dir, "hacking_import_manifest.json", HACKING_CONTENT_FOLDER, report
+    )
+    _import_manifest(
+        deco_staging_dir, "deco_import_manifest.json", DECO_CONTENT_FOLDER, report
     )
 
     report["ok"] = not failures
@@ -1110,6 +1234,9 @@ def _cli(argv=None):
     parser.add_argument(
         "--hacking-staging", default=None, help="staging directory for Hacking PNGs"
     )
+    parser.add_argument(
+        "--deco-staging", default=None, help="staging directory for Deco chrome PNGs"
+    )
     parser.add_argument("--force-export", action="store_true")
     args = parser.parse_args(argv)
     if args.prepare:
@@ -1129,6 +1256,9 @@ def _cli(argv=None):
         prepare_hacking_staging(
             args.export, args.hacking_staging, force_export=args.force_export
         )
+        prepare_deco_staging(
+            args.export, args.deco_staging, force_export=args.force_export
+        )
         return 0
     # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
     main(
@@ -1138,6 +1268,7 @@ def _cli(argv=None):
         pause_staging_dir=args.pause_staging,
         station_staging_dir=args.station_staging,
         hacking_staging_dir=args.hacking_staging,
+        deco_staging_dir=args.deco_staging,
     )
     return 0
 

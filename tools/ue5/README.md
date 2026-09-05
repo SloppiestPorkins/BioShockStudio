@@ -71,6 +71,46 @@ reduces displayed health, weapon cluster shows for melee (ring+name), ammo digit
 
 ---
 
+## Phase U8b — menu / stations Deco chrome — 5 Sept 2026
+
+Shared Art-Deco frame art across pause / status / stations / main menu / save-load /
+difficulty (plain grey UMG boxes replaced).
+
+**`UShockDecoStyle`** — static helper returning configured `FSlateBrush` / `FButtonStyle`
+from `/Game/BioShockUI/Deco/` (staged by `import_bioshock_ui.py`):
+
+| Role | Source | Asset |
+|---|---|---|
+| List button | pausePC 565 / 567 | `T_Deco_ListButton{,Hover}` (9-slice; square 1845/1840 staged as `*Square*`) |
+| Panel frame | mapsPC 1811 | `T_Deco_PanelFrame` |
+| Dark fill / vignette | GeneBankPC 42 | `T_Deco_PanelFill` |
+| Banner | pausePC 565 | `T_Deco_Banner` |
+| Nameplates | mapsPC 1773 / 1860 | `T_Deco_Nameplate{,Wide}` |
+| Slot grid / row plate | GeneBankPC 148 / 159 | `T_Deco_SlotGrid` / `T_Deco_RowPlate` |
+
+**Layout fixes:** station machine face no longer `bMatchSize` (was full-screen); panel
+~900×640 centred with item rows on `159` plates inside. Status pushed below HUD meters
+(`HudClearTopPadding`). Main menu left-aligned list + Deco vignette (not flat teal).
+
+```powershell
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: run_status_pause / run_stations / run_frontend / run_hud / run_radial / run_hacking_minigame
+# capture:
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+  -Extra '-bioshockshothud','-bioshockshotpause'
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+  -Extra '-bioshockshothud','-bioshockshotstatus'
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+  -Extra '-bioshockshothud','-bioshockshotvend'
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockUI/MainMenu
+```
+
+**Verify:** UI headless verifies green. Visual 1:1 = human PIE / capture.
+
+---
+
 ## Phase U8a — HUD + radial polish — 5 Sept 2026
 
 Faithful finish pass on `UShockHudWidget` / `UShockRadialMenu` (toward 1:1 with BioShock 1).

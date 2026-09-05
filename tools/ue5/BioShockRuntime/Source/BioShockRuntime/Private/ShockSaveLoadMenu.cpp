@@ -1,6 +1,7 @@
 #include "ShockSaveLoadMenu.h"
 
 #include "ShockCarryState.h"
+#include "ShockDecoStyle.h"
 #include "ShockGameInstance.h"
 #include "ShockPlayer.h"
 #include "ShockSaveGame.h"
@@ -10,6 +11,9 @@
 #include "Components/Button.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -53,17 +57,32 @@ void UShockSaveLoadSlotRow::Configure(
 	if (TitleText)
 	{
 		TitleText->SetText(FText::FromString(PendingTitle));
-		TitleText->SetColorAndOpacity(bPendingSelected ? SaveGold() : SaveCream());
+		TitleText->SetColorAndOpacity(
+			bPendingEmpty ? UShockDecoStyle::DimColor()
+						  : (bPendingSelected ? SaveGold() : SaveCream()));
 	}
 	if (SubText)
 	{
 		SubText->SetText(FText::FromString(PendingSub));
+		SubText->SetColorAndOpacity(
+			bPendingEmpty ? UShockDecoStyle::EmptySlotTint()
+						  : FLinearColor(0.65f, 0.7f, 0.75f, 1.0f));
 	}
 	if (ThumbBox)
 	{
 		ThumbBox->SetBrushColor(
 			bPendingEmpty ? FLinearColor(0.08f, 0.1f, 0.12f, 1.0f)
 						  : FLinearColor(0.15f, 0.22f, 0.28f, 1.0f));
+	}
+	if (PlateImage)
+	{
+		UShockDecoStyle::ApplyRowPlate(PlateImage, FVector2D(640.0f, 72.0f));
+		PlateImage->SetColorAndOpacity(
+			bPendingEmpty ? UShockDecoStyle::EmptySlotTint() : FLinearColor::White);
+	}
+	if (RowButton)
+	{
+		UShockDecoStyle::ApplyListButtonStyle(RowButton, bPendingSelected && !bPendingEmpty);
 	}
 }
 
@@ -73,6 +92,16 @@ TSharedRef<SWidget> UShockSaveLoadSlotRow::RebuildWidget()
 	{
 		RowButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("SaveRowButton"));
 		WidgetTree->RootWidget = RowButton;
+
+		RowOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("SaveRowOverlay"));
+		PlateImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SavePlate"));
+		UShockDecoStyle::ApplyRowPlate(PlateImage, FVector2D(640.0f, 72.0f));
+		if (UOverlaySlot* PlateSlot = RowOverlay->AddChildToOverlay(PlateImage))
+		{
+			PlateSlot->SetHorizontalAlignment(HAlign_Fill);
+			PlateSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+
 		RowBox = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("SaveRowBox"));
 
 		ThumbBox = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("SaveThumb"));
@@ -105,7 +134,14 @@ TSharedRef<SWidget> UShockSaveLoadSlotRow::RebuildWidget()
 		{
 			TextSlot->SetVerticalAlignment(VAlign_Center);
 		}
-		RowButton->AddChild(RowBox);
+		if (UOverlaySlot* BoxSlot = RowOverlay->AddChildToOverlay(RowBox))
+		{
+			BoxSlot->SetHorizontalAlignment(HAlign_Fill);
+			BoxSlot->SetVerticalAlignment(VAlign_Center);
+			BoxSlot->SetPadding(FMargin(12.0f, 6.0f));
+		}
+		RowButton->AddChild(RowOverlay);
+		UShockDecoStyle::ApplyListButtonStyle(RowButton, bPendingSelected);
 		RowButton->OnClicked.AddDynamic(this, &UShockSaveLoadSlotRow::HandleClicked);
 	}
 	return Super::RebuildWidget();
@@ -179,13 +215,21 @@ void UShockSaveLoadMenu::EnsureWidgetTree()
 	RootColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("SaveRoot"));
 	WidgetTree->RootWidget = RootColumn;
 
+	HeaderBanner = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SaveBanner"));
+	UShockDecoStyle::ApplyBanner(HeaderBanner, FVector2D(420.0f, 88.0f));
+	if (UVerticalBoxSlot* BannerSlot = RootColumn->AddChildToVerticalBox(HeaderBanner))
+	{
+		BannerSlot->SetHorizontalAlignment(HAlign_Center);
+		BannerSlot->SetPadding(FMargin(0.0f, 48.0f, 0.0f, 4.0f));
+	}
+
 	HeaderText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SaveHeader"));
-	HeaderText->SetFont(SaveFont(36, true));
+	HeaderText->SetFont(SaveFont(28, true));
 	HeaderText->SetColorAndOpacity(SaveGold());
 	if (UVerticalBoxSlot* BoxSlot = RootColumn->AddChildToVerticalBox(HeaderText))
 	{
 		BoxSlot->SetHorizontalAlignment(HAlign_Center);
-		BoxSlot->SetPadding(FMargin(0.0f, 48.0f, 0.0f, 24.0f));
+		BoxSlot->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 16.0f));
 	}
 
 	SlotScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("SaveScroll"));
@@ -204,6 +248,7 @@ void UShockSaveLoadMenu::EnsureWidgetTree()
 	BackLabel->SetFont(SaveFont(20, true));
 	BackLabel->SetColorAndOpacity(SaveCream());
 	BackButton->AddChild(BackLabel);
+	UShockDecoStyle::ApplyListButtonStyle(BackButton, false);
 	BackButton->OnClicked.AddDynamic(this, &UShockSaveLoadMenu::OnBackClicked);
 	if (UVerticalBoxSlot* BoxSlot = RootColumn->AddChildToVerticalBox(BackButton))
 	{

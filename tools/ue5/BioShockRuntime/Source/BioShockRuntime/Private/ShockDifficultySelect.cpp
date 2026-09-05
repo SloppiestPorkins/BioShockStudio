@@ -1,5 +1,6 @@
 #include "ShockDifficultySelect.h"
 
+#include "ShockDecoStyle.h"
 #include "ShockGameInstance.h"
 
 #include "Blueprint/WidgetTree.h"
@@ -76,6 +77,10 @@ void UShockDifficultySelectRow::Configure(
 		}
 		Chevron->SetVisibility(bSelected ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 	}
+	if (RowButton)
+	{
+		UShockDecoStyle::ApplyListButtonStyle(RowButton, bPendingSelected);
+	}
 }
 
 TSharedRef<SWidget> UShockDifficultySelectRow::RebuildWidget()
@@ -118,6 +123,7 @@ TSharedRef<SWidget> UShockDifficultySelectRow::RebuildWidget()
 			TextSlot->SetVerticalAlignment(VAlign_Center);
 		}
 		RowButton->AddChild(RowBox);
+		UShockDecoStyle::ApplyListButtonStyle(RowButton, bPendingSelected);
 		RowButton->OnClicked.AddDynamic(this, &UShockDifficultySelectRow::HandleClicked);
 	}
 	return Super::RebuildWidget();
@@ -186,6 +192,7 @@ void UShockDifficultySelect::EnsureWidgetTree()
 	BackLabel->SetFont(DiffFont(20, true));
 	BackLabel->SetColorAndOpacity(DiffCream());
 	BackButton->AddChild(BackLabel);
+	UShockDecoStyle::ApplyListButtonStyle(BackButton, false);
 	BackButton->OnClicked.AddDynamic(this, &UShockDifficultySelect::OnBackClicked);
 	if (UVerticalBoxSlot* BoxSlot = RootColumn->AddChildToVerticalBox(BackButton))
 	{

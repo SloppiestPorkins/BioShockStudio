@@ -1,5 +1,6 @@
 #include "ShockStatusMenu.h"
 
+#include "ShockDecoStyle.h"
 #include "ShockPlayer.h"
 
 #include "Blueprint/WidgetTree.h"
@@ -7,7 +8,11 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/ScrollBox.h"
+#include "Components/SizeBox.h"
+#include "Components/Spacer.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -119,6 +124,7 @@ TSharedRef<SWidget> UShockStatusTabButton::RebuildWidget()
 			LabelSlot->SetPadding(FMargin(2.0f, 0.0f, 2.0f, 4.0f));
 		}
 		TabButton->AddChild(Col);
+		UShockDecoStyle::ApplyListButtonStyle(TabButton, false);
 		TabButton->OnClicked.AddDynamic(this, &UShockStatusTabButton::HandleClicked);
 	}
 	return Super::RebuildWidget();
@@ -229,47 +235,87 @@ void UShockStatusMenu::EnsureWidgetTree()
 	RootColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StatusRoot"));
 	WidgetTree->RootWidget = RootColumn;
 
-	// Short banner — mapsPC panels are square bitmaps; don't let aspect ratio fill the screen.
-	PanelFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StatusPanel"));
-	PanelFrame->SetDesiredSizeOverride(FVector2D(720.0f, 96.0f));
-	if (UVerticalBoxSlot* PanelSlot = RootColumn->AddChildToVerticalBox(PanelFrame))
-	{
-		PanelSlot->SetHorizontalAlignment(HAlign_Center);
-		PanelSlot->SetPadding(FMargin(24.0f, 40.0f, 24.0f, 4.0f));
-	}
+	USpacer* TopClear =
+		WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), TEXT("StatusHudClear"));
+	TopClear->SetSize(FVector2D(1.0f, UShockDecoStyle::HudClearTopPadding));
+	RootColumn->AddChildToVerticalBox(TopClear);
 
 	TabRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StatusTabs"));
 	if (UVerticalBoxSlot* TabSlot = RootColumn->AddChildToVerticalBox(TabRow))
 	{
 		TabSlot->SetHorizontalAlignment(HAlign_Center);
-		TabSlot->SetPadding(FMargin(16.0f, 12.0f));
+		TabSlot->SetPadding(FMargin(16.0f, 0.0f, 16.0f, 8.0f));
 	}
 
+	USizeBox* ContentSize =
+		WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("StatusContentSize"));
+	ContentSize->SetWidthOverride(UShockDecoStyle::StationPanelWidth);
+	ContentSize->SetHeightOverride(520.0f);
+
+	UOverlay* ContentOverlay =
+		WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("StatusContentOverlay"));
+	ContentSize->AddChild(ContentOverlay);
+
+	UImage* PanelFill = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StatusPanelFill"));
+	UShockDecoStyle::ApplyImageBrush(
+		PanelFill,
+		UShockDecoStyle::MakePanelFillBrush(
+			FVector2D(UShockDecoStyle::StationPanelWidth, 520.0f)));
+	if (UOverlaySlot* FillSlot = ContentOverlay->AddChildToOverlay(PanelFill))
+	{
+		FillSlot->SetHorizontalAlignment(HAlign_Fill);
+		FillSlot->SetVerticalAlignment(VAlign_Fill);
+		FillSlot->SetPadding(FMargin(28.0f));
+	}
+
+	PanelFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StatusPanel"));
+	UShockDecoStyle::ApplyPanelFrame(PanelFrame, FVector2D(UShockDecoStyle::StationPanelWidth, 520.0f));
+	if (UOverlaySlot* FrameSlot = ContentOverlay->AddChildToOverlay(PanelFrame))
+	{
+		FrameSlot->SetHorizontalAlignment(HAlign_Fill);
+		FrameSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+
+	UVerticalBox* Inner =
+		WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StatusInner"));
 	Nameplate = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StatusNameplate"));
-	Nameplate->SetDesiredSizeOverride(FVector2D(280.0f, 36.0f));
-	if (UVerticalBoxSlot* PlateSlot = RootColumn->AddChildToVerticalBox(Nameplate))
+	UShockDecoStyle::ApplyNameplate(Nameplate, true, FVector2D(280.0f, 36.0f));
+	if (UVerticalBoxSlot* PlateSlot = Inner->AddChildToVerticalBox(Nameplate))
 	{
 		PlateSlot->SetHorizontalAlignment(HAlign_Center);
-		PlateSlot->SetPadding(FMargin(8.0f, 4.0f));
+		PlateSlot->SetPadding(FMargin(8.0f, 24.0f, 8.0f, 4.0f));
 	}
 
 	TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StatusTitle"));
 	TitleText->SetFont(StatusFont(26, true));
 	TitleText->SetColorAndOpacity(StatusGold());
 	TitleText->SetJustification(ETextJustify::Center);
-	if (UVerticalBoxSlot* TitleSlot = RootColumn->AddChildToVerticalBox(TitleText))
+	if (UVerticalBoxSlot* TitleSlot = Inner->AddChildToVerticalBox(TitleText))
 	{
 		TitleSlot->SetHorizontalAlignment(HAlign_Center);
-		TitleSlot->SetPadding(FMargin(16.0f, 4.0f, 16.0f, 8.0f));
+		TitleSlot->SetPadding(FMargin(16.0f, 0.0f, 16.0f, 8.0f));
 	}
 
 	ContentScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("StatusScroll"));
 	ContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StatusContent"));
 	ContentScroll->AddChild(ContentBox);
-	if (UVerticalBoxSlot* ScrollSlot = RootColumn->AddChildToVerticalBox(ContentScroll))
+	if (UVerticalBoxSlot* ScrollSlot = Inner->AddChildToVerticalBox(ContentScroll))
 	{
-		ScrollSlot->SetPadding(FMargin(64.0f, 8.0f, 64.0f, 40.0f));
+		ScrollSlot->SetPadding(FMargin(48.0f, 8.0f, 48.0f, 32.0f));
 		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+
+	if (UOverlaySlot* InnerSlot = ContentOverlay->AddChildToOverlay(Inner))
+	{
+		InnerSlot->SetHorizontalAlignment(HAlign_Fill);
+		InnerSlot->SetVerticalAlignment(VAlign_Fill);
+		InnerSlot->SetPadding(FMargin(24.0f));
+	}
+
+	if (UVerticalBoxSlot* ContentRootSlot = RootColumn->AddChildToVerticalBox(ContentSize))
+	{
+		ContentRootSlot->SetHorizontalAlignment(HAlign_Center);
+		ContentRootSlot->SetPadding(FMargin(16.0f, 8.0f, 16.0f, 24.0f));
 	}
 }
 
@@ -466,17 +512,14 @@ void UShockStatusMenu::RebuildContent()
 	EnsureWidgetTree();
 	EnsureTextures();
 
-	if (PanelFrame && PanelTexture)
+	if (PanelFrame)
 	{
-		PanelFrame->SetBrushFromTexture(PanelTexture, /*bMatchSize*/ false);
-		PanelFrame->SetBrushSize(FVector2D(720.0f, 96.0f));
-		PanelFrame->SetDesiredSizeOverride(FVector2D(720.0f, 96.0f));
+		UShockDecoStyle::ApplyPanelFrame(
+			PanelFrame, FVector2D(UShockDecoStyle::StationPanelWidth, 520.0f));
 	}
-	if (Nameplate && NameplateTexture)
+	if (Nameplate)
 	{
-		Nameplate->SetBrushFromTexture(NameplateTexture, /*bMatchSize*/ false);
-		Nameplate->SetBrushSize(FVector2D(280.0f, 36.0f));
-		Nameplate->SetDesiredSizeOverride(FVector2D(280.0f, 36.0f));
+		UShockDecoStyle::ApplyNameplate(Nameplate, true, FVector2D(280.0f, 36.0f));
 	}
 	if (TitleText)
 	{

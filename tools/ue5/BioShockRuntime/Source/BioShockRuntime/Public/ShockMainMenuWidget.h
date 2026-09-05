@@ -7,6 +7,7 @@ class UBorder;
 class UButton;
 class UHorizontalBox;
 class UImage;
+class UOverlay;
 class UTextBlock;
 class UVerticalBox;
 class UShockDifficultySelect;
@@ -36,6 +37,12 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> RowButton = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UOverlay> RowOverlay = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PlateImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UHorizontalBox> RowBox = nullptr;

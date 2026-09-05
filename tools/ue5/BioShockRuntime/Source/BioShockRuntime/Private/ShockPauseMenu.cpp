@@ -1,5 +1,6 @@
 #include "ShockPauseMenu.h"
 
+#include "ShockDecoStyle.h"
 #include "ShockPlayer.h"
 #include "ShockSaveLoadMenu.h"
 
@@ -8,6 +9,10 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
+#include "Components/Spacer.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -74,6 +79,23 @@ void UShockPauseMenuRow::Configure(
 		Chevron->SetVisibility(
 			bPendingSelected ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 	}
+	if (PlateImage)
+	{
+		UShockDecoStyle::ApplyBanner(
+			PlateImage, FVector2D(420.0f, bPendingSelected ? 52.0f : 48.0f));
+		PlateImage->SetColorAndOpacity(
+			bPendingSelected ? FLinearColor(1.15f, 1.1f, 0.95f, 1.0f) : FLinearColor::White);
+	}
+	if (RowButton)
+	{
+		FButtonStyle Clear = RowButton->GetStyle();
+		FSlateBrush None;
+		None.DrawAs = ESlateBrushDrawType::NoDrawType;
+		Clear.SetNormal(None);
+		Clear.SetHovered(None);
+		Clear.SetPressed(None);
+		RowButton->SetStyle(Clear);
+	}
 }
 
 TSharedRef<SWidget> UShockPauseMenuRow::RebuildWidget()
@@ -82,6 +104,16 @@ TSharedRef<SWidget> UShockPauseMenuRow::RebuildWidget()
 	{
 		RowButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("PauseRowButton"));
 		WidgetTree->RootWidget = RowButton;
+
+		RowOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("PauseRowOverlay"));
+		PlateImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PauseRowPlate"));
+		UShockDecoStyle::ApplyBanner(PlateImage, FVector2D(420.0f, 48.0f));
+		if (UOverlaySlot* PlateSlot = RowOverlay->AddChildToOverlay(PlateImage))
+		{
+			PlateSlot->SetHorizontalAlignment(HAlign_Fill);
+			PlateSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+
 		RowBox = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("PauseRowBox"));
 		Chevron = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PauseChevron"));
 		Chevron->SetDesiredSizeOverride(FVector2D(36.0f, 36.0f));
@@ -100,14 +132,33 @@ TSharedRef<SWidget> UShockPauseMenuRow::RebuildWidget()
 		}
 		if (UHorizontalBoxSlot* ChevSlot = RowBox->AddChildToHorizontalBox(Chevron))
 		{
-			ChevSlot->SetPadding(FMargin(4.0f, 2.0f, 12.0f, 2.0f));
+			ChevSlot->SetPadding(FMargin(16.0f, 2.0f, 12.0f, 2.0f));
 			ChevSlot->SetVerticalAlignment(VAlign_Center);
 		}
 		if (UHorizontalBoxSlot* TextSlot = RowBox->AddChildToHorizontalBox(RowText))
 		{
 			TextSlot->SetVerticalAlignment(VAlign_Center);
 		}
-		RowButton->AddChild(RowBox);
+		if (UOverlaySlot* BoxSlot = RowOverlay->AddChildToOverlay(RowBox))
+		{
+			BoxSlot->SetHorizontalAlignment(HAlign_Left);
+			BoxSlot->SetVerticalAlignment(VAlign_Center);
+			BoxSlot->SetPadding(FMargin(8.0f, 4.0f));
+		}
+
+		USizeBox* RowSize =
+			WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PauseRowSize"));
+		RowSize->SetWidthOverride(420.0f);
+		RowSize->SetHeightOverride(48.0f);
+		RowSize->AddChild(RowOverlay);
+		RowButton->AddChild(RowSize);
+		FButtonStyle Clear = RowButton->GetStyle();
+		FSlateBrush None;
+		None.DrawAs = ESlateBrushDrawType::NoDrawType;
+		Clear.SetNormal(None);
+		Clear.SetHovered(None);
+		Clear.SetPressed(None);
+		RowButton->SetStyle(Clear);
 		RowButton->OnClicked.AddDynamic(this, &UShockPauseMenuRow::HandleClicked);
 	}
 	return Super::RebuildWidget();
@@ -211,29 +262,52 @@ void UShockPauseMenu::EnsureWidgetTree()
 	RootColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("PauseRoot"));
 	WidgetTree->RootWidget = RootColumn;
 
-	LogoImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PauseLogo"));
-	LogoImage->SetDesiredSizeOverride(FVector2D(512.0f, 256.0f));
-	if (UVerticalBoxSlot* LogoSlot = RootColumn->AddChildToVerticalBox(LogoImage))
-	{
-		LogoSlot->SetHorizontalAlignment(HAlign_Center);
-		LogoSlot->SetPadding(FMargin(24.0f, 36.0f, 24.0f, 8.0f));
-	}
+	// Explicit spacer — Overlay padding is unreliable under FWidgetRenderer captures.
+	USpacer* TopClear =
+		WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), TEXT("PauseHudClear"));
+	TopClear->SetSize(FVector2D(1.0f, UShockDecoStyle::HudClearTopPadding));
+	RootColumn->AddChildToVerticalBox(TopClear);
 
+	BannerImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PauseBanner"));
+	if (UVerticalBoxSlot* BannerSlot = RootColumn->AddChildToVerticalBox(BannerImage))
+	{
+		BannerSlot->SetHorizontalAlignment(HAlign_Center);
+		BannerSlot->SetPadding(FMargin(24.0f, 0.0f, 24.0f, 4.0f));
+	}
+	UShockDecoStyle::ApplyBanner(BannerImage, FVector2D(420.0f, 64.0f));
+
+	// Logo omitted in pause — banner + six Deco rows must fit below HUD clear space.
+
+	UOverlay* StatsOverlay =
+		WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("PauseStatsOverlay"));
+	StatsPlate = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PauseStatsPlate"));
+	UShockDecoStyle::ApplyNameplate(StatsPlate, true, FVector2D(520.0f, 40.0f));
+	if (UOverlaySlot* PlateSlot = StatsOverlay->AddChildToOverlay(StatsPlate))
+	{
+		PlateSlot->SetHorizontalAlignment(HAlign_Center);
+		PlateSlot->SetVerticalAlignment(VAlign_Center);
+	}
 	StatsText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PauseStats"));
-	StatsText->SetFont(PauseFont(18));
+	StatsText->SetFont(PauseFont(16));
 	StatsText->SetColorAndOpacity(PauseCream());
 	StatsText->SetJustification(ETextJustify::Center);
-	if (UVerticalBoxSlot* StatsSlot = RootColumn->AddChildToVerticalBox(StatsText))
+	if (UOverlaySlot* TextOverlaySlot = StatsOverlay->AddChildToOverlay(StatsText))
+	{
+		TextOverlaySlot->SetHorizontalAlignment(HAlign_Center);
+		TextOverlaySlot->SetVerticalAlignment(VAlign_Center);
+		TextOverlaySlot->SetPadding(FMargin(24.0f, 6.0f));
+	}
+	if (UVerticalBoxSlot* StatsSlot = RootColumn->AddChildToVerticalBox(StatsOverlay))
 	{
 		StatsSlot->SetHorizontalAlignment(HAlign_Center);
-		StatsSlot->SetPadding(FMargin(24.0f, 8.0f, 24.0f, 16.0f));
+		StatsSlot->SetPadding(FMargin(24.0f, 6.0f, 24.0f, 8.0f));
 	}
 
 	ListBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("PauseList"));
 	if (UVerticalBoxSlot* ListSlot = RootColumn->AddChildToVerticalBox(ListBox))
 	{
 		ListSlot->SetHorizontalAlignment(HAlign_Center);
-		ListSlot->SetPadding(FMargin(80.0f, 8.0f, 80.0f, 48.0f));
+		ListSlot->SetPadding(FMargin(24.0f, 4.0f, 24.0f, 16.0f));
 	}
 }
 
@@ -306,9 +380,13 @@ void UShockPauseMenu::RebuildList()
 {
 	EnsureWidgetTree();
 	EnsureTextures();
-	if (LogoImage && LogoTexture)
+	if (BannerImage)
 	{
-		LogoImage->SetBrushFromTexture(LogoTexture, true);
+		UShockDecoStyle::ApplyBanner(BannerImage, FVector2D(420.0f, 64.0f));
+	}
+	if (StatsPlate)
+	{
+		UShockDecoStyle::ApplyNameplate(StatsPlate, true, FVector2D(520.0f, 40.0f));
 	}
 	if (!ListBox)
 	{

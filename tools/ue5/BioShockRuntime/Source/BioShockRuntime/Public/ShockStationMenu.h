@@ -10,6 +10,8 @@ class AShockStationBase;
 class UButton;
 class UHorizontalBox;
 class UImage;
+class UOverlay;
+class USizeBox;
 class UTextBlock;
 class UVerticalBox;
 class UShockPlasmid;
@@ -73,10 +75,19 @@ protected:
 	TObjectPtr<UVerticalBox> RootColumn = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> DecoFrame = nullptr;
+	TObjectPtr<USizeBox> PanelSize = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UOverlay> PanelOverlay = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> FaceImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PanelFrame = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> SlotGridImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TitleText = nullptr;
@@ -86,9 +97,6 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> ContentBox = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> DecoTexture = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> FaceTexture = nullptr;

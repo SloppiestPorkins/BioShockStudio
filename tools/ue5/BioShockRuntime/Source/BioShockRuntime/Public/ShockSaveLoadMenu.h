@@ -8,6 +8,7 @@ class UBorder;
 class UButton;
 class UHorizontalBox;
 class UImage;
+class UOverlay;
 class UScrollBox;
 class UTextBlock;
 class UVerticalBox;
@@ -44,6 +45,12 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> RowButton = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UOverlay> RowOverlay = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PlateImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UHorizontalBox> RowBox = nullptr;
@@ -129,6 +136,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> RootColumn = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> HeaderBanner = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> HeaderText = nullptr;

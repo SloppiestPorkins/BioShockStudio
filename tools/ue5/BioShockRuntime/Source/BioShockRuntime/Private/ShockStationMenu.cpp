@@ -1,9 +1,15 @@
 #include "ShockStationMenu.h"
 
+#include "ShockDecoStyle.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
+#include "Components/Button.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -18,24 +24,51 @@
 #include "ShockIncineratePlasmid.h"
 #include "ShockPlayer.h"
 #include "ShockStationActor.h"
+#include "Styling/CoreStyle.h"
 
 FString UShockStationMenu::LastStationsVerifyError;
 
 namespace ShockStationMenuPrivate
 {
+	FSlateFontInfo StationFont(int32 Size, bool bBold = false)
+	{
+		return FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), Size);
+	}
+
 	UTextBlock* MakeLine(UUserWidget* Owner, UVerticalBox* Box, const FString& Text)
 	{
 		if (!Owner || !Owner->WidgetTree || !Box)
 		{
 			return nullptr;
 		}
+
+		UOverlay* Row =
+			Owner->WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), NAME_None);
+		UImage* Plate =
+			Owner->WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), NAME_None);
+		UShockDecoStyle::ApplyRowPlate(Plate, FVector2D(720.0f, 44.0f));
+		if (UOverlaySlot* PlateSlot = Row->AddChildToOverlay(Plate))
+		{
+			PlateSlot->SetHorizontalAlignment(HAlign_Fill);
+			PlateSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+
 		UTextBlock* Line = Owner->WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), NAME_None);
 		Line->SetText(FText::FromString(Text));
-		if (UVerticalBoxSlot* Slot = Box->AddChildToVerticalBox(Line))
+		Line->SetFont(StationFont(16));
+		Line->SetColorAndOpacity(UShockDecoStyle::CreamColor());
+		if (UOverlaySlot* TextSlot = Row->AddChildToOverlay(Line))
 		{
-			Slot->SetPadding(FMargin(8.0f, 4.0f));
-			Slot->SetHorizontalAlignment(HAlign_Left);
+			TextSlot->SetHorizontalAlignment(HAlign_Left);
+			TextSlot->SetVerticalAlignment(VAlign_Center);
+			TextSlot->SetPadding(FMargin(16.0f, 6.0f));
+		}
+
+		if (UVerticalBoxSlot* Slot = Box->AddChildToVerticalBox(Row))
+		{
+			Slot->SetPadding(FMargin(4.0f, 3.0f));
+			Slot->SetHorizontalAlignment(HAlign_Fill);
 		}
 		return Line;
 	}
@@ -83,12 +116,6 @@ AShockStationBase* UShockStationMenu::ResolveStation() const
 
 void UShockStationMenu::EnsureTextures()
 {
-	if (!DecoTexture)
-	{
-		DecoTexture = LoadObject<UTexture2D>(
-			nullptr,
-			TEXT("/Game/BioShockUI/Station/T_Station_DecoFrame.T_Station_DecoFrame"));
-	}
 	if (!FaceTexture)
 	{
 		if (const TCHAR* Path = GetFaceTexturePath())
@@ -100,7 +127,7 @@ void UShockStationMenu::EnsureTextures()
 
 bool UShockStationMenu::HasRequiredTextures() const
 {
-	return DecoTexture != nullptr && FaceTexture != nullptr;
+	return FaceTexture != nullptr;
 }
 
 void UShockStationMenu::EnsureWidgetTree()
@@ -113,42 +140,99 @@ void UShockStationMenu::EnsureWidgetTree()
 	RootColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StationRoot"));
 	WidgetTree->RootWidget = RootColumn;
 
-	DecoFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StationDeco"));
-	DecoFrame->SetDesiredSizeOverride(FVector2D(720.0f, 120.0f));
-	if (UVerticalBoxSlot* DecoSlot = RootColumn->AddChildToVerticalBox(DecoFrame))
+	PanelSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("StationPanelSize"));
+	PanelSize->SetWidthOverride(UShockDecoStyle::StationPanelWidth);
+	PanelSize->SetHeightOverride(UShockDecoStyle::StationPanelHeight);
+	if (UVerticalBoxSlot* PanelSlot = RootColumn->AddChildToVerticalBox(PanelSize))
 	{
-		DecoSlot->SetHorizontalAlignment(HAlign_Center);
-		DecoSlot->SetPadding(FMargin(24.0f, 36.0f, 24.0f, 4.0f));
+		PanelSlot->SetHorizontalAlignment(HAlign_Center);
+		PanelSlot->SetVerticalAlignment(VAlign_Center);
+		PanelSlot->SetPadding(FMargin(24.0f, UShockDecoStyle::HudClearTopPadding, 24.0f, 24.0f));
 	}
 
+	PanelOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("StationPanelOverlay"));
+	PanelSize->AddChild(PanelOverlay);
+
 	FaceImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StationFace"));
-	FaceImage->SetDesiredSizeOverride(FVector2D(256.0f, 256.0f));
-	if (UVerticalBoxSlot* FaceSlot = RootColumn->AddChildToVerticalBox(FaceImage))
+	FaceImage->SetDesiredSizeOverride(
+		FVector2D(UShockDecoStyle::StationPanelWidth, UShockDecoStyle::StationPanelHeight));
+	if (UOverlaySlot* FaceSlot = PanelOverlay->AddChildToOverlay(FaceImage))
 	{
-		FaceSlot->SetHorizontalAlignment(HAlign_Center);
-		FaceSlot->SetPadding(FMargin(8.0f, 4.0f));
+		FaceSlot->SetHorizontalAlignment(HAlign_Fill);
+		FaceSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+
+	UImage* PanelFill = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StationPanelFill"));
+	UShockDecoStyle::ApplyImageBrush(
+		PanelFill,
+		UShockDecoStyle::MakePanelFillBrush(
+			FVector2D(UShockDecoStyle::StationPanelWidth, UShockDecoStyle::StationPanelHeight)));
+	if (UOverlaySlot* FillSlot = PanelOverlay->AddChildToOverlay(PanelFill))
+	{
+		FillSlot->SetHorizontalAlignment(HAlign_Fill);
+		FillSlot->SetVerticalAlignment(VAlign_Fill);
+		FillSlot->SetPadding(FMargin(32.0f));
+	}
+
+	PanelFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StationPanelFrame"));
+	UShockDecoStyle::ApplyPanelFrame(
+		PanelFrame,
+		FVector2D(UShockDecoStyle::StationPanelWidth, UShockDecoStyle::StationPanelHeight));
+	if (UOverlaySlot* FrameSlot = PanelOverlay->AddChildToOverlay(PanelFrame))
+	{
+		FrameSlot->SetHorizontalAlignment(HAlign_Fill);
+		FrameSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+
+	UVerticalBox* Inner =
+		WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StationInner"));
+	if (UOverlaySlot* InnerSlot = PanelOverlay->AddChildToOverlay(Inner))
+	{
+		InnerSlot->SetHorizontalAlignment(HAlign_Fill);
+		InnerSlot->SetVerticalAlignment(VAlign_Fill);
+		InnerSlot->SetPadding(FMargin(36.0f, 28.0f));
 	}
 
 	TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StationTitle"));
 	TitleText->SetText(FText::FromString(GetStationTitle()));
-	if (UVerticalBoxSlot* TitleSlot = RootColumn->AddChildToVerticalBox(TitleText))
+	TitleText->SetFont(ShockStationMenuPrivate::StationFont(22, true));
+	TitleText->SetColorAndOpacity(UShockDecoStyle::GoldColor());
+	if (UVerticalBoxSlot* TitleSlot = Inner->AddChildToVerticalBox(TitleText))
 	{
 		TitleSlot->SetHorizontalAlignment(HAlign_Center);
-		TitleSlot->SetPadding(FMargin(8.0f, 8.0f));
+		TitleSlot->SetPadding(FMargin(8.0f, 4.0f));
 	}
 
 	StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StationStatus"));
-	if (UVerticalBoxSlot* StatusSlot = RootColumn->AddChildToVerticalBox(StatusText))
+	StatusText->SetFont(ShockStationMenuPrivate::StationFont(16));
+	StatusText->SetColorAndOpacity(UShockDecoStyle::CreamColor());
+	if (UVerticalBoxSlot* StatusSlot = Inner->AddChildToVerticalBox(StatusText))
 	{
 		StatusSlot->SetHorizontalAlignment(HAlign_Center);
-		StatusSlot->SetPadding(FMargin(8.0f, 2.0f));
+		StatusSlot->SetPadding(FMargin(8.0f, 2.0f, 8.0f, 8.0f));
+	}
+
+	UHorizontalBox* Body =
+		WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StationBody"));
+	if (UVerticalBoxSlot* BodySlot = Inner->AddChildToVerticalBox(Body))
+	{
+		BodySlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		BodySlot->SetPadding(FMargin(4.0f));
+	}
+
+	SlotGridImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("StationSlotGrid"));
+	UShockDecoStyle::ApplySlotGrid(SlotGridImage, FVector2D(220.0f, 280.0f));
+	if (UHorizontalBoxSlot* GridSlot = Body->AddChildToHorizontalBox(SlotGridImage))
+	{
+		GridSlot->SetPadding(FMargin(4.0f, 4.0f, 12.0f, 4.0f));
+		GridSlot->SetVerticalAlignment(VAlign_Top);
 	}
 
 	ContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StationContent"));
-	if (UVerticalBoxSlot* ContentSlot = RootColumn->AddChildToVerticalBox(ContentBox))
+	if (UHorizontalBoxSlot* ContentSlot = Body->AddChildToHorizontalBox(ContentBox))
 	{
-		ContentSlot->SetHorizontalAlignment(HAlign_Center);
-		ContentSlot->SetPadding(FMargin(16.0f, 8.0f));
+		ContentSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		ContentSlot->SetPadding(FMargin(4.0f));
 	}
 }
 
@@ -195,13 +279,23 @@ void UShockStationMenu::RebuildContent()
 {
 	EnsureWidgetTree();
 	EnsureTextures();
-	if (DecoFrame && DecoTexture)
+	if (PanelFrame)
 	{
-		DecoFrame->SetBrushFromTexture(DecoTexture, true);
+		UShockDecoStyle::ApplyPanelFrame(
+			PanelFrame,
+			FVector2D(UShockDecoStyle::StationPanelWidth, UShockDecoStyle::StationPanelHeight));
+	}
+	if (SlotGridImage)
+	{
+		UShockDecoStyle::ApplySlotGrid(SlotGridImage, FVector2D(220.0f, 280.0f));
 	}
 	if (FaceImage && FaceTexture)
 	{
-		FaceImage->SetBrushFromTexture(FaceTexture, true);
+		// Never bMatchSize — native SWF faces are huge and push chrome off-screen.
+		FaceImage->SetBrushFromTexture(FaceTexture, /*bMatchSize*/ false);
+		FaceImage->SetDesiredSizeOverride(
+			FVector2D(UShockDecoStyle::StationPanelWidth, UShockDecoStyle::StationPanelHeight));
+		FaceImage->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.45f));
 	}
 	if (TitleText)
 	{

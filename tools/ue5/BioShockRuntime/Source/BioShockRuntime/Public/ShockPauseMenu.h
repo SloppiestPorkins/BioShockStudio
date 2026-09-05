@@ -7,6 +7,7 @@ class AShockPlayer;
 class UButton;
 class UHorizontalBox;
 class UImage;
+class UOverlay;
 class UTextBlock;
 class UVerticalBox;
 class UShockPauseMenu;
@@ -33,6 +34,12 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> RowButton = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UOverlay> RowOverlay = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PlateImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UHorizontalBox> RowBox = nullptr;
@@ -142,7 +149,13 @@ private:
 	TObjectPtr<UVerticalBox> RootColumn = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> BannerImage = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImage> LogoImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> StatsPlate = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> StatsText = nullptr;

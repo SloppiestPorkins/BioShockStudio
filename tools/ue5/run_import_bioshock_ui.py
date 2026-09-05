@@ -1,7 +1,7 @@
 """Headless driver for import_bioshock_ui.py.
 
-Stages HUD/Radial/Status/Pause/Station/Hacking crops via system Python (Pillow), then
-imports into /Game/BioShockUI/{HUD,Radial,Status,Pause,Station,Hacking}.
+Stages HUD/Radial/Status/Pause/Station/Hacking/Deco crops via system Python (Pillow),
+then imports into /Game/BioShockUI/{HUD,Radial,Status,Pause,Station,Hacking,Deco}.
 """
 
 import json
@@ -40,6 +40,10 @@ HACKING_STAGING = os.environ.get(
     "BIOSHOCK_UI_HACKING_STAGING",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hacking-staging"),
 )
+DECO_STAGING = os.environ.get(
+    "BIOSHOCK_UI_DECO_STAGING",
+    os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-deco-staging"),
+)
 EXPORT = os.environ.get(
     "BIOSHOCK_UI_EXPORT",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui"),
@@ -68,6 +72,8 @@ try:
             STATION_STAGING,
             "--hacking-staging",
             HACKING_STAGING,
+            "--deco-staging",
+            DECO_STAGING,
         ],
         capture_output=True,
         text=True,
@@ -86,6 +92,7 @@ try:
         pause_staging_dir=PAUSE_STAGING,
         station_staging_dir=STATION_STAGING,
         hacking_staging_dir=HACKING_STAGING,
+        deco_staging_dir=DECO_STAGING,
         out=OUT,
         prepare_if_needed=False,
     )
