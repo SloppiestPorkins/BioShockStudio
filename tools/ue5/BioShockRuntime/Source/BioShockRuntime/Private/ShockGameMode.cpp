@@ -49,8 +49,10 @@
 #include "Misc/Paths.h"
 #include "Engine/SceneCapture2D.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Engine/Canvas.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "Slate/WidgetRenderer.h"
 #include "Camera/PlayerCameraManager.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavMesh/RecastNavMesh.h"
@@ -2261,6 +2263,32 @@ void AShockGameMode::TickScreenshotCapture()
 
 		UKismetRenderingLibrary::ExportRenderTarget(
 			CaptureWorld, Target, FPaths::GetPath(Path), FPaths::GetCleanFilename(Path));
+
+		// -bioshockshothud also writes <name>_hud.png: the live HUD widget rasterised on its own
+		// (mid-grey ground so transparent widget regions read). The SceneCapture2D above renders
+		// only the 3D scene and never the Slate/UMG layer, so a UI phase can't be judged from the
+		// plain capture.
+		if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshothud")))
+		{
+			EnsureHudForPlayer(PC);
+			if (PlayerHud)
+			{
+				FWidgetRenderer WidgetRenderer(/*bUseGammaCorrection*/ true);
+				UTextureRenderTarget2D* HudRT = UKismetRenderingLibrary::CreateRenderTarget2D(
+					CaptureWorld, ShotW, ShotH, RTF_RGBA8);
+				HudRT->ClearColor = FLinearColor(0.25f, 0.25f, 0.25f, 1.0f);
+				WidgetRenderer.DrawWidget(HudRT, PlayerHud->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				FlushRenderingCommands();
+				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));
+				UKismetRenderingLibrary::ExportRenderTarget(
+					CaptureWorld, HudRT, FPaths::GetPath(HudPath), FPaths::GetCleanFilename(HudPath));
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_HUD path=%s"), *HudPath);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_SHOT_HUD no_hud_widget"));
+			}
+		}
 		UE_LOG(
 			LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_REQUEST path=%s %dx%d"), *Path, ShotW, ShotH);
 

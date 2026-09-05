@@ -6,10 +6,13 @@
 class AShockPlayer;
 class AShockWeapon;
 class UBorder;
+class UHorizontalBox;
 class UImage;
+class UOverlay;
+class USizeBox;
 class UTextBlock;
 
-/** In-game HUD: health/EVE arcs from decoded Scaleform art + ammo text. C++ tree, no designer asset. */
+/** In-game HUD: upper-left health/EVE meters from real Scaleform art + weapon/plasmid clusters. */
 UCLASS()
 class BIOSHOCKRUNTIME_API UShockHudWidget : public UUserWidget
 {
@@ -46,13 +49,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
 
-	/** True when the health-arc UImage has a non-null Texture2D brush (after import_hud_ui). */
+	/** True when the health meter frame UImage has a non-null Texture2D brush (after import_bioshock_ui). */
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
-	bool HasHealthArcTexture() const;
+	bool HasHealthMeterFrame() const;
 
-	/** True when the EVE-arc UImage has a non-null Texture2D brush (after import_hud_ui). */
+	/** True when the EVE meter frame UImage has a non-null Texture2D brush. */
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
-	bool HasEveArcTexture() const;
+	bool HasEveMeterFrame() const;
+
+	/** True when at least one HUD digit glyph texture resolved. */
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	bool HasDigitTextures() const;
 
 	/** Editor/headless: spawn player+weapon, create HUD, assert text + textures + viewport, damage + re-assert. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|HUD")
@@ -72,52 +79,112 @@ private:
 	void RefreshDisplay();
 	AShockPlayer* ResolvePlayer() const;
 	AShockWeapon* ResolveEquippedWeapon(AShockPlayer* Player) const;
-	void SetHealthTextColor(const FLinearColor& Color);
-	void SetMeterImageOpacity(UImage* Image, float Percent) const;
-
+	void SetMeterFill(USizeBox* FillSize, UImage* FillImage, float Percent, const FLinearColor& Tint) const;
+	void SetDigitString(UHorizontalBox* Box, const TArray<TObjectPtr<UImage>>& Slots, const FString& Digits, float Scale) const;
+	void ApplyDamageFlashVisuals(bool bFlashing);
 	void EnsureRefreshTimer();
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> MeterUnderlayImage = nullptr;
+	TObjectPtr<UImage> HealthMeterFrame = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> HealthArcImage = nullptr;
+	TObjectPtr<USizeBox> HealthFillSize = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> HealthText = nullptr;
+	TObjectPtr<UImage> HealthFillImage = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> EveArcImage = nullptr;
+	TObjectPtr<UImage> HealthCapIcon = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EveText = nullptr;
+	TObjectPtr<UTextBlock> KitCountText = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> ConsumablesText = nullptr;
+	TObjectPtr<UImage> EveMeterFrame = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USizeBox> EveFillSize = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> EveFillImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> EveCapIcon = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> HypoCountText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ToastText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> CrosshairImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> VignetteImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> DamageFlashLeft = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> DamageFlashRight = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> DamageFlashTop = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> DamageFlashBottom = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PlasmidRingImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PlasmidText = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> AmmoMagText = nullptr;
+	TObjectPtr<UBorder> AmmoPanel = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> WeaponRingImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AmmoWeaponNameText = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> AmmoReserveText = nullptr;
+	TObjectPtr<UHorizontalBox> AmmoMagDigits = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UBorder> AmmoPanel = nullptr;
+	TArray<TObjectPtr<UImage>> AmmoMagDigitImages;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> HealthArcTexture = nullptr;
+	TObjectPtr<UHorizontalBox> AmmoReserveDigits = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> EveArcTexture = nullptr;
+	TArray<TObjectPtr<UImage>> AmmoReserveDigitImages;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> MeterUnderlayTexture = nullptr;
+	TObjectPtr<UTextBlock> AmmoReservePrefixText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MeterFrameTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> FillWhiteTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> BrassRingTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> VignetteTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> CrossIconTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> HypoIconTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> DigitTextures[10];
 
 	FString CachedHealthText;
 	FString CachedEveText;

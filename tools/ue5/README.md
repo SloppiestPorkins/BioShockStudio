@@ -19,50 +19,47 @@ DefineButton2. Fast tests: `SwfBitmapReaderTests` (HUDPC → 14 bitmaps).
 
 ---
 
-## HUD reskin with decoded Scaleform art — 5 Sept 2026
+## Phase U2 — real HUD art + BioShock layout — 5 Sept 2026
 
-`UShockHudWidget` now draws health/EVE with `UImage` textures decoded from BioShock's
-FlashMovies (not plain `UProgressBar`s). Ammo stays `UTextBlock`.
+`UShockHudWidget` rebuilt to BioShock 1's layout: health/EVE **upper-left** (stacked) in the
+rusted pill frames from `HUDPC` atlas id 86; weapon cluster lower-right (brass ring + HUDRadial
+digit glyphs); plasmid lower-left; center crosshair; top-center toast slot; bottom vignette
+(id 177); screen-edge red damage flash. Stale h21 arcs (`T_Hud_HealthArc` / `EveArc` /
+`MeterUnderlay`) deleted on import.
 
-**Art found**
+**Art wired**
 
 | Role | Source | Notes |
 |---|---|---|
-| Health arc | `HUDPC.swf` `FrozenHealth_DangerBar` (id 98 → shape 96, radial-gradient red) | Confirmed vector render |
-| EVE arc | `HUDPC.swf` unnamed DefineShape3 id 158 (solid blue arc) | Real vector art from the same HUD file |
-| Meter underlay | `HUDPC.swf` unnamed DefineShape3 id 160 | Grey chrome arc behind health |
+| Meter frame | `HUDPC` id 86 crop `(414,20)-(1075,157)` | Long neutral pill; 9-slice margins 68/22/68/22 |
+| Brass ring | `HUDPC` id 8 | Weapon + plasmid holders |
+| Digits 0–9 | `HUDRadial` ids 257…239 (source order 9→0) | Composited `UImage` glyphs, not UMG system font |
+| Vignette | `HUDPC` id 177 | Bottom full-width gradient |
+| Fill | authored `T_Hud_FillWhite` | Tint red / blue; width scales with resource % |
 
-**Searched, not wired (blockers / gaps)**
+**Gaps (noted, not faked)**
 
-- `swf-find` on `HUDPC.swf` / `PCWeaponSelection.swf` / `GeneBankPC.swf` for Eve, Vita, Meter,
-  Ammo, Danger, Frozen, Needle, Hypo, Bar, Fill, Display, HUD — no named EVE meter export in
-  HUDPC; EVE/health chrome live mainly in `sharedlibrary.swf` (pulled in via HUDPC
-  `ImportAssets`).
-- Canonical `sharedlibrary.swf` `HUD_HealthBar_Frame01..21` and `HUD_EveBar_Frame01..21` (plus
-  `HUD_Ammo_Base*`) are **Bitmap** fills whose pixels live in Scaleform **tag 512**
-  (`DefineBitsDxt`). **U1 landed** — `export-swf-images` / `export_all_ui_images.py` decode
-  them; Phase U2 imports the PNGs into `/Game/BioShockUI/**`.
+- Per-weapon / per-plasmid icons: `HUD_Ret_*` are vectors / ImportAssets, not tag-512 bitmaps —
+  U2 shows brass ring + name text.
+- Medical-cross / EVE-hypo cap icons: no standalone tag-512 bitmaps found — authored glyphs.
 
-- `FrozenHealth_DangerBar` has 20 frames animated by `PlaceObject2` **ColorTransform** (not
-  Ratio/morph; no DefineMorphShape in HUDPC). `export-swf-sprite` is first-frame only; the widget
-  maps health%/eve% → `UImage` opacity as a first-pass stand-in.
-- `WrenchAmmo` (HUDPC id 1) is an empty sprite; ammo panel remains text.
-
-**Pipeline (PNGs outside git — `%TEMP%/BioShockHudUi/import`)**
+**Pipeline (PNGs outside git)**
 
 ```powershell
 $env:BIOSHOCK_REMASTERED_PATH = "G:\SteamLibrary\steamapps\common\BioShock Remastered"
-py -3 tools\ue5\export_hud_ui.py
-# then in UnrealEditor-Cmd:
-#   -script=<repo>\tools\ue5\run_import_hud_ui.py
-# then rebuild runtime + run_hud.py
+# optional: $env:BIOSHOCK_UI_EXPORT = "$env:TEMP\bioshock-ui"
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd:
+#   -script=<repo>\tools\ue5\run_import_bioshock_ui.py
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule  (new UPROPERTY members)
+# then: -script=<repo>\tools\ue5\run_hud.py
 ```
 
-Content path: `/Game/BioShockUI/HUD/T_Hud_{HealthArc,EveArc,MeterUnderlay}` (HostProject only).
+Content: `/Game/BioShockUI/HUD/T_Hud_{MeterFrame,BrassRing,Vignette,Digit_0..9,FillWhite,Icon_Cross,Icon_Hypo}`.
 
-**Verify:** headless `run_hud.py` asserts widget construct, text/ammo behaviour, viewport add, and
-**non-null** health/EVE `UImage` textures after import. **Visual likeness to BioShock's HUD is a
-human PIE check** — not claimed headlessly. Code ready; this worktree had no live UE session.
+**Verify:** `run_hud.py` green — widget constructs, meter-frame + digit textures non-null, damage
+reduces displayed health, ammo panel gates on `bEnforceAmmo`. **Visual likeness is a human
+capture-harness check:** `tools/ue5/capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical`.
 
 ---
 

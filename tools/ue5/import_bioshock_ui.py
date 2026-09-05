@@ -1,0 +1,445 @@
+"""Import real BioShock HUD tag-512 art into /Game/BioShockUI/HUD as Texture2D.
+
+Phase U2. Shells export_all_ui_images.py (or reuses %TEMP%/bioshock-ui), crops the
+HUDPC atlas pill frame, stages digits/ring/vignette + authored cap icons, then
+imports as UI Texture2D. Deletes stale h21 arcs (T_Hud_HealthArc / EveArc /
+MeterUnderlay). PNGs stay outside git.
+
+Prepare (no Unreal):
+  py -3 tools/ue5/import_bioshock_ui.py --prepare
+
+Import (UnrealEditor-Cmd -run=pythonscript):
+  run_import_bioshock_ui.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+CONTENT_FOLDER = "/Game/BioShockUI/HUD"
+DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
+DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
+
+# Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
+ATLAS_ID = 86
+METER_FRAME_BOX = (414, 20, 1075, 157)  # left, top, right, bottom (exclusive right/bottom via +1)
+# 9-slice margins in source pixels (hand-measured on the 661x137 crop).
+METER_SLICE_LEFT = 68
+METER_SLICE_TOP = 22
+METER_SLICE_RIGHT = 68
+METER_SLICE_BOTTOM = 22
+# Inner fill cavity inset on the same crop.
+METER_FILL_LEFT = 32
+METER_FILL_TOP = 28
+METER_FILL_RIGHT = 32
+METER_FILL_BOTTOM = 28
+
+# HUDRadial digit glyphs: ids run 9..0 then a highlight set. Normal set only for U2.
+DIGIT_IDS_9_TO_0 = [239, 241, 243, 245, 247, 249, 251, 253, 255, 257]
+
+STALE_ASSETS = (
+    "T_Hud_HealthArc",
+    "T_Hud_EveArc",
+    "T_Hud_MeterUnderlay",
+)
+
+
+def _tools_dir():
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _repo_root():
+    return os.path.abspath(os.path.join(_tools_dir(), "..", ".."))
+
+
+def _log(message):
+    try:
+        import unreal
+
+        unreal.log("[bioshock-ui-import] %s" % message)
+    except Exception:  # noqa: BLE001
+        print("[bioshock-ui-import] %s" % message, flush=True)
+
+
+def _write(out, report):
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
+
+
+def _ensure_export(export_root, force=False):
+    """Run export_all_ui_images.py when HUDPC/HUDRadial are missing."""
+    hudpc = os.path.join(export_root, "HUDPC", "86.png")
+    radial = os.path.join(export_root, "HUDRadial", "239.png")
+    if not force and os.path.isfile(hudpc) and os.path.isfile(radial):
+        _log("reusing export at %s" % export_root)
+        return
+    env = os.environ.copy()
+    env["BIOSHOCK_UI_EXPORT"] = export_root
+    script = os.path.join(_tools_dir(), "export_all_ui_images.py")
+    _log("shelling export_all_ui_images.py -> %s" % export_root)
+    subprocess.check_call([sys.executable, script, "--out", export_root], cwd=_repo_root(), env=env)
+
+
+def _draw_cross_icon(size=64):
+    from PIL import Image, ImageDraw
+
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    cx = cy = size // 2
+    arm = size // 5
+    thick = max(4, size // 10)
+    color = (220, 230, 220, 255)
+    draw.rectangle([cx - thick // 2, cy - arm, cx + thick // 2, cy + arm], fill=color)
+    draw.rectangle([cx - arm, cy - thick // 2, cx + arm, cy + thick // 2], fill=color)
+    return im
+
+
+def _draw_hypo_icon(size=64):
+    from PIL import Image, ImageDraw
+
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    color = (180, 220, 255, 255)
+    # Barrel
+    draw.rectangle([size // 3, size // 4, size // 3 + size // 8, size * 3 // 4], fill=color)
+    # Plunger
+    draw.rectangle([size // 3 - 2, size // 6, size // 3 + size // 8 + 2, size // 4], fill=color)
+    # Needle
+    draw.line(
+        [(size // 3 + size // 16, size * 3 // 4), (size // 3 + size // 16, size - 6)],
+        fill=color,
+        width=2,
+    )
+    return im
+
+
+def _draw_white_fill():
+    from PIL import Image
+
+    return Image.new("RGBA", (8, 8), (255, 255, 255, 255))
+
+
+def prepare_staging(export_root=None, staging_dir=None, force_export=False):
+    """Crop/stage HUD PNGs into staging_dir. Uses Pillow. Returns manifest dict."""
+    from PIL import Image
+
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get("BIOSHOCK_UI_HUD_STAGING", DEFAULT_STAGING)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+
+    atlas_path = os.path.join(export_root, "HUDPC", "%d.png" % ATLAS_ID)
+    if not os.path.isfile(atlas_path):
+        raise RuntimeError("missing atlas %s — run export_all_ui_images.py" % atlas_path)
+    atlas = Image.open(atlas_path).convert("RGBA")
+    x0, y0, x1, y1 = METER_FRAME_BOX
+    frame = atlas.crop((x0, y0, x1, y1))
+    frame_name = "T_Hud_MeterFrame.png"
+    frame.save(os.path.join(staging_dir, frame_name))
+    textures.append(
+        {
+            "name": "T_Hud_MeterFrame",
+            "file": frame_name,
+            "role": "meterFrame",
+            "source": "HUDPC/%d.png crop %s" % (ATLAS_ID, METER_FRAME_BOX),
+            "sliceMarginPx": {
+                "left": METER_SLICE_LEFT,
+                "top": METER_SLICE_TOP,
+                "right": METER_SLICE_RIGHT,
+                "bottom": METER_SLICE_BOTTOM,
+            },
+            "fillInsetPx": {
+                "left": METER_FILL_LEFT,
+                "top": METER_FILL_TOP,
+                "right": METER_FILL_RIGHT,
+                "bottom": METER_FILL_BOTTOM,
+            },
+            "sourceSize": [frame.size[0], frame.size[1]],
+        }
+    )
+
+    def copy_named(movie, image_id, asset_name, role):
+        src = os.path.join(export_root, movie, "%d.png" % image_id)
+        if not os.path.isfile(src):
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            return
+        dst_file = asset_name + ".png"
+        Image.open(src).convert("RGBA").save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": role,
+                "source": "%s/%d.png" % (movie, image_id),
+            }
+        )
+
+    copy_named("HUDPC", 8, "T_Hud_BrassRing", "brassRing")
+    copy_named("HUDPC", 177, "T_Hud_Vignette", "vignette")
+    copy_named("HUDPC", 370, "T_Hud_ReadoutPlate", "readoutPlate")
+
+    # Digits: source order is 9..0.
+    for digit_value, image_id in zip(range(9, -1, -1), DIGIT_IDS_9_TO_0):
+        copy_named("HUDRadial", image_id, "T_Hud_Digit_%d" % digit_value, "digit")
+
+    # Authored cap icons — standalone medical/hypo bitmaps not found in tag-512 exports.
+    gaps.append(
+        "medical-cross / EVE-hypo cap icons: not found as standalone tag-512 bitmaps in "
+        "HUDPC/sharedlibrary/pausePC; using authored glyphs T_Hud_Icon_Cross / T_Hud_Icon_Hypo"
+    )
+    _draw_cross_icon().save(os.path.join(staging_dir, "T_Hud_Icon_Cross.png"))
+    textures.append(
+        {
+            "name": "T_Hud_Icon_Cross",
+            "file": "T_Hud_Icon_Cross.png",
+            "role": "authoredCross",
+            "source": "authored",
+        }
+    )
+    _draw_hypo_icon().save(os.path.join(staging_dir, "T_Hud_Icon_Hypo.png"))
+    textures.append(
+        {
+            "name": "T_Hud_Icon_Hypo",
+            "file": "T_Hud_Icon_Hypo.png",
+            "role": "authoredHypo",
+            "source": "authored",
+        }
+    )
+    _draw_white_fill().save(os.path.join(staging_dir, "T_Hud_FillWhite.png"))
+    textures.append(
+        {
+            "name": "T_Hud_FillWhite",
+            "file": "T_Hud_FillWhite.png",
+            "role": "fill",
+            "source": "authored",
+        }
+    )
+
+    gaps.append(
+        "per-weapon / per-plasmid icons: HUD_Ret_* and weapon art are vector/ImportAssets in "
+        "sharedlibrary, not tag-512 bitmaps in these SWFs — U2 uses brass ring + weapon/plasmid "
+        "name text; real icons deferred"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "hud_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
+def _disable_interchange():
+    import unreal
+
+    for flag in ("PNG", "Texture", "FBX", "OBJ"):
+        unreal.SystemLibrary.execute_console_command(
+            None, "Interchange.FeatureFlags.Import.%s 0" % flag
+        )
+
+
+def _ensure_dir(path):
+    import unreal
+
+    if unreal.EditorAssetLibrary.does_directory_exist(path):
+        return
+    if not unreal.EditorAssetLibrary.make_directory(path):
+        raise RuntimeError("could not create folder %s" % path)
+
+
+def _configure_ui_texture(texture):
+    """UI group, sRGB, no mips, UI compression."""
+    import unreal
+
+    texture.set_editor_property("srgb", True)
+    try:
+        texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        texture.set_editor_property(
+            "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
+        )
+    except Exception:  # noqa: BLE001
+        try:
+            texture.set_editor_property(
+                "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NoMipmaps
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        texture.set_editor_property("never_stream", True)
+    except Exception:  # noqa: BLE001
+        pass
+
+    compression = None
+    for name in ("TC_EDITOR_ICON", "TC_USERINTERFACE2D", "TC_EditorIcon", "TC_UserInterface2D"):
+        compression = getattr(unreal.TextureCompressionSettings, name, None)
+        if compression is not None:
+            break
+    if compression is None:
+        compression = unreal.TextureCompressionSettings.TC_DEFAULT
+    texture.set_editor_property("compression_settings", compression)
+    unreal.EditorAssetLibrary.save_loaded_asset(texture)
+
+
+def _import_png(source, destination_path, asset_name):
+    import unreal
+
+    if not os.path.isfile(source):
+        return None
+
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", source)
+    task.set_editor_property("destination_path", destination_path)
+    task.set_editor_property("destination_name", asset_name)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("save", False)
+    try:
+        task.set_editor_property("factory", unreal.TextureFactory())
+    except Exception as exc:  # noqa: BLE001
+        _log("could not pin TextureFactory (%s); Interchange may assert" % exc)
+
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+    objects = list(task.get_objects())
+    texture = next((o for o in objects if isinstance(o, unreal.Texture2D)), None)
+    if texture is None:
+        texture = unreal.EditorAssetLibrary.load_asset("%s/%s" % (destination_path, asset_name))
+        if texture is not None and not isinstance(texture, unreal.Texture2D):
+            texture = None
+    if texture is None:
+        return None
+    _configure_ui_texture(texture)
+    return texture
+
+
+def _delete_stale():
+    import unreal
+
+    deleted = []
+    for name in STALE_ASSETS:
+        path = "%s/%s" % (CONTENT_FOLDER, name)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            if unreal.EditorAssetLibrary.delete_asset(path):
+                deleted.append(path)
+                _log("deleted stale %s" % path)
+            else:
+                _log("failed to delete stale %s" % path)
+    return deleted
+
+
+def main(staging_dir=None, out=None, content_folder=CONTENT_FOLDER, prepare_if_needed=True):
+    import unreal
+
+    staging_dir = staging_dir or os.environ.get("BIOSHOCK_UI_HUD_STAGING", DEFAULT_STAGING)
+    out = out or os.environ.get(
+        "BIOSHOCK_UI_IMPORT_OUT",
+        os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
+    )
+    export_root = os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+
+    report = {
+        "stagingDir": staging_dir,
+        "contentFolder": content_folder,
+        "imported": {},
+        "deleted": [],
+        "failures": [],
+        "gaps": [],
+    }
+    failures = report["failures"]
+
+    man_path = os.path.join(staging_dir, "hud_import_manifest.json")
+    if prepare_if_needed and not os.path.isfile(man_path):
+        # Unreal's Python often lacks Pillow — prepare via system py.
+        prep = subprocess.run(
+            [
+                "py",
+                "-3",
+                os.path.join(_tools_dir(), "import_bioshock_ui.py"),
+                "--prepare",
+                "--export",
+                export_root,
+                "--staging",
+                staging_dir,
+            ],
+            cwd=_repo_root(),
+            capture_output=True,
+            text=True,
+        )
+        if prep.returncode != 0:
+            failures.append("prepare failed: %s" % (prep.stderr or prep.stdout or prep.returncode))
+            report["ok"] = False
+            _write(out, report)
+            raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
+
+    if not os.path.isfile(man_path):
+        failures.append("missing staging manifest: %s (run --prepare)" % man_path)
+        report["ok"] = False
+        _write(out, report)
+        raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
+
+    with open(man_path, encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    textures = list(manifest.get("textures") or [])
+    report["gaps"] = list(manifest.get("gaps") or [])
+
+    _disable_interchange()
+    _ensure_dir("/Game/BioShockUI")
+    _ensure_dir(content_folder)
+    report["deleted"] = _delete_stale()
+
+    for entry in textures:
+        name = entry["name"]
+        source = os.path.join(staging_dir, entry["file"].replace("/", os.sep))
+        if not os.path.isfile(source):
+            failures.append("missing PNG: %s" % source)
+            continue
+        texture = _import_png(source, content_folder, name)
+        if texture is None:
+            failures.append("import failed: %s" % name)
+            continue
+        path = "%s/%s" % (content_folder, name)
+        report["imported"][name] = path
+        _log("imported %s" % path)
+
+    report["ok"] = not failures
+    _write(out, report)
+    if failures:
+        raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
+    _log("PASS bioshock-ui-import (%d textures)" % len(report["imported"]))
+    return report
+
+
+def _cli(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--prepare", action="store_true", help="Stage crops only (no Unreal)")
+    parser.add_argument("--export", default=None, help="export_all_ui_images root")
+    parser.add_argument("--staging", default=None, help="staging directory for PNGs")
+    parser.add_argument("--force-export", action="store_true")
+    args = parser.parse_args(argv)
+    if args.prepare:
+        prepare_staging(args.export, args.staging, force_export=args.force_export)
+        return 0
+    # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
+    main(staging_dir=args.staging)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_cli())

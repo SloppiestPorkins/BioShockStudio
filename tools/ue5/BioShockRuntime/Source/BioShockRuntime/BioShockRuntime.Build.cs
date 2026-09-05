@@ -17,6 +17,10 @@ public class BioShockRuntime : ModuleRules
             "AIModule",
             "NavigationSystem",
         });
-        PrivateDependencyModuleNames.AddRange(new[] { "AssetRegistry", "Json", "JsonUtilities" });
+        PrivateDependencyModuleNames.AddRange(new[]
+        {
+            "AssetRegistry", "Json", "JsonUtilities",
+            "SlateRHIRenderer", "RenderCore", // FWidgetRenderer + FlushRenderingCommands — HUD-overlay capture
+        });
     }
 }
