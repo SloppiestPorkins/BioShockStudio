@@ -171,6 +171,37 @@ Content: `/Game/BioShockUI/Station/T_Station_{DecoFrame,Vend_*,Gene_*,Invent_*,G
 
 ---
 
+## Phase U6 — hacking pipe-puzzle minigame — 5 Sept 2026
+
+`UShockHackingMinigame` (UMG): `TArray<FShockHackTile>` board with type / rotation /
+revealed / hazard. Difficulty01 scales size (5×4→7×6), face-down count, and fluid speed.
+Flood-fill from source each tick; fluid advances along the current best path. Win →
+device Friendly + `SetSecurityHacked`; overload → `ApplyAuthoredDamage`; alarm hazard →
+`SetSecurityAlarmOn`. Buy-out spends Money; Auto-Hack consumes `AutoHackTool` when present
+(else always available — noted gap).
+
+`AShockPlayer::TryHackDevice` opens the minigame unless `bInstantHack` (cheat / headless
+`run_hacking.py` + `run_security.py` set it true and keep the C3 skill-check path).
+
+Pipe tiles drawn as UMG shapes — hackingPC DefineSprite/Shape vector export deferred;
+chrome from hackingPC 479/474/528/556 when imported.
+
+```powershell
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: -script=...\run_hacking_minigame.py
+# regression: run_hacking / run_security
+# capture: tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+#   -Extra '-bioshockshothud','-bioshockshothack'
+# or UnrealEditor-Cmd -game -bioshockscreenshot -bioshockshothud -bioshockshothack
+```
+
+Content: `/Game/BioShockUI/Hacking/T_Hack_{Bezel,HazardStrip,Banner,Ring}` (optional;
+color fallback if missing).
+
+---
+
 ## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
 
 Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).

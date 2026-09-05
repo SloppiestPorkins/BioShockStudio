@@ -130,6 +130,7 @@ def main(out):
 
         buildup_before = float(camera.get_alert_buildup_for_verify())
         player.set_hack_skill_for_verify(0.7)
+        player.set_instant_hack_for_verify(True)
         ok = bool(player.try_hack_device(camera, 0.2))
         allegiance = int(camera.get_allegiance_for_verify())
         if sec:

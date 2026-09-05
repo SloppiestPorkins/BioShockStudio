@@ -14,6 +14,7 @@
 #include "ShockRadialMenu.h"
 #include "ShockStationActor.h"
 #include "ShockStationMenu.h"
+#include "ShockHackingMinigame.h"
 #include "ShockStatusMenu.h"
 #include "ShockWeaponSelectScreen.h"
 #include "ShockElectroBoltPlasmid.h"
@@ -2004,6 +2005,58 @@ void AShockGameMode::ForceOpenStationForCapture(AShockPlayer* Player, EShockStat
 	Menu->ForceOpenForCapture();
 }
 
+void AShockGameMode::ForceOpenHackingForCapture(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (CaptureHackingMenu)
+	{
+		CaptureHackingMenu->CloseMinigame();
+		CaptureHackingMenu->RemoveFromParent();
+		CaptureHackingMenu = nullptr;
+	}
+
+	UShockHackingMinigame* Menu =
+		CreateWidget<UShockHackingMinigame>(PC, UShockHackingMinigame::StaticClass());
+	if (!Menu)
+	{
+		return;
+	}
+
+	AShockSecurityDevice* Bound = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AShockTurret> It(World); It; ++It)
+		{
+			if (*It)
+			{
+				Bound = *It;
+				break;
+			}
+		}
+	}
+
+	CaptureHackingMenu = Menu;
+	Menu->BindDisplayPlayer(Player);
+	if (Bound)
+	{
+		Menu->BindDevice(Bound);
+	}
+	if (!Menu->IsInViewport())
+	{
+		Menu->AddToViewport(55);
+	}
+	Menu->ForceOpenForCapture();
+}
+
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 {
 	if (!Player || !Enemy)
@@ -2710,6 +2763,7 @@ void AShockGameMode::TickScreenshotCapture()
 			const bool bForceInvent = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotinvent"));
 			const bool bForceGarden = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotgarden"));
 			const bool bForceCombo = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotcombo"));
+			const bool bForceHack = FParse::Param(FCommandLine::Get(), TEXT("bioshockshothack"));
 			EShockStationKind CaptureStationKind = EShockStationKind::Vending;
 			bool bForceStation = false;
 			if (bForceVend)
@@ -2755,6 +2809,10 @@ void AShockGameMode::TickScreenshotCapture()
 				{
 					ForceOpenStationForCapture(ShotPlayer, CaptureStationKind);
 				}
+				if (bForceHack)
+				{
+					ForceOpenHackingForCapture(ShotPlayer);
+				}
 			}
 			if (PlayerHud)
 			{
@@ -2785,6 +2843,11 @@ void AShockGameMode::TickScreenshotCapture()
 					WidgetRenderer.DrawWidget(
 						HudRT, CaptureStationMenu->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
 				}
+				if (bForceHack && CaptureHackingMenu && CaptureHackingMenu->IsMinigameOpen())
+				{
+					WidgetRenderer.DrawWidget(
+						HudRT, CaptureHackingMenu->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				}
 				FlushRenderingCommands();
 				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));
 				UKismetRenderingLibrary::ExportRenderTarget(
@@ -2792,12 +2855,13 @@ void AShockGameMode::TickScreenshotCapture()
 				UE_LOG(
 					LogTemp,
 					Display,
-					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d status=%d pause=%d station=%d"),
+					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d status=%d pause=%d station=%d hack=%d"),
 					*HudPath,
 					(bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen()) ? 1 : 0,
 					(bForceStatus && PlayerStatus && PlayerStatus->IsStatusOpen()) ? 1 : 0,
 					(bForcePause && PlayerPause && PlayerPause->IsPauseOpen()) ? 1 : 0,
-					(bForceStation && CaptureStationMenu && CaptureStationMenu->IsStationOpen()) ? 1 : 0);
+					(bForceStation && CaptureStationMenu && CaptureStationMenu->IsStationOpen()) ? 1 : 0,
+					(bForceHack && CaptureHackingMenu && CaptureHackingMenu->IsMinigameOpen()) ? 1 : 0);
 			}
 			else
 			{

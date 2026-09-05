@@ -20,6 +20,8 @@ class UShockGeneBankMenu;
 class UShockUInventMenu;
 class UShockGathererGardenMenu;
 class UShockComboLockMenu;
+class UShockHackingMinigame;
+class AShockSecurityDevice;
 
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
@@ -108,12 +110,14 @@ public:
 	void ForceOpenStatusForCapture(AShockPlayer* Player);
 	void ForceOpenPauseForCapture(AShockPlayer* Player);
 	void ForceOpenStationForCapture(AShockPlayer* Player, EShockStationKind Kind);
+	void ForceOpenHackingForCapture(AShockPlayer* Player);
 
 	UShockRadialMenu* GetPlayerRadial() const { return PlayerRadial; }
 	UShockWeaponSelectScreen* GetPlayerSelectScreen() const { return PlayerSelect; }
 	UShockStatusMenu* GetPlayerStatusMenu() const { return PlayerStatus; }
 	UShockPauseMenu* GetPlayerPauseMenu() const { return PlayerPause; }
 	UShockStationMenu* GetCaptureStationMenu() const { return CaptureStationMenu; }
+	UShockHackingMinigame* GetCaptureHackingMenu() const { return CaptureHackingMenu; }
 
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
@@ -221,4 +225,8 @@ private:
 	/** Transient station widget used by -bioshockshotvend / genebank / invent / garden / combo. */
 	UPROPERTY()
 	TObjectPtr<UShockStationMenu> CaptureStationMenu;
+
+	/** Transient hacking minigame used by -bioshockshothack. */
+	UPROPERTY()
+	TObjectPtr<UShockHackingMinigame> CaptureHackingMenu;
 };

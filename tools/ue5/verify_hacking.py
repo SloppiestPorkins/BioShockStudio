@@ -110,6 +110,7 @@ def main(out):
         check("hostile_damages_player", ph_after < ph_before - 0.5, {"before": ph_before, "after": ph_after})
 
         player.set_hack_skill_for_verify(0.7)
+        player.set_instant_hack_for_verify(True)
         ok = bool(player.try_hack_device(turret, 0.2))
         allegiance = int(turret.get_allegiance_for_verify())
         check("easy_hack_success", ok and allegiance == ALLEGIANCE_FRIENDLY, allegiance)
@@ -138,6 +139,7 @@ def main(out):
         yaw = _yaw_toward(fail_turret.get_actor_location(), fail_player.get_actor_location())
         fail_turret.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
         fail_player.set_hack_skill_for_verify(0.7)
+        fail_player.set_instant_hack_for_verify(True)
         hb = float(fail_player.get_current_health())
         ok = bool(fail_player.try_hack_device(fail_turret, 0.95))
         ha = float(fail_player.get_current_health())

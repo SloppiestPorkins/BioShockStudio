@@ -548,7 +548,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool IsTurretHacked(FName Turret) const;
 
-	/** Deterministic skill-check stand-in: succeeds when Difficulty01 <= HackSkill. */
+	/**
+	 * Hack a security device. When bInstantHack is false, opens UShockHackingMinigame
+	 * (pipe puzzle). When true (cheat / headless verifies), keeps the C3 skill-check path.
+	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
 	bool TryHackDevice(AShockSecurityDevice* Device, float Difficulty01);
 
@@ -559,8 +562,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Hacking")
 	float HackSkill = 0.7f;
 
+	/**
+	 * Cheat / headless: skip the pipe minigame and use the Difficulty01 <= HackSkill check.
+	 * run_hacking.py / security verifies set this true; gameplay leaves it false.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Hacking")
+	bool bInstantHack = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
 	void SetHackSkillForVerify(float Skill) { HackSkill = Skill; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Hacking")
+	void SetInstantHackForVerify(bool bInstant) { bInstantHack = bInstant; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetDoorBroken(FName Door, bool bBroken);

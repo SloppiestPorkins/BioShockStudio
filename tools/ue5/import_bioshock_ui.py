@@ -1,4 +1,4 @@
-"""Import real BioShock HUD + Radial + Status + Pause + Station tag-512 art into /Game/BioShockUI.
+"""Import real BioShock HUD + Radial + Status + Pause + Station + Hacking tag-512 art into /Game/BioShockUI.
 
 Phase U2: HUDPC crops → /Game/BioShockUI/HUD.
 Phase U3: HUDRadial ring + digits → /Game/BioShockUI/Radial.
@@ -6,6 +6,8 @@ Phase U4: mapsPC/ingamemanual/HUDPC help → /Game/BioShockUI/Status;
           pausePC logo/chevrons → /Game/BioShockUI/Pause.
 Phase U5: pausePC Deco/vend faces + GeneBankPC / craftingStationPC /
           PlasmidEquipStation / ComboLockPC → /Game/BioShockUI/Station.
+Phase U6: hackingPC bezel / hazard strip / banners / ring → /Game/BioShockUI/Hacking
+          (pipe tiles are UMG shapes — vector sprites deferred).
 PNGs stay outside git.
 
 Prepare (no Unreal):
@@ -28,14 +30,17 @@ RADIAL_CONTENT_FOLDER = "/Game/BioShockUI/Radial"
 STATUS_CONTENT_FOLDER = "/Game/BioShockUI/Status"
 PAUSE_CONTENT_FOLDER = "/Game/BioShockUI/Pause"
 STATION_CONTENT_FOLDER = "/Game/BioShockUI/Station"
+HACKING_CONTENT_FOLDER = "/Game/BioShockUI/Hacking"
 DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
 DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
 DEFAULT_RADIAL_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging")
 DEFAULT_STATUS_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-status-staging")
 DEFAULT_PAUSE_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-pause-staging")
 DEFAULT_STATION_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-station-staging")
+DEFAULT_HACKING_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hacking-staging")
 # Optional partial export of station SWFs (orchestrator / manual export-swf-images).
 DEFAULT_STATION_EXPORT = os.path.join(os.environ.get("TEMP", "."), "ui_u5")
+DEFAULT_HACKING_EXPORT = os.path.join(os.environ.get("TEMP", "."), "ui_u6")
 
 # Status tab icons (mapsPC): compass N / ! / tape / ?
 STATUS_TAB_IDS = {
@@ -81,6 +86,18 @@ STATION_ART_IDS = {
     "T_Station_Garden_Icon": ("PlasmidEquipStation", 59),
     "T_Station_Combo_Dial": ("ComboLockPC", 1),
     "T_Station_Combo_Banner": ("ComboLockPC", 15),
+}
+# U6 hackingPC chrome — bezel / hazard strip / banner / ring. Pipe tiles = UMG shapes.
+HACKING_ART_IDS = {
+    "T_Hack_Bezel": ("hackingPC", 479),
+    "T_Hack_BezelAlt": ("hackingPC", 564),
+    "T_Hack_HazardStrip": ("hackingPC", 474),
+    "T_Hack_HazardStripAlt": ("hackingPC", 484),
+    "T_Hack_Banner": ("hackingPC", 528),
+    "T_Hack_BannerAlt": ("hackingPC", 533),
+    "T_Hack_BannerWide": ("hackingPC", 537),
+    "T_Hack_BannerPlate": ("hackingPC", 607),
+    "T_Hack_Ring": ("hackingPC", 556),
 }
 
 # Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
@@ -228,6 +245,72 @@ def prepare_station_staging(export_root=None, staging_dir=None, force_export=Fal
     with open(man_path, "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
     _log("staged %d station textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
+def _resolve_hacking_png(export_root, movie, image_id, hacking_export):
+    candidates = [
+        os.path.join(export_root, movie, "%d.png" % image_id),
+        os.path.join(export_root, movie.lower(), "%d.png" % image_id),
+    ]
+    if hacking_export:
+        candidates.append(os.path.join(hacking_export, movie, "%d.png" % image_id))
+        candidates.append(os.path.join(hacking_export, "%d.png" % image_id))
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def prepare_hacking_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage hackingPC chrome for /Game/BioShockUI/Hacking (pipes stay UMG shapes)."""
+    from PIL import Image
+
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_HACKING_STAGING", DEFAULT_HACKING_STAGING
+    )
+    hacking_export = os.environ.get("BIOSHOCK_UI_HACKING_EXPORT", DEFAULT_HACKING_EXPORT)
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+    for asset_name, (movie, image_id) in HACKING_ART_IDS.items():
+        src = _resolve_hacking_png(export_root, movie, image_id, hacking_export)
+        if not src:
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            continue
+        dst_file = asset_name + ".png"
+        Image.open(src).convert("RGBA").save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": asset_name,
+                "source": "%s/%d.png" % (movie, image_id),
+            }
+        )
+
+    gaps.append(
+        "Pipe tiles are UMG shapes — hackingPC DefineSprite/Shape vector export deferred"
+    )
+    gaps.append(
+        "Auto-Hack Tool always available when inventory has no AutoHackTool stack"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "hackingExport": hacking_export,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": HACKING_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "hacking_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d hacking textures -> %s" % (len(textures), staging_dir))
     return manifest
 
 
@@ -739,6 +822,7 @@ def main(
     status_staging_dir=None,
     pause_staging_dir=None,
     station_staging_dir=None,
+    hacking_staging_dir=None,
     out=None,
     content_folder=CONTENT_FOLDER,
     prepare_if_needed=True,
@@ -758,6 +842,9 @@ def main(
     station_staging_dir = station_staging_dir or os.environ.get(
         "BIOSHOCK_UI_STATION_STAGING", DEFAULT_STATION_STAGING
     )
+    hacking_staging_dir = hacking_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_HACKING_STAGING", DEFAULT_HACKING_STAGING
+    )
     out = out or os.environ.get(
         "BIOSHOCK_UI_IMPORT_OUT",
         os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
@@ -770,11 +857,13 @@ def main(
         "statusStagingDir": status_staging_dir,
         "pauseStagingDir": pause_staging_dir,
         "stationStagingDir": station_staging_dir,
+        "hackingStagingDir": hacking_staging_dir,
         "contentFolder": content_folder,
         "radialContentFolder": RADIAL_CONTENT_FOLDER,
         "statusContentFolder": STATUS_CONTENT_FOLDER,
         "pauseContentFolder": PAUSE_CONTENT_FOLDER,
         "stationContentFolder": STATION_CONTENT_FOLDER,
+        "hackingContentFolder": HACKING_CONTENT_FOLDER,
         "imported": {},
         "deleted": [],
         "failures": [],
@@ -787,6 +876,7 @@ def main(
     status_man = os.path.join(status_staging_dir, "status_import_manifest.json")
     pause_man = os.path.join(pause_staging_dir, "pause_import_manifest.json")
     station_man = os.path.join(station_staging_dir, "station_import_manifest.json")
+    hacking_man = os.path.join(hacking_staging_dir, "hacking_import_manifest.json")
     need_prepare = (
         not os.path.isfile(man_path)
         or not os.path.isfile(radial_man)
@@ -814,6 +904,8 @@ def main(
                 pause_staging_dir,
                 "--station-staging",
                 station_staging_dir,
+                "--hacking-staging",
+                hacking_staging_dir,
             ],
             cwd=_repo_root(),
             capture_output=True,
@@ -824,6 +916,8 @@ def main(
             report["ok"] = False
             _write(out, report)
             raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
+    elif prepare_if_needed and not os.path.isfile(hacking_man):
+        prepare_hacking_staging(export_root, hacking_staging_dir)
 
     _disable_interchange()
     _ensure_dir("/Game/BioShockUI")
@@ -840,6 +934,9 @@ def main(
     )
     _import_manifest(
         station_staging_dir, "station_import_manifest.json", STATION_CONTENT_FOLDER, report
+    )
+    _import_manifest(
+        hacking_staging_dir, "hacking_import_manifest.json", HACKING_CONTENT_FOLDER, report
     )
 
     report["ok"] = not failures
@@ -867,6 +964,9 @@ def _cli(argv=None):
     parser.add_argument(
         "--station-staging", default=None, help="staging directory for Station PNGs"
     )
+    parser.add_argument(
+        "--hacking-staging", default=None, help="staging directory for Hacking PNGs"
+    )
     parser.add_argument("--force-export", action="store_true")
     args = parser.parse_args(argv)
     if args.prepare:
@@ -883,6 +983,9 @@ def _cli(argv=None):
         prepare_station_staging(
             args.export, args.station_staging, force_export=args.force_export
         )
+        prepare_hacking_staging(
+            args.export, args.hacking_staging, force_export=args.force_export
+        )
         return 0
     # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
     main(
@@ -891,6 +994,7 @@ def _cli(argv=None):
         status_staging_dir=args.status_staging,
         pause_staging_dir=args.pause_staging,
         station_staging_dir=args.station_staging,
+        hacking_staging_dir=args.hacking_staging,
     )
     return 0
 

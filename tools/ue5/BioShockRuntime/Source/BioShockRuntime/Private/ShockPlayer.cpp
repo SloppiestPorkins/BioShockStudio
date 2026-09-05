@@ -1,6 +1,7 @@
 #include "ShockPlayer.h"
 
 #include "ShockGameMode.h"
+#include "ShockHackingMinigame.h"
 #include "ShockPlasmid.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
@@ -10,6 +11,7 @@
 #include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
+#include "Blueprint/UserWidget.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -1725,6 +1727,38 @@ bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty0
 	if (!Device || Device->GetAllegiance() == EShockDeviceAllegiance::Disabled)
 	{
 		return false;
+	}
+
+	if (!bInstantHack)
+	{
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		UWorld* World = GetWorld();
+		UShockHackingMinigame* Menu = nullptr;
+		if (PC)
+		{
+			Menu = CreateWidget<UShockHackingMinigame>(PC, UShockHackingMinigame::StaticClass());
+		}
+		else if (World)
+		{
+			Menu = CreateWidget<UShockHackingMinigame>(World, UShockHackingMinigame::StaticClass());
+		}
+		if (!Menu)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_HACK minigame create failed — falling back to instant"));
+		}
+		else
+		{
+			Menu->BindDisplayPlayer(this);
+			Menu->BindDevice(Device);
+			if (PC && !Menu->IsInViewport())
+			{
+				Menu->AddToViewport(55);
+			}
+			Menu->OpenMinigame(Difficulty01);
+			const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK label=%s result=minigame"), *Label.ToString());
+			return false; // outcome deferred to the pipe puzzle
+		}
 	}
 
 	const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
