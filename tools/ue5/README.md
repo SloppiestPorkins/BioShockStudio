@@ -1,5 +1,52 @@
 # UE5 import bridge
 
+## HUD reskin with decoded Scaleform art — 5 Sept 2026
+
+`UShockHudWidget` now draws health/EVE with `UImage` textures decoded from BioShock's
+FlashMovies (not plain `UProgressBar`s). Ammo stays `UTextBlock`.
+
+**Art found**
+
+| Role | Source | Notes |
+|---|---|---|
+| Health arc | `HUDPC.swf` `FrozenHealth_DangerBar` (id 98 → shape 96, radial-gradient red) | Confirmed vector render |
+| EVE arc | `HUDPC.swf` unnamed DefineShape3 id 158 (solid blue arc) | Real vector art from the same HUD file |
+| Meter underlay | `HUDPC.swf` unnamed DefineShape3 id 160 | Grey chrome arc behind health |
+
+**Searched, not wired (blockers / gaps)**
+
+- `swf-find` on `HUDPC.swf` / `PCWeaponSelection.swf` / `GeneBankPC.swf` for Eve, Vita, Meter,
+  Ammo, Danger, Frozen, Needle, Hypo, Bar, Fill, Display, HUD — no named EVE meter export in
+  HUDPC; EVE/health chrome live mainly in `sharedlibrary.swf` (pulled in via HUDPC
+  `ImportAssets`).
+- Canonical `sharedlibrary.swf` `HUD_HealthBar_Frame01..21` and `HUD_EveBar_Frame01..21` (plus
+  `HUD_Ammo_Base*`) are **Bitmap** fills whose pixels live in Scaleform **tag 512** (not classic
+  `DefineBits*`; sharedlibrary has zero tag 6/20/21/35/36). `export-swf-sprite` yields the grey
+  placeholder — **bitmap/tag-512 decode is the hard blocker** for those named meters. Do not treat
+  the placeholders as usable art.
+- `FrozenHealth_DangerBar` has 20 frames animated by `PlaceObject2` **ColorTransform** (not
+  Ratio/morph; no DefineMorphShape in HUDPC). `export-swf-sprite` is first-frame only; the widget
+  maps health%/eve% → `UImage` opacity as a first-pass stand-in.
+- `WrenchAmmo` (HUDPC id 1) is an empty sprite; ammo panel remains text.
+
+**Pipeline (PNGs outside git — `%TEMP%/BioShockHudUi/import`)**
+
+```powershell
+$env:BIOSHOCK_REMASTERED_PATH = "G:\SteamLibrary\steamapps\common\BioShock Remastered"
+py -3 tools\ue5\export_hud_ui.py
+# then in UnrealEditor-Cmd:
+#   -script=<repo>\tools\ue5\run_import_hud_ui.py
+# then rebuild runtime + run_hud.py
+```
+
+Content path: `/Game/BioShockUI/HUD/T_Hud_{HealthArc,EveArc,MeterUnderlay}` (HostProject only).
+
+**Verify:** headless `run_hud.py` asserts widget construct, text/ammo behaviour, viewport add, and
+**non-null** health/EVE `UImage` textures after import. **Visual likeness to BioShock's HUD is a
+human PIE check** — not claimed headlessly. Code ready; this worktree had no live UE session.
+
+---
+
 ## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
 
 Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).

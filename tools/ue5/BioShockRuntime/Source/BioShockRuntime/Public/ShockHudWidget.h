@@ -6,10 +6,10 @@
 class AShockPlayer;
 class AShockWeapon;
 class UBorder;
-class UProgressBar;
+class UImage;
 class UTextBlock;
 
-/** Minimal in-game HUD: health (bottom-left) + weapon ammo (bottom-right). C++ tree, no designer asset. */
+/** In-game HUD: health/EVE arcs from decoded Scaleform art + ammo text. C++ tree, no designer asset. */
 UCLASS()
 class BIOSHOCKRUNTIME_API UShockHudWidget : public UUserWidget
 {
@@ -46,7 +46,15 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
 
-	/** Editor/headless: spawn player+weapon, create HUD, assert text + viewport, damage + re-assert. */
+	/** True when the health-arc UImage has a non-null Texture2D brush (after import_hud_ui). */
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	bool HasHealthArcTexture() const;
+
+	/** True when the EVE-arc UImage has a non-null Texture2D brush (after import_hud_ui). */
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	bool HasEveArcTexture() const;
+
+	/** Editor/headless: spawn player+weapon, create HUD, assert text + textures + viewport, damage + re-assert. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|HUD")
 	static bool RunHeadlessHudVerify(UObject* WorldContextObject);
 
@@ -60,18 +68,26 @@ protected:
 
 private:
 	void EnsureWidgetTree();
+	void EnsureHudTextures();
 	void RefreshDisplay();
 	AShockPlayer* ResolvePlayer() const;
 	AShockWeapon* ResolveEquippedWeapon(AShockPlayer* Player) const;
 	void SetHealthTextColor(const FLinearColor& Color);
+	void SetMeterImageOpacity(UImage* Image, float Percent) const;
 
 	void EnsureRefreshTimer();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> MeterUnderlayImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> HealthArcImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> HealthText = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UProgressBar> HealthBar = nullptr;
+	TObjectPtr<UImage> EveArcImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EveText = nullptr;
@@ -81,9 +97,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PlasmidText = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UProgressBar> EveBar = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AmmoMagText = nullptr;
@@ -96,6 +109,15 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UBorder> AmmoPanel = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> HealthArcTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> EveArcTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MeterUnderlayTexture = nullptr;
 
 	FString CachedHealthText;
 	FString CachedEveText;

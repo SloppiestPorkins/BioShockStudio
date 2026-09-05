@@ -10,10 +10,13 @@
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
-#include "Components/ProgressBar.h"
+#include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
@@ -24,6 +27,13 @@ namespace
 {
 constexpr float RefreshIntervalSeconds = 0.1f;
 constexpr float DamageFlashSeconds = 0.35f;
+constexpr float MeterImageWidth = 220.0f;
+constexpr float MeterImageHeight = 88.0f;
+
+const TCHAR* HealthArcTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_HealthArc.T_Hud_HealthArc");
+const TCHAR* EveArcTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_EveArc.T_Hud_EveArc");
+const TCHAR* MeterUnderlayTexturePath =
+	TEXT("/Game/BioShockUI/HUD/T_Hud_MeterUnderlay.T_Hud_MeterUnderlay");
 
 FLinearColor HudGold() { return FLinearColor(0.92f, 0.78f, 0.35f, 1.0f); }
 FLinearColor HudWhite() { return FLinearColor(0.95f, 0.95f, 0.95f, 1.0f); }
@@ -51,6 +61,24 @@ UCanvasPanelSlot* AnchorBottomCorner(UCanvasPanel* Canvas, UWidget* Child, bool 
 	Slot->SetPosition(FVector2D(bRight ? -24.0f : 24.0f, -24.0f));
 	return Slot;
 }
+
+UImage* MakeMeterImage(UWidgetTree* Tree, FName Name)
+{
+	UImage* Image = Tree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
+	Image->SetBrushSize(FVector2D(MeterImageWidth, MeterImageHeight));
+	Image->SetVisibility(ESlateVisibility::HitTestInvisible);
+	return Image;
+}
+
+bool BrushHasTexture(const UImage* Image)
+{
+	if (!Image)
+	{
+		return false;
+	}
+	const FSlateBrush& Brush = Image->GetBrush();
+	return Brush.GetResourceObject() != nullptr;
+}
 }
 
 UShockHudWidget::UShockHudWidget(const FObjectInitializer& ObjectInitializer)
@@ -66,6 +94,39 @@ FString UShockHudWidget::GetLastHudVerifyError()
 void UShockHudWidget::BindDisplayPlayer(AShockPlayer* Player)
 {
 	DisplayPlayerOverride = Player;
+}
+
+void UShockHudWidget::EnsureHudTextures()
+{
+	if (!HealthArcTexture)
+	{
+		HealthArcTexture = LoadObject<UTexture2D>(nullptr, HealthArcTexturePath);
+	}
+	if (!EveArcTexture)
+	{
+		EveArcTexture = LoadObject<UTexture2D>(nullptr, EveArcTexturePath);
+	}
+	if (!MeterUnderlayTexture)
+	{
+		MeterUnderlayTexture = LoadObject<UTexture2D>(nullptr, MeterUnderlayTexturePath);
+	}
+
+	if (HealthArcImage && HealthArcTexture)
+	{
+		HealthArcImage->SetBrushFromTexture(HealthArcTexture, true);
+		HealthArcImage->SetBrushSize(FVector2D(MeterImageWidth, MeterImageHeight));
+	}
+	if (EveArcImage && EveArcTexture)
+	{
+		EveArcImage->SetBrushFromTexture(EveArcTexture, true);
+		EveArcImage->SetBrushSize(FVector2D(MeterImageWidth, MeterImageHeight));
+	}
+	if (MeterUnderlayImage && MeterUnderlayTexture)
+	{
+		MeterUnderlayImage->SetBrushFromTexture(MeterUnderlayTexture, true);
+		MeterUnderlayImage->SetBrushSize(FVector2D(MeterImageWidth, MeterImageHeight));
+		MeterUnderlayImage->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.85f));
+	}
 }
 
 void UShockHudWidget::EnsureWidgetTree()
@@ -84,6 +145,25 @@ void UShockHudWidget::EnsureWidgetTree()
 		UVerticalBox::StaticClass(), TEXT("HealthBox"));
 	HealthBacking->SetContent(HealthBox);
 
+	UOverlay* HealthMeterOverlay = WidgetTree->ConstructWidget<UOverlay>(
+		UOverlay::StaticClass(), TEXT("HealthMeterOverlay"));
+	MeterUnderlayImage = MakeMeterImage(WidgetTree, TEXT("MeterUnderlayImage"));
+	if (UOverlaySlot* UnderlaySlot = HealthMeterOverlay->AddChildToOverlay(MeterUnderlayImage))
+	{
+		UnderlaySlot->SetHorizontalAlignment(HAlign_Left);
+		UnderlaySlot->SetVerticalAlignment(VAlign_Bottom);
+	}
+	HealthArcImage = MakeMeterImage(WidgetTree, TEXT("HealthArcImage"));
+	if (UOverlaySlot* HealthArcSlot = HealthMeterOverlay->AddChildToOverlay(HealthArcImage))
+	{
+		HealthArcSlot->SetHorizontalAlignment(HAlign_Left);
+		HealthArcSlot->SetVerticalAlignment(VAlign_Bottom);
+	}
+	if (UVerticalBoxSlot* MeterSlot = HealthBox->AddChildToVerticalBox(HealthMeterOverlay))
+	{
+		MeterSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+	}
+
 	HealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("HealthText"));
 	HealthText->SetText(FText::FromString(TEXT("--")));
 	HealthText->SetFont(MakeHudFont(28, true));
@@ -93,12 +173,10 @@ void UShockHudWidget::EnsureWidgetTree()
 		HealthTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
 	}
 
-	HealthBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("HealthBar"));
-	HealthBar->SetFillColorAndOpacity(HudGold());
-	HealthBar->SetPercent(1.0f);
-	if (UVerticalBoxSlot* BarSlot = HealthBox->AddChildToVerticalBox(HealthBar))
+	EveArcImage = MakeMeterImage(WidgetTree, TEXT("EveArcImage"));
+	if (UVerticalBoxSlot* EveArcSlot = HealthBox->AddChildToVerticalBox(EveArcImage))
 	{
-		BarSlot->SetPadding(FMargin(0.0f));
+		EveArcSlot->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 2.0f));
 	}
 
 	EveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EveText"));
@@ -107,7 +185,7 @@ void UShockHudWidget::EnsureWidgetTree()
 	EveText->SetColorAndOpacity(FSlateColor(FLinearColor(0.55f, 0.85f, 1.0f, 1.0f)));
 	if (UVerticalBoxSlot* EveTextSlot = HealthBox->AddChildToVerticalBox(EveText))
 	{
-		EveTextSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 2.0f));
+		EveTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
 	}
 
 	ConsumablesText = WidgetTree->ConstructWidget<UTextBlock>(
@@ -129,14 +207,7 @@ void UShockHudWidget::EnsureWidgetTree()
 		PlasmidTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
 	}
 
-	EveBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("EveBar"));
-	EveBar->SetFillColorAndOpacity(FLinearColor(0.35f, 0.75f, 1.0f, 1.0f));
-	EveBar->SetPercent(1.0f);
-	if (UVerticalBoxSlot* EveBarSlot = HealthBox->AddChildToVerticalBox(EveBar))
-	{
-		EveBarSlot->SetPadding(FMargin(0.0f));
-	}
-
+	EnsureHudTextures();
 	AnchorBottomCorner(Canvas, HealthBacking, false);
 
 	AmmoPanel = MakeHudBacking(WidgetTree, TEXT("AmmoBacking"));
@@ -190,6 +261,7 @@ TSharedRef<SWidget> UShockHudWidget::RebuildWidget()
 void UShockHudWidget::NativeConstruct()
 {
 	EnsureWidgetTree();
+	EnsureHudTextures();
 	Super::NativeConstruct();
 	EnsureRefreshTimer();
 	RefreshDisplay();
@@ -253,9 +325,23 @@ void UShockHudWidget::SetHealthTextColor(const FLinearColor& Color)
 	}
 }
 
+void UShockHudWidget::SetMeterImageOpacity(UImage* Image, float Percent) const
+{
+	if (!Image)
+	{
+		return;
+	}
+	// FrozenHealth_DangerBar's 20 in-SWF frames animate via ColorTransform; frame-0 export is the
+	// full arc. Map 0-100% onto opacity as a first-pass stand-in until multi-frame export exists.
+	const float Clamped = FMath::Clamp(Percent, 0.0f, 1.0f);
+	const float Alpha = FMath::Lerp(0.2f, 1.0f, Clamped);
+	Image->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, Alpha));
+}
+
 void UShockHudWidget::RefreshDisplay()
 {
 	EnsureWidgetTree();
+	EnsureHudTextures();
 
 	UWorld* World = GetWorld();
 	const double Now = World ? static_cast<double>(World->GetTimeSeconds()) : 0.0;
@@ -293,10 +379,7 @@ void UShockHudWidget::RefreshDisplay()
 	{
 		HealthText->SetText(FText::FromString(CachedHealthText));
 	}
-	if (HealthBar)
-	{
-		HealthBar->SetPercent(FMath::Clamp(Health / MaxHealth, 0.0f, 1.0f));
-	}
+	SetMeterImageOpacity(HealthArcImage, Health / MaxHealth);
 
 	const float Eve = Player ? Player->GetCurrentEve() : 0.0f;
 	float MaxEve = Player ? Player->GetMaxEve() : 0.0f;
@@ -309,6 +392,7 @@ void UShockHudWidget::RefreshDisplay()
 	{
 		EveText->SetText(FText::FromString(CachedEveText));
 	}
+	SetMeterImageOpacity(EveArcImage, Eve / MaxEve);
 
 	if (ConsumablesText)
 	{
@@ -347,11 +431,6 @@ void UShockHudWidget::RefreshDisplay()
 		PlasmidText->SetText(FText::FromString(CachedPlasmidText));
 		PlasmidText->SetVisibility(
 			PlasmidLabel.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
-	}
-
-	if (EveBar)
-	{
-		EveBar->SetPercent(FMath::Clamp(Eve / MaxEve, 0.0f, 1.0f));
 	}
 
 	AShockWeapon* Weapon = ResolveEquippedWeapon(Player);
@@ -423,6 +502,16 @@ FString UShockHudWidget::GetDisplayedConsumablesText() const
 	return CachedConsumablesText;
 }
 
+bool UShockHudWidget::HasHealthArcTexture() const
+{
+	return HealthArcTexture != nullptr && BrushHasTexture(HealthArcImage);
+}
+
+bool UShockHudWidget::HasEveArcTexture() const
+{
+	return EveArcTexture != nullptr && BrushHasTexture(EveArcImage);
+}
+
 bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 {
 	LastHudVerifyError.Empty();
@@ -486,6 +575,26 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 			TEXT("health text %s != %d"),
 			*Hud->GetDisplayedHealthText(),
 			ExpectedHealth);
+		Hud->RemoveFromParent();
+		Player->Destroy();
+		Weapon->Destroy();
+		return false;
+	}
+	if (!Hud->HasHealthArcTexture())
+	{
+		LastHudVerifyError = TEXT(
+			"health arc UImage has null texture — run tools/ue5/export_hud_ui.py then "
+			"import_hud_ui.py into /Game/BioShockUI/HUD");
+		Hud->RemoveFromParent();
+		Player->Destroy();
+		Weapon->Destroy();
+		return false;
+	}
+	if (!Hud->HasEveArcTexture())
+	{
+		LastHudVerifyError = TEXT(
+			"eve arc UImage has null texture — run tools/ue5/export_hud_ui.py then "
+			"import_hud_ui.py into /Game/BioShockUI/HUD");
 		Hud->RemoveFromParent();
 		Player->Destroy();
 		Weapon->Destroy();
@@ -561,12 +670,15 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_HUD_OK health=%d mag=%d reserve=%d health_after=%d viewport=%d"),
+		TEXT("BIOSHOCK_HUD_OK health=%d mag=%d reserve=%d health_after=%d viewport=%d "
+			 "health_tex=%d eve_tex=%d"),
 		ExpectedHealth,
 		ExpectedMag,
 		ExpectedReserve,
 		ExpectedHealthAfter,
-		Hud->IsInViewport() ? 1 : 0);
+		Hud->IsInViewport() ? 1 : 0,
+		Hud->HasHealthArcTexture() ? 1 : 0,
+		Hud->HasEveArcTexture() ? 1 : 0);
 
 	Hud->RemoveFromParent();
 	Player->Destroy();
