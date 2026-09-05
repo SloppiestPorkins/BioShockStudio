@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionOpenDoor.generated.h"
 
-/** UnrealScript `ActionOpenDoor`: Open / OpenAndHold by DoorLabel. Records request only. */
+class UWorld;
+
+/** UnrealScript `ActionOpenDoor`: Open / OpenAndHold by DoorLabel. Drives AShockDoor when present. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionOpenDoor : public UShockAction
 {
@@ -34,4 +36,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestOpen();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

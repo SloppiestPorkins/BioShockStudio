@@ -1,5 +1,6 @@
 #include "ShockActionSetDoorBrokenState.h"
 
+#include "ShockDoor.h"
 #include "ShockPlayer.h"
 
 UShockActionSetDoorBrokenState::UShockActionSetDoorBrokenState()
@@ -29,13 +30,19 @@ int32 UShockActionSetDoorBrokenState::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
-	if (!Player)
+
+	int32 Applied = 0;
+	if (AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World))
 	{
-		return 0;
+		Player->SetDoorBroken(DoorLabel, bIsBroken);
+		++Applied;
 	}
-	Player->SetDoorBroken(DoorLabel, bIsBroken);
-	return 1;
+	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	{
+		Door->SetBroken(bIsBroken);
+		++Applied;
+	}
+	return Applied;
 }
 
 bool UShockActionSetDoorBrokenState::ApplyInWorld(const FShockActionContext& Ctx)

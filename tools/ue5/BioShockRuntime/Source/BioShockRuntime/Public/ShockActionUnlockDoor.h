@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionUnlockDoor.generated.h"
 
-/** UnrealScript `ActionUnlockDoor`: unlock door by DoorLabel. Records request only. */
+class UWorld;
+
+/** UnrealScript `ActionUnlockDoor`: unlock by DoorLabel. Clears AShockDoor lock when present. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionUnlockDoor : public UShockAction
 {
@@ -28,4 +30,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestUnlock();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

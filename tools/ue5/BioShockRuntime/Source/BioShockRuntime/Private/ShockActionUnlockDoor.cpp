@@ -1,5 +1,7 @@
 #include "ShockActionUnlockDoor.h"
 
+#include "ShockDoor.h"
+
 UShockActionUnlockDoor::UShockActionUnlockDoor()
 {
 	ActionClassName = TEXT("ActionUnlockDoor");
@@ -20,7 +22,20 @@ bool UShockActionUnlockDoor::RequestUnlock()
 	return true;
 }
 
+int32 UShockActionUnlockDoor::ApplyInWorld(UWorld* World)
+{
+	if (!RequestUnlock() || !World)
+	{
+		return 0;
+	}
+	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	{
+		Door->SetLocked(false);
+	}
+	return 1;
+}
+
 bool UShockActionUnlockDoor::ApplyInWorld(const FShockActionContext& Ctx)
 {
-	return RequestUnlock();
+	return ApplyInWorld(Ctx.World) > 0;
 }

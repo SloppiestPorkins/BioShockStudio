@@ -1045,7 +1045,13 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
 
 
 def _import_door_attachments(manifest, meshes, existing, report, handled):
-    """Place the static-mesh geometry carried by each door attachment."""
+    """Spawn AShockDoor for each door actor; place extra leaf meshes as StaticMeshActors.
+
+    Source MedicalDoors attach multiple static leaves to an animation-proxy skeleton. The first
+    leaf becomes the interactive AShockDoor mesh (yaw-swing APPROXIMATION); further leaves stay
+    as visual StaticMeshActors until dual-leaf skeletal open is wired.
+    """
+    door_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockDoor")
     instances = _instances_by_actor_key(manifest)
     by_name = {
         asset["name"]: meshes[asset["key"]]
@@ -1061,10 +1067,11 @@ def _import_door_attachments(manifest, meshes, existing, report, handled):
         return value[0], value[1], value[2]
 
     for entry in manifest.get("actors") or []:
-        attachments = (entry.get("door") or {}).get("attachments") or []
-        if not attachments:
+        door_data = entry.get("door")
+        if not door_data:
             continue
 
+        attachments = door_data.get("attachments") or []
         actor_instances = instances.get(entry["key"]) or []
         transform = actor_instances[0].get("transform") if actor_instances else entry.get("transform")
         if transform is None:
@@ -1072,6 +1079,76 @@ def _import_door_attachments(manifest, meshes, existing, report, handled):
             continue
 
         location, rotation, scale = _decompose(transform)
+        door_label = entry.get("label") or entry.get("name") or entry["key"]
+        dkey = "door:" + entry["key"]
+        actor = existing.get(dkey)
+
+        if door_cls is not None:
+            if actor is not None:
+                actor_cls = actor.get_class()
+                if actor_cls != door_cls and not unreal.MathLibrary.class_is_child_of(
+                        actor_cls, door_cls):
+                    _actor_subsystem().destroy_actor(actor)
+                    actor = None
+
+            if actor is None:
+                actor = _actor_subsystem().spawn_actor_from_class(
+                    door_cls, location, rotation)
+                if actor is None:
+                    report["skipped"] += 1
+                else:
+                    report["created"] += 1
+            else:
+                report["updated"] += 1
+                actor.set_actor_location(location, False, False)
+                actor.set_actor_rotation(rotation, False)
+
+            if actor is not None:
+                actor.set_actor_scale3d(scale)
+                actor.set_actor_label(door_label)
+                actor.tags = [unreal.Name(KEY_TAG_PREFIX + dkey)]
+                if hasattr(actor, "set_door_label"):
+                    actor.set_door_label(unreal.Name(door_label))
+                locked = bool(door_data.get("locked") or False)
+                initially_open = bool(door_data.get("initiallyOpen") or False)
+                if hasattr(actor, "configure_for_verify"):
+                    actor.configure_for_verify(unreal.Name(door_label), locked, initially_open)
+                else:
+                    if hasattr(actor, "set_locked"):
+                        actor.set_locked(locked)
+
+                first_mesh = None
+                if attachments:
+                    static_mesh = attachments[0].get("staticMesh")
+                    object_name = (
+                        static_mesh.get("objectName") if isinstance(static_mesh, dict) else None)
+                    first_mesh = by_name.get(object_name)
+                    # Drop the pre-AShockDoor StaticMeshActor leaf if a prior import left one.
+                    socket0 = attachments[0].get("attachSocket") or ""
+                    if object_name:
+                        old_leaf_key = "door:%s:%s:%s" % (entry["key"], socket0, object_name)
+                        old_leaf = existing.get(old_leaf_key)
+                        if old_leaf is not None:
+                            _actor_subsystem().destroy_actor(old_leaf)
+                            existing.pop(old_leaf_key, None)
+                if first_mesh is not None:
+                    mesh_comp = actor.get_editor_property("door_mesh")
+                    if mesh_comp is not None:
+                        mesh_comp.set_static_mesh(first_mesh)
+                        mesh_comp.set_editor_property(
+                            "mobility", unreal.ComponentMobility.MOVABLE)
+                        # Drop the cube stand-in scale once a real leaf mesh is assigned.
+                        mesh_comp.set_relative_scale3d(unreal.Vector(1.0, 1.0, 1.0))
+
+                existing[dkey] = actor
+                handled.add(dkey)
+                report["doorsPlaced"] = report.get("doorsPlaced", 0) + 1
+                # First attachment consumed by AShockDoor; place any further leaves as props.
+                attachments = attachments[1:]
+        elif not attachments:
+            report["doorAttachmentsSkipped"] = report.get("doorAttachmentsSkipped", 0) + 1
+            continue
+
         for att in attachments:
             static_mesh = att.get("staticMesh")
             object_name = static_mesh.get("objectName") if isinstance(static_mesh, dict) else None
@@ -1090,33 +1167,34 @@ def _import_door_attachments(manifest, meshes, existing, report, handled):
                 roll=rotation.roll + roll * ROTATOR_TO_DEGREES)
 
             socket = att.get("attachSocket") or ""
-            dkey = "door:" + entry["key"] + ":" + socket + ":" + object_name
-            actor = existing.get(dkey)
-            if actor is not None and not isinstance(actor, unreal.StaticMeshActor):
-                _actor_subsystem().destroy_actor(actor)
-                actor = None
+            leaf_key = "door:" + entry["key"] + ":" + socket + ":" + object_name
+            leaf = existing.get(leaf_key)
+            if leaf is not None and not isinstance(leaf, unreal.StaticMeshActor):
+                _actor_subsystem().destroy_actor(leaf)
+                leaf = None
 
-            if actor is None:
-                actor = _actor_subsystem().spawn_actor_from_class(
+            if leaf is None:
+                leaf = _actor_subsystem().spawn_actor_from_class(
                     unreal.StaticMeshActor, attachment_location, attachment_rotation)
-                if actor is None:
+                if leaf is None:
                     report["skipped"] += 1
                     continue
                 report["created"] += 1
             else:
                 report["updated"] += 1
-                actor.set_actor_location(attachment_location, False, False)
-                actor.set_actor_rotation(attachment_rotation, False)
+                leaf.set_actor_location(attachment_location, False, False)
+                leaf.set_actor_rotation(attachment_rotation, False)
 
-            actor.static_mesh_component.set_static_mesh(mesh)
-            actor.static_mesh_component.set_editor_property(
+            leaf.static_mesh_component.set_static_mesh(mesh)
+            leaf.static_mesh_component.set_editor_property(
                 "mobility", unreal.ComponentMobility.MOVABLE)
-            actor.set_actor_scale3d(scale)
-            actor.set_actor_label((entry.get("label") or entry.get("name") or entry["key"])
-                                  + ":" + socket)
-            actor.tags = [unreal.Name(KEY_TAG_PREFIX + dkey)]
-            existing[dkey] = actor
-            handled.add(dkey)
+            # Visual-only second leaf — interactive collision lives on AShockDoor.
+            leaf.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+            leaf.set_actor_scale3d(scale)
+            leaf.set_actor_label(door_label + ":" + socket)
+            leaf.tags = [unreal.Name(KEY_TAG_PREFIX + leaf_key)]
+            existing[leaf_key] = leaf
+            handled.add(leaf_key)
             report["doorAttachmentsPlaced"] = report.get("doorAttachmentsPlaced", 0) + 1
 
 
@@ -1177,11 +1255,12 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
 
     _log("import report: %d created, %d updated, %d skipped, %d unsupported, "
          "%d mesh instance(s) not drawn, %d volume(s) placed, %d volume(s) skipped, "
-         "%d door attachment(s) placed, %d door attachment(s) skipped, "
+         "%d ShockDoor(s) placed, %d door attachment(s) placed, %d door attachment(s) skipped, "
          "%d mesh(es) with a material assigned, %d material slot(s) resolved"
          % (report["created"], report["updated"], report["skipped"], report["unsupported"],
             report.get("meshInstancesSkipped", 0), report.get("volumesPlaced", 0),
-            report.get("volumesSkipped", 0), report.get("doorAttachmentsPlaced", 0),
+            report.get("volumesSkipped", 0), report.get("doorsPlaced", 0),
+            report.get("doorAttachmentsPlaced", 0),
             report.get("doorAttachmentsSkipped", 0), report.get("materialsAssigned", 0),
             report.get("materialSlotsResolved", 0)))
 

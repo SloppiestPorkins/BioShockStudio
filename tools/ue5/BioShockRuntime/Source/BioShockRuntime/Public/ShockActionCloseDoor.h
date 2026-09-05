@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionCloseDoor.generated.h"
 
-/** UnrealScript `ActionCloseDoor`. Records close request; no door mechanics yet. */
+class UWorld;
+
+/** UnrealScript `ActionCloseDoor`. Drives AShockDoor when present; else records request. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionCloseDoor : public UShockAction
 {
@@ -34,4 +36,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestClose();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

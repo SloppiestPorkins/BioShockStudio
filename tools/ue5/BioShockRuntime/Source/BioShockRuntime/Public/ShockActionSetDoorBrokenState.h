@@ -5,7 +5,7 @@
 
 class UWorld;
 
-/** UnrealScript `ActionSetDoorBrokenState`. ApplyInWorld stores broken flag on ShockPlayer by door label. */
+/** UnrealScript `ActionSetDoorBrokenState`. Stores broken on ShockPlayer and AShockDoor by label. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetDoorBrokenState : public UShockAction
 {

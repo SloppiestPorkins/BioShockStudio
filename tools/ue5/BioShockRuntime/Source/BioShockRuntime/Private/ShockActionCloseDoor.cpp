@@ -1,5 +1,7 @@
 #include "ShockActionCloseDoor.h"
 
+#include "ShockDoor.h"
+
 UShockActionCloseDoor::UShockActionCloseDoor()
 {
 	ActionClassName = TEXT("ActionCloseDoor");
@@ -22,7 +24,20 @@ bool UShockActionCloseDoor::RequestClose()
 	return true;
 }
 
+int32 UShockActionCloseDoor::ApplyInWorld(UWorld* World)
+{
+	if (!RequestClose() || !World)
+	{
+		return 0;
+	}
+	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	{
+		return Door->CloseDoor(bForceClose) ? 1 : 0;
+	}
+	return 1;
+}
+
 bool UShockActionCloseDoor::ApplyInWorld(const FShockActionContext& Ctx)
 {
-	return RequestClose();
+	return ApplyInWorld(Ctx.World) > 0;
 }

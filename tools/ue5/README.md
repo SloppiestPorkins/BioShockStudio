@@ -449,6 +449,42 @@ default **11**). Editor viewport sees the volume → bright; possessed Play sees
 confirms in PIE/Standalone after `rebuild_runtime_fast.ps1`. No headless lighting
 assert — render look is the check. Collision path untouched.
 
+## Interactive doors (AShockDoor) — 5 Sept 2026
+
+User report (in-editor): doors aren't functional. Audit confirmed there was no
+`AShockDoor` — only script-action request records (`OpenDoor` / `CloseDoor` /
+`LockDoor` / `UnlockDoor` / `SetDoorBrokenState` / `DoorKeypadUsed`). Level import
+placed door leaf meshes as plain `StaticMeshActor`s with default collision and
+zero interactivity (`docs/research/interaction.md`, `door-and-import-materials.md`).
+
+**Source (CONFIRMED_BYTES):** ~50 door classes; state fields `bLocked`,
+`bInitiallyOpen`, `OpenAnimationRate`, `DoorPortal`, `Attachments[]`. MedicalDoors
+drive a skeletal proxy (`Med_DoorAnim` + `OpenAnimationName`) with static leaves on
+sockets. Script layer can lock/open/break by label. Keypad / welded / elevator
+variants exist separately.
+
+**What this slice builds (plain doors):** `AShockDoor` — proximity open (APPROXIMATED;
+`ShockPlayer` has no Interact bind yet, only UseFirstAid/UseEveHypo; pickups also
+use overlap), yaw-swing fallback (APPROXIMATED vs skeletal `OpenAnimationName`),
+collision off when mostly open, respects locked/broken. Script actions now
+`FindByLabel` + drive the actor; `SetDoorBrokenState` still writes `ShockPlayer`
+and also sets `AShockDoor::bBroken`. `import_level._import_door_attachments`
+spawns `AShockDoor` (first attachment mesh when present) and leaves extra leaves
+as non-blocking visual props.
+
+**Follow-ups (not this slice):** keypad / Interact prompt (`DoorSwitch.UseVerbText`),
+dual-leaf skeletal open, `DoorPortal` brush reveal, welded/elevator specials.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=tools\ue5\run_door.py -unattended -nopause -nosplash
+```
+
+**5 Sept 2026 — code + verify landed in this worktree; no live UE session here.**
+Report: `%TEMP%/door_report.json`. Human confirms swing speed / proximity range
+in the editor afterward.
+
 ## Tommy Gun fire mode + grip socket align (h12) — 5 Sept 2026
 
 User report (first in-editor weapon test after movement/collision): Tommy Gun is

@@ -3,7 +3,9 @@
 #include "ShockAction.h"
 #include "ShockActionLockDoor.generated.h"
 
-/** UnrealScript `ActionLockDoor`. Records lock request; twin of UnlockDoor. */
+class UWorld;
+
+/** UnrealScript `ActionLockDoor`. Sets AShockDoor locked when present; else records request. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionLockDoor : public UShockAction
 {
@@ -28,4 +30,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestLock();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };
