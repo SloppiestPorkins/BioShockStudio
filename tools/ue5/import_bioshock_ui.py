@@ -32,11 +32,16 @@ METER_SLICE_LEFT = 68
 METER_SLICE_TOP = 22
 METER_SLICE_RIGHT = 68
 METER_SLICE_BOTTOM = 22
-# Inner fill cavity inset on the same crop.
+# Inner fill cavity inset on the same crop (hand-measured; punch uses a hair tighter).
 METER_FILL_LEFT = 32
 METER_FILL_TOP = 28
 METER_FILL_RIGHT = 32
 METER_FILL_BOTTOM = 28
+# Transparent punch / white-on-black mask — inset further so the rim always covers the fill edge.
+METER_PUNCH_LEFT = 36
+METER_PUNCH_TOP = 30
+METER_PUNCH_RIGHT = 36
+METER_PUNCH_BOTTOM = 30
 
 # HUDRadial digit glyphs: ids run 9..0 then a highlight set. Normal set only for U2.
 DIGIT_IDS_9_TO_0 = [239, 241, 243, 245, 247, 249, 251, 253, 255, 257]
@@ -86,35 +91,42 @@ def _ensure_export(export_root, force=False):
 
 
 def _draw_cross_icon(size=64):
+    """Medical cross — thicker arms so it does not read as a bare '+' glyph at HUD scale."""
     from PIL import Image, ImageDraw
 
     im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
     cx = cy = size // 2
-    arm = size // 5
-    thick = max(4, size // 10)
-    color = (220, 230, 220, 255)
-    draw.rectangle([cx - thick // 2, cy - arm, cx + thick // 2, cy + arm], fill=color)
-    draw.rectangle([cx - arm, cy - thick // 2, cx + arm, cy + thick // 2], fill=color)
+    arm = size * 18 // 64
+    thick = size * 14 // 64
+    outline = (20, 20, 20, 180)
+    color = (240, 245, 240, 255)
+    for offset, fill in ((2, outline), (0, color)):
+        draw.rectangle(
+            [cx - thick // 2 - offset, cy - arm - offset, cx + thick // 2 + offset, cy + arm + offset],
+            fill=fill,
+        )
+        draw.rectangle(
+            [cx - arm - offset, cy - thick // 2 - offset, cx + arm + offset, cy + thick // 2 + offset],
+            fill=fill,
+        )
     return im
 
 
 def _draw_hypo_icon(size=64):
+    """EVE hypo syringe — body + plunger + needle (not a lone '|')."""
     from PIL import Image, ImageDraw
 
     im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
-    color = (180, 220, 255, 255)
-    # Barrel
-    draw.rectangle([size // 3, size // 4, size // 3 + size // 8, size * 3 // 4], fill=color)
-    # Plunger
-    draw.rectangle([size // 3 - 2, size // 6, size // 3 + size // 8 + 2, size // 4], fill=color)
-    # Needle
-    draw.line(
-        [(size // 3 + size // 16, size * 3 // 4), (size // 3 + size // 16, size - 6)],
-        fill=color,
-        width=2,
-    )
+    color = (200, 230, 255, 255)
+    draw.rounded_rectangle([22, 14, 38, 48], radius=3, fill=color)
+    draw.rectangle([25, 22, 35, 40], fill=(120, 180, 220, 200))
+    draw.rectangle([18, 12, 42, 16], fill=color)
+    draw.rectangle([26, 4, 34, 12], fill=color)
+    draw.rectangle([22, 2, 38, 5], fill=color)
+    draw.line([(30, 48), (30, 60)], fill=color, width=2)
+    draw.ellipse([28, 58, 32, 62], fill=color)
     return im
 
 
@@ -122,6 +134,39 @@ def _draw_white_fill():
     from PIL import Image
 
     return Image.new("RGBA", (8, 8), (255, 255, 255, 255))
+
+
+def _punch_meter_cavity(frame):
+    """Zero alpha in the inner liquid channel so a fill drawn under the frame is shaped by the rim."""
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter
+
+    w, h = frame.size
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    x0 = METER_PUNCH_LEFT
+    y0 = METER_PUNCH_TOP
+    x1 = w - METER_PUNCH_RIGHT - 1
+    y1 = h - METER_PUNCH_BOTTOM - 1
+    radius = max(1, (y1 - y0) // 2)
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=255)
+    for _ in range(1):
+        mask = mask.filter(ImageFilter.MinFilter(3))
+
+    punched = frame.convert("RGBA")
+    # Keep RGB; multiply alpha by (1 - mask) so the cavity is fully transparent.
+    r, g, b, a = punched.split()
+    inv = mask.point(lambda p: 255 - p)
+    a = ImageChops.multiply(a, inv)
+    return Image.merge("RGBA", (r, g, b, a)), mask
+
+
+def _fill_mask_from_l_mask(mask):
+    """White RGB + mask alpha — UImage brush tinted red/blue for the liquid."""
+    from PIL import Image
+
+    w, h = mask.size
+    rgb = Image.new("RGB", (w, h), (255, 255, 255))
+    return Image.merge("RGBA", (*rgb.split(), mask))
 
 
 def prepare_staging(export_root=None, staging_dir=None, force_export=False):
@@ -142,7 +187,8 @@ def prepare_staging(export_root=None, staging_dir=None, force_export=False):
         raise RuntimeError("missing atlas %s — run export_all_ui_images.py" % atlas_path)
     atlas = Image.open(atlas_path).convert("RGBA")
     x0, y0, x1, y1 = METER_FRAME_BOX
-    frame = atlas.crop((x0, y0, x1, y1))
+    frame_raw = atlas.crop((x0, y0, x1, y1))
+    frame, cavity_mask = _punch_meter_cavity(frame_raw)
     frame_name = "T_Hud_MeterFrame.png"
     frame.save(os.path.join(staging_dir, frame_name))
     textures.append(
@@ -150,7 +196,7 @@ def prepare_staging(export_root=None, staging_dir=None, force_export=False):
             "name": "T_Hud_MeterFrame",
             "file": frame_name,
             "role": "meterFrame",
-            "source": "HUDPC/%d.png crop %s" % (ATLAS_ID, METER_FRAME_BOX),
+            "source": "HUDPC/%d.png crop %s (cavity alpha punched)" % (ATLAS_ID, METER_FRAME_BOX),
             "sliceMarginPx": {
                 "left": METER_SLICE_LEFT,
                 "top": METER_SLICE_TOP,
@@ -163,7 +209,26 @@ def prepare_staging(export_root=None, staging_dir=None, force_export=False):
                 "right": METER_FILL_RIGHT,
                 "bottom": METER_FILL_BOTTOM,
             },
+            "punchInsetPx": {
+                "left": METER_PUNCH_LEFT,
+                "top": METER_PUNCH_TOP,
+                "right": METER_PUNCH_RIGHT,
+                "bottom": METER_PUNCH_BOTTOM,
+            },
             "sourceSize": [frame.size[0], frame.size[1]],
+        }
+    )
+
+    fill_mask = _fill_mask_from_l_mask(cavity_mask)
+    fill_mask_name = "T_Hud_FillMask.png"
+    fill_mask.save(os.path.join(staging_dir, fill_mask_name))
+    textures.append(
+        {
+            "name": "T_Hud_FillMask",
+            "file": fill_mask_name,
+            "role": "fillMask",
+            "source": "derived from meter-frame cavity punch",
+            "sourceSize": [fill_mask.size[0], fill_mask.size[1]],
         }
     )
 

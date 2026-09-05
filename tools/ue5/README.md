@@ -19,7 +19,7 @@ DefineButton2. Fast tests: `SwfBitmapReaderTests` (HUDPC → 14 bitmaps).
 
 ---
 
-## Phase U2 — real HUD art + BioShock layout — 5 Sept 2026
+## Phase U2 / U2b — real HUD art + BioShock layout — 5 Sept 2026
 
 `UShockHudWidget` rebuilt to BioShock 1's layout: health/EVE **upper-left** (stacked) in the
 rusted pill frames from `HUDPC` atlas id 86; weapon cluster lower-right (brass ring + HUDRadial
@@ -27,21 +27,28 @@ digit glyphs); plasmid lower-left; center crosshair; top-center toast slot; bott
 (id 177); screen-edge red damage flash. Stale h21 arcs (`T_Hud_HealthArc` / `EveArc` /
 `MeterUnderlay`) deleted on import.
 
+**U2b fixes (same day):** meter frame cavity alpha-punched + `T_Hud_FillMask` derived from that
+channel; liquid fill draws *under* the rim so it cannot spill past the pill; health percent uses
+`EnsureHealthInitialized` + `GetMaxHealth` (EVE already defaulted to 100 — health stayed at 0);
+cap icon + single HUDRadial digit sit in the left bulb of each meter; weapon ring + name always
+visible, ammo digits only when `bEnforceAmmo`; display size ~560×116 at (28, 28);
+`-bioshockshothud` clears the RT to mid-grey before drawing the widget.
+
 **Art wired**
 
 | Role | Source | Notes |
 |---|---|---|
-| Meter frame | `HUDPC` id 86 crop `(414,20)-(1075,157)` | Long neutral pill; 9-slice margins 68/22/68/22 |
+| Meter frame | `HUDPC` id 86 crop `(414,20)-(1075,157)` | Long neutral pill; cavity alpha punched; 9-slice 68/22/68/22 |
+| Fill mask | derived from cavity punch | `T_Hud_FillMask`; fill brush uses opaque white under the punched frame |
 | Brass ring | `HUDPC` id 8 | Weapon + plasmid holders |
-| Digits 0–9 | `HUDRadial` ids 257…239 (source order 9→0) | Composited `UImage` glyphs, not UMG system font |
+| Digits 0–9 | `HUDRadial` ids 257…239 (source order 9→0) | Mag/reserve + kit/hypo counts |
 | Vignette | `HUDPC` id 177 | Bottom full-width gradient |
-| Fill | authored `T_Hud_FillWhite` | Tint red / blue; width scales with resource % |
+| Cap icons | authored `T_Hud_Icon_Cross` / `Hypo` | No standalone tag-512 medical/hypo bitmaps found |
 
 **Gaps (noted, not faked)**
 
 - Per-weapon / per-plasmid icons: `HUD_Ret_*` are vectors / ImportAssets, not tag-512 bitmaps —
   U2 shows brass ring + name text.
-- Medical-cross / EVE-hypo cap icons: no standalone tag-512 bitmaps found — authored glyphs.
 
 **Pipeline (PNGs outside git)**
 
@@ -55,11 +62,12 @@ py -3 tools\ue5\import_bioshock_ui.py --prepare
 # then: -script=<repo>\tools\ue5\run_hud.py
 ```
 
-Content: `/Game/BioShockUI/HUD/T_Hud_{MeterFrame,BrassRing,Vignette,Digit_0..9,FillWhite,Icon_Cross,Icon_Hypo}`.
+Content: `/Game/BioShockUI/HUD/T_Hud_{MeterFrame,FillMask,FillWhite,BrassRing,Vignette,Digit_0..9,Icon_Cross,Icon_Hypo}`.
 
 **Verify:** `run_hud.py` green — widget constructs, meter-frame + digit textures non-null, damage
-reduces displayed health, ammo panel gates on `bEnforceAmmo`. **Visual likeness is a human
-capture-harness check:** `tools/ue5/capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical`.
+reduces displayed health, weapon cluster shows for melee (ring+name), ammo digits gate on
+`bEnforceAmmo`. **Visual likeness is a human capture-harness check:**
+`tools/ue5/capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical -Extra '-bioshockshothud'`.
 
 ---
 

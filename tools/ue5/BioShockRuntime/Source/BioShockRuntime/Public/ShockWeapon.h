@@ -217,6 +217,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void SetEnforceAmmo(bool bEnable) { bEnforceAmmo = bEnable; }
 
+	/** Headless verify / HUD: set display name without loading a weapon def. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
+	void SetWeaponDefNameForVerify(FName Name) { DefWeaponName = Name; }
+
 	/** Headless verify: advance reload countdown without real-time wait. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void AdvanceReloadForVerify(float DeltaSeconds);

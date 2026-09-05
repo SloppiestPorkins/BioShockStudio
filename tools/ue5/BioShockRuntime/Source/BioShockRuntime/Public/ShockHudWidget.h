@@ -9,8 +9,10 @@ class UBorder;
 class UHorizontalBox;
 class UImage;
 class UOverlay;
+class UProgressBar;
 class USizeBox;
 class UTextBlock;
+class UVerticalBox;
 
 /** In-game HUD: upper-left health/EVE meters from real Scaleform art + weapon/plasmid clusters. */
 UCLASS()
@@ -46,8 +48,13 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	FString GetDisplayedConsumablesText() const;
 
+	/** True when the lower-right weapon cluster (ring + name) is shown. */
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
+
+	/** True when magazine/reserve digit rows are shown (bEnforceAmmo weapons only). */
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	bool IsAmmoDigitsVisible() const { return bAmmoDigitsVisible; }
 
 	/** True when the health meter frame UImage has a non-null Texture2D brush (after import_bioshock_ui). */
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
@@ -79,8 +86,9 @@ private:
 	void RefreshDisplay();
 	AShockPlayer* ResolvePlayer() const;
 	AShockWeapon* ResolveEquippedWeapon(AShockPlayer* Player) const;
-	void SetMeterFill(USizeBox* FillSize, UImage* FillImage, float Percent, const FLinearColor& Tint) const;
+	void SetMeterFill(UProgressBar* FillBar, float Percent, const FLinearColor& Tint) const;
 	void SetDigitString(UHorizontalBox* Box, const TArray<TObjectPtr<UImage>>& Slots, const FString& Digits, float Scale) const;
+	void SetCountDigit(UImage* DigitImage, int32 Count) const;
 	void ApplyDamageFlashVisuals(bool bFlashing);
 	void EnsureRefreshTimer();
 
@@ -88,31 +96,25 @@ private:
 	TObjectPtr<UImage> HealthMeterFrame = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<USizeBox> HealthFillSize = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UImage> HealthFillImage = nullptr;
+	TObjectPtr<UProgressBar> HealthFillBar = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> HealthCapIcon = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> KitCountText = nullptr;
+	TObjectPtr<UImage> KitCountDigit = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> EveMeterFrame = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<USizeBox> EveFillSize = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UImage> EveFillImage = nullptr;
+	TObjectPtr<UProgressBar> EveFillBar = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> EveCapIcon = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> HypoCountText = nullptr;
+	TObjectPtr<UImage> HypoCountDigit = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> ToastText = nullptr;
@@ -166,10 +168,13 @@ private:
 	TObjectPtr<UTextBlock> AmmoReservePrefixText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UVerticalBox> AmmoDigitsColumn = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> MeterFrameTexture = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> FillWhiteTexture = nullptr;
+	TObjectPtr<UTexture2D> FillMaskTexture = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> BrassRingTexture = nullptr;
@@ -194,6 +199,7 @@ private:
 	FString CachedWeaponNameText;
 	FString CachedAmmoReserveText;
 	bool bAmmoPanelVisible = false;
+	bool bAmmoDigitsVisible = false;
 
 	float LastObservedHealth = -1.0f;
 	float DamageFlashEndTime = -1.0f;

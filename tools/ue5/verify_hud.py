@@ -27,10 +27,12 @@ def main(out):
 
     required = [
         "T_Hud_MeterFrame",
-        "T_Hud_FillWhite",
+        "T_Hud_FillMask",
         "T_Hud_BrassRing",
         "T_Hud_Digit_0",
         "T_Hud_Digit_9",
+        "T_Hud_Icon_Cross",
+        "T_Hud_Icon_Hypo",
     ]
     textures_on_disk = {}
     for name in required:

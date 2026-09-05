@@ -2273,10 +2273,12 @@ void AShockGameMode::TickScreenshotCapture()
 			EnsureHudForPlayer(PC);
 			if (PlayerHud)
 			{
-				FWidgetRenderer WidgetRenderer(/*bUseGammaCorrection*/ true);
+				FWidgetRenderer WidgetRenderer(/*bUseGammaCorrection*/ true, /*bClearTarget*/ false);
 				UTextureRenderTarget2D* HudRT = UKismetRenderingLibrary::CreateRenderTarget2D(
 					CaptureWorld, ShotW, ShotH, RTF_RGBA8);
 				HudRT->ClearColor = FLinearColor(0.25f, 0.25f, 0.25f, 1.0f);
+				UKismetRenderingLibrary::ClearRenderTarget2D(
+					CaptureWorld, HudRT, FLinearColor(0.25f, 0.25f, 0.25f, 1.0f));
 				WidgetRenderer.DrawWidget(HudRT, PlayerHud->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
 				FlushRenderingCommands();
 				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));

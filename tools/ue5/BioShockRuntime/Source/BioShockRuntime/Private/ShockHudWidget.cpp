@@ -15,6 +15,7 @@
 #include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -23,6 +24,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Styling/CoreStyle.h"
 #include "TimerManager.h"
 
 FString UShockHudWidget::LastHudVerifyError;
@@ -32,19 +34,23 @@ namespace
 constexpr float RefreshIntervalSeconds = 0.1f;
 constexpr float DamageFlashSeconds = 0.35f;
 
-// Display size for the long pill crop (661x137) at ~half scale.
-constexpr float MeterDisplayWidth = 330.0f;
-constexpr float MeterDisplayHeight = 68.0f;
-// Source crop fill insets (32,28,32,28) on 661x137 → scaled to display.
-constexpr float FillInsetLeft = 16.0f;
-constexpr float FillInsetTop = 14.0f;
-constexpr float FillInsetRight = 16.0f;
-constexpr float FillInsetBottom = 14.0f;
+// ~85% of the 661x137 source crop — reads clearly at 1280x720 without dominating.
+constexpr float MeterDisplayWidth = 560.0f;
+constexpr float MeterDisplayHeight = 116.0f;
+// Source fill insets (32,28,32,28) on 661x137 → scaled to display.
+constexpr float FillInsetLeft = 32.0f * MeterDisplayWidth / 661.0f;
+constexpr float FillInsetTop = 28.0f * MeterDisplayHeight / 137.0f;
+constexpr float FillInsetRight = 32.0f * MeterDisplayWidth / 661.0f;
+constexpr float FillInsetBottom = 28.0f * MeterDisplayHeight / 137.0f;
 // 9-slice margins on source crop (68,22,68,22) as normalized FMargin L,T,R,B.
 constexpr float SliceLeft = 68.0f / 661.0f;
 constexpr float SliceTop = 22.0f / 137.0f;
 constexpr float SliceRight = 68.0f / 661.0f;
 constexpr float SliceBottom = 22.0f / 137.0f;
+
+constexpr float CapIconSize = 36.0f;
+constexpr float CountDigitWidth = 22.0f;
+constexpr float CountDigitHeight = 44.0f;
 
 constexpr float MagDigitWidth = 28.0f;
 constexpr float MagDigitHeight = 56.0f;
@@ -54,6 +60,7 @@ constexpr int32 MaxMagDigits = 3;
 constexpr int32 MaxReserveDigits = 4;
 
 const TCHAR* MeterFrameTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_MeterFrame.T_Hud_MeterFrame");
+const TCHAR* FillMaskTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_FillMask.T_Hud_FillMask");
 const TCHAR* FillWhiteTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_FillWhite.T_Hud_FillWhite");
 const TCHAR* BrassRingTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_BrassRing.T_Hud_BrassRing");
 const TCHAR* VignetteTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_Vignette.T_Hud_Vignette");
@@ -95,11 +102,34 @@ void ApplyMeterFrameBrush(UImage* Image, UTexture2D* Texture)
 	FSlateBrush Brush;
 	Brush.SetResourceObject(Texture);
 	Brush.ImageSize = FVector2D(MeterDisplayWidth, MeterDisplayHeight);
-	Brush.DrawAs = ESlateBrushDrawType::Box;
-	Brush.Margin = FMargin(SliceLeft, SliceTop, SliceRight, SliceBottom);
+	// Image (not 9-slice Box): FillMask and the cavity punch share the same source pixels —
+	// Box margins would stretch the punched hole out of register with the fill silhouette.
+	Brush.DrawAs = ESlateBrushDrawType::Image;
 	Brush.Tiling = ESlateBrushTileType::NoTile;
 	Image->SetBrush(Brush);
-	Image->SetBrushSize(FVector2D(MeterDisplayWidth, MeterDisplayHeight));
+	Image->SetDesiredSizeOverride(FVector2D(MeterDisplayWidth, MeterDisplayHeight));
+}
+
+void ApplyFillBarStyle(UProgressBar* Bar, UTexture2D* Mask, const FLinearColor& Tint)
+{
+	if (!Bar || !Mask)
+	{
+		return;
+	}
+	FProgressBarStyle Style = Bar->GetWidgetStyle();
+	FSlateBrush Fill;
+	Fill.SetResourceObject(Mask);
+	Fill.ImageSize = FVector2D(MeterDisplayWidth, MeterDisplayHeight);
+	Fill.DrawAs = ESlateBrushDrawType::Image;
+	Fill.Tiling = ESlateBrushTileType::NoTile;
+	Fill.TintColor = FSlateColor(Tint);
+	Style.SetFillImage(Fill);
+	FSlateBrush Bg;
+	Bg.DrawAs = ESlateBrushDrawType::NoDrawType;
+	Style.SetBackgroundImage(Bg);
+	Style.SetEnableFillAnimation(false);
+	Bar->SetWidgetStyle(Style);
+	Bar->SetFillColorAndOpacity(Tint);
 }
 
 UCanvasPanelSlot* AnchorCorner(
@@ -136,39 +166,59 @@ UBorder* MakeEdgeFlash(UWidgetTree* Tree, FName Name)
 	return Border;
 }
 
+/**
+ * Meter stack: FillMask ProgressBar UNDER the punched frame, then cap icon + count digit
+ * on the left bulb. ProgressBar clips the stadium mask to percent without squashing.
+ */
 UOverlay* MakeMeterStack(
 	UWidgetTree* Tree,
 	FName OverlayName,
 	UImage*& OutFrame,
 	FName FrameName,
-	USizeBox*& OutFillSize,
-	FName FillSizeName,
-	UImage*& OutFill,
-	FName FillName)
+	UProgressBar*& OutFillBar,
+	FName FillBarName,
+	UImage*& OutCapIcon,
+	FName CapIconName,
+	UImage*& OutCountDigit,
+	FName CountDigitName)
 {
 	UOverlay* Overlay = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), OverlayName);
 	Overlay->SetClipping(EWidgetClipping::ClipToBounds);
 
-	// Frame FIRST (bottom of the overlay stack) — it is the housing. The liquid fill draws
-	// OVER its recessed centre, so the fill is the LAST child. Reversed order hid the fill
-	// entirely behind the frame's opaque brown centre.
+	OutFillBar = Tree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), FillBarName);
+	OutFillBar->SetPercent(1.0f);
+	OutFillBar->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (UOverlaySlot* FillSlot = Overlay->AddChildToOverlay(OutFillBar))
+	{
+		FillSlot->SetHorizontalAlignment(HAlign_Fill);
+		FillSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+
 	OutFrame = MakeImage(Tree, FrameName, FVector2D(MeterDisplayWidth, MeterDisplayHeight));
 	if (UOverlaySlot* FrameSlot = Overlay->AddChildToOverlay(OutFrame))
 	{
-		FrameSlot->SetHorizontalAlignment(HAlign_Left);
-		FrameSlot->SetVerticalAlignment(VAlign_Top);
+		FrameSlot->SetHorizontalAlignment(HAlign_Fill);
+		FrameSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 
-	OutFillSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FillSizeName);
-	OutFillSize->SetHeightOverride(MeterDisplayHeight - FillInsetTop - FillInsetBottom);
-	OutFillSize->SetWidthOverride(MeterDisplayWidth - FillInsetLeft - FillInsetRight);
-	OutFill = MakeImage(Tree, FillName, FVector2D(8.0f, 8.0f));
-	OutFillSize->AddChild(OutFill);
-	if (UOverlaySlot* FillSlot = Overlay->AddChildToOverlay(OutFillSize))
+	UHorizontalBox* CapRow = Tree->ConstructWidget<UHorizontalBox>(
+		UHorizontalBox::StaticClass(), *FString::Printf(TEXT("%s_CapRow"), *OverlayName.ToString()));
+	OutCapIcon = MakeImage(Tree, CapIconName, FVector2D(CapIconSize, CapIconSize));
+	if (UHorizontalBoxSlot* CapSlot = CapRow->AddChildToHorizontalBox(OutCapIcon))
 	{
-		FillSlot->SetPadding(FMargin(FillInsetLeft, FillInsetTop, FillInsetRight, FillInsetBottom));
-		FillSlot->SetHorizontalAlignment(HAlign_Left);
-		FillSlot->SetVerticalAlignment(VAlign_Top);
+		CapSlot->SetVerticalAlignment(VAlign_Center);
+		CapSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
+	}
+	OutCountDigit = MakeImage(Tree, CountDigitName, FVector2D(CountDigitWidth, CountDigitHeight));
+	if (UHorizontalBoxSlot* DigitSlot = CapRow->AddChildToHorizontalBox(OutCountDigit))
+	{
+		DigitSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UOverlaySlot* CapRowSlot = Overlay->AddChildToOverlay(CapRow))
+	{
+		CapRowSlot->SetPadding(FMargin(22.0f, 0.0f, 0.0f, 0.0f));
+		CapRowSlot->SetHorizontalAlignment(HAlign_Left);
+		CapRowSlot->SetVerticalAlignment(VAlign_Center);
 	}
 	return Overlay;
 }
@@ -195,9 +245,9 @@ void UShockHudWidget::EnsureHudTextures()
 	{
 		MeterFrameTexture = LoadObject<UTexture2D>(nullptr, MeterFrameTexturePath);
 	}
-	if (!FillWhiteTexture)
+	if (!FillMaskTexture)
 	{
-		FillWhiteTexture = LoadObject<UTexture2D>(nullptr, FillWhiteTexturePath);
+		FillMaskTexture = LoadObject<UTexture2D>(nullptr, FillMaskTexturePath);
 	}
 	if (!BrassRingTexture)
 	{
@@ -226,23 +276,23 @@ void UShockHudWidget::EnsureHudTextures()
 	ApplyMeterFrameBrush(HealthMeterFrame, MeterFrameTexture);
 	ApplyMeterFrameBrush(EveMeterFrame, MeterFrameTexture);
 
-	if (HealthFillImage && FillWhiteTexture)
+	if (HealthFillBar && FillMaskTexture)
 	{
-		HealthFillImage->SetBrushFromTexture(FillWhiteTexture, true);
+		ApplyFillBarStyle(HealthFillBar, FillMaskTexture, HudHealthFill());
 	}
-	if (EveFillImage && FillWhiteTexture)
+	if (EveFillBar && FillMaskTexture)
 	{
-		EveFillImage->SetBrushFromTexture(FillWhiteTexture, true);
+		ApplyFillBarStyle(EveFillBar, FillMaskTexture, HudEveFill());
 	}
 	if (HealthCapIcon && CrossIconTexture)
 	{
 		HealthCapIcon->SetBrushFromTexture(CrossIconTexture, true);
-		HealthCapIcon->SetBrushSize(FVector2D(28.0f, 28.0f));
+		HealthCapIcon->SetBrushSize(FVector2D(CapIconSize, CapIconSize));
 	}
 	if (EveCapIcon && HypoIconTexture)
 	{
 		EveCapIcon->SetBrushFromTexture(HypoIconTexture, true);
-		EveCapIcon->SetBrushSize(FVector2D(28.0f, 28.0f));
+		EveCapIcon->SetBrushSize(FVector2D(CapIconSize, CapIconSize));
 	}
 	if (PlasmidRingImage && BrassRingTexture)
 	{
@@ -309,84 +359,66 @@ void UShockHudWidget::EnsureWidgetTree()
 		B->SetOffsets(FMargin(0.0f, -36.0f, 0.0f, 0.0f));
 	}
 
-	// Upper-left: health over EVE.
+	// Upper-left: health over EVE (cap icon + digit live inside each meter overlay).
 	UVerticalBox* MeterCluster = WidgetTree->ConstructWidget<UVerticalBox>(
 		UVerticalBox::StaticClass(), TEXT("MeterCluster"));
 
-	UHorizontalBox* HealthRow = WidgetTree->ConstructWidget<UHorizontalBox>(
-		UHorizontalBox::StaticClass(), TEXT("HealthRow"));
-	HealthCapIcon = MakeImage(WidgetTree, TEXT("HealthCapIcon"), FVector2D(28.0f, 28.0f));
-	if (UHorizontalBoxSlot* CapSlot = HealthRow->AddChildToHorizontalBox(HealthCapIcon))
-	{
-		CapSlot->SetVerticalAlignment(VAlign_Center);
-		CapSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 0.0f));
-	}
-	KitCountText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("KitCountText"));
-	KitCountText->SetText(FText::FromString(TEXT("0")));
-	KitCountText->SetFont(MakeHudFont(18, true));
-	KitCountText->SetColorAndOpacity(FSlateColor(HudWhite()));
-	if (UHorizontalBoxSlot* KitSlot = HealthRow->AddChildToHorizontalBox(KitCountText))
-	{
-		KitSlot->SetVerticalAlignment(VAlign_Center);
-		KitSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
-	}
 	UImage* HealthFramePtr = nullptr;
-	USizeBox* HealthFillSizePtr = nullptr;
-	UImage* HealthFillPtr = nullptr;
+	UProgressBar* HealthFillBarPtr = nullptr;
+	UImage* HealthCapPtr = nullptr;
+	UImage* KitDigitPtr = nullptr;
 	UOverlay* HealthMeter = MakeMeterStack(
 		WidgetTree,
 		TEXT("HealthMeterOverlay"),
 		HealthFramePtr,
 		TEXT("HealthMeterFrame"),
-		HealthFillSizePtr,
-		TEXT("HealthFillSize"),
-		HealthFillPtr,
-		TEXT("HealthFillImage"));
+		HealthFillBarPtr,
+		TEXT("HealthFillBar"),
+		HealthCapPtr,
+		TEXT("HealthCapIcon"),
+		KitDigitPtr,
+		TEXT("KitCountDigit"));
 	HealthMeterFrame = HealthFramePtr;
-	HealthFillSize = HealthFillSizePtr;
-	HealthFillImage = HealthFillPtr;
-	HealthRow->AddChildToHorizontalBox(HealthMeter);
-	if (UVerticalBoxSlot* HealthRowSlot = MeterCluster->AddChildToVerticalBox(HealthRow))
+	HealthFillBar = HealthFillBarPtr;
+	HealthCapIcon = HealthCapPtr;
+	KitCountDigit = KitDigitPtr;
+	USizeBox* HealthSize = WidgetTree->ConstructWidget<USizeBox>(
+		USizeBox::StaticClass(), TEXT("HealthMeterSize"));
+	HealthSize->SetWidthOverride(MeterDisplayWidth);
+	HealthSize->SetHeightOverride(MeterDisplayHeight);
+	HealthSize->AddChild(HealthMeter);
+	if (UVerticalBoxSlot* HealthRowSlot = MeterCluster->AddChildToVerticalBox(HealthSize))
 	{
-		HealthRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+		HealthRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 	}
 
-	UHorizontalBox* EveRow = WidgetTree->ConstructWidget<UHorizontalBox>(
-		UHorizontalBox::StaticClass(), TEXT("EveRow"));
-	EveCapIcon = MakeImage(WidgetTree, TEXT("EveCapIcon"), FVector2D(28.0f, 28.0f));
-	if (UHorizontalBoxSlot* EveCapSlot = EveRow->AddChildToHorizontalBox(EveCapIcon))
-	{
-		EveCapSlot->SetVerticalAlignment(VAlign_Center);
-		EveCapSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 0.0f));
-	}
-	HypoCountText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("HypoCountText"));
-	HypoCountText->SetText(FText::FromString(TEXT("0")));
-	HypoCountText->SetFont(MakeHudFont(18, true));
-	HypoCountText->SetColorAndOpacity(FSlateColor(FLinearColor(0.55f, 0.85f, 1.0f, 1.0f)));
-	if (UHorizontalBoxSlot* HypoSlot = EveRow->AddChildToHorizontalBox(HypoCountText))
-	{
-		HypoSlot->SetVerticalAlignment(VAlign_Center);
-		HypoSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
-	}
 	UImage* EveFramePtr = nullptr;
-	USizeBox* EveFillSizePtr = nullptr;
-	UImage* EveFillPtr = nullptr;
+	UProgressBar* EveFillBarPtr = nullptr;
+	UImage* EveCapPtr = nullptr;
+	UImage* HypoDigitPtr = nullptr;
 	UOverlay* EveMeter = MakeMeterStack(
 		WidgetTree,
 		TEXT("EveMeterOverlay"),
 		EveFramePtr,
 		TEXT("EveMeterFrame"),
-		EveFillSizePtr,
-		TEXT("EveFillSize"),
-		EveFillPtr,
-		TEXT("EveFillImage"));
+		EveFillBarPtr,
+		TEXT("EveFillBar"),
+		EveCapPtr,
+		TEXT("EveCapIcon"),
+		HypoDigitPtr,
+		TEXT("HypoCountDigit"));
 	EveMeterFrame = EveFramePtr;
-	EveFillSize = EveFillSizePtr;
-	EveFillImage = EveFillPtr;
-	EveRow->AddChildToHorizontalBox(EveMeter);
-	MeterCluster->AddChildToVerticalBox(EveRow);
+	EveFillBar = EveFillBarPtr;
+	EveCapIcon = EveCapPtr;
+	HypoCountDigit = HypoDigitPtr;
+	USizeBox* EveSize = WidgetTree->ConstructWidget<USizeBox>(
+		USizeBox::StaticClass(), TEXT("EveMeterSize"));
+	EveSize->SetWidthOverride(MeterDisplayWidth);
+	EveSize->SetHeightOverride(MeterDisplayHeight);
+	EveSize->AddChild(EveMeter);
+	MeterCluster->AddChildToVerticalBox(EveSize);
 
-	AnchorCorner(Canvas, MeterCluster, 0.0f, 0.0f, 0.0f, 0.0f, FVector2D(24.0f, 24.0f));
+	AnchorCorner(Canvas, MeterCluster, 0.0f, 0.0f, 0.0f, 0.0f, FVector2D(28.0f, 28.0f));
 
 	// Top-center toasts / prompts.
 	ToastText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ToastText"));
@@ -427,7 +459,7 @@ void UShockHudWidget::EnsureWidgetTree()
 	}
 	AnchorCorner(Canvas, PlasmidCluster, 0.0f, 1.0f, 0.0f, 1.0f, FVector2D(24.0f, -24.0f));
 
-	// Lower-right: weapon ring + name + HUD digits (gated by bEnforceAmmo).
+	// Lower-right: weapon ring + name always; HUD digits only when bEnforceAmmo.
 	AmmoPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AmmoPanel"));
 	AmmoPanel->SetBrushColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.0f));
 	AmmoPanel->SetPadding(FMargin(0.0f));
@@ -449,6 +481,8 @@ void UShockHudWidget::EnsureWidgetTree()
 		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
 	}
 
+	AmmoDigitsColumn = WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass(), TEXT("AmmoDigitsColumn"));
 	AmmoMagDigits = WidgetTree->ConstructWidget<UHorizontalBox>(
 		UHorizontalBox::StaticClass(), TEXT("AmmoMagDigits"));
 	AmmoMagDigitImages.Reset(MaxMagDigits);
@@ -462,7 +496,7 @@ void UShockHudWidget::EnsureWidgetTree()
 		AmmoMagDigits->AddChildToHorizontalBox(DigitImg);
 		AmmoMagDigitImages.Add(DigitImg);
 	}
-	if (UVerticalBoxSlot* MagSlot = AmmoTextCol->AddChildToVerticalBox(AmmoMagDigits))
+	if (UVerticalBoxSlot* MagSlot = AmmoDigitsColumn->AddChildToVerticalBox(AmmoMagDigits))
 	{
 		MagSlot->SetHorizontalAlignment(HAlign_Right);
 	}
@@ -489,10 +523,14 @@ void UShockHudWidget::EnsureWidgetTree()
 		AmmoReserveDigitImages.Add(DigitImg);
 	}
 	ReserveRow->AddChildToHorizontalBox(AmmoReserveDigits);
-	if (UVerticalBoxSlot* ReserveSlot = AmmoTextCol->AddChildToVerticalBox(ReserveRow))
+	if (UVerticalBoxSlot* ReserveSlot = AmmoDigitsColumn->AddChildToVerticalBox(ReserveRow))
 	{
 		ReserveSlot->SetHorizontalAlignment(HAlign_Right);
 		ReserveSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+	}
+	if (UVerticalBoxSlot* DigitsColSlot = AmmoTextCol->AddChildToVerticalBox(AmmoDigitsColumn))
+	{
+		DigitsColSlot->SetHorizontalAlignment(HAlign_Right);
 	}
 
 	if (UHorizontalBoxSlot* TextColSlot = WeaponRow->AddChildToHorizontalBox(AmmoTextCol))
@@ -577,22 +615,18 @@ AShockWeapon* UShockHudWidget::ResolveEquippedWeapon(AShockPlayer* Player) const
 }
 
 void UShockHudWidget::SetMeterFill(
-	USizeBox* FillSize,
-	UImage* FillImage,
+	UProgressBar* FillBar,
 	float Percent,
 	const FLinearColor& Tint) const
 {
-	if (!FillSize || !FillImage)
+	if (!FillBar)
 	{
 		return;
 	}
 	const float Clamped = FMath::Clamp(Percent, 0.0f, 1.0f);
-	const float InnerW = MeterDisplayWidth - FillInsetLeft - FillInsetRight;
-	const float InnerH = MeterDisplayHeight - FillInsetTop - FillInsetBottom;
-	FillSize->SetWidthOverride(FMath::Max(InnerW * Clamped, Clamped > 0.0f ? 2.0f : 0.0f));
-	FillSize->SetHeightOverride(InnerH);
-	FillImage->SetColorAndOpacity(Tint);
-	FillImage->SetVisibility(
+	FillBar->SetPercent(Clamped);
+	FillBar->SetFillColorAndOpacity(Tint);
+	FillBar->SetVisibility(
 		Clamped > KINDA_SMALL_NUMBER ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 }
 
@@ -640,6 +674,25 @@ void UShockHudWidget::SetDigitString(
 	}
 }
 
+void UShockHudWidget::SetCountDigit(UImage* DigitImage, int32 Count) const
+{
+	if (!DigitImage)
+	{
+		return;
+	}
+	const int32 Clamped = FMath::Clamp(Count, 0, 9);
+	UTexture2D* Tex = DigitTextures[Clamped];
+	if (!Tex)
+	{
+		DigitImage->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+	DigitImage->SetBrushFromTexture(Tex, true);
+	DigitImage->SetBrushSize(FVector2D(CountDigitWidth, CountDigitHeight));
+	DigitImage->SetColorAndOpacity(FLinearColor::White);
+	DigitImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+}
+
 void UShockHudWidget::ApplyDamageFlashVisuals(bool bFlashing)
 {
 	const FLinearColor Color = bFlashing ? HudDamageEdge() : FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -675,16 +728,12 @@ void UShockHudWidget::RefreshDisplay()
 	}
 
 	AShockPlayer* Player = ResolvePlayer();
+	if (Player)
+	{
+		Player->EnsureHealthInitialized();
+	}
 	const float Health = Player ? Player->GetCurrentHealth() : 0.0f;
-	float MaxHealth = Player ? Player->AuthoredMaxHealth : 0.0f;
-	if (MaxHealth <= 0.0f && Player)
-	{
-		MaxHealth = Player->AuthoredHealth;
-	}
-	if (MaxHealth <= 0.0f)
-	{
-		MaxHealth = FMath::Max(Health, 1.0f);
-	}
+	const float MaxHealth = Player ? FMath::Max(Player->GetMaxHealth(), 1.0f) : 1.0f;
 
 	if (LastObservedHealth >= 0.0f && Health < LastObservedHealth - KINDA_SMALL_NUMBER)
 	{
@@ -697,10 +746,8 @@ void UShockHudWidget::RefreshDisplay()
 	}
 	LastObservedHealth = Health;
 
-	// Verify hooks still read health/EVE as numeric strings even though the visible chrome
-	// shows kit/hypo counts beside the meter caps (BioShock layout).
 	CachedHealthText = FString::FromInt(FMath::RoundToInt(Health));
-	SetMeterFill(HealthFillSize, HealthFillImage, Health / MaxHealth, HudHealthFill());
+	SetMeterFill(HealthFillBar, Health / MaxHealth, HudHealthFill());
 
 	const float Eve = Player ? Player->GetCurrentEve() : 0.0f;
 	float MaxEve = Player ? Player->GetMaxEve() : 0.0f;
@@ -709,7 +756,7 @@ void UShockHudWidget::RefreshDisplay()
 		MaxEve = FMath::Max(Eve, 1.0f);
 	}
 	CachedEveText = FString::Printf(TEXT("EVE %d"), FMath::RoundToInt(Eve));
-	SetMeterFill(EveFillSize, EveFillImage, Eve / MaxEve, HudEveFill());
+	SetMeterFill(EveFillBar, Eve / MaxEve, HudEveFill());
 
 	int32 KitCount = 0;
 	int32 HypoCount = 0;
@@ -720,14 +767,8 @@ void UShockHudWidget::RefreshDisplay()
 		HypoCount = Player->GetInventoryStack(FName(TEXT("EveHypo")));
 		Money = Player->GetMoney();
 	}
-	if (KitCountText)
-	{
-		KitCountText->SetText(FText::FromString(FString::FromInt(KitCount)));
-	}
-	if (HypoCountText)
-	{
-		HypoCountText->SetText(FText::FromString(FString::FromInt(HypoCount)));
-	}
+	SetCountDigit(KitCountDigit, KitCount);
+	SetCountDigit(HypoCountDigit, HypoCount);
 	CachedConsumablesText = FString::Printf(
 		TEXT("Kit %d  Hypo %d  $%d"),
 		KitCount,
@@ -751,14 +792,17 @@ void UShockHudWidget::RefreshDisplay()
 	}
 
 	AShockWeapon* Weapon = ResolveEquippedWeapon(Player);
+	const bool bHasWeapon = Weapon != nullptr;
 	const bool bShowAmmo = Weapon && Weapon->bEnforceAmmo;
-	bAmmoPanelVisible = bShowAmmo;
+	bAmmoPanelVisible = bHasWeapon;
+	bAmmoDigitsVisible = bShowAmmo;
 	if (AmmoPanel)
 	{
-		AmmoPanel->SetVisibility(bShowAmmo ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		AmmoPanel->SetVisibility(
+			bHasWeapon ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 
-	if (!bShowAmmo)
+	if (!bHasWeapon)
 	{
 		CachedAmmoMagText = TEXT("");
 		CachedWeaponNameText = TEXT("");
@@ -767,18 +811,41 @@ void UShockHudWidget::RefreshDisplay()
 		{
 			AmmoWeaponNameText->SetText(FText::GetEmpty());
 		}
+		if (AmmoDigitsColumn)
+		{
+			AmmoDigitsColumn->SetVisibility(ESlateVisibility::Collapsed);
+		}
 		return;
 	}
 
-	const int32 Mag = Weapon->GetRoundsInMagazine();
-	const int32 Reserve = Weapon->GetReserveAmmo();
-	CachedWeaponNameText = Weapon->GetWeaponDefName().IsNone() ? TEXT("") : Weapon->GetWeaponDefName().ToString();
-	CachedAmmoMagText = FString::FromInt(Mag);
-	CachedAmmoReserveText = FString::Printf(TEXT("/ %d"), Reserve);
+	CachedWeaponNameText = Weapon->GetWeaponDefName().IsNone()
+		? TEXT("Weapon")
+		: Weapon->GetWeaponDefName().ToString();
 	if (AmmoWeaponNameText)
 	{
 		AmmoWeaponNameText->SetText(FText::FromString(CachedWeaponNameText));
+		AmmoWeaponNameText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
+
+	if (!bShowAmmo)
+	{
+		CachedAmmoMagText = TEXT("");
+		CachedAmmoReserveText = TEXT("");
+		if (AmmoDigitsColumn)
+		{
+			AmmoDigitsColumn->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		return;
+	}
+
+	if (AmmoDigitsColumn)
+	{
+		AmmoDigitsColumn->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+	const int32 Mag = Weapon->GetRoundsInMagazine();
+	const int32 Reserve = Weapon->GetReserveAmmo();
+	CachedAmmoMagText = FString::FromInt(Mag);
+	CachedAmmoReserveText = FString::Printf(TEXT("/ %d"), Reserve);
 	SetDigitString(AmmoMagDigits, AmmoMagDigitImages, CachedAmmoMagText, 1.0f);
 	SetDigitString(AmmoReserveDigits, AmmoReserveDigitImages, FString::FromInt(Reserve), 0.55f);
 }
@@ -874,6 +941,7 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 	Weapon->ConfigureHitscan(10.0f, 5000.0f);
 	Weapon->ConfigureAmmo(50, 150, 10.0f, 2.5f);
 	Weapon->InitializeAmmoFullMag(150);
+	Weapon->SetWeaponDefNameForVerify(FName(TEXT("Pistol")));
 	Player->EquipWeapon(Weapon);
 
 	UShockHudWidget* Hud = CreateWidget<UShockHudWidget>(World, UShockHudWidget::StaticClass());
@@ -936,6 +1004,14 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 	if (!Hud->IsAmmoPanelVisible())
 	{
 		LastHudVerifyError = TEXT("ammo panel hidden with enforce ammo weapon");
+		Hud->RemoveFromParent();
+		Player->Destroy();
+		Weapon->Destroy();
+		return false;
+	}
+	if (!Hud->IsAmmoDigitsVisible())
+	{
+		LastHudVerifyError = TEXT("ammo digits hidden with enforce ammo weapon");
 		Hud->RemoveFromParent();
 		Player->Destroy();
 		Weapon->Destroy();
@@ -1038,6 +1114,7 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 	NoAmmoPlayer->EnsureHealthInitialized();
 	NoAmmoWeapon->ConfigureHitscan(10.0f, 5000.0f);
 	NoAmmoWeapon->SetEnforceAmmo(false);
+	NoAmmoWeapon->SetWeaponDefNameForVerify(FName(TEXT("Wrench")));
 	NoAmmoPlayer->EquipWeapon(NoAmmoWeapon);
 
 	UShockHudWidget* NoAmmoHud = CreateWidget<UShockHudWidget>(World, UShockHudWidget::StaticClass());
@@ -1050,9 +1127,25 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 	}
 	NoAmmoHud->BindDisplayPlayer(NoAmmoPlayer);
 	NoAmmoHud->RefreshDisplayNow();
-	if (NoAmmoHud->IsAmmoPanelVisible())
+	if (!NoAmmoHud->IsAmmoPanelVisible())
 	{
-		LastHudVerifyError = TEXT("ammo panel visible when bEnforceAmmo false");
+		LastHudVerifyError = TEXT("weapon cluster hidden when bEnforceAmmo false (should show ring+name)");
+		NoAmmoPlayer->Destroy();
+		NoAmmoWeapon->Destroy();
+		return false;
+	}
+	if (NoAmmoHud->IsAmmoDigitsVisible())
+	{
+		LastHudVerifyError = TEXT("ammo digits visible when bEnforceAmmo false");
+		NoAmmoPlayer->Destroy();
+		NoAmmoWeapon->Destroy();
+		return false;
+	}
+	if (NoAmmoHud->GetDisplayedWeaponNameText() != TEXT("Wrench"))
+	{
+		LastHudVerifyError = FString::Printf(
+			TEXT("weapon name %s != Wrench"),
+			*NoAmmoHud->GetDisplayedWeaponNameText());
 		NoAmmoPlayer->Destroy();
 		NoAmmoWeapon->Destroy();
 		return false;
