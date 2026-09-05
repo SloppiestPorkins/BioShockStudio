@@ -24,9 +24,8 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
-| Cursor (U4 worktree) | Phase U4 status+pause menus | `tools/ue5/BioShockRuntime/**` UI widgets + `tools/ue5/*.py` import/verify/capture | 5 Sept 2026 |
 
-_(Recently cleared: 1-Medical wall textures landed `4be2d3e`; script-importer mapping defect landed `<a14>`.)_
+_(no rows currently claimed — check the date on any that appear; an empty table means no active claim, not that no one is working. UI roadmap `docs/UI_ROADMAP.md` phases U1-U4 landed through `dc0d594`; U5+ dispatched one at a time via `tools/agents/orchestrator.ps1`. Recently cleared: 1-Medical wall textures landed `4be2d3e`.)_
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 
