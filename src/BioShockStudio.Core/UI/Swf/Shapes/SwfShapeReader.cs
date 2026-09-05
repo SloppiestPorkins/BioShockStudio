@@ -12,6 +12,19 @@ namespace BioShockStudio.Core.UI.Swf.Shapes;
 /// </summary>
 public static class SwfShapeReader
 {
+    /// <summary>
+    /// A glyph's shape record stream (used by DefineFont2/3): no FILLSTYLEARRAY/LINESTYLEARRAY
+    /// precedes it — just NumFillBits(4)/NumLineBits(4) directly, then the same StyleChangeRecord/
+    /// edge stream as a full shape, with a single implicit fill (index 1 = "inside the glyph").
+    /// Glyph shapes never carry StateNewStyles (no style array exists to replace).
+    /// </summary>
+    public static IReadOnlyList<SwfEdge> ReadGlyphShapeRecords(ref SwfBitReader bits, byte[] body)
+    {
+        int numFillBits = (int)bits.ReadUnsigned(4);
+        int numLineBits = (int)bits.ReadUnsigned(4);
+        return ReadShapeRecords(ref bits, body, 1, [], [], numFillBits, numLineBits);
+    }
+
     public static SwfShape Read(byte[] body, int tagCode)
     {
         int version = tagCode switch

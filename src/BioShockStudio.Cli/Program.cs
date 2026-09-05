@@ -76,6 +76,7 @@ try
         "export-script-actions" => ExportScriptActions(root, args),
         "swf-inspect" => SwfInspect(root, args),
         "export-swf-shapes" => ExportSwfShapes(root, args),
+        "export-swf-font" => ExportSwfFont(root, args),
         _ => Usage(),
     };
 }
@@ -157,6 +158,11 @@ static int Usage()
                                         Rasterize DefineShape/2/3/4 character(s) to PNG. Omit --id
                                         to export every shape in the file; --size sets the square
                                         output resolution (default 256).
+          export-swf-font <name.swf> <out-dir> [--fontId=<id>] [--text=<string>] [--size=<px>]
+                                        Rasterize a DefineFont2/3's glyphs to PNG, one file per
+                                        glyph named by character. --fontId picks a font when a
+                                        file embeds more than one; --text limits to just those
+                                        characters (default: every glyph in the font).
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -2120,6 +2126,65 @@ static int ExportSwfShapes(string root, string[] args)
         written++;
     }
     Console.WriteLine($"{written} shape(s) written, {skipped} skipped");
+    return 0;
+}
+
+static int ExportSwfFont(string root, string[] args)
+{
+    var positional = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: export-swf-font <name.swf> <out-dir> [--fontId=<id>] [--text=<string>] [--size=<px>]");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, positional[0]);
+    string outputDirectory = positional[1];
+    Directory.CreateDirectory(outputDirectory);
+
+    int? onlyFontId = null;
+    string? fontIdArg = args.FirstOrDefault(a => a.StartsWith("--fontId=", StringComparison.OrdinalIgnoreCase));
+    if (fontIdArg is not null) onlyFontId = int.Parse(fontIdArg["--fontId=".Length..]);
+    string? onlyText = args.FirstOrDefault(a => a.StartsWith("--text=", StringComparison.OrdinalIgnoreCase))
+        ?["--text=".Length..];
+    int size = 128;
+    string? sizeArg = args.FirstOrDefault(a => a.StartsWith("--size=", StringComparison.OrdinalIgnoreCase));
+    if (sizeArg is not null) size = int.Parse(sizeArg["--size=".Length..]);
+
+    var swf = SwfFile.Read(path);
+    int written = 0;
+    foreach (var tag in swf.Tags)
+    {
+        if (tag.Code is not (48 or 75)) continue;
+
+        SwfFont font;
+        try
+        {
+            font = SwfFontReader.Read(tag.Body, tag.Code);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  skip font tag {tag.Code}: {ex.Message}");
+            continue;
+        }
+        if (onlyFontId is not null && font.FontId != onlyFontId) continue;
+
+        Console.WriteLine($"font {font.FontId} '{font.Name}' bold={font.Bold} italic={font.Italic}: " +
+                          $"{font.Glyphs.Count} glyph(s)");
+        foreach (SwfGlyph glyph in font.Glyphs)
+        {
+            char c = (char)glyph.CharCode;
+            if (onlyText is not null && !onlyText.Contains(c)) continue;
+
+            byte[] rgba = SwfShapeRasterizer.RasterizeGlyph(glyph, SwfColor.Opaque(0, 0, 0), size, size);
+            // Windows filenames are case-insensitive (NTFS) — "A" and "a" collide as the same
+            // file and silently overwrite each other. Always disambiguate with the code point.
+            string safeName = char.IsLetterOrDigit(c) ? $"{c}_{glyph.CharCode}" : $"u{glyph.CharCode:X4}";
+            string outPath = Path.Combine(outputDirectory, $"font{font.FontId}_{safeName}.png");
+            PngWriter.Write(outPath, rgba, size, size);
+            written++;
+        }
+    }
+    Console.WriteLine($"{written} glyph(s) written");
     return 0;
 }
 

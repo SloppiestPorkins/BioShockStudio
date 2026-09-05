@@ -17,6 +17,24 @@ namespace BioShockStudio.Core.UI.Swf.Rendering;
 /// </remarks>
 public static class SwfShapeRasterizer
 {
+    /// <summary>
+    /// A glyph has no fill-style array of its own — every edge implicitly uses fill index 1,
+    /// meaning "inside the glyph." Wrap it in a throwaway single-solid-fill SwfShape so the same
+    /// rasterizer that handles full DefineShape characters draws it too.
+    /// </summary>
+    public static byte[] RasterizeGlyph(SwfGlyph glyph, SwfColor color, int width, int height)
+    {
+        var shape = new SwfShape
+        {
+            CharacterId = 0,
+            Bounds = glyph.Bounds,
+            FillStyles = [new SwfFillStyle(SwfFillKind.Solid, color)],
+            LineStyles = [],
+            Edges = glyph.Edges,
+        };
+        return Rasterize(shape, width, height);
+    }
+
     public static byte[] Rasterize(SwfShape shape, int width, int height)
     {
         var pixels = new byte[width * height * 4];
