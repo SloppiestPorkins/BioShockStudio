@@ -9,6 +9,8 @@
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
+#include "ShockRadialMenu.h"
+#include "ShockWeaponSelectScreen.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockEnragePlasmid.h"
 #include "ShockIncineratePlasmid.h"
@@ -1571,6 +1573,126 @@ void AShockGameMode::EnsureHudForPlayer(APlayerController* PC)
 	{
 		PlayerHud->AddToViewport(0);
 	}
+	EnsureSelectionUiForPlayer(PC);
+}
+
+void AShockGameMode::EnsureSelectionUiForPlayer(APlayerController* PC)
+{
+	if (!PC)
+	{
+		return;
+	}
+	if (!PlayerRadial)
+	{
+		PlayerRadial = CreateWidget<UShockRadialMenu>(PC, UShockRadialMenu::StaticClass());
+	}
+	if (PlayerRadial && !PlayerRadial->IsInViewport())
+	{
+		// Above HUD (0), below death overlay (100). Hit-test invisible while open — mouse aims hover.
+		PlayerRadial->AddToViewport(10);
+	}
+	if (!PlayerSelect)
+	{
+		PlayerSelect = CreateWidget<UShockWeaponSelectScreen>(PC, UShockWeaponSelectScreen::StaticClass());
+	}
+	if (PlayerSelect && !PlayerSelect->IsInViewport())
+	{
+		PlayerSelect->AddToViewport(20);
+	}
+}
+
+void AShockGameMode::OpenWeaponRadial(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerRadial)
+	{
+		return;
+	}
+	PlayerRadial->BindDisplayPlayer(Player);
+	PlayerRadial->OpenRadial(EShockRadialMode::Weapon);
+}
+
+void AShockGameMode::OpenPlasmidRadial(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerRadial)
+	{
+		return;
+	}
+	PlayerRadial->BindDisplayPlayer(Player);
+	PlayerRadial->OpenRadial(EShockRadialMode::Plasmid);
+}
+
+void AShockGameMode::CloseRadial(bool bEquipHovered)
+{
+	if (PlayerRadial && PlayerRadial->IsRadialOpen())
+	{
+		PlayerRadial->CloseRadial(bEquipHovered);
+	}
+}
+
+void AShockGameMode::StepRadialHover(int32 Delta)
+{
+	if (PlayerRadial && PlayerRadial->IsRadialOpen())
+	{
+		PlayerRadial->StepHoveredSegment(Delta);
+	}
+}
+
+void AShockGameMode::ToggleWeaponSelect(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerSelect)
+	{
+		return;
+	}
+	if (PlayerSelect->IsSelectOpen())
+	{
+		PlayerSelect->CloseSelectScreen();
+		return;
+	}
+	CloseRadial(false);
+	PlayerSelect->BindDisplayPlayer(Player);
+	PlayerSelect->OpenSelectScreen();
+}
+
+void AShockGameMode::ForceOpenRadialForCapture(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerRadial)
+	{
+		return;
+	}
+	PlayerRadial->BindDisplayPlayer(Player);
+	PlayerRadial->ForceOpenForCapture(EShockRadialMode::Weapon);
 }
 
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
@@ -2271,6 +2393,14 @@ void AShockGameMode::TickScreenshotCapture()
 		if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshothud")))
 		{
 			EnsureHudForPlayer(PC);
+			const bool bForceRadial = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotradial"));
+			if (bForceRadial)
+			{
+				if (AShockPlayer* ShotPlayer = Cast<AShockPlayer>(PC->GetPawn()))
+				{
+					ForceOpenRadialForCapture(ShotPlayer);
+				}
+			}
 			if (PlayerHud)
 			{
 				FWidgetRenderer WidgetRenderer(/*bUseGammaCorrection*/ true, /*bClearTarget*/ false);
@@ -2280,11 +2410,22 @@ void AShockGameMode::TickScreenshotCapture()
 				UKismetRenderingLibrary::ClearRenderTarget2D(
 					CaptureWorld, HudRT, FLinearColor(0.25f, 0.25f, 0.25f, 1.0f));
 				WidgetRenderer.DrawWidget(HudRT, PlayerHud->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				if (bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen())
+				{
+					// Draw the radial on top of the same RT so the capture shows the open wheel.
+					WidgetRenderer.DrawWidget(
+						HudRT, PlayerRadial->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				}
 				FlushRenderingCommands();
 				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));
 				UKismetRenderingLibrary::ExportRenderTarget(
 					CaptureWorld, HudRT, FPaths::GetPath(HudPath), FPaths::GetCleanFilename(HudPath));
-				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_HUD path=%s"), *HudPath);
+				UE_LOG(
+					LogTemp,
+					Display,
+					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d"),
+					*HudPath,
+					(bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen()) ? 1 : 0);
 			}
 			else
 			{

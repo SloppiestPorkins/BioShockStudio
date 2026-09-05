@@ -1,9 +1,8 @@
-"""Import real BioShock HUD tag-512 art into /Game/BioShockUI/HUD as Texture2D.
+"""Import real BioShock HUD + Radial tag-512 art into /Game/BioShockUI.
 
-Phase U2. Shells export_all_ui_images.py (or reuses %TEMP%/bioshock-ui), crops the
-HUDPC atlas pill frame, stages digits/ring/vignette + authored cap icons, then
-imports as UI Texture2D. Deletes stale h21 arcs (T_Hud_HealthArc / EveArc /
-MeterUnderlay). PNGs stay outside git.
+Phase U2: HUDPC crops → /Game/BioShockUI/HUD.
+Phase U3: HUDRadial ring + digits → /Game/BioShockUI/Radial.
+PNGs stay outside git.
 
 Prepare (no Unreal):
   py -3 tools/ue5/import_bioshock_ui.py --prepare
@@ -21,8 +20,10 @@ import subprocess
 import sys
 
 CONTENT_FOLDER = "/Game/BioShockUI/HUD"
+RADIAL_CONTENT_FOLDER = "/Game/BioShockUI/Radial"
 DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
 DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
+DEFAULT_RADIAL_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging")
 
 # Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
 ATLAS_ID = 86
@@ -45,6 +46,10 @@ METER_PUNCH_BOTTOM = 30
 
 # HUDRadial digit glyphs: ids run 9..0 then a highlight set. Normal set only for U2.
 DIGIT_IDS_9_TO_0 = [239, 241, 243, 245, 247, 249, 251, 253, 255, 257]
+# Highlight set (same 9→0 order) for radial hover readout.
+DIGIT_HI_IDS_9_TO_0 = [260, 262, 264, 266, 268, 270, 272, 274, 276, 278]
+# HUDRadial tag-512 brass ring (wheel body is DefineSprite/Shape — not used; see prepare_radial).
+RADIAL_RING_ID = 14
 
 STALE_ASSETS = (
     "T_Hud_HealthArc",
@@ -309,6 +314,69 @@ def prepare_staging(export_root=None, staging_dir=None, force_export=False):
     return manifest
 
 
+def prepare_radial_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage HUDRadial ring + digit sets for /Game/BioShockUI/Radial. Returns manifest dict."""
+    from PIL import Image
+
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_RADIAL_STAGING", DEFAULT_RADIAL_STAGING
+    )
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+
+    def copy_named(movie, image_id, asset_name, role):
+        src = os.path.join(export_root, movie, "%d.png" % image_id)
+        if not os.path.isfile(src):
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            return
+        dst_file = asset_name + ".png"
+        Image.open(src).convert("RGBA").save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": role,
+                "source": "%s/%d.png" % (movie, image_id),
+            }
+        )
+
+    copy_named("HUDRadial", RADIAL_RING_ID, "T_Radial_BrassRing", "brassRing")
+
+    for digit_value, image_id in zip(range(9, -1, -1), DIGIT_IDS_9_TO_0):
+        copy_named("HUDRadial", image_id, "T_Radial_Digit_%d" % digit_value, "digit")
+    for digit_value, image_id in zip(range(9, -1, -1), DIGIT_HI_IDS_9_TO_0):
+        copy_named("HUDRadial", image_id, "T_Radial_DigitHi_%d" % digit_value, "digitHi")
+
+    gaps.append(
+        "HUDRadial wheel body: no named ExportAssets for wheel/radial/ring/selector; "
+        "wheel is DefineSprite/DefineShape vector (258 sprites). U3 builds the wheel from "
+        "tag-512 brass ring id 14 + UMG segment labels (compromise)."
+    )
+    gaps.append(
+        "per-weapon / per-plasmid icons: sharedlibrary HUD_Ret_* are crosshair reticles "
+        "(vector shapes, e.g. id 988 Pistol / 982 Wrench), not inventory icons; "
+        "PCWeaponSelection *Reticle exports are the same family. U3 uses brass ring + name "
+        "text per segment — do not author fake icons."
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": RADIAL_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "radial_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d radial textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
 def _disable_interchange():
     import unreal
 
@@ -409,67 +477,18 @@ def _delete_stale():
     return deleted
 
 
-def main(staging_dir=None, out=None, content_folder=CONTENT_FOLDER, prepare_if_needed=True):
-    import unreal
-
-    staging_dir = staging_dir or os.environ.get("BIOSHOCK_UI_HUD_STAGING", DEFAULT_STAGING)
-    out = out or os.environ.get(
-        "BIOSHOCK_UI_IMPORT_OUT",
-        os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
-    )
-    export_root = os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
-
-    report = {
-        "stagingDir": staging_dir,
-        "contentFolder": content_folder,
-        "imported": {},
-        "deleted": [],
-        "failures": [],
-        "gaps": [],
-    }
+def _import_manifest(staging_dir, man_name, content_folder, report):
+    """Import one staging manifest into content_folder; appends to report."""
     failures = report["failures"]
-
-    man_path = os.path.join(staging_dir, "hud_import_manifest.json")
-    if prepare_if_needed and not os.path.isfile(man_path):
-        # Unreal's Python often lacks Pillow — prepare via system py.
-        prep = subprocess.run(
-            [
-                "py",
-                "-3",
-                os.path.join(_tools_dir(), "import_bioshock_ui.py"),
-                "--prepare",
-                "--export",
-                export_root,
-                "--staging",
-                staging_dir,
-            ],
-            cwd=_repo_root(),
-            capture_output=True,
-            text=True,
-        )
-        if prep.returncode != 0:
-            failures.append("prepare failed: %s" % (prep.stderr or prep.stdout or prep.returncode))
-            report["ok"] = False
-            _write(out, report)
-            raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
-
+    man_path = os.path.join(staging_dir, man_name)
     if not os.path.isfile(man_path):
         failures.append("missing staging manifest: %s (run --prepare)" % man_path)
-        report["ok"] = False
-        _write(out, report)
-        raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
-
+        return
     with open(man_path, encoding="utf-8") as handle:
         manifest = json.load(handle)
-    textures = list(manifest.get("textures") or [])
-    report["gaps"] = list(manifest.get("gaps") or [])
-
-    _disable_interchange()
-    _ensure_dir("/Game/BioShockUI")
+    report["gaps"].extend(list(manifest.get("gaps") or []))
     _ensure_dir(content_folder)
-    report["deleted"] = _delete_stale()
-
-    for entry in textures:
+    for entry in list(manifest.get("textures") or []):
         name = entry["name"]
         source = os.path.join(staging_dir, entry["file"].replace("/", os.sep))
         if not os.path.isfile(source):
@@ -483,6 +502,73 @@ def main(staging_dir=None, out=None, content_folder=CONTENT_FOLDER, prepare_if_n
         report["imported"][name] = path
         _log("imported %s" % path)
 
+
+def main(
+    staging_dir=None,
+    radial_staging_dir=None,
+    out=None,
+    content_folder=CONTENT_FOLDER,
+    prepare_if_needed=True,
+):
+    import unreal
+
+    staging_dir = staging_dir or os.environ.get("BIOSHOCK_UI_HUD_STAGING", DEFAULT_STAGING)
+    radial_staging_dir = radial_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_RADIAL_STAGING", DEFAULT_RADIAL_STAGING
+    )
+    out = out or os.environ.get(
+        "BIOSHOCK_UI_IMPORT_OUT",
+        os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
+    )
+    export_root = os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+
+    report = {
+        "stagingDir": staging_dir,
+        "radialStagingDir": radial_staging_dir,
+        "contentFolder": content_folder,
+        "radialContentFolder": RADIAL_CONTENT_FOLDER,
+        "imported": {},
+        "deleted": [],
+        "failures": [],
+        "gaps": [],
+    }
+    failures = report["failures"]
+
+    man_path = os.path.join(staging_dir, "hud_import_manifest.json")
+    radial_man = os.path.join(radial_staging_dir, "radial_import_manifest.json")
+    if prepare_if_needed and (not os.path.isfile(man_path) or not os.path.isfile(radial_man)):
+        # Unreal's Python often lacks Pillow — prepare via system py.
+        prep = subprocess.run(
+            [
+                "py",
+                "-3",
+                os.path.join(_tools_dir(), "import_bioshock_ui.py"),
+                "--prepare",
+                "--export",
+                export_root,
+                "--staging",
+                staging_dir,
+                "--radial-staging",
+                radial_staging_dir,
+            ],
+            cwd=_repo_root(),
+            capture_output=True,
+            text=True,
+        )
+        if prep.returncode != 0:
+            failures.append("prepare failed: %s" % (prep.stderr or prep.stdout or prep.returncode))
+            report["ok"] = False
+            _write(out, report)
+            raise RuntimeError("bioshock-ui-import:\n- " + "\n- ".join(failures))
+
+    _disable_interchange()
+    _ensure_dir("/Game/BioShockUI")
+    report["deleted"] = _delete_stale()
+    _import_manifest(staging_dir, "hud_import_manifest.json", content_folder, report)
+    _import_manifest(
+        radial_staging_dir, "radial_import_manifest.json", RADIAL_CONTENT_FOLDER, report
+    )
+
     report["ok"] = not failures
     _write(out, report)
     if failures:
@@ -495,14 +581,20 @@ def _cli(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", action="store_true", help="Stage crops only (no Unreal)")
     parser.add_argument("--export", default=None, help="export_all_ui_images root")
-    parser.add_argument("--staging", default=None, help="staging directory for PNGs")
+    parser.add_argument("--staging", default=None, help="staging directory for HUD PNGs")
+    parser.add_argument(
+        "--radial-staging", default=None, help="staging directory for Radial PNGs"
+    )
     parser.add_argument("--force-export", action="store_true")
     args = parser.parse_args(argv)
     if args.prepare:
         prepare_staging(args.export, args.staging, force_export=args.force_export)
+        prepare_radial_staging(
+            args.export, args.radial_staging, force_export=args.force_export
+        )
         return 0
     # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
-    main(staging_dir=args.staging)
+    main(staging_dir=args.staging, radial_staging_dir=args.radial_staging)
     return 0
 
 

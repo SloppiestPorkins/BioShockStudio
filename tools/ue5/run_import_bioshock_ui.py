@@ -19,6 +19,10 @@ STAGING = os.environ.get(
     "BIOSHOCK_UI_HUD_STAGING",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging"),
 )
+RADIAL_STAGING = os.environ.get(
+    "BIOSHOCK_UI_RADIAL_STAGING",
+    os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging"),
+)
 EXPORT = os.environ.get(
     "BIOSHOCK_UI_EXPORT",
     os.path.join(os.environ.get("TEMP", "."), "bioshock-ui"),
@@ -37,6 +41,8 @@ try:
             EXPORT,
             "--staging",
             STAGING,
+            "--radial-staging",
+            RADIAL_STAGING,
         ],
         capture_output=True,
         text=True,
@@ -49,7 +55,10 @@ try:
     import import_bioshock_ui
 
     result = import_bioshock_ui.main(
-        staging_dir=STAGING, out=OUT, prepare_if_needed=False
+        staging_dir=STAGING,
+        radial_staging_dir=RADIAL_STAGING,
+        out=OUT,
+        prepare_if_needed=False,
     )
 except Exception as exc:  # noqa: BLE001 -- commandlet must still write the file
     result["error"] = str(exc)

@@ -1,5 +1,6 @@
 #include "ShockPlayer.h"
 
+#include "ShockGameMode.h"
 #include "ShockPlasmid.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
@@ -976,6 +977,20 @@ bool AShockPlayer::SelectWeaponSlot(int32 Slot)
 	return true;
 }
 
+bool AShockPlayer::SelectPlasmidSlot(int32 Slot)
+{
+	if (Slot < 0 || Slot >= EquippedPlasmids.Num())
+	{
+		return false;
+	}
+	if (!EquippedPlasmids[Slot].Get())
+	{
+		return false;
+	}
+	ActivePlasmidSlot = Slot;
+	return true;
+}
+
 void AShockPlayer::NextWeapon()
 {
 	if (WeaponSlots.Num() <= 0)
@@ -1509,7 +1524,63 @@ void AShockPlayer::CycleActivePlasmid()
 
 void AShockPlayer::HandlePlasmidInput()
 {
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->OpenPlasmidRadial(this);
+	}
+}
+
+void AShockPlayer::HandlePlasmidReleasedInput()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->CloseRadial(true);
+	}
+}
+
+void AShockPlayer::HandlePlasmidCastInput()
+{
 	CastActivePlasmid();
+}
+
+void AShockPlayer::HandleWeaponRadialPressed()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->OpenWeaponRadial(this);
+	}
+}
+
+void AShockPlayer::HandleWeaponRadialReleased()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->CloseRadial(true);
+	}
+}
+
+void AShockPlayer::HandleWeaponSelectToggle()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->ToggleWeaponSelect(this);
+	}
+}
+
+void AShockPlayer::HandleRadialStepLeft()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->StepRadialHover(-1);
+	}
+}
+
+void AShockPlayer::HandleRadialStepRight()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->StepRadialHover(1);
+	}
 }
 
 void AShockPlayer::HandlePlasmidCycleInput()
@@ -2338,7 +2409,12 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Reload"), IE_Pressed, this, &AShockPlayer::HandleReloadInput);
 	PlayerInputComponent->BindAction(TEXT("AmmoTypeCycle"), IE_Pressed, this, &AShockPlayer::HandleAmmoCycleInput);
 	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Pressed, this, &AShockPlayer::HandlePlasmidInput);
+	PlayerInputComponent->BindAction(TEXT("Plasmid"), IE_Released, this, &AShockPlayer::HandlePlasmidReleasedInput);
+	PlayerInputComponent->BindAction(TEXT("PlasmidCast"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCastInput);
 	PlayerInputComponent->BindAction(TEXT("PlasmidCycle"), IE_Pressed, this, &AShockPlayer::HandlePlasmidCycleInput);
+	PlayerInputComponent->BindAction(TEXT("WeaponRadial"), IE_Pressed, this, &AShockPlayer::HandleWeaponRadialPressed);
+	PlayerInputComponent->BindAction(TEXT("WeaponRadial"), IE_Released, this, &AShockPlayer::HandleWeaponRadialReleased);
+	PlayerInputComponent->BindAction(TEXT("WeaponSelect"), IE_Pressed, this, &AShockPlayer::HandleWeaponSelectToggle);
 	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
 	PlayerInputComponent->BindAction(TEXT("UseFirstAid"), IE_Pressed, this, &AShockPlayer::HandleUseFirstAidInput);
 	PlayerInputComponent->BindAction(TEXT("UseEveHypo"), IE_Pressed, this, &AShockPlayer::HandleUseEveHypoInput);
@@ -2351,6 +2427,8 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot5"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot5Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot6"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot6Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot7"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot7Input);
+	PlayerInputComponent->BindAction(TEXT("RadialStepLeft"), IE_Pressed, this, &AShockPlayer::HandleRadialStepLeft);
+	PlayerInputComponent->BindAction(TEXT("RadialStepRight"), IE_Pressed, this, &AShockPlayer::HandleRadialStepRight);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

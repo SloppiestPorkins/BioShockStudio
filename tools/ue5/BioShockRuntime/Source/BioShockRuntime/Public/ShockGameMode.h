@@ -9,6 +9,8 @@ class AShockPlayer;
 class AShockWeapon;
 class UShockDeathRespawnHandler;
 class UShockHudWidget;
+class UShockRadialMenu;
+class UShockWeaponSelectScreen;
 
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockGameMode : public AGameModeBase
@@ -78,6 +80,19 @@ public:
 	/** Headless verify: explicit starter path (same as PostLogin when no pending carry). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Slice")
 	void EquipStarterWeaponForVerify(AShockPlayer* Player);
+
+	/** Create radial + select widgets (once) and keep them out of the HUD's z-order (HUD=0). */
+	void EnsureSelectionUiForPlayer(APlayerController* PC);
+
+	void OpenWeaponRadial(AShockPlayer* Player);
+	void OpenPlasmidRadial(AShockPlayer* Player);
+	void CloseRadial(bool bEquipHovered);
+	void StepRadialHover(int32 Delta);
+	void ToggleWeaponSelect(AShockPlayer* Player);
+	void ForceOpenRadialForCapture(AShockPlayer* Player);
+
+	UShockRadialMenu* GetPlayerRadial() const { return PlayerRadial; }
+	UShockWeaponSelectScreen* GetPlayerSelectScreen() const { return PlayerSelect; }
 
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
@@ -168,4 +183,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UShockHudWidget> PlayerHud;
+
+	UPROPERTY()
+	TObjectPtr<UShockRadialMenu> PlayerRadial;
+
+	UPROPERTY()
+	TObjectPtr<UShockWeaponSelectScreen> PlayerSelect;
 };

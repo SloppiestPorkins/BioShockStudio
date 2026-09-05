@@ -97,6 +97,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool SelectWeaponSlot(int32 Slot);
 
+	/** Activate an already-equipped plasmid slot (radial / select screen). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool SelectPlasmidSlot(int32 Slot);
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void NextWeapon();
 
@@ -675,7 +679,12 @@ private:
 	void HandleReloadInput();
 	void HandleAmmoCycleInput();
 	void HandlePlasmidInput();
+	void HandlePlasmidReleasedInput();
+	void HandlePlasmidCastInput();
 	void HandlePlasmidCycleInput();
+	void HandleWeaponRadialPressed();
+	void HandleWeaponRadialReleased();
+	void HandleWeaponSelectToggle();
 	void HandleWeaponNextInput();
 	void HandleWeaponPrevInput();
 	void HandleWeaponSlot1Input();
@@ -685,6 +694,8 @@ private:
 	void HandleWeaponSlot5Input();
 	void HandleWeaponSlot6Input();
 	void HandleWeaponSlot7Input();
+	void HandleRadialStepLeft();
+	void HandleRadialStepRight();
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();

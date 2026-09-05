@@ -71,6 +71,45 @@ reduces displayed health, weapon cluster shows for melee (ring+name), ammo digit
 
 ---
 
+## Phase U3 — radial weapon/plasmid wheel + full select — 5 Sept 2026
+
+`UShockRadialMenu` (hold **V** = weapons, hold **Q** = plasmids) and `UShockWeaponSelectScreen`
+(**Left Shift**, pauses). Release on a radial segment calls `SelectWeaponSlot` /
+`SelectPlasmidSlot`. Select screen lists every owned weapon + plasmid (name / ammo / EVE);
+click or number key equips. HUD stays at viewport Z=0; radial Z=10; select Z=20.
+
+**Art**
+
+| Role | Source | Notes |
+|---|---|---|
+| Brass ring | `HUDRadial` id 14 | Centre wheel + per-segment holders |
+| Digits 0–9 | `HUDRadial` 257…239 | Centre ammo / EVE readout |
+| Digit highlight set | `HUDRadial` 278…260 | Staged as `T_Radial_DigitHi_*` (available) |
+
+**Compromise / gaps**
+
+- Wheel body: no ExportAssets named wheel/radial/ring/selector; 258 DefineSprites — U3 uses
+  tag-512 ring + UMG segment name labels instead of a decoded sprite atlas.
+- Icons: `sharedlibrary` `HUD_Ret_*` are crosshair reticles (vector), not inventory icons —
+  brass ring + name text only; no authored fakes.
+
+**Input** (`setup_playable_slice.py`): WeaponRadial=V, Plasmid=Q (hold open / release equip),
+WeaponSelect=LeftShift, PlasmidCast=LeftAlt (cast; Q no longer instant-casts), arrow keys step
+hovered segment while the wheel is open.
+
+```powershell
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: -script=...\run_radial.py
+# capture: tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+#   -Extra '-bioshockshothud','-bioshockshotracial'
+```
+
+Content: `/Game/BioShockUI/Radial/T_Radial_{BrassRing,Digit_0..9,DigitHi_0..9}`.
+
+---
+
 ## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
 
 Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).

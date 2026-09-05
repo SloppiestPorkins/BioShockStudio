@@ -131,6 +131,31 @@ AMMO_TYPE_CYCLE_LINE = (
     'bCmd=False,Key=C)'
 )
 
+WEAPON_RADIAL_LINE = (
+    '+ActionMappings=(ActionName="WeaponRadial",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=V)'
+)
+
+WEAPON_SELECT_LINE = (
+    '+ActionMappings=(ActionName="WeaponSelect",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=LeftShift)'
+)
+
+PLASMID_CAST_LINE = (
+    '+ActionMappings=(ActionName="PlasmidCast",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=LeftAlt)'
+)
+
+RADIAL_STEP_LEFT_LINE = (
+    '+ActionMappings=(ActionName="RadialStepLeft",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Left)'
+)
+
+RADIAL_STEP_RIGHT_LINE = (
+    '+ActionMappings=(ActionName="RadialStepRight",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Right)'
+)
+
 TRAVEL_DEST_MAP = "/Game/BioShockSlice/_TravelDest"
 PLAY_GAME_MODE = "/Script/BioShockRuntime.ShockGameMode"
 SHOCK_GAME_INSTANCE = "/Script/BioShockRuntime.ShockGameInstance"
@@ -209,6 +234,28 @@ def _ensure_interact_mapping():
 
 def _ensure_ammo_type_cycle_mapping():
     return _ensure_action_mapping("AmmoTypeCycle", "C", AMMO_TYPE_CYCLE_LINE)
+
+
+def _ensure_weapon_radial_mapping():
+    return _ensure_action_mapping("WeaponRadial", "V", WEAPON_RADIAL_LINE)
+
+
+def _ensure_weapon_select_mapping():
+    return _ensure_action_mapping("WeaponSelect", "LeftShift", WEAPON_SELECT_LINE)
+
+
+def _ensure_plasmid_cast_mapping():
+    return _ensure_action_mapping("PlasmidCast", "LeftAlt", PLASMID_CAST_LINE)
+
+
+def _ensure_radial_step_mappings():
+    return {
+        "mapping": "radial step",
+        "details": [
+            _ensure_action_mapping("RadialStepLeft", "Left", RADIAL_STEP_LEFT_LINE),
+            _ensure_action_mapping("RadialStepRight", "Right", RADIAL_STEP_RIGHT_LINE),
+        ],
+    }
 
 
 def _project_config_dir():
@@ -333,6 +380,10 @@ STEPS = [
     ("weapon_slot_key_mapping", None, _ensure_weapon_slot_mappings, ()),
     ("interact_key_mapping", None, _ensure_interact_mapping, ()),
     ("ammo_type_cycle_key_mapping", None, _ensure_ammo_type_cycle_mapping, ()),
+    ("weapon_radial_key_mapping", None, _ensure_weapon_radial_mapping, ()),
+    ("weapon_select_key_mapping", None, _ensure_weapon_select_mapping, ()),
+    ("plasmid_cast_key_mapping", None, _ensure_plasmid_cast_mapping, ()),
+    ("radial_step_key_mapping", None, _ensure_radial_step_mappings, ()),
     ("game_instance_class", None, _ensure_game_instance_class, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
