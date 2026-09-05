@@ -9,6 +9,7 @@ class AShockProjectile;
 class UAnimSequence;
 class UPointLightComponent;
 class USkeletalMeshComponent;
+class UStaticMeshComponent;
 
 /**
  * UnrealScript class `Weapon` (super `Holdable`).
@@ -26,6 +27,14 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TObjectPtr<USkeletalMeshComponent> Mesh;
+
+	/**
+	 * First-person StaticMesh viewmodel (Wrench). Child of Mesh root; hidden until ApplyDef
+	 * loads a UStaticMesh. Skeletal Mesh stays the attach root (and must remain non-hidden so
+	 * this child can render); "hidden" skeletal viewmodel means no USkeletalMesh assigned.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TObjectPtr<UStaticMeshComponent> StaticMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float HitscanDamage = 20.0f;
@@ -131,6 +140,18 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
 	FName GetWeaponDefName() const { return DefWeaponName; }
+
+	/**
+	 * Headless verify: whether ApplyDef installed a StaticMesh viewmodel (skeletal Mesh hidden).
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	bool IsStaticViewmodelForVerify() const;
+
+	/**
+	 * Headless verify: soft path of the StaticMesh currently on StaticMesh (empty if none).
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Weapon")
+	FSoftObjectPath GetStaticMeshAssetPathForVerify() const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	void ConfigureHitscan(float InDamage, float InRange);

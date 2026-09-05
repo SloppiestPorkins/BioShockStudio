@@ -139,9 +139,8 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 	else if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
 		// weapons-config: mag 10 acc 0 rate 1 reload 1; WrenchAmmo AIBludgeoning 20.
-		// WP_WrenchMesh in ShockGame.U is a plain StaticMesh (no UAPW / SkeletalMesh) — confirmed
-		// ROADMAP Gate 5 / research/context.md. import_bioshock cannot ingest it; MeshAssetPath
-		// stays empty until a StaticMesh→viewmodel path exists. Do not point at a substitute.
+		// StaticMesh viewmodel (WP_WrenchMesh in ShockGame.U) — swing comes from ViewHands, not a
+		// weapon skeletal rig. Path matches import_wrench_mesh.py → /Game/BioShockWeapons/WP_Wrench.
 		Def = MakeDef(
 			EWeaponFireMode::Melee,
 			TEXT("Wrench"),
@@ -158,6 +157,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			0.0f,
 			0.0f);
+		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Wrench"));
 	}
 	else if (Key.Equals(TEXT("GrenadeLauncher"), ESearchCase::IgnoreCase))
 	{

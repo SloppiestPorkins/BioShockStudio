@@ -732,7 +732,7 @@ hardcodes Tommy Gun only. Paths follow the TommyGun convention under
 | GrenadeLauncher | `WP_GrenadeLauncher` | `export-firstperson Launcher … --fbx --group=WP_GrenadeLauncher` (hands socket `Launcher`) |
 | ChemicalThrower | `WP_ChemicalThrower` | `export-firstperson Chem … --fbx --group=WP_ChemicalThrower` |
 | Crossbow | `WP_Crossbow` | `export-firstperson Crossbow … --fbx --group=WP_Crossbow` |
-| Wrench | *(none)* | **Blocked:** `WP_WrenchMesh` is a plain `StaticMesh` in `ShockGame.U` (group `WP_Wrench`: StaticMesh×1, no `UAPW` / `SkeletalMesh`); `export-firstperson Wrench` fails; `import_bioshock` cannot ingest it. Not substituted. Melee doesn't need its own skeleton though — the swing comes from the hands rig (h8) — so the real fix is a `UStaticMeshComponent` attached to the ViewHands Wrench socket, not a skeletal import. Not yet done. |
+| Wrench | `WP_Wrench` (**StaticMesh**) | `export-staticmesh ShockGame WP_WrenchMesh …` → `import_wrench_mesh.py` |
 
 Export scratch under `%TEMP%\bioshock-h14-weapons\` (not the worktree), then:
 
@@ -747,19 +747,34 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
 
 `run_weapon_meshes.py` drives `verify_weapon_meshes.py`: `GiveWeaponByDef` for each
 starter, asserts `Mesh->GetSkeletalMeshAsset()` matches the expected path for the six
-skeletal guns (incl. GrenadeLauncher slot 4), and asserts Wrench stays mesh-less
-(`wrench=static_mesh_blocked`). Grip-socket alignment is look-and-tune in the editor
-afterward — not asserted here. Projectile/explosive feel for the Grenade Launcher is
-already covered by `verify_weapon_def.py`; this task only landed the viewmodel mesh.
+skeletal guns (incl. GrenadeLauncher slot 4), and asserts Wrench resolves a
+**StaticMesh** on `AShockWeapon::StaticMesh` (`wrench=static_mesh_ok`). Grip-socket
+alignment is look-and-tune in the editor afterward — not asserted here.
+Projectile/explosive feel for the Grenade Launcher is already covered by
+`verify_weapon_def.py`; this task only landed the viewmodel mesh.
 
-**5 Sept 2026 (h14) — GrenadeLauncher mesh path wired; Wrench remains StaticMesh-blocked.**
+**5 Sept 2026 (h14) — GrenadeLauncher mesh path wired; Wrench was still StaticMesh-blocked.**
 Confirmed against `ShockGame.U` package context (`WP_GrenadeLauncher`: SkeletalMesh
 `WP_GrenadeLauncherMesh` + `UAPW_WP_GrenadeLauncher`; `WP_Wrench`: StaticMesh×1 only).
 Headless evidence: `weapon_import=ok` (`%TEMP%/h14_weapon_mesh_import_report.json`),
 `weapon_meshes=ok` 0 failures (`%TEMP%/h14_weapon_meshes_report.json`) — GrenadeLauncher
 mesh path `/Game/BioShockWeapons/WP_GrenadeLauncher/WP_GrenadeLauncher.WP_GrenadeLauncher`
-via `GiveWeaponByDef`; Wrench `wrench=static_mesh_blocked`. Projectile/explosive fire for
-the GL was already covered by `verify_weapon_def.py` (not reinvented here).
+via `GiveWeaponByDef`; Wrench `wrench=static_mesh_blocked` (superseded by h22 below).
+Projectile/explosive fire for the GL was already covered by `verify_weapon_def.py`
+(not reinvented here).
+
+**5 Sept 2026 (h22) — Wrench StaticMesh viewmodel.**
+`WP_WrenchMesh` exports via `export-staticmesh ShockGame WP_WrenchMesh` (3153 verts /
+3696 tris, confirmed decode). Import: `import_wrench_mesh.py` (Blender-normalize +
+`FBXIT_STATIC_MESH`) → `/Game/BioShockWeapons/WP_Wrench/WP_Wrench`. Runtime:
+`AShockWeapon::StaticMesh` subobject; `ApplyDef` loads `UStaticMesh` when
+`MeshAssetPath` is not skeletal; `UShockWeaponDef` Wrench sets
+`MeshAssetPath` to that content path. Equip attaches the weapon actor to ViewHands
+socket `Wrench` (no alias — socket name matches the def). Headless:
+`wrench_import=ok` (`%TEMP%/wrench_mesh_import_report.json`), `wrench_verify=ok`
+(`%TEMP%/wrench_verify_report.json`) — StaticMesh path, skeletal cleared, attach
+parent `ViewHands`, socket `Wrench`. **Grip / in-hand look is a human PIE check** —
+not asserted. Rebuild: `rebuild_runtime_fast.ps1 -CleanModule` then incremental.
 
 ## ChemicalThrower / Crossbow visual defects (h17) — 5 Sept 2026
 

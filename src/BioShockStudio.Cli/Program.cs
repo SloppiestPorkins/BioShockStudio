@@ -47,6 +47,7 @@ try
         "animations" => Animations(root, args),
         "export-blender" => ExportBlender(root, args),
         "export-fbx" => ExportFbx(root, args),
+        "export-staticmesh" => ExportStaticMesh(root, args),
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
         "level-audit" => LevelAudit(root, args),
@@ -145,6 +146,10 @@ static int Usage()
           export-fbx <package> <object> <out-dir> [owner]
                                         Write FBX (mesh, skeleton, one file per animation) plus a
                                         manifest for the Unreal importer.
+          export-staticmesh <package> <object> <out-dir>
+                                        Write FBX + ue5_manifest.json for a StaticMesh export
+                                        (no skeleton). Package may be a map .bsm or a script .U
+                                        (e.g. ShockGame WP_WrenchMesh).
           audit-animations [out.csv]    Decode every animation in the game and report coverage.
           diagnose [package] [--animations] [--code C] [--out report.csv]
                                         Report every asset this tool knows is broken or degraded,
@@ -1929,6 +1934,63 @@ static int ExportFbx(string root, string[] args)
     return WriteFbx(scene, outputDirectory);
 }
 
+/// <summary>
+/// Exports a single <c>StaticMesh</c> as boneless FBX + <c>ue5_manifest.json</c> — the same
+/// writer path the GUI extractor and level static props already use.
+/// </summary>
+static int ExportStaticMesh(string root, string[] args)
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine("usage: export-staticmesh <package> <object> <out-dir>");
+        return 1;
+    }
+
+    string packagePath = ResolvePackageOrScript(root, args[1]);
+    string objectName = args[2];
+    string outputDirectory = args[3];
+    Directory.CreateDirectory(outputDirectory);
+
+    using var package = BioShockPackage.Open(packagePath);
+    var export = package.Exports
+        .Where(e => string.Equals(e.ObjectName, objectName, StringComparison.OrdinalIgnoreCase)
+                    && package.GetClassName(e) == AssetClasses.StaticMesh)
+        .MaxBy(e => e.SerialSize);
+
+    if (export is null)
+    {
+        Console.Error.WriteLine(
+            $"No StaticMesh named '{objectName}' in {Path.GetFileName(packagePath)}.");
+        return 1;
+    }
+
+    byte[] payload = package.ReadExportData(export);
+    var geometry = StaticMeshReader.ReadGeometry(payload);
+    if (geometry is null)
+    {
+        Console.Error.WriteLine(
+            $"StaticMesh '{export.ObjectName}' did not decode (class={package.GetClassName(export)}, "
+            + $"serialOffset={export.SerialOffset}, serialSize={export.SerialSize}). "
+            + "See docs/research/staticmesh.md — do not substitute another mesh.");
+        return 1;
+    }
+
+    var (materials, triangleMaterials) =
+        MaterialExporter.ResolveSurfaces(package, export, geometry, outputDirectory);
+    var scene = AnimationSceneExporter.BuildStatic(
+        Path.GetFileNameWithoutExtension(packagePath),
+        export.ObjectName,
+        geometry,
+        material: materials.FirstOrDefault(),
+        materials: materials,
+        triangleMaterials: triangleMaterials);
+
+    Console.WriteLine(
+        $"static mesh {export.ObjectName}: {geometry.Vertices.Count} vertices, "
+        + $"{geometry.TriangleCount} triangles, {materials.Count} material(s)");
+    return WriteFbx(scene, outputDirectory);
+}
+
 static int WriteFbx(AnimationScene scene, string outputDirectory, string? preview = null)
 {
     var manifest = FbxExporter.Write(scene, outputDirectory, previewAnimation: preview);
@@ -2300,4 +2362,19 @@ static string ResolvePackage(string root, string name)
     string candidate = Path.Combine(GameLocator.MapsDirectory(root), Path.ChangeExtension(name, ".bsm"));
     if (File.Exists(candidate)) return candidate;
     throw new FileNotFoundException($"Package '{name}' not found.");
+}
+
+/// <summary>
+/// Like <see cref="ResolvePackage"/> but also finds script packages under
+/// <c>Build/Final/BakedScripts/pc</c> (e.g. <c>ShockGame.U</c> for weapon StaticMeshes).
+/// </summary>
+static string ResolvePackageOrScript(string root, string name)
+{
+    if (File.Exists(name)) return name;
+
+    string scriptStem = Path.GetFileNameWithoutExtension(name);
+    string script = Path.Combine(GameLocator.ScriptPackageDirectory(root), scriptStem + ".U");
+    if (File.Exists(script)) return script;
+
+    return ResolvePackage(root, name);
 }

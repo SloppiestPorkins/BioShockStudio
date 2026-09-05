@@ -8,7 +8,7 @@ Produce them outside the editor with bioshock-tool / dotnet run, e.g.:
   export-firstperson Chem <TEMP>/.../WP_ChemicalThrower --fbx --group=WP_ChemicalThrower
   export-fbx <fullpath-to-ShockGame.U> UAPW_WP_Shotgun <TEMP>/.../WP_Shotgun --mesh WP_ShotgunMesh
 
-Wrench cannot use this path (StaticMesh). See import_weapon_meshes.py.
+Wrench cannot use this path (StaticMesh) — see import_wrench_mesh.py / run_import_wrench_mesh.py.
 """
 
 import json

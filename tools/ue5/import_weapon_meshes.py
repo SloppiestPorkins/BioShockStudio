@@ -5,8 +5,7 @@ then import_bioshock.main(export_dir, "/Game/BioShockWeapons").
 
 Call from Unreal Python / -run=pythonscript after exports exist under TEMP (or BIOSHOCK_WEAPON_EXPORT_ROOT).
 
-Wrench is not imported here: WP_WrenchMesh is a StaticMesh in ShockGame.U (no UAPW / SkeletalMesh);
-import_bioshock only ingests skeletal rigs. Record that gap rather than substituting another asset.
+Wrench is a StaticMesh — use import_wrench_mesh.py / run_import_wrench_mesh.py, not this script.
 """
 
 import json
@@ -62,10 +61,6 @@ def main(export_root=None, out=None):
         "imported": {},
         "skipped": [],
         "failures": [],
-        "wrench": (
-            "not imported — WP_WrenchMesh is StaticMesh in ShockGame.U "
-            "(no AnimationPackageWrapper / SkeletalMesh); import_bioshock cannot ingest it"
-        ),
     }
     failures = report["failures"]
 

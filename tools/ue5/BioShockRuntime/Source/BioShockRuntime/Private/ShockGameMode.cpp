@@ -418,9 +418,7 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	// The Wrench (slot 0) is the first weapon the player actually has in BioShock --
 	// start equipped with it, not the Tommy Gun, matching what you'd really be
 	// holding before finding any guns. Viewmodel meshes come from UShockWeaponDef::MeshAssetPath
-	// via AShockWeapon::ApplyDef (TommyGun / Pistol / Shotgun / GrenadeLauncher /
-	// ChemicalThrower / Crossbow). Wrench stays mesh-less until WP_WrenchMesh
-	// (StaticMesh in ShockGame.U) has an import path.
+	// via AShockWeapon::ApplyDef (skeletal guns + Wrench StaticMesh on StaticMesh component).
 	Player->SelectWeaponSlot(0);
 
 	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.

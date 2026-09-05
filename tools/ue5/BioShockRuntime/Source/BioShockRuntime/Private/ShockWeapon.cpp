@@ -12,8 +12,10 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
@@ -31,6 +33,14 @@ AShockWeapon::AShockWeapon()
 	Mesh->VisibilityBasedAnimTickOption =
 		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	Mesh->SetBoundsScale(4.0f);
+
+	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
+	StaticMesh->SetupAttachment(Mesh);
+	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	StaticMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	StaticMesh->SetCastShadow(false);
+	StaticMesh->SetHiddenInGame(true);
+	StaticMesh->SetVisibility(false);
 }
 
 void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
@@ -89,11 +99,49 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 
 	if (Mesh && !Def->MeshAssetPath.IsNull())
 	{
-		if (USkeletalMesh* MeshAsset = Cast<USkeletalMesh>(Def->MeshAssetPath.TryLoad()))
+		UObject* Loaded = Def->MeshAssetPath.TryLoad();
+		if (USkeletalMesh* MeshAsset = Cast<USkeletalMesh>(Loaded))
 		{
 			Mesh->SetSkeletalMesh(MeshAsset);
+			Mesh->SetHiddenInGame(false);
+			Mesh->SetVisibility(true);
+			if (StaticMesh)
+			{
+				StaticMesh->SetStaticMesh(nullptr);
+				StaticMesh->SetHiddenInGame(true);
+				StaticMesh->SetVisibility(false);
+			}
+		}
+		else if (UStaticMesh* StaticAsset = Cast<UStaticMesh>(Loaded))
+		{
+			if (StaticMesh)
+			{
+				StaticMesh->SetStaticMesh(StaticAsset);
+				StaticMesh->SetHiddenInGame(false);
+				StaticMesh->SetVisibility(true);
+			}
+			// Clear skeletal asset so nothing draws from Mesh — do NOT hide Mesh itself:
+			// StaticMesh is a child of Mesh, and parent HiddenInGame/Visibility hides children.
+			Mesh->SetSkeletalMesh(nullptr);
+			Mesh->SetHiddenInGame(false);
+			Mesh->SetVisibility(true);
 		}
 	}
+}
+
+bool AShockWeapon::IsStaticViewmodelForVerify() const
+{
+	return StaticMesh && StaticMesh->GetStaticMesh() != nullptr
+		&& (Mesh == nullptr || Mesh->GetSkeletalMeshAsset() == nullptr);
+}
+
+FSoftObjectPath AShockWeapon::GetStaticMeshAssetPathForVerify() const
+{
+	if (StaticMesh && StaticMesh->GetStaticMesh())
+	{
+		return FSoftObjectPath(StaticMesh->GetStaticMesh());
+	}
+	return FSoftObjectPath();
 }
 
 void AShockWeapon::StopBeam()

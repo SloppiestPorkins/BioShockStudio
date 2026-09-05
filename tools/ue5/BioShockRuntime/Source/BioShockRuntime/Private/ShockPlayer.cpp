@@ -12,6 +12,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "CollisionQueryParams.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Scene.h"
@@ -279,6 +280,10 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 	{
 		return FName(TEXT("Chem"));
 	}
+
+	// Wrench: NEWPlayerHands socket is also named Wrench (on R_Grip) — research/skeletalmesh.md.
+	// No alias required when the imported hands mesh carries it; fall through already returns
+	// WeaponDefName above. Kept as an explicit check only if a future hands import renames it.
 
 	if (!LoggedMissingGripSockets.Contains(WeaponDefName))
 	{
@@ -770,6 +775,25 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 		WeaponMesh->SetOwnerNoSee(false);
 		WeaponMesh->SetCastShadow(false);
 		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (UStaticMeshComponent* WeaponStatic = Weapon->StaticMesh)
+	{
+		WeaponStatic->SetOnlyOwnerSee(false);
+		WeaponStatic->SetOwnerNoSee(false);
+		WeaponStatic->SetCastShadow(false);
+		WeaponStatic->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (WeaponStatic->GetStaticMesh())
+		{
+			WeaponStatic->SetHiddenInGame(false);
+			WeaponStatic->SetVisibility(true);
+			// Mesh root must stay visible so the StaticMesh child renders; clear skeletal only.
+			if (Weapon->Mesh)
+			{
+				Weapon->Mesh->SetSkeletalMesh(nullptr);
+				Weapon->Mesh->SetHiddenInGame(false);
+				Weapon->Mesh->SetVisibility(true);
+			}
+		}
 	}
 
 	UE_LOG(

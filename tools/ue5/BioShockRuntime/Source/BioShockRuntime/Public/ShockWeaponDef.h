@@ -154,7 +154,7 @@ public:
 
 	/**
 	 * First-person viewmodel under /Game/BioShockWeapons/WP_<Name>/WP_<Name>.
-	 * Empty when the viewmodel is not a skeletal mesh (e.g. Wrench is StaticMesh in ShockGame.U).
+	 * May be a SkeletalMesh (guns) or StaticMesh (Wrench — gripped via ViewHands, no weapon rig).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
 	FSoftObjectPath MeshAssetPath;

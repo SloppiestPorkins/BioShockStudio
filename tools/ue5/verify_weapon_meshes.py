@@ -1,9 +1,8 @@
 """Headless verify: GiveWeaponByDef assigns the expected viewmodel mesh per def.
 
-Exercises the real equip path (Resolve → ApplyDef → Mesh->SetSkeletalMesh), not a direct
-SetSkeletalMesh in the test. Wrench is excluded from the skeletal expectation: WP_WrenchMesh in
-ShockGame.U is a plain StaticMesh with no UAPW wrapper (ROADMAP Gate 5 / research/context.md), so
-UShockWeaponDef leaves MeshAssetPath empty rather than pointing at a substitute.
+Exercises the real equip path (Resolve → ApplyDef → Mesh->SetSkeletalMesh / StaticMesh),
+not a direct SetSkeletalMesh in the test. Wrench is a StaticMesh viewmodel
+(`/Game/BioShockWeapons/WP_Wrench/WP_Wrench`) — asserted positively here (not blocked).
 
 Also asserts each skeletal mesh's material slots resolve non-default BaseColor/Normal texture
 parameters (same class of check as audit_level_materials slot checks) so a null/default-material
@@ -130,7 +129,7 @@ def _assert_mesh_textures(def_name, skel, failures):
     return reports
 
 
-# Def name → (slot, expected skeletal mesh object path). Wrench deliberately omitted.
+# Def name → (slot, expected skeletal mesh object path).
 _SKELETAL_STARTERS = (
     ("Pistol", 1, "/Game/BioShockWeapons/WP_Pistol/WP_Pistol.WP_Pistol"),
     ("TommyGun", 2, "/Game/BioShockWeapons/WP_TommyGun/WP_TommyGun.WP_TommyGun"),
@@ -139,6 +138,8 @@ _SKELETAL_STARTERS = (
     ("ChemicalThrower", 5, "/Game/BioShockWeapons/WP_ChemicalThrower/WP_ChemicalThrower.WP_ChemicalThrower"),
     ("Crossbow", 6, "/Game/BioShockWeapons/WP_Crossbow/WP_Crossbow.WP_Crossbow"),
 )
+
+_WRENCH_STATIC = "/Game/BioShockWeapons/WP_Wrench/WP_Wrench.WP_Wrench"
 
 
 def main(out):
@@ -158,31 +159,46 @@ def main(out):
         _write(out, report)
         raise RuntimeError("weapon-meshes:\n- " + "\n- ".join(failures))
 
-    # --- Wrench: MeshAssetPath must stay empty; mesh must stay null (StaticMesh gap) ---
+    # --- Wrench: StaticMesh viewmodel on StaticMesh component; skeletal Mesh cleared ---
     wrench = player.give_weapon_by_def(unreal.Name("Wrench"), 0)
-    wrench_entry = {"slot": 0, "weapon": bool(wrench), "meshPath": None, "defMeshPath": None}
+    wrench_entry = {
+        "slot": 0,
+        "weapon": bool(wrench),
+        "staticMeshPath": None,
+        "skeletalMeshPath": None,
+        "isStaticViewmodel": False,
+    }
     if not wrench:
         failures.append("GiveWeaponByDef(Wrench) null")
     else:
+        static_comp = wrench.get_editor_property("static_mesh")
+        static_asset = static_comp.get_editor_property("static_mesh") if static_comp else None
         mesh_comp = wrench.get_editor_property("mesh")
         skel = mesh_comp.get_skeletal_mesh_asset() if mesh_comp else None
-        wrench_entry["meshPath"] = _asset_path(skel)
-        wrench_def = unreal.ShockWeaponDefLibrary.resolve_weapon_def(unreal.Name("Wrench"))
-        if wrench_def:
-            # Informational only. FSoftObjectPath is a struct that's never None/falsy even
-            # when empty, and this Python binding exposes none of is_valid()/is_null()/
-            # to_string()/working struct equality (all tried live against UE5.7, all
-            # failed) -- there's no reliable emptiness check available from here. The
-            # behavioural assertion below (the equipped Wrench actually has no skeletal
-            # mesh) is the real, meaningful check and needs none of this.
-            wrench_entry["defMeshPath"] = str(wrench_def.get_editor_property("mesh_asset_path"))
+        wrench_entry["staticMeshPath"] = _asset_path(static_asset)
+        wrench_entry["skeletalMeshPath"] = _asset_path(skel)
+        wrench_entry["isStaticViewmodel"] = bool(wrench.is_static_viewmodel_for_verify())
+        if static_asset is None:
+            failures.append(
+                "Wrench StaticMesh null after GiveWeaponByDef (expected %s)"
+                % _WRENCH_STATIC
+            )
+        elif wrench_entry["staticMeshPath"] != _WRENCH_STATIC:
+            failures.append(
+                "Wrench static mesh got %s expected %s"
+                % (wrench_entry["staticMeshPath"], _WRENCH_STATIC)
+            )
         if skel is not None:
             failures.append(
-                "Wrench unexpectedly has skeletal mesh %s (expected none until StaticMesh import)"
+                "Wrench unexpectedly has skeletal mesh %s (static viewmodel should clear it)"
                 % _asset_path(skel)
             )
+        if not wrench_entry["isStaticViewmodel"]:
+            failures.append("Wrench IsStaticViewmodelForVerify false")
     report["weapons"]["Wrench"] = wrench_entry
-    report["wrench"] = "static_mesh_blocked"
+    report["wrench"] = "static_mesh_ok" if not any(
+        f.startswith("Wrench") or f.startswith("GiveWeaponByDef(Wrench)") for f in failures
+    ) else "static_mesh_fail"
 
     for def_name, slot, expected in _SKELETAL_STARTERS:
         weapon = player.give_weapon_by_def(unreal.Name(def_name), slot)
@@ -223,7 +239,7 @@ def main(out):
     _write(out, report)
     if failures:
         raise RuntimeError("weapon-meshes (%d errors):\n- " % error_count + "\n- ".join(failures))
-    _log("Success - %d error(s); Wrench static_mesh_blocked (expected)" % error_count)
+    _log("Success - %d error(s); Wrench static_mesh_ok" % error_count)
     return report
 
 
