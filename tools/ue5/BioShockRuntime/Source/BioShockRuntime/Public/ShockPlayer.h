@@ -313,6 +313,13 @@ public:
 	/** Called from damage library when bAutoFirstAid is enabled. */
 	void TryAutoFirstAidAfterDamage();
 
+	/** Record hit origin for HUD directional damage wedges (nullptr → no direction). */
+	void NoteDamageHit(AActor* DamageInstigator);
+
+	/** World-space source of the most recent damaging hit; false when instigator was null. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|HUD")
+	bool TryGetLastDamageSourceWorld(FVector& OutWorldLocation) const;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetForcedCrouch(bool bShouldCrouch);
 
@@ -889,6 +896,10 @@ private:
 
 	UPROPERTY()
 	bool bHUDPlaying = false;
+
+	/** Most recent damage instigator world location for directional HUD wedges. */
+	FVector LastDamageSourceWorld = FVector::ZeroVector;
+	bool bHasLastDamageSource = false;
 
 	UPROPERTY()
 	bool bSecurityAlarmOn = false;

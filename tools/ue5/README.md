@@ -71,6 +71,47 @@ reduces displayed health, weapon cluster shows for melee (ring+name), ammo digit
 
 ---
 
+## Phase U8a — HUD + radial polish — 5 Sept 2026
+
+Faithful finish pass on `UShockHudWidget` / `UShockRadialMenu` (toward 1:1 with BioShock 1).
+
+**HUD**
+
+- Kit/hypo counts and mag/reserve are rows of `T_Hud_Digit_*` images (no system-font numerals;
+  leftover `/` prefix TextBlock removed). Cap row is icon + digits only (no stray `+` text).
+- Liquid fill: `M_Hud_LiquidFill` UI material (FillMask × Tint × vertical gradient + top highlight)
+  with gradient-baked `T_Hud_FillMask` fallback; thin highlight line under the rim.
+- Fill mask punch tightened (40/34/40/34) so 100% sits flush inside the pill.
+- Directional damage wedges: four edge flashes toward the damage source vs camera; no source →
+  all four + `BIOSHOCK_HUD_DAMAGE_DIR none` log. `AShockPlayer::NoteDamageHit` from ApplyDamage.
+- Friendly names via `ShockUiDisplayNames` (Electro Bolt, Research Camera, Machine Gun, …).
+- Layout: meters ~480×100 at 16px corner margin; ammo/plasmid rings 64px at matching margin.
+
+**Radial**
+
+- Wheel dead-centre; translucent black full-screen dim under it.
+- Segments evenly spaced; labels outside the ring, anchored away from centre; >6 items shrink
+  label font. Hover brightens + scales the segment ring.
+- Centre readout: friendly name + digit-font ammo / EVE cost.
+- Same display-name map as the HUD.
+
+```powershell
+# rebuild after UPROPERTY changes:
+tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# re-stage fill mask + create M_Hud_LiquidFill (once):
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+# then: -script=...\run_hud.py  and  -script=...\run_radial.py
+# capture:
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical -Extra '-bioshockshothud'
+tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+  -Extra '-bioshockshothud','-bioshockshotradial'
+```
+
+**Verify:** `run_hud.py` / `run_radial.py` green. Visual 1:1 feel = human PIE / capture.
+
+---
+
 ## Phase U3 — radial weapon/plasmid wheel + full select — 5 Sept 2026
 
 `UShockRadialMenu` (hold **V** = weapons, hold **Q** = plasmids) and `UShockWeaponSelectScreen`

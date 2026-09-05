@@ -150,6 +150,10 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 	}
 	if (AShockPlayer* Player = Cast<AShockPlayer>(Pawn))
 	{
+		if (Applied > 0.0f)
+		{
+			Player->NoteDamageHit(Instigator);
+		}
 		if (Applied > 0.0f && !Pawn->bIsDead)
 		{
 			Player->TryAutoFirstAidAfterDamage();

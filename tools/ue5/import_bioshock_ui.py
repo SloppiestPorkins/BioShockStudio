@@ -114,10 +114,10 @@ METER_FILL_TOP = 28
 METER_FILL_RIGHT = 32
 METER_FILL_BOTTOM = 28
 # Transparent punch / white-on-black mask — inset further so the rim always covers the fill edge.
-METER_PUNCH_LEFT = 36
-METER_PUNCH_TOP = 30
-METER_PUNCH_RIGHT = 36
-METER_PUNCH_BOTTOM = 30
+METER_PUNCH_LEFT = 40
+METER_PUNCH_TOP = 34
+METER_PUNCH_RIGHT = 40
+METER_PUNCH_BOTTOM = 34
 
 # HUDRadial digit glyphs: ids run 9..0 then a highlight set. Normal set only for U2.
 DIGIT_IDS_9_TO_0 = [239, 241, 243, 245, 247, 249, 251, 253, 255, 257]
@@ -385,12 +385,154 @@ def _punch_meter_cavity(frame):
 
 
 def _fill_mask_from_l_mask(mask):
-    """White RGB + mask alpha — UImage brush tinted red/blue for the liquid."""
+    """White→darker vertical gradient RGB + mask alpha — liquid feel under a tint."""
     from PIL import Image
 
     w, h = mask.size
-    rgb = Image.new("RGB", (w, h), (255, 255, 255))
-    return Image.merge("RGBA", (*rgb.split(), mask))
+    grad = Image.new("RGB", (w, h))
+    pixels = grad.load()
+    for y in range(h):
+        # Brighter at top (highlight), darker at bottom (liquid depth).
+        t = y / max(1, h - 1)
+        v = int(255 * (1.0 - 0.42 * t))
+        for x in range(w):
+            pixels[x, y] = (v, v, v)
+    return Image.merge("RGBA", (*grad.split(), mask))
+
+
+def _ensure_liquid_fill_material(content_folder, report):
+    """UI material: FillMask × Tint × soft vertical gradient; opacity from mask×tint alpha.
+
+    Idempotent — if M_Hud_LiquidFill already exists, leave it. HUD falls back to the
+    gradient-baked FillMask tint when the material is absent.
+    """
+    import unreal
+
+    name = "M_Hud_LiquidFill"
+    folder = content_folder
+    path = "%s/%s" % (folder, name)
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        report.setdefault("imported", {})[name] = path
+        _log("liquid fill material already present %s" % path)
+        return unreal.EditorAssetLibrary.load_asset(path)
+
+    edit = unreal.MaterialEditingLibrary
+    asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+    factory = unreal.MaterialFactoryNew()
+    mat = asset_tools.create_asset(name, folder, unreal.Material, factory)
+    if mat is None:
+        report["failures"].append("could not create %s" % path)
+        return None
+
+    mat.set_editor_property("material_domain", unreal.MaterialDomain.MD_UI)
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try:
+        mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    except Exception:  # noqa: BLE001
+        pass
+
+    fill_mask = edit.create_material_expression(
+        mat, unreal.MaterialExpressionTextureSampleParameter2D, -520, -40
+    )
+    fill_mask.set_editor_property("parameter_name", "FillMask")
+    try:
+        fill_mask.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+    except Exception:  # noqa: BLE001
+        pass
+
+    tint = edit.create_material_expression(
+        mat, unreal.MaterialExpressionVectorParameter, -520, 140
+    )
+    tint.set_editor_property("parameter_name", "Tint")
+    tint.set_editor_property("default_value", unreal.LinearColor(0.85, 0.08, 0.06, 0.92))
+
+    texcoord = edit.create_material_expression(
+        mat, unreal.MaterialExpressionTextureCoordinate, -520, 300
+    )
+    one_minus = edit.create_material_expression(
+        mat, unreal.MaterialExpressionOneMinus, -300, 300
+    )
+    edit.connect_material_expressions(texcoord, "V", one_minus, "")
+
+    # soft = lerp(0.58, 1.0, 1-V) via 0.58 + 0.42*(1-V)
+    const_lo = edit.create_material_expression(
+        mat, unreal.MaterialExpressionConstant, -300, 380
+    )
+    const_lo.set_editor_property("r", 0.58)
+    const_span = edit.create_material_expression(
+        mat, unreal.MaterialExpressionConstant, -300, 440
+    )
+    const_span.set_editor_property("r", 0.42)
+    mul_span = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMultiply, -140, 340
+    )
+    edit.connect_material_expressions(one_minus, "", mul_span, "A")
+    edit.connect_material_expressions(const_span, "", mul_span, "B")
+    add_grad = edit.create_material_expression(
+        mat, unreal.MaterialExpressionAdd, 20, 300
+    )
+    edit.connect_material_expressions(const_lo, "", add_grad, "A")
+    edit.connect_material_expressions(mul_span, "", add_grad, "B")
+
+    mul_tint = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMultiply, 20, 40
+    )
+    edit.connect_material_expressions(fill_mask, "RGB", mul_tint, "A")
+    edit.connect_material_expressions(tint, "", mul_tint, "B")
+
+    mul_grad = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMultiply, 200, 40
+    )
+    edit.connect_material_expressions(mul_tint, "", mul_grad, "A")
+    edit.connect_material_expressions(add_grad, "", mul_grad, "B")
+
+    # Top highlight band: saturate(0.1 - V) * 0.4
+    hi_band = edit.create_material_expression(
+        mat, unreal.MaterialExpressionConstant, -300, 520
+    )
+    hi_band.set_editor_property("r", 0.10)
+    sub_hi = edit.create_material_expression(
+        mat, unreal.MaterialExpressionSubtract, -140, 520
+    )
+    edit.connect_material_expressions(hi_band, "", sub_hi, "A")
+    edit.connect_material_expressions(texcoord, "V", sub_hi, "B")
+    max0 = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMax, 20, 520
+    )
+    zero = edit.create_material_expression(
+        mat, unreal.MaterialExpressionConstant, -140, 580
+    )
+    zero.set_editor_property("r", 0.0)
+    edit.connect_material_expressions(sub_hi, "", max0, "A")
+    edit.connect_material_expressions(zero, "", max0, "B")
+    hi_amt = edit.create_material_expression(
+        mat, unreal.MaterialExpressionConstant, 20, 580
+    )
+    hi_amt.set_editor_property("r", 0.4)
+    mul_hi = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMultiply, 200, 520
+    )
+    edit.connect_material_expressions(max0, "", mul_hi, "A")
+    edit.connect_material_expressions(hi_amt, "", mul_hi, "B")
+    add_hi = edit.create_material_expression(
+        mat, unreal.MaterialExpressionAdd, 360, 40
+    )
+    edit.connect_material_expressions(mul_grad, "", add_hi, "A")
+    edit.connect_material_expressions(mul_hi, "", add_hi, "B")
+
+    opacity_mul = edit.create_material_expression(
+        mat, unreal.MaterialExpressionMultiply, 200, 180
+    )
+    edit.connect_material_expressions(fill_mask, "A", opacity_mul, "A")
+    edit.connect_material_expressions(tint, "A", opacity_mul, "B")
+
+    edit.connect_material_property(add_hi, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    edit.connect_material_property(opacity_mul, "", unreal.MaterialProperty.MP_OPACITY)
+    edit.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    report.setdefault("imported", {})[name] = path
+    _log("created liquid fill material %s" % path)
+    return mat
 
 
 def prepare_staging(export_root=None, staging_dir=None, force_export=False):
@@ -923,6 +1065,7 @@ def main(
     _ensure_dir("/Game/BioShockUI")
     report["deleted"] = _delete_stale()
     _import_manifest(staging_dir, "hud_import_manifest.json", content_folder, report)
+    _ensure_liquid_fill_material(content_folder, report)
     _import_manifest(
         radial_staging_dir, "radial_import_manifest.json", RADIAL_CONTENT_FOLDER, report
     )

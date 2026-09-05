@@ -2005,6 +2005,30 @@ void AShockPlayer::TryAutoFirstAidAfterDamage()
 	}
 }
 
+void AShockPlayer::NoteDamageHit(AActor* DamageInstigator)
+{
+	if (DamageInstigator)
+	{
+		LastDamageSourceWorld = DamageInstigator->GetActorLocation();
+		bHasLastDamageSource = true;
+	}
+	else
+	{
+		LastDamageSourceWorld = FVector::ZeroVector;
+		bHasLastDamageSource = false;
+	}
+}
+
+bool AShockPlayer::TryGetLastDamageSourceWorld(FVector& OutWorldLocation) const
+{
+	if (!bHasLastDamageSource)
+	{
+		return false;
+	}
+	OutWorldLocation = LastDamageSourceWorld;
+	return true;
+}
+
 void AShockPlayer::HandleUseFirstAidInput()
 {
 	UseFirstAidKit();

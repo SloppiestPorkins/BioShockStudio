@@ -4,9 +4,11 @@
 #include "ShockIncineratePlasmid.h"
 #include "ShockPlasmid.h"
 #include "ShockPlayer.h"
+#include "ShockUiDisplayNames.h"
 #include "ShockWeapon.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -26,6 +28,7 @@ namespace
 constexpr float RingSize = 420.0f;
 constexpr float SegmentRingSize = 64.0f;
 constexpr float SegmentRadius = 155.0f;
+constexpr float LabelRadiusBase = 215.0f;
 constexpr float StatDigitW = 22.0f;
 constexpr float StatDigitH = 44.0f;
 constexpr int32 MaxStatDigits = 4;
@@ -46,7 +49,40 @@ FSlateFontInfo RadialFont(int32 Size, bool bBold = false)
 FLinearColor Gold() { return FLinearColor(0.92f, 0.78f, 0.35f, 1.0f); }
 FLinearColor DimGold() { return FLinearColor(0.55f, 0.45f, 0.22f, 0.85f); }
 FLinearColor White() { return FLinearColor(0.95f, 0.95f, 0.95f, 1.0f); }
+FLinearColor DimBackdrop() { return FLinearColor(0.0f, 0.0f, 0.0f, 0.55f); }
+
+FString SegmentLabelForWeapon(AShockWeapon* W, int32 SlotIndex)
+{
+	if (!W)
+	{
+		return FString::Printf(TEXT("Weapon %d"), SlotIndex + 1);
+	}
+	const FName DefName = W->GetWeaponDefName();
+	if (!DefName.IsNone())
+	{
+		return ShockUiDisplayNames::Friendly(DefName);
+	}
+	if (W->GetClass())
+	{
+		return ShockUiDisplayNames::Friendly(W->GetClass()->GetName());
+	}
+	return FString::Printf(TEXT("Weapon %d"), SlotIndex + 1);
 }
+
+FString SegmentLabelForPlasmid(UShockPlasmid* P, int32 SlotIndex)
+{
+	if (!P)
+	{
+		return FString::Printf(TEXT("Plasmid %d"), SlotIndex + 1);
+	}
+	const FString Raw = P->PlasmidName.ToString();
+	if (!Raw.IsEmpty())
+	{
+		return ShockUiDisplayNames::Friendly(Raw);
+	}
+	return FString::Printf(TEXT("Plasmid %d"), SlotIndex + 1);
+}
+} // namespace
 
 UShockRadialMenu::UShockRadialMenu(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -133,11 +169,22 @@ void UShockRadialMenu::EnsureWidgetTree()
 	RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("RadialCanvas"));
 	WidgetTree->RootWidget = RootCanvas;
 
+	// Full-screen dim under the wheel (BioShock hold-to-select backdrop).
+	DimOverlay = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("RadialDim"));
+	DimOverlay->SetBrushColor(DimBackdrop());
+	DimOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (UCanvasPanelSlot* DimSlot = RootCanvas->AddChildToCanvas(DimOverlay))
+	{
+		DimSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+		DimSlot->SetOffsets(FMargin(0.0f));
+	}
+
 	RingImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("RadialRing"));
 	RingImage->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.92f));
 	if (UCanvasPanelSlot* RingSlot = RootCanvas->AddChildToCanvas(RingImage))
 	{
-		RingSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+		// Dead-centre of the screen — not offset toward the HUD cluster.
+		RingSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		RingSlot->SetAlignment(FVector2D(0.5f, 0.5f));
 		RingSlot->SetAutoSize(true);
 		RingSlot->SetPosition(FVector2D::ZeroVector);
@@ -149,10 +196,10 @@ void UShockRadialMenu::EnsureWidgetTree()
 	CenterNameText->SetJustification(ETextJustify::Center);
 	if (UCanvasPanelSlot* NameSlot = RootCanvas->AddChildToCanvas(CenterNameText))
 	{
-		NameSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+		NameSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		NameSlot->SetAlignment(FVector2D(0.5f, 1.0f));
 		NameSlot->SetAutoSize(true);
-		NameSlot->SetPosition(FVector2D(0.0f, -8.0f));
+		NameSlot->SetPosition(FVector2D(0.0f, -12.0f));
 	}
 
 	CenterStatDigits = WidgetTree->ConstructWidget<UHorizontalBox>(
@@ -172,10 +219,10 @@ void UShockRadialMenu::EnsureWidgetTree()
 	}
 	if (UCanvasPanelSlot* StatSlot = RootCanvas->AddChildToCanvas(CenterStatDigits))
 	{
-		StatSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+		StatSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		StatSlot->SetAlignment(FVector2D(0.5f, 0.0f));
 		StatSlot->SetAutoSize(true);
-		StatSlot->SetPosition(FVector2D(0.0f, 8.0f));
+		StatSlot->SetPosition(FVector2D(0.0f, 10.0f));
 	}
 }
 
@@ -300,34 +347,33 @@ void UShockRadialMenu::RebuildSegments()
 
 	HoveredSegment = FMath::Clamp(HoveredSegment, 0, Count - 1);
 
+	// Single-ring layout: denser packs shrink outer label radius/font so neighbours don't collide.
+	const float LabelRadius = (Count > 6) ? (LabelRadiusBase - 12.0f) : LabelRadiusBase;
+	const int32 LabelFontSize = (Count > 6) ? 12 : 14;
+
 	for (int32 Seg = 0; Seg < Count; ++Seg)
 	{
 		const int32 SlotIndex = SegmentSlotIndices[Seg];
 		FString LabelStr;
 		if (Mode == EShockRadialMode::Weapon)
 		{
-			if (AShockWeapon* W = Player->WeaponSlots[SlotIndex].Get())
-			{
-				const FName DefName = W->GetWeaponDefName();
-				LabelStr = DefName.IsNone() ? FString() : DefName.ToString();
-				if (LabelStr.IsEmpty())
-				{
-					LabelStr = W->GetClass() ? W->GetClass()->GetName() : FString::Printf(TEXT("Weapon %d"), SlotIndex + 1);
-				}
-			}
+			LabelStr = SegmentLabelForWeapon(Player->WeaponSlots[SlotIndex].Get(), SlotIndex);
 		}
-		else if (UShockPlasmid* P = Player->EquippedPlasmids[SlotIndex].Get())
+		else
 		{
-			LabelStr = P->PlasmidName.ToString();
-			if (LabelStr.IsEmpty())
-			{
-				LabelStr = FString::Printf(TEXT("Plasmid %d"), SlotIndex + 1);
-			}
+			LabelStr = SegmentLabelForPlasmid(Player->EquippedPlasmids[SlotIndex].Get(), SlotIndex);
 		}
 
 		const float AngleDeg = (360.0f * Seg / static_cast<float>(Count)) - 90.0f;
 		const float Rad = FMath::DegreesToRadians(AngleDeg);
-		const FVector2D Pos(FMath::Cos(Rad) * SegmentRadius, FMath::Sin(Rad) * SegmentRadius);
+		const float CosA = FMath::Cos(Rad);
+		const float SinA = FMath::Sin(Rad);
+		const FVector2D RingPos(CosA * SegmentRadius, SinA * SegmentRadius);
+		const FVector2D LabelPos(CosA * LabelRadius, SinA * LabelRadius);
+
+		// Anchor labels so text grows away from the ring centre (avoids centre readout collide).
+		const float AlignX = 0.5f - CosA * 0.35f;
+		const float AlignY = 0.5f - SinA * 0.35f;
 
 		UImage* SegRing = WidgetTree->ConstructWidget<UImage>(
 			UImage::StaticClass(), *FString::Printf(TEXT("SegRing_%d"), Seg));
@@ -339,25 +385,25 @@ void UShockRadialMenu::RebuildSegments()
 		SegRing->SetColorAndOpacity(DimGold());
 		if (UCanvasPanelSlot* RS = RootCanvas->AddChildToCanvas(SegRing))
 		{
-			RS->SetAnchors(FAnchors(0.5f, 0.5f));
+			RS->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 			RS->SetAlignment(FVector2D(0.5f, 0.5f));
 			RS->SetAutoSize(true);
-			RS->SetPosition(Pos);
+			RS->SetPosition(RingPos);
 		}
 		SegmentRings.Add(SegRing);
 
 		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SegLabel_%d"), Seg));
-		Label->SetFont(RadialFont(14, true));
+		Label->SetFont(RadialFont(LabelFontSize, true));
 		Label->SetColorAndOpacity(White());
 		Label->SetText(FText::FromString(LabelStr));
 		Label->SetJustification(ETextJustify::Center);
 		if (UCanvasPanelSlot* LS = RootCanvas->AddChildToCanvas(Label))
 		{
-			LS->SetAnchors(FAnchors(0.5f, 0.5f));
-			LS->SetAlignment(FVector2D(0.5f, 0.5f));
+			LS->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+			LS->SetAlignment(FVector2D(AlignX, AlignY));
 			LS->SetAutoSize(true);
-			LS->SetPosition(Pos);
+			LS->SetPosition(LabelPos);
 		}
 		SegmentLabels.Add(Label);
 	}
@@ -368,19 +414,22 @@ void UShockRadialMenu::RebuildSegments()
 
 void UShockRadialMenu::ApplySegmentVisuals()
 {
-	for (int32 Seg = 0; Seg < SegmentLabels.Num(); ++Seg)
+	const int32 Count = SegmentLabels.Num();
+	const int32 BaseFont = (Count > 6) ? 12 : 14;
+	for (int32 Seg = 0; Seg < Count; ++Seg)
 	{
 		const bool bHover = Seg == HoveredSegment;
 		if (UTextBlock* Label = SegmentLabels[Seg].Get())
 		{
 			Label->SetColorAndOpacity(bHover ? Gold() : White());
-			Label->SetFont(RadialFont(bHover ? 16 : 14, true));
+			Label->SetFont(RadialFont(bHover ? BaseFont + 2 : BaseFont, true));
 		}
 		if (UImage* SegRing = SegmentRings.IsValidIndex(Seg) ? SegmentRings[Seg].Get() : nullptr)
 		{
 			SegRing->SetColorAndOpacity(bHover ? Gold() : DimGold());
-			const float Size = bHover ? SegmentRingSize * 1.15f : SegmentRingSize;
+			const float Size = bHover ? SegmentRingSize * 1.18f : SegmentRingSize;
 			SegRing->SetBrushSize(FVector2D(Size, Size));
+			SegRing->SetRenderScale(bHover ? FVector2D(1.06f, 1.06f) : FVector2D(1.0f, 1.0f));
 		}
 	}
 }
@@ -406,12 +455,7 @@ void UShockRadialMenu::RefreshCenterReadout()
 	{
 		if (AShockWeapon* W = Player->WeaponSlots[SlotIndex].Get())
 		{
-			const FName DefName = W->GetWeaponDefName();
-			CachedCenterName = DefName.IsNone() ? FString() : DefName.ToString();
-			if (CachedCenterName.IsEmpty() && W->GetClass())
-			{
-				CachedCenterName = W->GetClass()->GetName();
-			}
+			CachedCenterName = SegmentLabelForWeapon(W, SlotIndex);
 			if (W->bEnforceAmmo)
 			{
 				CachedCenterStat = FString::FromInt(W->GetRoundsInMagazine());
@@ -420,7 +464,7 @@ void UShockRadialMenu::RefreshCenterReadout()
 	}
 	else if (UShockPlasmid* P = Player->EquippedPlasmids[SlotIndex].Get())
 	{
-		CachedCenterName = P->PlasmidName.ToString();
+		CachedCenterName = SegmentLabelForPlasmid(P, SlotIndex);
 		CachedCenterStat = FString::FromInt(FMath::RoundToInt(P->EveCost));
 	}
 
@@ -490,7 +534,6 @@ void UShockRadialMenu::UpdateHoverFromMouse()
 		return;
 	}
 
-	// Screen Y grows downward; atan2(Dy, Dx) with 0 at +X, convert so 0 = top (-90 deg).
 	float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(Dy, Dx)) + 90.0f;
 	if (AngleDeg < 0.0f)
 	{
@@ -513,7 +556,6 @@ void UShockRadialMenu::OpenRadial(EShockRadialMode InMode)
 	EnsureTextures();
 	RebuildSegments();
 
-	// Prefer current equipped as initial hover.
 	if (AShockPlayer* Player = ResolvePlayer())
 	{
 		const int32 Wanted = (Mode == EShockRadialMode::Weapon)
@@ -636,7 +678,6 @@ bool UShockRadialMenu::RunHeadlessRadialVerify(UObject* WorldContextObject)
 		return false;
 	}
 
-	// Hover pistol segment (slot 1) and release-equip.
 	int32 PistolSeg = INDEX_NONE;
 	for (int32 Seg = 0; Seg < Radial->GetSegmentCount(); ++Seg)
 	{

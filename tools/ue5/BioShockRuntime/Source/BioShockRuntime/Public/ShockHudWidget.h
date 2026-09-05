@@ -8,6 +8,7 @@ class AShockWeapon;
 class UBorder;
 class UHorizontalBox;
 class UImage;
+class UMaterialInstanceDynamic;
 class UOverlay;
 class UProgressBar;
 class USizeBox;
@@ -86,11 +87,13 @@ private:
 	void RefreshDisplay();
 	AShockPlayer* ResolvePlayer() const;
 	AShockWeapon* ResolveEquippedWeapon(AShockPlayer* Player) const;
-	void SetMeterFill(UProgressBar* FillBar, float Percent, const FLinearColor& Tint) const;
+	void SetMeterFill(UProgressBar* FillBar, UMaterialInstanceDynamic* FillMID, float Percent, const FLinearColor& Tint) const;
 	void SetDigitString(UHorizontalBox* Box, const TArray<TObjectPtr<UImage>>& Slots, const FString& Digits, float Scale) const;
-	void SetCountDigit(UImage* DigitImage, int32 Count) const;
-	void ApplyDamageFlashVisuals(bool bFlashing);
+	void SetCountDigits(UHorizontalBox* Box, const TArray<TObjectPtr<UImage>>& Slots, int32 Count) const;
+	void ApplyDamageFlashVisuals(bool bLeft, bool bRight, bool bTop, bool bBottom);
+	void FlashDamageFromHit(AShockPlayer* Player);
 	void EnsureRefreshTimer();
+	UMaterialInstanceDynamic* EnsureFillMID(TObjectPtr<UMaterialInstanceDynamic>& MidSlot, FName DebugName);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> HealthMeterFrame = nullptr;
@@ -99,10 +102,16 @@ private:
 	TObjectPtr<UProgressBar> HealthFillBar = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> HealthFillHighlight = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImage> HealthCapIcon = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> KitCountDigit = nullptr;
+	TObjectPtr<UHorizontalBox> KitCountDigits = nullptr;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> KitCountDigitImages;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> EveMeterFrame = nullptr;
@@ -111,10 +120,16 @@ private:
 	TObjectPtr<UProgressBar> EveFillBar = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> EveFillHighlight = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImage> EveCapIcon = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UImage> HypoCountDigit = nullptr;
+	TObjectPtr<UHorizontalBox> HypoCountDigits = nullptr;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> HypoCountDigitImages;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> ToastText = nullptr;
@@ -165,9 +180,6 @@ private:
 	TArray<TObjectPtr<UImage>> AmmoReserveDigitImages;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> AmmoReservePrefixText = nullptr;
-
-	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> AmmoDigitsColumn = nullptr;
 
 	UPROPERTY(Transient)
@@ -175,6 +187,15 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> FillMaskTexture = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> LiquidFillMaterial = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> HealthFillMID = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> EveFillMID = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> BrassRingTexture = nullptr;
@@ -203,6 +224,10 @@ private:
 
 	float LastObservedHealth = -1.0f;
 	float DamageFlashEndTime = -1.0f;
+	bool bDamageFlashLeft = false;
+	bool bDamageFlashRight = false;
+	bool bDamageFlashTop = false;
+	bool bDamageFlashBottom = false;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AShockPlayer> DisplayPlayerOverride;

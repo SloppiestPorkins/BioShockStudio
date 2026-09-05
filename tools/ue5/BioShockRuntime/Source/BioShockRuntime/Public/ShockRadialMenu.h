@@ -5,6 +5,7 @@
 
 class AShockPlayer;
 class AShockWeapon;
+class UBorder;
 class UCanvasPanel;
 class UHorizontalBox;
 class UImage;
@@ -99,6 +100,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> RootCanvas = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> DimOverlay = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> RingImage = nullptr;
