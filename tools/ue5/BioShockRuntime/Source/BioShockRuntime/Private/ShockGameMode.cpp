@@ -388,7 +388,14 @@ void AShockGameMode::SnapPawnToStart(APawn* Pawn, AActor* Start)
 
 void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 {
-	if (!Player || Player->GetEquippedWeapon())
+	if (!Player)
+	{
+		return;
+	}
+
+	// Already has a starter loadout (re-possess / double PostLogin). Holster slot 0 is the
+	// signal — GiveWeaponByDef does not auto-equip, so GetEquippedWeapon() is the wrong gate.
+	if (Player->GetWeaponInSlot(0) != nullptr)
 	{
 		return;
 	}
@@ -403,6 +410,7 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->GiveWeaponByDef(TEXT("Pistol"), 1);
 	Player->GiveWeaponByDef(TEXT("TommyGun"), 2);
 	Player->GiveWeaponByDef(TEXT("Shotgun"), 3);
+	Player->GiveWeaponByDef(TEXT("GrenadeLauncher"), 4);
 	Player->GiveWeaponByDef(TEXT("ChemicalThrower"), 5);
 	Player->GiveWeaponByDef(TEXT("Crossbow"), 6);
 	Player->GiveWeapon(AShockResearchCamera::StaticClass(), 7);
@@ -410,8 +418,9 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	// The Wrench (slot 0) is the first weapon the player actually has in BioShock --
 	// start equipped with it, not the Tommy Gun, matching what you'd really be
 	// holding before finding any guns. Viewmodel meshes come from UShockWeaponDef::MeshAssetPath
-	// via AShockWeapon::ApplyDef (TommyGun / Pistol / Shotgun / ChemicalThrower / Crossbow).
-	// Wrench stays mesh-less until WP_WrenchMesh (StaticMesh in ShockGame.U) has an import path.
+	// via AShockWeapon::ApplyDef (TommyGun / Pistol / Shotgun / GrenadeLauncher /
+	// ChemicalThrower / Crossbow). Wrench stays mesh-less until WP_WrenchMesh
+	// (StaticMesh in ShockGame.U) has an import path.
 	Player->SelectWeaponSlot(0);
 
 	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.

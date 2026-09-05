@@ -199,6 +199,44 @@ def main(out):
                 % lateral
             )
 
+        # TommyGun ammo drum = bone TG_AmmoClip on the same skeleton (not a second component).
+        if def_name == "TommyGun":
+            mesh_count = int(player.get_equipped_weapon_skeletal_mesh_component_count_for_verify())
+            has_clip = bool(
+                player.does_equipped_weapon_bone_exist_for_verify(unreal.Name("TG_AmmoClip"))
+            )
+            has_body = bool(
+                player.does_equipped_weapon_bone_exist_for_verify(unreal.Name("TG_TommyGunBody"))
+            )
+            clip_dist = float(
+                player.get_equipped_weapon_bone_distance_for_verify(
+                    unreal.Name("TG_TommyGunBody"), unreal.Name("TG_AmmoClip")
+                )
+            )
+            entry["ammoDrum"] = {
+                "skeletalMeshComponents": mesh_count,
+                "hasTG_AmmoClip": has_clip,
+                "hasTG_TommyGunBody": has_body,
+                "bodyToClipDist": clip_dist,
+            }
+            if mesh_count != 1:
+                failures.append(
+                    "TommyGun skeletal mesh component count %d (expected 1 — drum is same skeleton)"
+                    % mesh_count
+                )
+            if not has_clip:
+                failures.append("TommyGun missing TG_AmmoClip bone after equip/align")
+            if not has_body:
+                failures.append("TommyGun missing TG_TommyGunBody bone after equip/align")
+            if clip_dist < 0.0:
+                failures.append("TommyGun body↔TG_AmmoClip distance unreadable")
+            elif clip_dist > 80.0:
+                failures.append(
+                    "TommyGun TG_AmmoClip %.1f uu from TG_TommyGunBody after root align "
+                    "(same-skeleton drum should stay with the body)"
+                    % clip_dist
+                )
+
         equip_len = float(report["assets"]["%s.equip" % def_name].get("length", 1.0))
         _advance_past(player, equip_len)
         fidget = _playing(player)

@@ -115,6 +115,60 @@ def main(out):
     _destroy_all(subsystem, spawned)
     spawned = []
 
+    # --- GrenadeLauncher via real WeaponSlot5 input path (not direct EquipWeapon) ---
+    # Pre-h16: EquipStarterWeapon never gave GL, and HandleWeaponSlot5Input skipped slot 4
+    # (Key 5 → Chem). Headless GiveWeaponByDef(GL)+EquipWeapon still passed — that bypasses
+    # both bugs. DriveWeaponSlotInputForVerify(5) must land on an owned GL in slot 4.
+    player = _spawn(subsystem, player_cls, "GLSlotPlayer", base_loc + unreal.Vector(0.0, 200.0, 0.0))
+    spawned.append(player)
+    if not player:
+        failures.append("GL slot player spawn")
+    else:
+        for def_name, slot in (
+            ("Wrench", 0),
+            ("Pistol", 1),
+            ("TommyGun", 2),
+            ("Shotgun", 3),
+            ("GrenadeLauncher", 4),
+            ("ChemicalThrower", 5),
+            ("Crossbow", 6),
+        ):
+            player.give_weapon_by_def(unreal.Name(def_name), slot)
+        gl = player.get_weapon_in_slot(4)
+        report["grenadeLauncherOwned"] = {
+            "owned": bool(gl),
+            "def": str(gl.get_weapon_def_name()) if gl else None,
+        }
+        if not gl:
+            failures.append("GiveWeaponByDef(GrenadeLauncher, 4) null")
+        else:
+            # Key 4 = Shotgun (slot 3); Key 5 = GrenadeLauncher (slot 4).
+            player.drive_weapon_slot_input_for_verify(5)
+            equipped = player.get_equipped_weapon()
+            active = int(player.get_active_weapon_slot())
+            report["grenadeLauncherSlot5Input"] = {
+                "activeSlot": active,
+                "equippedDef": str(equipped.get_weapon_def_name()) if equipped else None,
+            }
+            if active != 4:
+                failures.append(
+                    "DriveWeaponSlotInputForVerify(5) expected slot 4 got %d" % active
+                )
+            elif equipped != gl:
+                failures.append(
+                    "DriveWeaponSlotInputForVerify(5) equipped mismatch "
+                    "(want GrenadeLauncher from slot 4)"
+                )
+            player.drive_weapon_slot_input_for_verify(4)
+            if int(player.get_active_weapon_slot()) != 3:
+                failures.append(
+                    "DriveWeaponSlotInputForVerify(4) expected Shotgun slot 3 got %d"
+                    % int(player.get_active_weapon_slot())
+                )
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
     # --- Pistol 40 dmg one shot ---
     player = _spawn(subsystem, player_cls, "PistolPlayer", base_loc + unreal.Vector(0.0, 400.0, 0.0))
     target = _spawn(

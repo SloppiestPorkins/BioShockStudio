@@ -505,6 +505,41 @@ float AShockPlayer::GetGripToWeaponBoundsLateralDistanceForVerify() const
 	return FMath::Abs(BoundsCam.Y - SocketCam.Y);
 }
 
+int32 AShockPlayer::GetEquippedWeaponSkeletalMeshComponentCountForVerify() const
+{
+	if (!EquippedWeapon)
+	{
+		return 0;
+	}
+	TArray<USkeletalMeshComponent*> Meshes;
+	EquippedWeapon->GetComponents<USkeletalMeshComponent>(Meshes);
+	return Meshes.Num();
+}
+
+bool AShockPlayer::DoesEquippedWeaponBoneExistForVerify(FName BoneName) const
+{
+	if (BoneName.IsNone() || !EquippedWeapon || !EquippedWeapon->Mesh)
+	{
+		return false;
+	}
+	return EquippedWeapon->Mesh->GetBoneIndex(BoneName) != INDEX_NONE;
+}
+
+float AShockPlayer::GetEquippedWeaponBoneDistanceForVerify(FName BoneA, FName BoneB) const
+{
+	if (!EquippedWeapon || !EquippedWeapon->Mesh)
+	{
+		return -1.0f;
+	}
+	USkeletalMeshComponent* WeaponMesh = EquippedWeapon->Mesh;
+	if (WeaponMesh->GetBoneIndex(BoneA) == INDEX_NONE || WeaponMesh->GetBoneIndex(BoneB) == INDEX_NONE)
+	{
+		return -1.0f;
+	}
+	WeaponMesh->RefreshBoneTransforms();
+	return FVector::Dist(WeaponMesh->GetBoneLocation(BoneA), WeaponMesh->GetBoneLocation(BoneB));
+}
+
 void AShockPlayer::FrameViewmodel(FName GripSocket)
 {
 	if (!FirstPersonCamera || !ViewHands)
@@ -607,6 +642,11 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	// not always the same point — a non-zero root-bone component-space transform leaves the visible
 	// gun offset from the grip (reported as "off to the side"). Cancel that transform so the root
 	// bone lands on the socket. No authored fudge offset: the correction is read from the mesh.
+	//
+	// TommyGun ammo drum is bone TG_AmmoClip on the same WP_TommyGun skeleton (ue5_manifest /
+	// WP_TommyGun.fbx: R_grip, TG_TommyGunBody, TG_AmmoClip, …) — not a second component/actor.
+	// SetRelativeTransform moves the whole component; bone hierarchy is preserved. A "detached
+	// drum" look is therefore not explained by skipping a secondary mesh here.
 	if (!EquippedWeapon)
 	{
 		return;
@@ -938,10 +978,17 @@ void AShockPlayer::HandleWeaponSlot4Input()
 
 void AShockPlayer::HandleWeaponSlot5Input()
 {
-	SelectWeaponSlot(5);
+	// Keys 1..N map to slots 0..N-1. Slot 4 is GrenadeLauncher — do not skip it
+	// (the pre-h14 hole left Key 5 → ChemicalThrower / slot 5 and Key 6 → Crossbow).
+	SelectWeaponSlot(4);
 }
 
 void AShockPlayer::HandleWeaponSlot6Input()
+{
+	SelectWeaponSlot(5);
+}
+
+void AShockPlayer::HandleWeaponSlot7Input()
 {
 	SelectWeaponSlot(6);
 }
@@ -969,6 +1016,37 @@ void AShockPlayer::DriveFireInputForVerify(bool bPressed)
 	else
 	{
 		HandleFireReleasedInput();
+	}
+}
+
+void AShockPlayer::DriveWeaponSlotInputForVerify(int32 SlotOneBased)
+{
+	// Same dispatch SetupPlayerInputComponent binds to WeaponSlotN ActionMappings.
+	switch (SlotOneBased)
+	{
+	case 1:
+		HandleWeaponSlot1Input();
+		break;
+	case 2:
+		HandleWeaponSlot2Input();
+		break;
+	case 3:
+		HandleWeaponSlot3Input();
+		break;
+	case 4:
+		HandleWeaponSlot4Input();
+		break;
+	case 5:
+		HandleWeaponSlot5Input();
+		break;
+	case 6:
+		HandleWeaponSlot6Input();
+		break;
+	case 7:
+		HandleWeaponSlot7Input();
+		break;
+	default:
+		break;
 	}
 }
 
@@ -2204,6 +2282,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot4"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot4Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot5"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot5Input);
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot6"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot6Input);
+	PlayerInputComponent->BindAction(TEXT("WeaponSlot7"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot7Input);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

@@ -1,5 +1,61 @@
 # UE5 import bridge
 
+## Grenade Launcher slot equip + Tommy Gun ammo drum (h16) — 5 Sept 2026
+
+Two in-editor reports right after h12 (grip align) / h14 (GL mesh).
+
+**1. Grenade Launcher not equipable (confirmed code bugs, not Projectile fire mode).**
+Headless `GiveWeaponByDef("GrenadeLauncher", 4)` + `EquipWeapon` already resolved a mesh
+(`run_weapon_meshes.py`, h14) — that path bypasses both failures:
+
+| Bug | Where | Effect |
+|---|---|---|
+| Starter loadout hole | `AShockGameMode::EquipStarterWeapon` | Never called `GiveWeaponByDef(GrenadeLauncher, 4)`. `SelectWeaponSlot(4)` early-returns on null. Scroll/`NextWeapon` also skips empty slots. |
+| Input skip | `HandleWeaponSlot5Input` → `SelectWeaponSlot(5)` | Keys 1–4 mapped to slots 0–3; Key 5 jumped to Chem (slot 5) and Key 6 to Crossbow (slot 6), permanently skipping slot 4. |
+
+BioShock key layout is 1=Wrench … 4=Shotgun, **5=GrenadeLauncher**, 6=Chem, 7=Crossbow.
+Fix: give GL in `EquipStarterWeapon`; remap Slot5→4, Slot6→5; add `WeaponSlot7`→slot 6
+(+ `setup_playable_slice.py` Key=Seven). `DriveWeaponSlotInputForVerify` exercises the same
+handlers the ActionMappings bind (not a direct `SelectWeaponSlot`). Also tightened the
+starter early-return to holster slot 0 occupancy (`GetEquippedWeapon()` was the wrong gate —
+`GiveWeaponByDef` does not auto-equip).
+
+**Stale editor registry still worth ruling out first in PIE:** GL `.uasset`s imported via a
+separate `UnrealEditor-Cmd` while an interactive editor stayed open may not be in that
+session's asset registry — restart the editor and re-check Key 5 before assuming a rebuild
+didn't take.
+
+**2. Tommy Gun ammo drum "detached" — not a separate component (h12 Align is not the cause).**
+`WP_TommyGun` skeleton (`ue5_manifest` / FBX): `R_grip`, `TG_TommyGunBody`, **`TG_AmmoClip`**,
+`TG_PistonSOCKET`, `TG_Trigger`, `TG_Bolt`. `AShockWeapon` owns one `USkeletalMeshComponent`.
+`AlignEquippedWeaponRootToGripSocket` only `SetRelativeTransform` on that mesh — bone hierarchy
+is preserved, so a same-skeleton drum cannot be left behind by the align. Headless asserts:
+component count == 1, `TG_AmmoClip` / `TG_TommyGunBody` exist, body↔clip distance ≤80 uu after
+equip. A live-PIE-only detach (e.g. wrong material section / import) is still a human look;
+this worktree has no interactive editor session.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+# ensure WeaponSlot7 in the live project's DefaultInput.ini once:
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\setup_playable_slice.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\run_weapon_slots.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\run_viewmodel_anims.py -unattended -nopause -nosplash
+```
+
+Reports: `%TEMP%/weapon_slots_report.json`, `%TEMP%/viewmodel_anims_report.json`.
+
+**Verified live UE5.7, 5 Sept 2026** — `weapon_slots=ok` 0 failures
+(`grenadeLauncherSlot5Input.activeSlot=4`, `equippedDef=GrenadeLauncher`);
+`viewmodel_anims` 0 failures (`TommyGun.ammoDrum`: 1 skeletal mesh component,
+`TG_AmmoClip`/`TG_TommyGunBody` present, body↔clip **3.2 uu** after align).
+Human should still restart the interactive editor (stale-registry) and confirm Key 5
++ TommyGun drum look in PIE.
+
+---
+
 1. Deploy `BioShockImportTools/` into the UE project's `Plugins/` folder and enable it in the
    `.uproject`. It is an editor-only plugin used to restore socket markers after FBX normalization.
 

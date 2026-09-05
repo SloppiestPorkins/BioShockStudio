@@ -133,6 +133,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Verify")
 	void DriveFireInputForVerify(bool bPressed);
 
+	/**
+	 * Headless verify: drive WeaponSlotN the same path ActionMapping "WeaponSlotN" uses
+	 * (1=Wrench … 5=GrenadeLauncher … 7=Crossbow). Not a direct SelectWeaponSlot call.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Verify")
+	void DriveWeaponSlotInputForVerify(int32 SlotOneBased);
+
 	/** Headless verify: whether Fire is currently held (after DriveFireInputForVerify / bindings). */
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Verify")
 	bool IsFireInputHeldForVerify() const { return bFireInputHeld; }
@@ -577,6 +584,26 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	float GetGripToWeaponBoundsLateralDistanceForVerify() const;
 
+	/**
+	 * Headless verify: how many USkeletalMeshComponents the equipped weapon owns.
+	 * TommyGun's ammo drum (TG_AmmoClip) is a bone on the same mesh — count must stay 1
+	 * after AlignEquippedWeaponRootToGripSocket (no orphan secondary component).
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	int32 GetEquippedWeaponSkeletalMeshComponentCountForVerify() const;
+
+	/** Headless verify: whether the equipped weapon skeleton has the named bone. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	bool DoesEquippedWeaponBoneExistForVerify(FName BoneName) const;
+
+	/**
+	 * Headless verify: world distance between two bones on the equipped weapon mesh.
+	 * Returns -1 when either bone is missing. Used to assert TG_AmmoClip stays with
+	 * TG_TommyGunBody after root-bone grip align (same-skeleton, not a detachable actor).
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
+	float GetEquippedWeaponBoneDistanceForVerify(FName BoneA, FName BoneB) const;
+
 	/** Headless verify: name of the AnimSequence currently installed on ViewHands. */
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	FName GetPlayingViewHandsAnimationNameForVerify() const;
@@ -657,6 +684,7 @@ private:
 	void HandleWeaponSlot4Input();
 	void HandleWeaponSlot5Input();
 	void HandleWeaponSlot6Input();
+	void HandleWeaponSlot7Input();
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();

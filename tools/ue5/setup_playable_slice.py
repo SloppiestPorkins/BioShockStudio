@@ -116,6 +116,11 @@ WEAPON_SLOT6_LINE = (
     'bCmd=False,Key=Six)'
 )
 
+WEAPON_SLOT7_LINE = (
+    '+ActionMappings=(ActionName="WeaponSlot7",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Seven)'
+)
+
 INTERACT_LINE = (
     '+ActionMappings=(ActionName="Interact",bShift=False,bCtrl=False,bAlt=False,'
     'bCmd=False,Key=F)'
@@ -194,6 +199,7 @@ def _ensure_weapon_slot_mappings():
     results.append(_ensure_action_mapping("WeaponSlot4", "Four", WEAPON_SLOT4_LINE))
     results.append(_ensure_action_mapping("WeaponSlot5", "Five", WEAPON_SLOT5_LINE))
     results.append(_ensure_action_mapping("WeaponSlot6", "Six", WEAPON_SLOT6_LINE))
+    results.append(_ensure_action_mapping("WeaponSlot7", "Seven", WEAPON_SLOT7_LINE))
     return {"mapping": "weapon slots", "details": results}
 
 
