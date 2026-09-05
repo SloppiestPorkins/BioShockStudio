@@ -1,6 +1,7 @@
 #include "ShockPauseMenu.h"
 
 #include "ShockPlayer.h"
+#include "ShockSaveLoadMenu.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -366,11 +367,28 @@ void UShockPauseMenu::ActivateAction(EPauseAction Action)
 		ClosePauseMenu();
 		break;
 	case EPauseAction::Save:
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE stub=Save (not wired)"));
-		break;
 	case EPauseAction::Load:
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE stub=Load (not wired)"));
+	{
+		const bool bSave = (Action == EPauseAction::Save);
+		UShockSaveLoadMenu* SaveLoad =
+			CreateWidget<UShockSaveLoadMenu>(this, UShockSaveLoadMenu::StaticClass());
+		if (SaveLoad)
+		{
+			if (AShockPlayer* Player = ResolvePlayer())
+			{
+				SaveLoad->BindDisplayPlayer(Player);
+			}
+			SaveLoad->AddToViewport(50);
+			SaveLoad->OpenSaveLoad(
+				bSave ? EShockSaveLoadMode::Save : EShockSaveLoadMode::Load);
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_PAUSE open=%s"),
+				bSave ? TEXT("Save") : TEXT("Load"));
+		}
 		break;
+	}
 	case EPauseAction::Options:
 		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE stub=Options (not wired)"));
 		break;

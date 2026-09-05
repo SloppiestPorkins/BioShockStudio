@@ -118,6 +118,15 @@ def main(report_path):
     if "ShockGameMode" not in travel:
         failures.append("Play travel options missing ShockGameMode: %s" % travel)
 
+    # U7: list has 9 entries (New Game … Exit); keep Play→Medical wiring above intact.
+    try:
+        entry_count = int(cdo.get_menu_entry_count())
+        report["menuEntryCount"] = entry_count
+        if entry_count != 9:
+            failures.append("main menu entry count is %d, want 9" % entry_count)
+    except Exception as exc:  # noqa: BLE001
+        report["menuEntryCount"] = "unreadable: %s" % exc
+
     if not unreal.EditorAssetLibrary.does_asset_exist(PLAY_LEVEL):
         failures.append("slice map missing: %s" % PLAY_LEVEL)
     else:

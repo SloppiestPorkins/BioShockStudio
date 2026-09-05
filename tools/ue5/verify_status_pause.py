@@ -65,8 +65,8 @@ def main(out):
         "'-bioshockshothud','-bioshockshotpause' (human still confirms PIE feel)"
     )
     report["stubs"] = {
-        "pauseSave": "log-only stub",
-        "pauseLoad": "log-only stub",
+        "pauseSave": "opens UShockSaveLoadMenu (Save mode)",
+        "pauseLoad": "opens UShockSaveLoadMenu (Load mode)",
         "pauseOptions": "log-only stub",
         "pauseMainMenu": "log-only stub",
         "mapTab": "placeholder level name + coords; plan render deferred",

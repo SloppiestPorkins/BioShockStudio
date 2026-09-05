@@ -119,8 +119,9 @@ Tab icons from `mapsPC` (compass/!/tape/?); Q/E or bumpers step tabs while open.
 
 `UShockPauseMenu` (**Esc**, pauses): BioShock logo (`pausePC` 1248), stats strip Money /
 `GetAdam` / Little-Sister count (class-name Gatherer/LittleSister, else 0), list Resume /
-Save / Load / Options / Main Menu / Quit. Resume + Quit wired; Save/Load/Options/Main Menu
-log stubs. Gold chevron (`pausePC` 223) marks selection.
+Save / Load / Options / Main Menu / Quit. Resume + Quit wired; **Save/Load open
+`UShockSaveLoadMenu` (U7)**; Options/Main Menu log stubs. Gold chevron (`pausePC` 223)
+marks selection.
 
 **Input** (`setup_playable_slice.py`): StatusMenu=M, PauseMenu=Escape (Esc while select/status
 open closes that overlay first — no conflict with radial Q/V).
@@ -199,6 +200,41 @@ py -3 tools\ue5\import_bioshock_ui.py --prepare
 
 Content: `/Game/BioShockUI/Hacking/T_Hack_{Bezel,HazardStrip,Banner,Ring}` (optional;
 color fallback if missing).
+
+---
+
+## Phase U7 — main menu + frontend — 5 Sept 2026
+
+Reskins `UShockMainMenuWidget` / `AShockMenuGameMode` (`GameDefaultMap` =
+`/Game/BioShockUI/MainMenu`): logo + gold-chevron list — **New Game**, **Continue**,
+**Load Game**, **Options**, **Credits**, **Director's Commentary**, **Museum**,
+**Challenge Rooms**, **Exit**. Art reuses `/Game/BioShockUI/Pause/` (logo 1248,
+chevron 223). Background is a dark Deco gradient — no still menu plate in
+`sharedlibrary.swf`; `BinkMovies/attractMovie` / `Bathy_BG` are motion loops.
+
+**New Game → `UShockDifficultySelect`:** Easy / Medium / Hard / Survivor with Feral
+manual one-liners. Stores `EShockDifficulty` on `UShockGameInstance` and travels to
+`/Game/BioShockSlice/1-Medical` (spawn-ready PlayerStart + ShockGameMode;
+`/Game/BioShockLevel/1-Welcome` not used). Travel is mockable via
+`bSuppressLevelTravel` for headless verify.
+
+**`UShockSaveLoadMenu` + `UShockSaveGame`:** slot list with timestamp + level +
+thumbnail box; `SaveGameToSlot` / `LoadGameFromSlot` round-trips `UShockCarryState`.
+Reachable from main menu (Load / Continue) and pause Save/Load (replaces U4 stubs).
+
+**`UShockLoadingScreen`:** Deco panel + "Now entering …" + rotating tip; hooked from
+`UShockGameInstance` `PreLoadMap` / `PostLoadMapWithWorld`.
+
+Options / Credits / Director's Commentary / Museum / Challenge Rooms = stub
+"Not implemented" + Back (`UShockStubMenu`). Plane intro deferred. Credits text from
+`CreditsContainer.swf` not extracted.
+
+```powershell
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: -script=...\run_frontend.py
+# regression: run_hud / run_radial / run_status_pause / run_stations / run_hacking_minigame
+# capture: tools\ue5\capture_shot.ps1 -Map /Game/BioShockUI/MainMenu
+```
 
 ---
 
