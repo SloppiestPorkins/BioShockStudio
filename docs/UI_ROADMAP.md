@@ -166,6 +166,37 @@ HostProject. One at a time, reviewed and committed before the next.
 
 ---
 
+## 4a. State after U1–U8b (5 Sept 2026, `854800e`)
+
+**Every BioShock UI screen is recreated in UMG with the game's own decoded art and live
+data bindings.** All headless verifies green (`run_hud` / `run_radial` /
+`run_status_pause` / `run_stations` / `run_hacking_minigame` / `run_frontend`). Deco
+chrome throughout (`UShockDecoStyle`).
+
+**Close to 1:1:** HUD (upper-left meters in the real frames, cap icons, digit counts,
+friendly names, centred radial), main menu (real logo, Deco plates, black ground),
+pause menu (logo + stats + Deco entries).
+
+**Recognisable but rough — remaining polish, not blockers:**
+- Deco banner plates are a touch thin for the button text; a few panels run past the
+  screen bottom; list rows aren't on individual plates.
+- `M_Hud_LiquidFill` (script-authored) renders invisible — HUD fill is on the flat tinted
+  mask (`bLiquidMaterialDisabled` in `ShockHudWidget.cpp`). Fix the material graph for the
+  liquid gradient.
+- Menu background is flat black — no Rapture still plate / Bink loop.
+
+**Genuine content gaps (need a system, not just art):**
+- Weapon / plasmid **icon bitmaps** never located in the SWFs — HUD/radial/select show a
+  brass ring + name only.
+- **Audio-diary** collection isn't wired → Status › Messages is empty.
+- **Map** tab is a coords placeholder — no level-plan rendering.
+- Hacking **pipe tiles** are text-labelled UMG shapes, not pipe graphics (logic complete).
+- **Tonic** system doesn't exist → Gene Bank is plasmids only; U-Invent runs against
+  inventory stacks (no crafting-component bag).
+- Options / Credits / Director's Commentary / Museum / Challenge Rooms are stub panels.
+
+---
+
 ## 5. Constraints (every phase)
 
 - Art extraction lands outside the repo (same rule as every other imported asset). The
