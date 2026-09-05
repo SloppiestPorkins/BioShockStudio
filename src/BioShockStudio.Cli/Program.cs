@@ -78,6 +78,7 @@ try
         "export-swf-shapes" => ExportSwfShapes(root, args),
         "export-swf-font" => ExportSwfFont(root, args),
         "export-swf-sprite" => ExportSwfSprite(root, args),
+        "swf-find" => SwfFind(root, args),
         _ => Usage(),
     };
 }
@@ -168,6 +169,11 @@ static int Usage()
                                         Composite a DefineSprite's first frame (or a bare
                                         DefineShape) — depth-ordered children, each transformed
                                         by its own PlaceObject2 matrix — into one PNG.
+          swf-find <name.swf> <substring>
+                                        Search this file's ExportAssets names (the same names an
+                                        authoring tool's Library panel would show) for a
+                                        case-insensitive substring — the practical way to find a
+                                        real UI element's character ID without already knowing it.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -2224,6 +2230,25 @@ static int ExportSwfSprite(string root, string[] args)
     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
     PngWriter.Write(outPath, rgba, size, size);
     Console.WriteLine($"wrote {outPath}");
+    return 0;
+}
+
+static int SwfFind(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: swf-find <name.swf> <substring>");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, args[1]);
+    string substring = args[2];
+
+    var swf = SwfFile.Read(path);
+    var dict = SwfCharacterDictionary.Build(swf);
+    var matches = dict.FindByName(substring).ToList();
+    foreach (var (id, name) in matches)
+        Console.WriteLine($"{id}: {name}");
+    Console.WriteLine($"{matches.Count} match(es) of {dict.ExportNames.Count} named export(s)");
     return 0;
 }
 
