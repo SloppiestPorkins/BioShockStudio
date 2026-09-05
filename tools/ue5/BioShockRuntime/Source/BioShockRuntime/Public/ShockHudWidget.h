@@ -9,7 +9,11 @@ class UBorder;
 class UImage;
 class UTextBlock;
 
-/** In-game HUD: health/EVE arcs from decoded Scaleform art + ammo text. C++ tree, no designer asset. */
+/**
+ * In-game HUD arranged like BioShock 1 PC: bottom-left health/EVE arcs, plasmid ring,
+ * weapon/ammo cluster; top-left objective; center crosshair. Arc textures from decoded
+ * Scaleform art; missing frame/cap/icon bitmaps use UMG Deco stand-ins (tag-512 blocker).
+ */
 UCLASS()
 class BIOSHOCKRUNTIME_API UShockHudWidget : public UUserWidget
 {
@@ -72,7 +76,7 @@ private:
 	void RefreshDisplay();
 	AShockPlayer* ResolvePlayer() const;
 	AShockWeapon* ResolveEquippedWeapon(AShockPlayer* Player) const;
-	void SetHealthTextColor(const FLinearColor& Color);
+	void ApplyDamageFlashVisual(bool bFlashing);
 	void SetMeterImageOpacity(UImage* Image, float Percent) const;
 
 	void EnsureRefreshTimer();
@@ -83,12 +87,14 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> HealthArcImage = nullptr;
 
+	/** Cached for GetDisplayedHealthText / damage verify — not shown as a large on-bar numeral. */
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> HealthText = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> EveArcImage = nullptr;
 
+	/** Cached for GetDisplayedEveText — EVE amount is read from the meter, not a bar numeral. */
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EveText = nullptr;
 
@@ -97,6 +103,24 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PlasmidText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> EveCostText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> PlasmidRing = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> PlasmidIconImage = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> HealthCapSlot = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UBorder> EveCapSlot = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> WeaponIconImage = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AmmoMagText = nullptr;
@@ -108,7 +132,17 @@ private:
 	TObjectPtr<UTextBlock> AmmoReserveText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> AmmoTypeText = nullptr;
+
+	/** Weapon/ammo cluster root — visibility gated by bEnforceAmmo (no black backing). */
+	UPROPERTY(Transient)
 	TObjectPtr<UBorder> AmmoPanel = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ObjectiveText = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> CrosshairText = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> HealthArcTexture = nullptr;

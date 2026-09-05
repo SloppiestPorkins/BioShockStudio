@@ -10,6 +10,8 @@
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
@@ -27,8 +29,10 @@ namespace
 {
 constexpr float RefreshIntervalSeconds = 0.1f;
 constexpr float DamageFlashSeconds = 0.35f;
-constexpr float MeterImageWidth = 220.0f;
-constexpr float MeterImageHeight = 88.0f;
+constexpr float MeterImageWidth = 260.0f;
+constexpr float MeterImageHeight = 72.0f;
+constexpr float PlasmidRingSize = 72.0f;
+constexpr float WeaponIconSize = 48.0f;
 
 const TCHAR* HealthArcTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_HealthArc.T_Hud_HealthArc");
 const TCHAR* EveArcTexturePath = TEXT("/Game/BioShockUI/HUD/T_Hud_EveArc.T_Hud_EveArc");
@@ -38,28 +42,15 @@ const TCHAR* MeterUnderlayTexturePath =
 FLinearColor HudGold() { return FLinearColor(0.92f, 0.78f, 0.35f, 1.0f); }
 FLinearColor HudWhite() { return FLinearColor(0.95f, 0.95f, 0.95f, 1.0f); }
 FLinearColor HudRed() { return FLinearColor(0.95f, 0.15f, 0.12f, 1.0f); }
+FLinearColor HudDecoChrome() { return FLinearColor(0.55f, 0.48f, 0.32f, 0.85f); }
+FLinearColor HudTransparent() { return FLinearColor(0.0f, 0.0f, 0.0f, 0.0f); }
 
 FSlateFontInfo MakeHudFont(int32 Size, bool bBold = false)
 {
+	// Decoded Scaleform fonts (HUDPC Century Gothic / LHF Bell Boy) export as glyph PNGs, not
+	// a UE FontFace — use engine face sized like BioShock's Deco HUD numerals until a FontFace
+	// import lands.
 	return FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), Size);
-}
-
-UBorder* MakeHudBacking(UWidgetTree* Tree, FName Name)
-{
-	UBorder* Border = Tree->ConstructWidget<UBorder>(UBorder::StaticClass(), Name);
-	Border->SetBrushColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
-	Border->SetPadding(FMargin(10.0f, 8.0f));
-	return Border;
-}
-
-UCanvasPanelSlot* AnchorBottomCorner(UCanvasPanel* Canvas, UWidget* Child, bool bRight)
-{
-	UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(Child);
-	Slot->SetAnchors(FAnchors(bRight ? 1.0f : 0.0f, 1.0f, bRight ? 1.0f : 0.0f, 1.0f));
-	Slot->SetAlignment(FVector2D(bRight ? 1.0f : 0.0f, 1.0f));
-	Slot->SetAutoSize(true);
-	Slot->SetPosition(FVector2D(bRight ? -24.0f : 24.0f, -24.0f));
-	return Slot;
 }
 
 UImage* MakeMeterImage(UWidgetTree* Tree, FName Name)
@@ -70,6 +61,27 @@ UImage* MakeMeterImage(UWidgetTree* Tree, FName Name)
 	return Image;
 }
 
+UBorder* MakeDecoCapSlot(UWidgetTree* Tree, FName Name, const FLinearColor& Fill)
+{
+	// Medical-cross / hypo frame bitmaps are Scaleform tag-512 in sharedlibrary — Deco UBorder
+	// stand-in until tag-512 decode exists.
+	UBorder* Cap = Tree->ConstructWidget<UBorder>(UBorder::StaticClass(), Name);
+	Cap->SetBrushColor(Fill);
+	Cap->SetPadding(FMargin(2.0f));
+	Cap->SetDesiredSizeScale(FVector2D(1.0f, 1.0f));
+	return Cap;
+}
+
+UTextBlock* MakeCapGlyph(UWidgetTree* Tree, FName Name, const FString& Glyph, const FLinearColor& Color)
+{
+	UTextBlock* Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+	Text->SetText(FText::FromString(Glyph));
+	Text->SetFont(MakeHudFont(16, true));
+	Text->SetColorAndOpacity(FSlateColor(Color));
+	Text->SetJustification(ETextJustify::Center);
+	return Text;
+}
+
 bool BrushHasTexture(const UImage* Image)
 {
 	if (!Image)
@@ -78,6 +90,36 @@ bool BrushHasTexture(const UImage* Image)
 	}
 	const FSlateBrush& Brush = Image->GetBrush();
 	return Brush.GetResourceObject() != nullptr;
+}
+
+UCanvasPanelSlot* AnchorBottomLeft(UCanvasPanel* Canvas, UWidget* Child, const FVector2D& Position)
+{
+	UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(Child);
+	Slot->SetAnchors(FAnchors(0.0f, 1.0f, 0.0f, 1.0f));
+	Slot->SetAlignment(FVector2D(0.0f, 1.0f));
+	Slot->SetAutoSize(true);
+	Slot->SetPosition(Position);
+	return Slot;
+}
+
+UCanvasPanelSlot* AnchorTopLeft(UCanvasPanel* Canvas, UWidget* Child, const FVector2D& Position)
+{
+	UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(Child);
+	Slot->SetAnchors(FAnchors(0.0f, 0.0f, 0.0f, 0.0f));
+	Slot->SetAlignment(FVector2D(0.0f, 0.0f));
+	Slot->SetAutoSize(true);
+	Slot->SetPosition(Position);
+	return Slot;
+}
+
+UCanvasPanelSlot* AnchorCenter(UCanvasPanel* Canvas, UWidget* Child)
+{
+	UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(Child);
+	Slot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+	Slot->SetAlignment(FVector2D(0.5f, 0.5f));
+	Slot->SetAutoSize(true);
+	Slot->SetPosition(FVector2D(0.0f, 0.0f));
+	return Slot;
 }
 }
 
@@ -140,116 +182,279 @@ void UShockHudWidget::EnsureWidgetTree()
 		UCanvasPanel::StaticClass(), TEXT("HudCanvas"));
 	WidgetTree->RootWidget = Canvas;
 
-	UBorder* HealthBacking = MakeHudBacking(WidgetTree, TEXT("HealthBacking"));
-	UVerticalBox* HealthBox = WidgetTree->ConstructWidget<UVerticalBox>(
-		UVerticalBox::StaticClass(), TEXT("HealthBox"));
-	HealthBacking->SetContent(HealthBox);
+	// --- Top-left objective ---
+	ObjectiveText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("ObjectiveText"));
+	ObjectiveText->SetText(FText::GetEmpty());
+	ObjectiveText->SetFont(MakeHudFont(18));
+	ObjectiveText->SetColorAndOpacity(FSlateColor(HudGold()));
+	ObjectiveText->SetVisibility(ESlateVisibility::Collapsed);
+	AnchorTopLeft(Canvas, ObjectiveText, FVector2D(28.0f, 24.0f));
 
-	UOverlay* HealthMeterOverlay = WidgetTree->ConstructWidget<UOverlay>(
-		UOverlay::StaticClass(), TEXT("HealthMeterOverlay"));
-	MeterUnderlayImage = MakeMeterImage(WidgetTree, TEXT("MeterUnderlayImage"));
-	if (UOverlaySlot* UnderlaySlot = HealthMeterOverlay->AddChildToOverlay(MeterUnderlayImage))
-	{
-		UnderlaySlot->SetHorizontalAlignment(HAlign_Left);
-		UnderlaySlot->SetVerticalAlignment(VAlign_Bottom);
-	}
-	HealthArcImage = MakeMeterImage(WidgetTree, TEXT("HealthArcImage"));
-	if (UOverlaySlot* HealthArcSlot = HealthMeterOverlay->AddChildToOverlay(HealthArcImage))
-	{
-		HealthArcSlot->SetHorizontalAlignment(HAlign_Left);
-		HealthArcSlot->SetVerticalAlignment(VAlign_Bottom);
-	}
-	if (UVerticalBoxSlot* MeterSlot = HealthBox->AddChildToVerticalBox(HealthMeterOverlay))
-	{
-		MeterSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
-	}
+	// --- Center crosshair (per-weapon reticle sprites are ImportAssets stubs / tag-512) ---
+	CrosshairText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("CrosshairText"));
+	CrosshairText->SetText(FText::FromString(TEXT("+")));
+	CrosshairText->SetFont(MakeHudFont(22));
+	CrosshairText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.95f, 0.95f, 0.75f)));
+	CrosshairText->SetJustification(ETextJustify::Center);
+	AnchorCenter(Canvas, CrosshairText);
 
-	HealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("HealthText"));
-	HealthText->SetText(FText::FromString(TEXT("--")));
-	HealthText->SetFont(MakeHudFont(28, true));
-	HealthText->SetColorAndOpacity(FSlateColor(HudWhite()));
-	if (UVerticalBoxSlot* HealthTextSlot = HealthBox->AddChildToVerticalBox(HealthText))
-	{
-		HealthTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
-	}
+	// --- Bottom-left floating cluster (no black backing box) ---
+	UHorizontalBox* BottomLeft = WidgetTree->ConstructWidget<UHorizontalBox>(
+		UHorizontalBox::StaticClass(), TEXT("BottomLeftCluster"));
+	AnchorBottomLeft(Canvas, BottomLeft, FVector2D(20.0f, -18.0f));
 
-	EveArcImage = MakeMeterImage(WidgetTree, TEXT("EveArcImage"));
-	if (UVerticalBoxSlot* EveArcSlot = HealthBox->AddChildToVerticalBox(EveArcImage))
+	// Plasmid ring + EVE-cost numeral (sunburst stand-in), above/ beside meters
+	UVerticalBox* PlasmidColumn = WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass(), TEXT("PlasmidColumn"));
+	if (UHorizontalBoxSlot* PlasmidColSlot = BottomLeft->AddChildToHorizontalBox(PlasmidColumn))
 	{
-		EveArcSlot->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 2.0f));
+		PlasmidColSlot->SetVerticalAlignment(VAlign_Bottom);
+		PlasmidColSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 36.0f));
 	}
 
-	EveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EveText"));
-	EveText->SetText(FText::FromString(TEXT("EVE --")));
-	EveText->SetFont(MakeHudFont(18, true));
-	EveText->SetColorAndOpacity(FSlateColor(FLinearColor(0.55f, 0.85f, 1.0f, 1.0f)));
-	if (UVerticalBoxSlot* EveTextSlot = HealthBox->AddChildToVerticalBox(EveText))
+	PlasmidRing = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlasmidRing"));
+	PlasmidRing->SetBrushColor(HudDecoChrome());
+	PlasmidRing->SetPadding(FMargin(6.0f));
 	{
-		EveTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
-	}
+		UOverlay* PlasmidOverlay = WidgetTree->ConstructWidget<UOverlay>(
+			UOverlay::StaticClass(), TEXT("PlasmidOverlay"));
+		PlasmidRing->SetContent(PlasmidOverlay);
 
-	ConsumablesText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("ConsumablesText"));
-	ConsumablesText->SetText(FText::FromString(TEXT("")));
-	ConsumablesText->SetFont(MakeHudFont(13));
-	ConsumablesText->SetColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.9f, 0.85f, 1.0f)));
-	if (UVerticalBoxSlot* ConsumablesSlot = HealthBox->AddChildToVerticalBox(ConsumablesText))
+		PlasmidIconImage = WidgetTree->ConstructWidget<UImage>(
+			UImage::StaticClass(), TEXT("PlasmidIconImage"));
+		PlasmidIconImage->SetBrushSize(FVector2D(PlasmidRingSize - 16.0f, PlasmidRingSize - 16.0f));
+		PlasmidIconImage->SetColorAndOpacity(FLinearColor(0.15f, 0.12f, 0.08f, 0.65f));
+		PlasmidIconImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+		if (UOverlaySlot* IconSlot = PlasmidOverlay->AddChildToOverlay(PlasmidIconImage))
+		{
+			IconSlot->SetHorizontalAlignment(HAlign_Center);
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+		}
+
+		EveCostText = WidgetTree->ConstructWidget<UTextBlock>(
+			UTextBlock::StaticClass(), TEXT("EveCostText"));
+		EveCostText->SetText(FText::GetEmpty());
+		EveCostText->SetFont(MakeHudFont(26, true));
+		EveCostText->SetColorAndOpacity(FSlateColor(HudGold()));
+		EveCostText->SetJustification(ETextJustify::Center);
+		if (UOverlaySlot* CostSlot = PlasmidOverlay->AddChildToOverlay(EveCostText))
+		{
+			CostSlot->SetHorizontalAlignment(HAlign_Center);
+			CostSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	}
+	if (UVerticalBoxSlot* RingSlot = PlasmidColumn->AddChildToVerticalBox(PlasmidRing))
 	{
-		ConsumablesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
+		RingSlot->SetHorizontalAlignment(HAlign_Center);
+		RingSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
 	}
 
 	PlasmidText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlasmidText"));
-	PlasmidText->SetText(FText::FromString(TEXT("")));
-	PlasmidText->SetFont(MakeHudFont(14));
-	PlasmidText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.72f, 0.35f, 1.0f)));
-	if (UVerticalBoxSlot* PlasmidTextSlot = HealthBox->AddChildToVerticalBox(PlasmidText))
+	PlasmidText->SetText(FText::GetEmpty());
+	PlasmidText->SetFont(MakeHudFont(11));
+	PlasmidText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.72f, 0.35f, 0.9f)));
+	PlasmidText->SetVisibility(ESlateVisibility::Collapsed);
+	if (UVerticalBoxSlot* PlasmidNameSlot = PlasmidColumn->AddChildToVerticalBox(PlasmidText))
 	{
-		PlasmidTextSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
+		PlasmidNameSlot->SetHorizontalAlignment(HAlign_Center);
+	}
+
+	// Health + EVE stacked meters with left-end cap slots
+	UVerticalBox* MetersColumn = WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass(), TEXT("MetersColumn"));
+	if (UHorizontalBoxSlot* MetersSlot = BottomLeft->AddChildToHorizontalBox(MetersColumn))
+	{
+		MetersSlot->SetVerticalAlignment(VAlign_Bottom);
+		MetersSlot->SetPadding(FMargin(0.0f, 0.0f, 14.0f, 0.0f));
+	}
+
+	auto BuildMeterRow = [&](
+		FName RowName,
+		FName CapName,
+		const FLinearColor& CapFill,
+		const FString& CapGlyph,
+		FName ArcName,
+		bool bWithUnderlay,
+		UBorder*& OutCap,
+		UImage*& OutArc)
+	{
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+			UHorizontalBox::StaticClass(), RowName);
+		if (UVerticalBoxSlot* RowSlot = MetersColumn->AddChildToVerticalBox(Row))
+		{
+			RowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+		}
+
+		OutCap = MakeDecoCapSlot(WidgetTree, CapName, CapFill);
+		OutCap->SetContent(MakeCapGlyph(
+			WidgetTree,
+			FName(*(CapName.ToString() + TEXT("Glyph"))),
+			CapGlyph,
+			HudWhite()));
+		if (UHorizontalBoxSlot* CapSlot = Row->AddChildToHorizontalBox(OutCap))
+		{
+			CapSlot->SetVerticalAlignment(VAlign_Center);
+			CapSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
+			CapSlot->SetSize(FSlateChildSize(ESlateSizeRule::Automatic));
+		}
+
+		UOverlay* MeterOverlay = WidgetTree->ConstructWidget<UOverlay>(
+			UOverlay::StaticClass(), FName(*(RowName.ToString() + TEXT("Overlay"))));
+		if (UHorizontalBoxSlot* OverlaySlot = Row->AddChildToHorizontalBox(MeterOverlay))
+		{
+			OverlaySlot->SetVerticalAlignment(VAlign_Center);
+		}
+
+		if (bWithUnderlay)
+		{
+			MeterUnderlayImage = MakeMeterImage(WidgetTree, TEXT("MeterUnderlayImage"));
+			if (UOverlaySlot* UnderlaySlot = MeterOverlay->AddChildToOverlay(MeterUnderlayImage))
+			{
+				UnderlaySlot->SetHorizontalAlignment(HAlign_Left);
+				UnderlaySlot->SetVerticalAlignment(VAlign_Center);
+			}
+		}
+
+		OutArc = MakeMeterImage(WidgetTree, ArcName);
+		if (UOverlaySlot* ArcSlot = MeterOverlay->AddChildToOverlay(OutArc))
+		{
+			ArcSlot->SetHorizontalAlignment(HAlign_Left);
+			ArcSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	};
+
+	{
+		UBorder* Cap = nullptr;
+		UImage* Arc = nullptr;
+		BuildMeterRow(
+			TEXT("HealthMeterRow"),
+			TEXT("HealthCapSlot"),
+			FLinearColor(0.55f, 0.08f, 0.08f, 0.95f),
+			TEXT("+"),
+			TEXT("HealthArcImage"),
+			true,
+			Cap,
+			Arc);
+		HealthCapSlot = Cap;
+		HealthArcImage = Arc;
+	}
+	{
+		UBorder* Cap = nullptr;
+		UImage* Arc = nullptr;
+		BuildMeterRow(
+			TEXT("EveMeterRow"),
+			TEXT("EveCapSlot"),
+			FLinearColor(0.12f, 0.28f, 0.55f, 0.95f),
+			TEXT("H"),
+			TEXT("EveArcImage"),
+			false,
+			Cap,
+			Arc);
+		EveCapSlot = Cap;
+		EveArcImage = Arc;
+	}
+
+	// Hidden verify mirrors (no large on-bar numerals in the default BioShock HUD)
+	HealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("HealthText"));
+	HealthText->SetVisibility(ESlateVisibility::Collapsed);
+	HealthText->SetText(FText::FromString(TEXT("--")));
+	MetersColumn->AddChildToVerticalBox(HealthText);
+
+	EveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EveText"));
+	EveText->SetVisibility(ESlateVisibility::Collapsed);
+	EveText->SetText(FText::FromString(TEXT("EVE --")));
+	MetersColumn->AddChildToVerticalBox(EveText);
+
+	ConsumablesText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("ConsumablesText"));
+	ConsumablesText->SetText(FText::GetEmpty());
+	ConsumablesText->SetFont(MakeHudFont(12));
+	ConsumablesText->SetColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.9f, 0.85f, 0.85f)));
+	ConsumablesText->SetVisibility(ESlateVisibility::Collapsed);
+	if (UVerticalBoxSlot* ConsumablesSlot = MetersColumn->AddChildToVerticalBox(ConsumablesText))
+	{
+		ConsumablesSlot->SetPadding(FMargin(32.0f, 2.0f, 0.0f, 0.0f));
 	}
 
 	EnsureHudTextures();
-	AnchorBottomCorner(Canvas, HealthBacking, false);
 
-	AmmoPanel = MakeHudBacking(WidgetTree, TEXT("AmmoBacking"));
-	UVerticalBox* AmmoBox = WidgetTree->ConstructWidget<UVerticalBox>(
-		UVerticalBox::StaticClass(), TEXT("AmmoBox"));
-	AmmoPanel->SetContent(AmmoBox);
+	// Weapon cluster: icon + mag numeral + reserve "+" + ammo type — right of meters, still BL
+	AmmoPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AmmoPanel"));
+	AmmoPanel->SetBrushColor(HudTransparent());
+	AmmoPanel->SetPadding(FMargin(0.0f));
+	if (UHorizontalBoxSlot* AmmoClusterSlot = BottomLeft->AddChildToHorizontalBox(AmmoPanel))
+	{
+		AmmoClusterSlot->SetVerticalAlignment(VAlign_Bottom);
+		AmmoClusterSlot->SetPadding(FMargin(4.0f, 0.0f, 0.0f, 8.0f));
+	}
+
+	UHorizontalBox* AmmoRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+		UHorizontalBox::StaticClass(), TEXT("AmmoRow"));
+	AmmoPanel->SetContent(AmmoRow);
+
+	WeaponIconImage = WidgetTree->ConstructWidget<UImage>(
+		UImage::StaticClass(), TEXT("WeaponIconImage"));
+	WeaponIconImage->SetBrushSize(FVector2D(WeaponIconSize, WeaponIconSize));
+	WeaponIconImage->SetColorAndOpacity(FLinearColor(0.2f, 0.18f, 0.12f, 0.7f));
+	WeaponIconImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (UHorizontalBoxSlot* WeaponIconSlot = AmmoRow->AddChildToHorizontalBox(WeaponIconImage))
+	{
+		WeaponIconSlot->SetVerticalAlignment(VAlign_Center);
+		WeaponIconSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+	}
+
+	UVerticalBox* AmmoTextCol = WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass(), TEXT("AmmoTextColumn"));
+	if (UHorizontalBoxSlot* TextColSlot = AmmoRow->AddChildToHorizontalBox(AmmoTextCol))
+	{
+		TextColSlot->SetVerticalAlignment(VAlign_Center);
+	}
 
 	AmmoWeaponNameText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("AmmoWeaponNameText"));
-	AmmoWeaponNameText->SetText(FText::FromString(TEXT("")));
-	AmmoWeaponNameText->SetJustification(ETextJustify::Right);
-	AmmoWeaponNameText->SetFont(MakeHudFont(14, true));
+	AmmoWeaponNameText->SetText(FText::GetEmpty());
+	AmmoWeaponNameText->SetFont(MakeHudFont(12));
 	AmmoWeaponNameText->SetColorAndOpacity(FSlateColor(HudWhite()));
-	if (UVerticalBoxSlot* NameSlot = AmmoBox->AddChildToVerticalBox(AmmoWeaponNameText))
+	if (UVerticalBoxSlot* NameSlot = AmmoTextCol->AddChildToVerticalBox(AmmoWeaponNameText))
 	{
-		NameSlot->SetHorizontalAlignment(HAlign_Right);
-		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
 	}
+
+	UHorizontalBox* MagRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+		UHorizontalBox::StaticClass(), TEXT("MagRow"));
+	AmmoTextCol->AddChildToVerticalBox(MagRow);
 
 	AmmoMagText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AmmoMagText"));
 	AmmoMagText->SetText(FText::FromString(TEXT("--")));
-	AmmoMagText->SetJustification(ETextJustify::Right);
-	AmmoMagText->SetFont(MakeHudFont(32, true));
+	AmmoMagText->SetFont(MakeHudFont(36, true));
 	AmmoMagText->SetColorAndOpacity(FSlateColor(HudGold()));
-	if (UVerticalBoxSlot* MagSlot = AmmoBox->AddChildToVerticalBox(AmmoMagText))
+	if (UHorizontalBoxSlot* MagSlot = MagRow->AddChildToHorizontalBox(AmmoMagText))
 	{
-		MagSlot->SetHorizontalAlignment(HAlign_Right);
+		MagSlot->SetVerticalAlignment(VAlign_Bottom);
 	}
 
 	AmmoReserveText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("AmmoReserveText"));
-	AmmoReserveText->SetText(FText::FromString(TEXT("")));
-	AmmoReserveText->SetJustification(ETextJustify::Right);
-	AmmoReserveText->SetFont(MakeHudFont(18));
-	AmmoReserveText->SetColorAndOpacity(FSlateColor(HudWhite()));
-	if (UVerticalBoxSlot* ReserveSlot = AmmoBox->AddChildToVerticalBox(AmmoReserveText))
+	AmmoReserveText->SetText(FText::GetEmpty());
+	AmmoReserveText->SetFont(MakeHudFont(22, true));
+	AmmoReserveText->SetColorAndOpacity(FSlateColor(HudGold()));
+	if (UHorizontalBoxSlot* ReserveSlot = MagRow->AddChildToHorizontalBox(AmmoReserveText))
 	{
-		ReserveSlot->SetHorizontalAlignment(HAlign_Right);
-		ReserveSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+		ReserveSlot->SetVerticalAlignment(VAlign_Bottom);
+		ReserveSlot->SetPadding(FMargin(2.0f, 0.0f, 0.0f, 4.0f));
 	}
 
-	AnchorBottomCorner(Canvas, AmmoPanel, true);
+	AmmoTypeText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("AmmoTypeText"));
+	AmmoTypeText->SetText(FText::GetEmpty());
+	AmmoTypeText->SetFont(MakeHudFont(11));
+	AmmoTypeText->SetColorAndOpacity(FSlateColor(FLinearColor(0.8f, 0.8f, 0.75f, 0.9f)));
+	if (UVerticalBoxSlot* TypeSlot = AmmoTextCol->AddChildToVerticalBox(AmmoTypeText))
+	{
+		TypeSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+	}
 }
 
 TSharedRef<SWidget> UShockHudWidget::RebuildWidget()
@@ -317,11 +522,22 @@ AShockWeapon* UShockHudWidget::ResolveEquippedWeapon(AShockPlayer* Player) const
 	return Player ? Player->GetEquippedWeapon() : nullptr;
 }
 
-void UShockHudWidget::SetHealthTextColor(const FLinearColor& Color)
+void UShockHudWidget::ApplyDamageFlashVisual(bool bFlashing)
 {
 	if (HealthText)
 	{
-		HealthText->SetColorAndOpacity(FSlateColor(Color));
+		HealthText->SetColorAndOpacity(FSlateColor(bFlashing ? HudRed() : HudWhite()));
+	}
+	if (HealthArcImage)
+	{
+		const float Alpha = HealthArcImage->GetColorAndOpacity().A;
+		HealthArcImage->SetColorAndOpacity(
+			bFlashing ? FLinearColor(1.0f, 0.35f, 0.3f, Alpha) : FLinearColor(1.0f, 1.0f, 1.0f, Alpha));
+	}
+	if (HealthCapSlot)
+	{
+		HealthCapSlot->SetBrushColor(
+			bFlashing ? HudRed() : FLinearColor(0.55f, 0.08f, 0.08f, 0.95f));
 	}
 }
 
@@ -335,7 +551,8 @@ void UShockHudWidget::SetMeterImageOpacity(UImage* Image, float Percent) const
 	// full arc. Map 0-100% onto opacity as a first-pass stand-in until multi-frame export exists.
 	const float Clamped = FMath::Clamp(Percent, 0.0f, 1.0f);
 	const float Alpha = FMath::Lerp(0.2f, 1.0f, Clamped);
-	Image->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, Alpha));
+	const FLinearColor Current = Image->GetColorAndOpacity();
+	Image->SetColorAndOpacity(FLinearColor(Current.R, Current.G, Current.B, Alpha));
 }
 
 void UShockHudWidget::RefreshDisplay()
@@ -348,7 +565,7 @@ void UShockHudWidget::RefreshDisplay()
 	if (DamageFlashEndTime >= 0.0 && Now >= DamageFlashEndTime)
 	{
 		DamageFlashEndTime = -1.0;
-		SetHealthTextColor(HudWhite());
+		ApplyDamageFlashVisual(false);
 	}
 
 	AShockPlayer* Player = ResolvePlayer();
@@ -366,11 +583,11 @@ void UShockHudWidget::RefreshDisplay()
 	if (LastObservedHealth >= 0.0f && Health < LastObservedHealth - KINDA_SMALL_NUMBER)
 	{
 		DamageFlashEndTime = Now + static_cast<double>(DamageFlashSeconds);
-		SetHealthTextColor(HudRed());
+		ApplyDamageFlashVisual(true);
 	}
 	else if (DamageFlashEndTime < 0.0)
 	{
-		SetHealthTextColor(HudWhite());
+		ApplyDamageFlashVisual(false);
 	}
 	LastObservedHealth = Health;
 
@@ -393,6 +610,22 @@ void UShockHudWidget::RefreshDisplay()
 		EveText->SetText(FText::FromString(CachedEveText));
 	}
 	SetMeterImageOpacity(EveArcImage, Eve / MaxEve);
+
+	if (ObjectiveText)
+	{
+		FString Objective;
+		if (Player)
+		{
+			Objective = Player->GetMapHUDRegion();
+			if (Objective.IsEmpty() && !Player->GetActiveQuest().IsNone())
+			{
+				Objective = Player->GetActiveQuest().ToString();
+			}
+		}
+		ObjectiveText->SetText(FText::FromString(Objective));
+		ObjectiveText->SetVisibility(
+			Objective.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
 
 	if (ConsumablesText)
 	{
@@ -417,20 +650,44 @@ void UShockHudWidget::RefreshDisplay()
 				: ESlateVisibility::Collapsed);
 	}
 
-	if (PlasmidText)
+	if (PlasmidText || EveCostText)
 	{
 		FString PlasmidLabel;
+		int32 EveCostRounded = 0;
+		bool bHasPlasmid = false;
 		if (Player)
 		{
 			if (const UShockPlasmid* ActivePlasmid = Player->GetActivePlasmid())
 			{
+				bHasPlasmid = true;
 				PlasmidLabel = ActivePlasmid->PlasmidName.ToString();
+				EveCostRounded = FMath::RoundToInt(ActivePlasmid->GetCastEveCost(Player));
 			}
 		}
 		CachedPlasmidText = PlasmidLabel;
-		PlasmidText->SetText(FText::FromString(CachedPlasmidText));
-		PlasmidText->SetVisibility(
-			PlasmidLabel.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		if (PlasmidText)
+		{
+			PlasmidText->SetText(FText::FromString(CachedPlasmidText));
+			PlasmidText->SetVisibility(
+				PlasmidLabel.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		}
+		if (EveCostText)
+		{
+			if (bHasPlasmid)
+			{
+				EveCostText->SetText(FText::FromString(FString::FromInt(EveCostRounded)));
+				EveCostText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			}
+			else
+			{
+				EveCostText->SetText(FText::GetEmpty());
+				EveCostText->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
+		if (PlasmidRing)
+		{
+			PlasmidRing->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
 	}
 
 	AShockWeapon* Weapon = ResolveEquippedWeapon(Player);
@@ -450,6 +707,18 @@ void UShockHudWidget::RefreshDisplay()
 		{
 			AmmoWeaponNameText->SetText(FText::GetEmpty());
 		}
+		if (AmmoMagText)
+		{
+			AmmoMagText->SetText(FText::GetEmpty());
+		}
+		if (AmmoReserveText)
+		{
+			AmmoReserveText->SetText(FText::GetEmpty());
+		}
+		if (AmmoTypeText)
+		{
+			AmmoTypeText->SetText(FText::GetEmpty());
+		}
 		return;
 	}
 
@@ -457,7 +726,8 @@ void UShockHudWidget::RefreshDisplay()
 	const int32 Reserve = Weapon->GetReserveAmmo();
 	CachedWeaponNameText = Weapon->GetWeaponDefName().IsNone() ? TEXT("") : Weapon->GetWeaponDefName().ToString();
 	CachedAmmoMagText = FString::FromInt(Mag);
-	CachedAmmoReserveText = FString::Printf(TEXT("/ %d"), Reserve);
+	// BioShock PC: magazine numeral with "+" when reserve ammo remains.
+	CachedAmmoReserveText = Reserve > 0 ? TEXT("+") : TEXT("");
 	if (AmmoWeaponNameText)
 	{
 		AmmoWeaponNameText->SetText(FText::FromString(CachedWeaponNameText));
@@ -469,6 +739,12 @@ void UShockHudWidget::RefreshDisplay()
 	if (AmmoReserveText)
 	{
 		AmmoReserveText->SetText(FText::FromString(CachedAmmoReserveText));
+	}
+	if (AmmoTypeText)
+	{
+		const FName AmmoTypeName = Weapon->GetActiveAmmoTypeName();
+		AmmoTypeText->SetText(
+			AmmoTypeName.IsNone() ? FText::GetEmpty() : FText::FromName(AmmoTypeName));
 	}
 }
 
@@ -619,7 +895,7 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 		Weapon->Destroy();
 		return false;
 	}
-	const FString ExpectedReserveText = FString::Printf(TEXT("/ %d"), ExpectedReserve);
+	const FString ExpectedReserveText = ExpectedReserve > 0 ? TEXT("+") : TEXT("");
 	if (Hud->GetDisplayedAmmoReserveText() != ExpectedReserveText)
 	{
 		LastHudVerifyError = FString::Printf(
@@ -671,7 +947,7 @@ bool UShockHudWidget::RunHeadlessHudVerify(UObject* WorldContextObject)
 		LogTemp,
 		Display,
 		TEXT("BIOSHOCK_HUD_OK health=%d mag=%d reserve=%d health_after=%d viewport=%d "
-			 "health_tex=%d eve_tex=%d"),
+			 "health_tex=%d eve_tex=%d layout=bioshock_bl"),
 		ExpectedHealth,
 		ExpectedMag,
 		ExpectedReserve,
