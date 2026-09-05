@@ -9,7 +9,9 @@ class AShockPlayer;
 class AShockWeapon;
 class UShockDeathRespawnHandler;
 class UShockHudWidget;
+class UShockPauseMenu;
 class UShockRadialMenu;
+class UShockStatusMenu;
 class UShockWeaponSelectScreen;
 
 UCLASS()
@@ -81,7 +83,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Slice")
 	void EquipStarterWeaponForVerify(AShockPlayer* Player);
 
-	/** Create radial + select widgets (once) and keep them out of the HUD's z-order (HUD=0). */
+	/** Create radial + select + status + pause widgets (once). HUD stays at Z=0. */
 	void EnsureSelectionUiForPlayer(APlayerController* PC);
 
 	void OpenWeaponRadial(AShockPlayer* Player);
@@ -89,10 +91,16 @@ public:
 	void CloseRadial(bool bEquipHovered);
 	void StepRadialHover(int32 Delta);
 	void ToggleWeaponSelect(AShockPlayer* Player);
+	void ToggleStatusMenu(AShockPlayer* Player);
+	void TogglePauseMenu(AShockPlayer* Player);
 	void ForceOpenRadialForCapture(AShockPlayer* Player);
+	void ForceOpenStatusForCapture(AShockPlayer* Player);
+	void ForceOpenPauseForCapture(AShockPlayer* Player);
 
 	UShockRadialMenu* GetPlayerRadial() const { return PlayerRadial; }
 	UShockWeaponSelectScreen* GetPlayerSelectScreen() const { return PlayerSelect; }
+	UShockStatusMenu* GetPlayerStatusMenu() const { return PlayerStatus; }
+	UShockPauseMenu* GetPlayerPauseMenu() const { return PlayerPause; }
 
 private:
 	void SnapPawnToStart(APawn* Pawn, AActor* Start);
@@ -189,4 +197,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UShockWeaponSelectScreen> PlayerSelect;
+
+	UPROPERTY()
+	TObjectPtr<UShockStatusMenu> PlayerStatus;
+
+	UPROPERTY()
+	TObjectPtr<UShockPauseMenu> PlayerPause;
 };

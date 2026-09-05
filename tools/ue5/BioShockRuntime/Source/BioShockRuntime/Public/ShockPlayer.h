@@ -249,6 +249,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player|Consumables")
 	int32 PlayerMoney = 0;
 
+	/** ADAM currency (Gatherer's Garden). Separate from money; U4 pause strip binds GetAdam. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Player|Consumables")
+	int32 PlayerAdam = 0;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
 	void Heal(float Amount);
 
@@ -263,6 +267,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	int32 GetMoney() const { return PlayerMoney; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	void AddAdam(int32 Amount);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
+	int32 GetAdam() const { return PlayerAdam; }
 
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	float GetMaxHealth() const;
@@ -348,6 +358,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	FName GetActiveQuest() const { return ActiveQuest; }
+
+	/** Quests currently in state 1 (initiated / active). Used by the status Goals tab. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void GetActiveQuestNames(TArray<FName>& OutNames) const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	int32 GetActiveQuestCount() const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetQuestHint(FName QuestName, FName HintName);
@@ -696,6 +713,8 @@ private:
 	void HandleWeaponSlot7Input();
 	void HandleRadialStepLeft();
 	void HandleRadialStepRight();
+	void HandleStatusMenuToggle();
+	void HandlePauseMenuToggle();
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();

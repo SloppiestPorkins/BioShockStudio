@@ -156,6 +156,16 @@ RADIAL_STEP_RIGHT_LINE = (
     'bCmd=False,Key=Right)'
 )
 
+STATUS_MENU_LINE = (
+    '+ActionMappings=(ActionName="StatusMenu",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=M)'
+)
+
+PAUSE_MENU_LINE = (
+    '+ActionMappings=(ActionName="PauseMenu",bShift=False,bCtrl=False,bAlt=False,'
+    'bCmd=False,Key=Escape)'
+)
+
 TRAVEL_DEST_MAP = "/Game/BioShockSlice/_TravelDest"
 PLAY_GAME_MODE = "/Script/BioShockRuntime.ShockGameMode"
 SHOCK_GAME_INSTANCE = "/Script/BioShockRuntime.ShockGameInstance"
@@ -256,6 +266,14 @@ def _ensure_radial_step_mappings():
             _ensure_action_mapping("RadialStepRight", "Right", RADIAL_STEP_RIGHT_LINE),
         ],
     }
+
+
+def _ensure_status_menu_mapping():
+    return _ensure_action_mapping("StatusMenu", "M", STATUS_MENU_LINE)
+
+
+def _ensure_pause_menu_mapping():
+    return _ensure_action_mapping("PauseMenu", "Escape", PAUSE_MENU_LINE)
 
 
 def _project_config_dir():
@@ -384,6 +402,8 @@ STEPS = [
     ("weapon_select_key_mapping", None, _ensure_weapon_select_mapping, ()),
     ("plasmid_cast_key_mapping", None, _ensure_plasmid_cast_mapping, ()),
     ("radial_step_key_mapping", None, _ensure_radial_step_mappings, ()),
+    ("status_menu_key_mapping", None, _ensure_status_menu_mapping, ()),
+    ("pause_menu_key_mapping", None, _ensure_pause_menu_mapping, ()),
     ("game_instance_class", None, _ensure_game_instance_class, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),

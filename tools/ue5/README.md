@@ -110,6 +110,36 @@ Content: `/Game/BioShockUI/Radial/T_Radial_{BrassRing,Digit_0..9,DigitHi_0..9}`.
 
 ---
 
+## Phase U4 — status menu + pause menu — 5 Sept 2026
+
+`UShockStatusMenu` (**M**, pauses): four tabs — Map (placeholder level name + player coords;
+level-plan render deferred), Goals (`GetActiveQuestNames` / tracked `ActiveQuest`), Messages
+(empty "No recordings" — diary collection not wired), Help (HUDPC posters 552/560/592/599).
+Tab icons from `mapsPC` (compass/!/tape/?); Q/E or bumpers step tabs while open.
+
+`UShockPauseMenu` (**Esc**, pauses): BioShock logo (`pausePC` 1248), stats strip Money /
+`GetAdam` / Little-Sister count (class-name Gatherer/LittleSister, else 0), list Resume /
+Save / Load / Options / Main Menu / Quit. Resume + Quit wired; Save/Load/Options/Main Menu
+log stubs. Gold chevron (`pausePC` 223) marks selection.
+
+**Input** (`setup_playable_slice.py`): StatusMenu=M, PauseMenu=Escape (Esc while select/status
+open closes that overlay first — no conflict with radial Q/V).
+
+```powershell
+py -3 tools\ue5\import_bioshock_ui.py --prepare
+# UnrealEditor-Cmd: -script=...\run_import_bioshock_ui.py
+# rebuild: tools\ue5\rebuild_runtime_fast.ps1 -CleanModule
+# then: -script=...\run_status_pause.py
+# capture: tools\ue5\capture_shot.ps1 -Map /Game/BioShockSlice/1-Medical `
+#   -Extra '-bioshockshothud','-bioshockshotstatus'
+#   -Extra '-bioshockshothud','-bioshockshotpause'
+```
+
+Content: `/Game/BioShockUI/Status/T_Status_{Tab_*,Panel_*,Nameplate_*,Help_*}` and
+`/Game/BioShockUI/Pause/T_Pause_{Logo,ChevronUp,ChevronDown}`.
+
+---
+
 ## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
 
 Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).

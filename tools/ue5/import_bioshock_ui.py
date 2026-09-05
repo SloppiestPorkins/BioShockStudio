@@ -1,7 +1,9 @@
-"""Import real BioShock HUD + Radial tag-512 art into /Game/BioShockUI.
+"""Import real BioShock HUD + Radial + Status + Pause tag-512 art into /Game/BioShockUI.
 
 Phase U2: HUDPC crops → /Game/BioShockUI/HUD.
 Phase U3: HUDRadial ring + digits → /Game/BioShockUI/Radial.
+Phase U4: mapsPC/ingamemanual/HUDPC help → /Game/BioShockUI/Status;
+          pausePC logo/chevrons → /Game/BioShockUI/Pause.
 PNGs stay outside git.
 
 Prepare (no Unreal):
@@ -21,9 +23,45 @@ import sys
 
 CONTENT_FOLDER = "/Game/BioShockUI/HUD"
 RADIAL_CONTENT_FOLDER = "/Game/BioShockUI/Radial"
+STATUS_CONTENT_FOLDER = "/Game/BioShockUI/Status"
+PAUSE_CONTENT_FOLDER = "/Game/BioShockUI/Pause"
 DEFAULT_EXPORT = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui")
 DEFAULT_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-hud-staging")
 DEFAULT_RADIAL_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-radial-staging")
+DEFAULT_STATUS_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-status-staging")
+DEFAULT_PAUSE_STAGING = os.path.join(os.environ.get("TEMP", "."), "bioshock-ui-pause-staging")
+
+# Status tab icons (mapsPC): compass N / ! / tape / ?
+STATUS_TAB_IDS = {
+    "T_Status_Tab_Map": ("mapsPC", 1804),
+    "T_Status_Tab_Goals": ("mapsPC", 1796),
+    "T_Status_Tab_Messages": ("mapsPC", 1900),
+    "T_Status_Tab_Help": ("mapsPC", 1798),
+}
+STATUS_PANEL_IDS = {
+    "T_Status_Panel_Main": ("mapsPC", 1793),
+    "T_Status_Panel_Wide": ("mapsPC", 1790),
+    "T_Status_Panel_Ornate": ("mapsPC", 1811),
+    "T_Status_Panel_Corner": ("mapsPC", 1840),
+    "T_Status_Panel_Inset": ("mapsPC", 1845),
+}
+STATUS_NAMEPLATE_IDS = {
+    "T_Status_Nameplate_Main": ("mapsPC", 1801),
+    "T_Status_Nameplate_Thin": ("mapsPC", 1773),
+    "T_Status_Nameplate_Wide": ("mapsPC", 1860),
+}
+# HUDPC poster illustrations: research / electro / medical / EVE
+STATUS_HELP_IDS = {
+    "T_Status_Help_Research": ("HUDPC", 552),
+    "T_Status_Help_Electro": ("HUDPC", 560),
+    "T_Status_Help_Medical": ("HUDPC", 592),
+    "T_Status_Help_Eve": ("HUDPC", 599),
+}
+PAUSE_ART_IDS = {
+    "T_Pause_Logo": ("pausePC", 1248),
+    "T_Pause_ChevronUp": ("pausePC", 223),
+    "T_Pause_ChevronDown": ("pausePC", 228),
+}
 
 # Atlas 86 (neutral tint): long pill frame object bbox measured 5 Sept 2026.
 ATLAS_ID = 86
@@ -82,10 +120,15 @@ def _write(out, report):
 
 
 def _ensure_export(export_root, force=False):
-    """Run export_all_ui_images.py when HUDPC/HUDRadial are missing."""
-    hudpc = os.path.join(export_root, "HUDPC", "86.png")
-    radial = os.path.join(export_root, "HUDRadial", "239.png")
-    if not force and os.path.isfile(hudpc) and os.path.isfile(radial):
+    """Run export_all_ui_images.py when HUD/Radial/Status/Pause source PNGs are missing."""
+    probes = (
+        os.path.join(export_root, "HUDPC", "86.png"),
+        os.path.join(export_root, "HUDRadial", "239.png"),
+        os.path.join(export_root, "mapsPC", "1804.png"),
+        os.path.join(export_root, "pausePC", "1248.png"),
+        os.path.join(export_root, "HUDPC", "552.png"),
+    )
+    if not force and all(os.path.isfile(p) for p in probes):
         _log("reusing export at %s" % export_root)
         return
     env = os.environ.copy()
@@ -377,6 +420,100 @@ def prepare_radial_staging(export_root=None, staging_dir=None, force_export=Fals
     return manifest
 
 
+def _stage_named_copies(export_root, staging_dir, mapping, textures, gaps):
+    """Copy (movie, id) → staging asset PNG entries."""
+    from PIL import Image
+
+    for asset_name, (movie, image_id) in mapping.items():
+        src = os.path.join(export_root, movie, "%d.png" % image_id)
+        if not os.path.isfile(src):
+            gaps.append("missing %s/%d.png for %s" % (movie, image_id, asset_name))
+            continue
+        dst_file = asset_name + ".png"
+        Image.open(src).convert("RGBA").save(os.path.join(staging_dir, dst_file))
+        textures.append(
+            {
+                "name": asset_name,
+                "file": dst_file,
+                "role": asset_name,
+                "source": "%s/%d.png" % (movie, image_id),
+            }
+        )
+
+
+def prepare_status_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage mapsPC / HUDPC help art for /Game/BioShockUI/Status."""
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_STATUS_STAGING", DEFAULT_STATUS_STAGING
+    )
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+    _stage_named_copies(export_root, staging_dir, STATUS_TAB_IDS, textures, gaps)
+    _stage_named_copies(export_root, staging_dir, STATUS_PANEL_IDS, textures, gaps)
+    _stage_named_copies(export_root, staging_dir, STATUS_NAMEPLATE_IDS, textures, gaps)
+    _stage_named_copies(export_root, staging_dir, STATUS_HELP_IDS, textures, gaps)
+    gaps.append(
+        "Map tab: level-plan rendering deferred — U4 shows placeholder text + player coords"
+    )
+    gaps.append(
+        "Messages tab: audio-diary collection not wired yet — empty panel until inventory "
+        "diaries exist"
+    )
+    # Task brief said "face = Messages"; shipped mapsPC art is a reel-to-reel tape (id 1900).
+    gaps.append(
+        "Messages tab icon: task brief said face; mapsPC id 1900 is reel-to-reel tape "
+        "(audio-diary glyph) — used as-is"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": STATUS_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "status_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d status textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
+def prepare_pause_staging(export_root=None, staging_dir=None, force_export=False):
+    """Stage pausePC logo + chevrons for /Game/BioShockUI/Pause."""
+    export_root = export_root or os.environ.get("BIOSHOCK_UI_EXPORT", DEFAULT_EXPORT)
+    staging_dir = staging_dir or os.environ.get(
+        "BIOSHOCK_UI_PAUSE_STAGING", DEFAULT_PAUSE_STAGING
+    )
+    os.makedirs(staging_dir, exist_ok=True)
+    _ensure_export(export_root, force=force_export)
+
+    textures = []
+    gaps = []
+    _stage_named_copies(export_root, staging_dir, PAUSE_ART_IDS, textures, gaps)
+    gaps.append(
+        "Little Sister count: no AShockLittleSister class yet — pause menu counts actors "
+        "whose class name contains Gatherer/LittleSister, else 0"
+    )
+
+    manifest = {
+        "stagingDir": staging_dir,
+        "exportRoot": export_root,
+        "textures": textures,
+        "gaps": gaps,
+        "contentFolder": PAUSE_CONTENT_FOLDER,
+    }
+    man_path = os.path.join(staging_dir, "pause_import_manifest.json")
+    with open(man_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    _log("staged %d pause textures -> %s" % (len(textures), staging_dir))
+    return manifest
+
+
 def _disable_interchange():
     import unreal
 
@@ -506,6 +643,8 @@ def _import_manifest(staging_dir, man_name, content_folder, report):
 def main(
     staging_dir=None,
     radial_staging_dir=None,
+    status_staging_dir=None,
+    pause_staging_dir=None,
     out=None,
     content_folder=CONTENT_FOLDER,
     prepare_if_needed=True,
@@ -516,6 +655,12 @@ def main(
     radial_staging_dir = radial_staging_dir or os.environ.get(
         "BIOSHOCK_UI_RADIAL_STAGING", DEFAULT_RADIAL_STAGING
     )
+    status_staging_dir = status_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_STATUS_STAGING", DEFAULT_STATUS_STAGING
+    )
+    pause_staging_dir = pause_staging_dir or os.environ.get(
+        "BIOSHOCK_UI_PAUSE_STAGING", DEFAULT_PAUSE_STAGING
+    )
     out = out or os.environ.get(
         "BIOSHOCK_UI_IMPORT_OUT",
         os.path.join(os.environ.get("TEMP", "."), "bioshock_ui_import_report.json"),
@@ -525,8 +670,12 @@ def main(
     report = {
         "stagingDir": staging_dir,
         "radialStagingDir": radial_staging_dir,
+        "statusStagingDir": status_staging_dir,
+        "pauseStagingDir": pause_staging_dir,
         "contentFolder": content_folder,
         "radialContentFolder": RADIAL_CONTENT_FOLDER,
+        "statusContentFolder": STATUS_CONTENT_FOLDER,
+        "pauseContentFolder": PAUSE_CONTENT_FOLDER,
         "imported": {},
         "deleted": [],
         "failures": [],
@@ -536,7 +685,15 @@ def main(
 
     man_path = os.path.join(staging_dir, "hud_import_manifest.json")
     radial_man = os.path.join(radial_staging_dir, "radial_import_manifest.json")
-    if prepare_if_needed and (not os.path.isfile(man_path) or not os.path.isfile(radial_man)):
+    status_man = os.path.join(status_staging_dir, "status_import_manifest.json")
+    pause_man = os.path.join(pause_staging_dir, "pause_import_manifest.json")
+    need_prepare = (
+        not os.path.isfile(man_path)
+        or not os.path.isfile(radial_man)
+        or not os.path.isfile(status_man)
+        or not os.path.isfile(pause_man)
+    )
+    if prepare_if_needed and need_prepare:
         # Unreal's Python often lacks Pillow — prepare via system py.
         prep = subprocess.run(
             [
@@ -550,6 +707,10 @@ def main(
                 staging_dir,
                 "--radial-staging",
                 radial_staging_dir,
+                "--status-staging",
+                status_staging_dir,
+                "--pause-staging",
+                pause_staging_dir,
             ],
             cwd=_repo_root(),
             capture_output=True,
@@ -568,6 +729,12 @@ def main(
     _import_manifest(
         radial_staging_dir, "radial_import_manifest.json", RADIAL_CONTENT_FOLDER, report
     )
+    _import_manifest(
+        status_staging_dir, "status_import_manifest.json", STATUS_CONTENT_FOLDER, report
+    )
+    _import_manifest(
+        pause_staging_dir, "pause_import_manifest.json", PAUSE_CONTENT_FOLDER, report
+    )
 
     report["ok"] = not failures
     _write(out, report)
@@ -585,6 +752,12 @@ def _cli(argv=None):
     parser.add_argument(
         "--radial-staging", default=None, help="staging directory for Radial PNGs"
     )
+    parser.add_argument(
+        "--status-staging", default=None, help="staging directory for Status PNGs"
+    )
+    parser.add_argument(
+        "--pause-staging", default=None, help="staging directory for Pause PNGs"
+    )
     parser.add_argument("--force-export", action="store_true")
     args = parser.parse_args(argv)
     if args.prepare:
@@ -592,9 +765,20 @@ def _cli(argv=None):
         prepare_radial_staging(
             args.export, args.radial_staging, force_export=args.force_export
         )
+        prepare_status_staging(
+            args.export, args.status_staging, force_export=args.force_export
+        )
+        prepare_pause_staging(
+            args.export, args.pause_staging, force_export=args.force_export
+        )
         return 0
     # Running under Unreal as __main__ is unusual; prefer run_import_bioshock_ui.py
-    main(staging_dir=args.staging, radial_staging_dir=args.radial_staging)
+    main(
+        staging_dir=args.staging,
+        radial_staging_dir=args.radial_staging,
+        status_staging_dir=args.status_staging,
+        pause_staging_dir=args.pause_staging,
+    )
     return 0
 
 

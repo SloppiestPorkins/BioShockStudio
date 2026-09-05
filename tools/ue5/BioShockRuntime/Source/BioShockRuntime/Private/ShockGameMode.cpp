@@ -8,8 +8,10 @@
 #include "ShockGameInstance.h"
 #include "ShockHudWidget.h"
 #include "ShockPhysicsLibrary.h"
+#include "ShockPauseMenu.h"
 #include "ShockPlayer.h"
 #include "ShockRadialMenu.h"
+#include "ShockStatusMenu.h"
 #include "ShockWeaponSelectScreen.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockEnragePlasmid.h"
@@ -1599,6 +1601,22 @@ void AShockGameMode::EnsureSelectionUiForPlayer(APlayerController* PC)
 	{
 		PlayerSelect->AddToViewport(20);
 	}
+	if (!PlayerStatus)
+	{
+		PlayerStatus = CreateWidget<UShockStatusMenu>(PC, UShockStatusMenu::StaticClass());
+	}
+	if (PlayerStatus && !PlayerStatus->IsInViewport())
+	{
+		PlayerStatus->AddToViewport(30);
+	}
+	if (!PlayerPause)
+	{
+		PlayerPause = CreateWidget<UShockPauseMenu>(PC, UShockPauseMenu::StaticClass());
+	}
+	if (PlayerPause && !PlayerPause->IsInViewport())
+	{
+		PlayerPause->AddToViewport(40);
+	}
 }
 
 void AShockGameMode::OpenWeaponRadial(AShockPlayer* Player)
@@ -1608,6 +1626,14 @@ void AShockGameMode::OpenWeaponRadial(AShockPlayer* Player)
 		return;
 	}
 	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		return;
+	}
+	if (PlayerStatus && PlayerStatus->IsStatusOpen())
+	{
+		return;
+	}
+	if (PlayerPause && PlayerPause->IsPauseOpen())
 	{
 		return;
 	}
@@ -1628,6 +1654,14 @@ void AShockGameMode::OpenPlasmidRadial(AShockPlayer* Player)
 		return;
 	}
 	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		return;
+	}
+	if (PlayerStatus && PlayerStatus->IsStatusOpen())
+	{
+		return;
+	}
+	if (PlayerPause && PlayerPause->IsPauseOpen())
 	{
 		return;
 	}
@@ -1693,6 +1727,102 @@ void AShockGameMode::ForceOpenRadialForCapture(AShockPlayer* Player)
 	}
 	PlayerRadial->BindDisplayPlayer(Player);
 	PlayerRadial->ForceOpenForCapture(EShockRadialMode::Weapon);
+}
+
+void AShockGameMode::ToggleStatusMenu(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerStatus)
+	{
+		return;
+	}
+	if (PlayerStatus->IsStatusOpen())
+	{
+		PlayerStatus->CloseStatusMenu();
+		return;
+	}
+	if (PlayerPause && PlayerPause->IsPauseOpen())
+	{
+		PlayerPause->ClosePauseMenu();
+	}
+	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		PlayerSelect->CloseSelectScreen();
+	}
+	CloseRadial(false);
+	PlayerStatus->BindDisplayPlayer(Player);
+	PlayerStatus->OpenStatusMenu();
+}
+
+void AShockGameMode::TogglePauseMenu(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerPause)
+	{
+		return;
+	}
+	// Esc while status is open closes status (status widget also handles Esc); don't open pause.
+	if (PlayerStatus && PlayerStatus->IsStatusOpen())
+	{
+		PlayerStatus->CloseStatusMenu();
+		return;
+	}
+	// Esc while select is open closes select (existing behaviour); don't open pause over it.
+	if (PlayerSelect && PlayerSelect->IsSelectOpen())
+	{
+		PlayerSelect->CloseSelectScreen();
+		return;
+	}
+	if (PlayerPause->IsPauseOpen())
+	{
+		PlayerPause->ClosePauseMenu();
+		return;
+	}
+	CloseRadial(false);
+	PlayerPause->BindDisplayPlayer(Player);
+	PlayerPause->OpenPauseMenu();
+}
+
+void AShockGameMode::ForceOpenStatusForCapture(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerStatus)
+	{
+		return;
+	}
+	PlayerStatus->BindDisplayPlayer(Player);
+	PlayerStatus->ForceOpenForCapture();
+}
+
+void AShockGameMode::ForceOpenPauseForCapture(AShockPlayer* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	EnsureSelectionUiForPlayer(PC);
+	if (!PlayerPause)
+	{
+		return;
+	}
+	PlayerPause->BindDisplayPlayer(Player);
+	PlayerPause->ForceOpenForCapture();
 }
 
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
@@ -2394,11 +2524,21 @@ void AShockGameMode::TickScreenshotCapture()
 		{
 			EnsureHudForPlayer(PC);
 			const bool bForceRadial = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotradial"));
-			if (bForceRadial)
+			const bool bForceStatus = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotstatus"));
+			const bool bForcePause = FParse::Param(FCommandLine::Get(), TEXT("bioshockshotpause"));
+			if (AShockPlayer* ShotPlayer = Cast<AShockPlayer>(PC->GetPawn()))
 			{
-				if (AShockPlayer* ShotPlayer = Cast<AShockPlayer>(PC->GetPawn()))
+				if (bForceRadial)
 				{
 					ForceOpenRadialForCapture(ShotPlayer);
+				}
+				if (bForceStatus)
+				{
+					ForceOpenStatusForCapture(ShotPlayer);
+				}
+				if (bForcePause)
+				{
+					ForceOpenPauseForCapture(ShotPlayer);
 				}
 			}
 			if (PlayerHud)
@@ -2412,9 +2552,18 @@ void AShockGameMode::TickScreenshotCapture()
 				WidgetRenderer.DrawWidget(HudRT, PlayerHud->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
 				if (bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen())
 				{
-					// Draw the radial on top of the same RT so the capture shows the open wheel.
 					WidgetRenderer.DrawWidget(
 						HudRT, PlayerRadial->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				}
+				if (bForceStatus && PlayerStatus && PlayerStatus->IsStatusOpen())
+				{
+					WidgetRenderer.DrawWidget(
+						HudRT, PlayerStatus->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
+				}
+				if (bForcePause && PlayerPause && PlayerPause->IsPauseOpen())
+				{
+					WidgetRenderer.DrawWidget(
+						HudRT, PlayerPause->TakeWidget(), FVector2D(ShotW, ShotH), 0.0f);
 				}
 				FlushRenderingCommands();
 				const FString HudPath = FPaths::GetPath(Path) / (FPaths::GetBaseFilename(Path) + TEXT("_hud.png"));
@@ -2423,9 +2572,11 @@ void AShockGameMode::TickScreenshotCapture()
 				UE_LOG(
 					LogTemp,
 					Display,
-					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d"),
+					TEXT("BIOSHOCK_SHOT_HUD path=%s radial=%d status=%d pause=%d"),
 					*HudPath,
-					(bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen()) ? 1 : 0);
+					(bForceRadial && PlayerRadial && PlayerRadial->IsRadialOpen()) ? 1 : 0,
+					(bForceStatus && PlayerStatus && PlayerStatus->IsStatusOpen()) ? 1 : 0,
+					(bForcePause && PlayerPause && PlayerPause->IsPauseOpen()) ? 1 : 0);
 			}
 			else
 			{

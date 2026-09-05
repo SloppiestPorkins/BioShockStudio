@@ -1583,6 +1583,22 @@ void AShockPlayer::HandleRadialStepRight()
 	}
 }
 
+void AShockPlayer::HandleStatusMenuToggle()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->ToggleStatusMenu(this);
+	}
+}
+
+void AShockPlayer::HandlePauseMenuToggle()
+{
+	if (AShockGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AShockGameMode>() : nullptr)
+	{
+		GM->TogglePauseMenu(this);
+	}
+}
+
 void AShockPlayer::HandlePlasmidCycleInput()
 {
 	CycleActivePlasmid();
@@ -1822,6 +1838,14 @@ void AShockPlayer::AddMoney(int32 Amount)
 	if (Amount > 0)
 	{
 		PlayerMoney += Amount;
+	}
+}
+
+void AShockPlayer::AddAdam(int32 Amount)
+{
+	if (Amount > 0)
+	{
+		PlayerAdam += Amount;
 	}
 }
 
@@ -2070,6 +2094,26 @@ int32 AShockPlayer::GetQuestObjectiveCount(FName QuestName) const
 		return *Value;
 	}
 	return 0;
+}
+
+void AShockPlayer::GetActiveQuestNames(TArray<FName>& OutNames) const
+{
+	OutNames.Reset();
+	for (const TPair<FName, uint8>& Pair : QuestState)
+	{
+		if (Pair.Value == 1)
+		{
+			OutNames.Add(Pair.Key);
+		}
+	}
+	OutNames.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
+}
+
+int32 AShockPlayer::GetActiveQuestCount() const
+{
+	TArray<FName> Names;
+	GetActiveQuestNames(Names);
+	return Names.Num();
 }
 
 void AShockPlayer::SetQuestHint(FName QuestName, FName HintName)
@@ -2429,6 +2473,8 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("WeaponSlot7"), IE_Pressed, this, &AShockPlayer::HandleWeaponSlot7Input);
 	PlayerInputComponent->BindAction(TEXT("RadialStepLeft"), IE_Pressed, this, &AShockPlayer::HandleRadialStepLeft);
 	PlayerInputComponent->BindAction(TEXT("RadialStepRight"), IE_Pressed, this, &AShockPlayer::HandleRadialStepRight);
+	PlayerInputComponent->BindAction(TEXT("StatusMenu"), IE_Pressed, this, &AShockPlayer::HandleStatusMenuToggle);
+	PlayerInputComponent->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AShockPlayer::HandlePauseMenuToggle);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);
