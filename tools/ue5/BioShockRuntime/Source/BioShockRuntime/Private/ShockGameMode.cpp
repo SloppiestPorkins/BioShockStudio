@@ -419,7 +419,12 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	// start equipped with it, not the Tommy Gun, matching what you'd really be
 	// holding before finding any guns. Viewmodel meshes come from UShockWeaponDef::MeshAssetPath
 	// via AShockWeapon::ApplyDef (skeletal guns + Wrench StaticMesh on StaticMesh component).
-	Player->SelectWeaponSlot(0);
+	// -bioshockstartslot=N (capture harness): equip a specific weapon slot instead of the Wrench,
+	// so the screenshot pass can look at each viewmodel. 0..7 = Wrench/Pistol/TommyGun/Shotgun/
+	// GrenadeLauncher/ChemicalThrower/Crossbow/Camera.
+	int32 StartSlot = 0;
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockstartslot="), StartSlot);
+	Player->SelectWeaponSlot(FMath::Clamp(StartSlot, 0, 7));
 
 	// C3 slice: Electro Bolt slot 0, Incinerate 1, Telekinesis 2, Winter Blast 3, Insect Swarm 4, Enrage 5.
 	Player->MaxEve = 100.0f;
