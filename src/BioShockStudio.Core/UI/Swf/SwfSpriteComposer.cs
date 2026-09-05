@@ -34,6 +34,36 @@ public static class SwfSpriteComposer
     {
         if (depthGuard > MaxDepthGuard) return;
 
+        if (dict.TryGetTextRun(characterId, out SwfTextRun textRun))
+        {
+            SwfMatrix textTransform = textRun.TextMatrix.Then(transform);
+            foreach (SwfTextGlyphPlacement placement in textRun.Glyphs)
+            {
+                if (!dict.TryGetFont(placement.FontId, out SwfFont font)) continue;
+                if (placement.GlyphIndex < 0 || placement.GlyphIndex >= font.Glyphs.Count) continue;
+                SwfGlyph glyph = font.Glyphs[placement.GlyphIndex];
+
+                // Glyph edges are in a 1024-units/em design space; HeightTwips is the em size in
+                // twips, and the placement's own X/Y (also twips) sits the glyph's origin (its
+                // baseline) before the run's own TextMatrix + ambient transform apply.
+                double emScale = placement.HeightTwips / 1024.0;
+                int offset = fillStyles.Count;
+                fillStyles.Add(new SwfFillStyle(SwfFillKind.Solid, placement.Color));
+                foreach (SwfEdge e in glyph.Edges)
+                {
+                    double gx0 = e.X0 * emScale + placement.X, gy0 = e.Y0 * emScale + placement.Y;
+                    double gx1 = e.X1 * emScale + placement.X, gy1 = e.Y1 * emScale + placement.Y;
+                    var (x0, y0) = textTransform.Apply(gx0, gy0);
+                    var (x1, y1) = textTransform.Apply(gx1, gy1);
+                    edges.Add(new SwfEdge(
+                        x0, y0, x1, y1,
+                        e.FillStyle0 == 0 ? 0 : offset + 1,
+                        e.FillStyle1 == 0 ? 0 : offset + 1));
+                }
+            }
+            return;
+        }
+
         if (dict.TryGetShape(characterId, out SwfShape shape))
         {
             int offset = fillStyles.Count;

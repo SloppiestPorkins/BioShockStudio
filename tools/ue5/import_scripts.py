@@ -483,10 +483,10 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
                 os.path.dirname(manifest_path),
                 PathStem(manifest_path) + ".script-actions.json",
             )
-            # Prefer explicit Medical sidecar next to slice schemas.
+            # Prefer the sibling of *this* manifest; Medical is a last-resort default only.
             candidates = [
-                os.path.join(os.path.dirname(manifest_path), "1-Medical.script-actions.json"),
                 sibling,
+                os.path.join(os.path.dirname(manifest_path), "1-Medical.script-actions.json"),
                 os.path.join(DEFAULT_SCHEMA_DIR, "1-Medical.script-actions.json"),
             ]
             props_path = next((p for p in candidates if os.path.isfile(p)), None)

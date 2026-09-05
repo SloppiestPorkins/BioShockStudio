@@ -14,6 +14,8 @@ public sealed class SwfCharacterDictionary
 {
     private readonly Dictionary<int, SwfShape> _shapes = new();
     private readonly Dictionary<int, IReadOnlyList<SwfTag>> _sprites = new();
+    private readonly Dictionary<int, SwfFont> _fonts = new();
+    private readonly Dictionary<int, SwfTextRun> _textRuns = new();
 
     public static SwfCharacterDictionary Build(SwfFile file)
     {
@@ -40,6 +42,31 @@ public sealed class SwfCharacterDictionary
                 IReadOnlyList<SwfTag> controlTags = SwfFile.ReadTagStream(tag.Body, 4);
                 dict._sprites[spriteId] = controlTags;
             }
+            else if (tag.Code is 48 or 75) // DefineFont2/3
+            {
+                try
+                {
+                    SwfFont font = SwfFontReader.Read(tag.Body, tag.Code);
+                    dict._fonts[font.FontId] = font;
+                }
+                catch (Exception)
+                {
+                    // Same reasoning as the shape catch above — an unparseable font just can't
+                    // back any text run that references it.
+                }
+            }
+            else if (tag.Code is 11 or 33) // DefineText/DefineText2
+            {
+                try
+                {
+                    SwfTextRun run = SwfTextReader.Read(tag.Body, tag.Code);
+                    dict._textRuns[run.CharacterId] = run;
+                }
+                catch (Exception)
+                {
+                    // Same reasoning again — an unparseable text run just isn't placeable.
+                }
+            }
         }
         return dict;
     }
@@ -48,4 +75,8 @@ public sealed class SwfCharacterDictionary
 
     public bool TryGetSprite(int characterId, out IReadOnlyList<SwfTag> controlTags) =>
         _sprites.TryGetValue(characterId, out controlTags!);
+
+    public bool TryGetFont(int fontId, out SwfFont font) => _fonts.TryGetValue(fontId, out font!);
+
+    public bool TryGetTextRun(int characterId, out SwfTextRun run) => _textRuns.TryGetValue(characterId, out run!);
 }

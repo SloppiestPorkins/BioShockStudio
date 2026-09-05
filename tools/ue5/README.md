@@ -1,5 +1,63 @@
 # UE5 import bridge
 
+## Phase 2.3 tail-2 — script import across all 21 maps — 5 Sept 2026
+
+Owed re-import after tail-1 (`OrStatement` / needle / `TrainingCondition` mapper fix).
+Headless batch: `prepare_script_import_exports.py` (sidecars + Ue5Manifest-only JSON under
+`%TEMP%/bioshock-script-import-all-maps`, no mesh dumps) then
+`run_import_scripts_all_maps.py` into scratch `/Game/BioShockScriptImport/_Scratch`
+(Medical not re-opened; baseline kept from 27 Aug).
+
+```powershell
+$env:BIOSHOCK_REMASTERED_PATH = "G:\SteamLibrary\steamapps\common\BioShock Remastered"
+$env:BIOSHOCK_SCHEMA_DIR = "C:\Users\Jack\Documents\BioShockUE5\Exports\slice"
+$env:BIOSHOCK_SCRIPT_IMPORT_ROOT = "$env:TEMP\bioshock-script-import-all-maps"
+$env:BIOSHOCK_SCRIPT_IMPORT_OUT = "$env:TEMP\bioshock-script-import-all-maps\bioshock_import_scripts_all_maps.json"
+py -3 tools\ue5\prepare_script_import_exports.py --skip-medical-manifest
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\run_import_scripts_all_maps.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 5 Sept 2026 — `Success - 0 error(s)`, `ok=true`,
+`tail1_target_hits={}`.** All four tail-1 classes import clean on every affected map
+(`4-Recreation` OrStatement×15, `1-Welcome` TrainingCondition×1, needle×4 on
+`7-BossFight`, Or×2 on Resi/Slums/Gauntlet/ChallengeRoomElectric). Report:
+`%TEMP%/bioshock-script-import-all-maps/bioshock_import_scripts_all_maps.json`.
+
+| Map | Scripts | Mapped | `nested_unmapped` | Remaining `nested_unmapped_classes` |
+|---|---:|---:|---:|---|
+| `0-Lighthouse` | 54 | 339 | 0 | — |
+| `1-Medical` | 300 | 1,463 | 0 | *(prior 27 Aug; not re-run)* |
+| `1-Welcome` | 320 | 2,195 | 0 | — |
+| `2-Fisheries` | 418 | 2,210 | 0 | — |
+| `2-SubBay` | 74 | 510 | 0 | — |
+| `3-Arcadia` | 369 | 2,150 | 0 | — |
+| `3-Market` | 140 | 597 | 0 | — |
+| `4-Recreation` | 439 | 3,072 | 88 | `ActionChangeSkinToPhoto` 68; `ActionSetNextAssassinTeleportInRunDestination` 20 |
+| `5-Hephaestus` | 190 | 760 | 0 | — |
+| `5-Ryan` | 95 | 577 | 0 | — |
+| `6-Resi` | 192 | 929 | 0 | — |
+| `6-Slums` | 117 | 553 | 0 | — |
+| `7-BossFight` | 71 | 379 | 0 | — |
+| `7-Gauntlet` | 139 | 854 | 0 | — |
+| `7-Science` | 189 | 894 | 0 | — |
+| `Autoplay` | 300 | 1,460 | 0 | — |
+| `Entry` / `museum` | 0 | 0 | 0 | — |
+| `ChallengeRoomCombat` | 304 | 1,831 | 12 | `ActionSetNextAssassinTeleportInRunDestination` 9; `ActionSaveGame` 3 |
+| `ChallengeRoomDecoy` | 90 | 378 | 0 | — |
+| `ChallengeRoomElectric` | 141 | 601 | 0 | — |
+
+Top-level `unmapped_classes` empty on every map. Remaining nested gaps are genuine
+missing `UShockAction*` classes (name maps `Action*`→`ShockAction*` but
+`load_class` fails) — not stubbed. Closest existing types are
+`ShockActionChangeSkinAtIndex` and `ShockActionSetNextAssassinTeleportPoint`
+(different UnrealScript names). `ActionSaveGame` has no runtime class yet.
+
+Also: `import_scripts.py` sibling sidecar lookup no longer prefers a stray
+`1-Medical.script-actions.json` ahead of the manifest's own sibling.
+
+---
+
 ## Grenade Launcher slot equip + Tommy Gun ammo drum (h16) — 5 Sept 2026
 
 Two in-editor reports right after h12 (grip align) / h14 (GL mesh).
