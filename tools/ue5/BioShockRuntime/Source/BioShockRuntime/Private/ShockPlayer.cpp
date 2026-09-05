@@ -58,7 +58,30 @@ bool TryGetViewHandsAnimNames(FName WeaponDefName, FViewHandsAnimNames& Out)
 		Out = {TEXT("EquipCrossbow"), TEXT("FidgetCrossbow"), TEXT("FireCrossbow"), TEXT("ReloadCrossbow")};
 		return true;
 	}
-	// Shotgun / ChemicalThrower: zero FP clips imported. Wrench: no mesh yet (h3).
+	if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
+	{
+		// Multi-part reload (ReloadShotgun_Start/_LOOP/_End) collapses to _Start for this
+		// single-clip struct — a first pass; the shell-by-shell loop is a later refinement.
+		Out = {TEXT("EquipShotgun"), TEXT("FidgetShotgun"), TEXT("FireShotgun"), TEXT("ReloadShotgun_Start")};
+		return true;
+	}
+	if (Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase))
+	{
+		// Fire is a Start/Loop/End trio in-game; FireStartChem is the trigger-pull this struct plays.
+		Out = {TEXT("EquipChem"), TEXT("FidgetChem"), TEXT("FireStartChem"), TEXT("ReloadChem")};
+		return true;
+	}
+	if (Key.Equals(TEXT("GrenadeLauncher"), ESearchCase::IgnoreCase))
+	{
+		Out = {TEXT("EquipLauncher"), TEXT("FidgetLauncher"), TEXT("FireLauncher"), TEXT("ReloadLauncher")};
+		return true;
+	}
+	if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
+	{
+		// Melee: no reload. "Fire" is the swing; Swing_A_Wrench is the primary strike clip.
+		Out = {TEXT("EquipWrench"), TEXT("FidgetWrench"), TEXT("Swing_A_Wrench"), nullptr};
+		return true;
+	}
 	return false;
 }
 
@@ -284,6 +307,18 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 	// Wrench: NEWPlayerHands socket is also named Wrench (on R_Grip) — research/skeletalmesh.md.
 	// No alias required when the imported hands mesh carries it; fall through already returns
 	// WeaponDefName above. Kept as an explicit check only if a future hands import renames it.
+
+	// Shotgun has no named socket on the hands mesh at all — every per-weapon socket sits on the
+	// R_grip bone, and the FidgetShotgun/FireShotgun clips already pose the hands around the gun,
+	// so pinning the weapon to that bone is the correct anchor. Bones satisfy DoesSocketExist on a
+	// skeletal mesh component.
+	for (const TCHAR* GripBone : {TEXT("R_grip"), TEXT("R_Grip"), TEXT("Bip01_R_Hand")})
+	{
+		if (ViewHands->DoesSocketExist(FName(GripBone)))
+		{
+			return FName(GripBone);
+		}
+	}
 
 	if (!LoggedMissingGripSockets.Contains(WeaponDefName))
 	{

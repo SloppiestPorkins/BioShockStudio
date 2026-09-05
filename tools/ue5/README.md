@@ -684,8 +684,30 @@ fidget via `GetPlayLength()`, only call `PlayAnimation` when state changes.
 | TommyGun | `EquipTommygun` | `FidgetTommygun` | `FireTommyGun` | `ReloadTommyGun` |
 | Pistol | `EquipPistol` | `FidgetPistol` | `FireSinglePistol` | `FastReloadPistol` |
 | Crossbow | `EquipCrossbow` | `FidgetCrossbow` | `FireCrossbow` | `ReloadCrossbow` |
-| Shotgun / ChemicalThrower | *(none)* | *(none)* | *(none)* | *(none)* — hold bind/last pose pending import |
-| Wrench | excluded (no skeletal mesh — h3) | | | |
+| Shotgun | `EquipShotgun` | `FidgetShotgun` | `FireShotgun` | `ReloadShotgun_Start` |
+| ChemicalThrower | `EquipChem` | `FidgetChem` | `FireStartChem` | `ReloadChem` |
+| GrenadeLauncher | `EquipLauncher` | `FidgetLauncher` | `FireLauncher` | `ReloadLauncher` |
+| Wrench | `EquipWrench` | `FidgetWrench` | `Swing_A_Wrench` | *(none — melee)* |
+
+### 5 Sept 2026 — the other four weapons' clips landed (h8 left them unimported)
+
+The hand-anim clips for Shotgun / ChemicalThrower / Wrench / GrenadeLauncher exist
+in-game on `UAPW_NEWPlayerHands` (owners of the same name, 8-12 clips each) — h8
+only ever imported Pistol / TommyGun / Crossbow. `tools/ue5/import_fp_hand_anims.py`
+(+ `run_*`) imports them from `export-fbx 0-Lighthouse UAPW_NEWPlayerHands <out> <owner>`
+per owner (NOT `export-firstperson` — it uses one string for both owner-filter and
+socket name, and Chem / Launcher / Shotgun don't match their owner name). 33 → 72
+anims on disk. `TryGetViewHandsAnimNames` wired for all four; multi-part fire/reload
+(`FireStartChem`, `ReloadShotgun_Start/_LOOP/_End`) collapse to the trigger clip for
+the single-clip struct — shell-by-shell reload is a later refinement.
+
+Shotgun has **no named grip socket** on the hands mesh (every per-weapon socket sits
+on the `R_grip` bone and the FidgetShotgun clip already poses the hands around the
+gun). `ResolveGripSocketForWeapon` now falls back to the `R_grip` bone for any weapon
+without a socket — `alignRoot ... socketToRoot=0.00` for Shotgun after the fix.
+
+**Verified live UE5.7, 5 Sept 2026 — `viewmodel_anims=ok`.** All seven weapons
+resolve equip/fidget/fire/(reload) clips; `run_verify_wrench` Success.
 
 Zoomed-in variants (`ZoomedInFidget*`, `ZoomingIn*`, …) are **not** wired — this
 codebase has no ADS / zoom input signal yet; inventing one is out of scope.
