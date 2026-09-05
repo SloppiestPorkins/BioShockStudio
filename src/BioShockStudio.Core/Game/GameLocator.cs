@@ -75,6 +75,10 @@ public static partial class GameLocator
     public static string StreamAudioDirectory(string gameRoot) =>
         Path.Combine(gameRoot, "ContentBaked", "pc", "Sounds_Windows");
 
+    /// <summary>Scaleform UI (HUD, menus, hacking minigame, weapon wheel, …) as compiled .swf files.</summary>
+    public static string FlashMoviesDirectory(string gameRoot) =>
+        Path.Combine(gameRoot, "ContentBaked", "pc", "FlashMovies");
+
     /// <summary>The game's x86 FMOD Ex runtime, used only by the separate x86 stream decoder.</summary>
     public static string FmodRuntime(string gameRoot) =>
         Path.Combine(gameRoot, "Build", "Final", "fmodex.dll");

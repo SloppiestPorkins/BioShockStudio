@@ -11,6 +11,9 @@ using BioShockStudio.Core.Packages;
 using BioShockStudio.Core.Level;
 using BioShockStudio.Core.Services;
 using BioShockStudio.Core.Textures;
+using BioShockStudio.Core.UI.Swf;
+using BioShockStudio.Core.UI.Swf.Rendering;
+using BioShockStudio.Core.UI.Swf.Shapes;
 using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json;
@@ -71,6 +74,8 @@ try
         "weapon-effects" => WeaponEffectsCommand(root, args),
         "effect-class" => EffectClassCommand(root, args),
         "export-script-actions" => ExportScriptActions(root, args),
+        "swf-inspect" => SwfInspect(root, args),
+        "export-swf-shapes" => ExportSwfShapes(root, args),
         _ => Usage(),
     };
 }
@@ -146,6 +151,12 @@ static int Usage()
                                         --preview also writes a mesh-plus-animation file to look at.
                                         --group overrides the "WP_<weapon>" group-name guess, for
                                         weapons whose socket name doesn't match their own group.
+          swf-inspect <name.swf>        Tag-type census of a FlashMovies UI file (DefineShape,
+                                        DefineFont2, DefineSprite counts, etc.) — no rendering.
+          export-swf-shapes <name.swf> <out-dir> [--id=<id>] [--size=<px>]
+                                        Rasterize DefineShape/2/3/4 character(s) to PNG. Omit --id
+                                        to export every shape in the file; --size sets the square
+                                        output resolution (default 256).
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -2041,6 +2052,118 @@ static int ExportFirstPerson(string root, string[] args)
 
 static bool IsInGroup(BioShockPackage package, ObjectExport export, string group) =>
     string.Equals(AssetContextResolver.TopLevelGroup(package, export), group, StringComparison.OrdinalIgnoreCase);
+
+static int SwfInspect(string root, string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("usage: swf-inspect <name.swf>");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, args[1]);
+    var swf = SwfFile.Read(path);
+    Console.WriteLine($"{Path.GetFileName(path)}: version {swf.Version}, " +
+                      $"{swf.FrameSize.WidthPx:F0}x{swf.FrameSize.HeightPx:F0}px, " +
+                      $"{swf.FrameRate:F1} fps, {swf.FrameCount} frame(s), {swf.Tags.Count} top-level tag(s)");
+
+    var counts = new SortedDictionary<int, int>();
+    foreach (var tag in swf.Tags)
+        counts[tag.Code] = counts.GetValueOrDefault(tag.Code) + 1;
+    foreach (var (code, count) in counts.OrderByDescending(kv => kv.Value))
+        Console.WriteLine($"  tag {code,3} ({SwfTagName(code),-24}): {count}");
+    return 0;
+}
+
+static int ExportSwfShapes(string root, string[] args)
+{
+    var positional = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: export-swf-shapes <name.swf> <out-dir> [--id=<id>] [--size=<px>]");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, positional[0]);
+    string outputDirectory = positional[1];
+    Directory.CreateDirectory(outputDirectory);
+
+    int? onlyId = null;
+    string? idArg = args.FirstOrDefault(a => a.StartsWith("--id=", StringComparison.OrdinalIgnoreCase));
+    if (idArg is not null) onlyId = int.Parse(idArg["--id=".Length..]);
+    int size = 256;
+    string? sizeArg = args.FirstOrDefault(a => a.StartsWith("--size=", StringComparison.OrdinalIgnoreCase));
+    if (sizeArg is not null) size = int.Parse(sizeArg["--size=".Length..]);
+
+    var swf = SwfFile.Read(path);
+    int written = 0, skipped = 0;
+    foreach (var tag in swf.Tags)
+    {
+        if (tag.Code is not (2 or 22 or 32 or 83)) continue;
+
+        SwfShape shape;
+        try
+        {
+            shape = SwfShapeReader.Read(tag.Body, tag.Code);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  skip tag {tag.Code}: {ex.Message}");
+            skipped++;
+            continue;
+        }
+        if (onlyId is not null && shape.CharacterId != onlyId) continue;
+
+        byte[] rgba = SwfShapeRasterizer.Rasterize(shape, size, size);
+        string outPath = Path.Combine(outputDirectory, $"shape_{shape.CharacterId}.png");
+        PngWriter.Write(outPath, rgba, size, size);
+        Console.WriteLine($"  wrote {outPath} (id={shape.CharacterId}, " +
+                          $"{shape.Edges.Count} edges, {shape.FillStyles.Count} fill style(s))");
+        written++;
+    }
+    Console.WriteLine($"{written} shape(s) written, {skipped} skipped");
+    return 0;
+}
+
+static string ResolveSwfPath(string root, string nameOrPath)
+{
+    if (File.Exists(nameOrPath)) return nameOrPath;
+    string candidate = Path.Combine(GameLocator.FlashMoviesDirectory(root), nameOrPath);
+    if (File.Exists(candidate)) return candidate;
+    if (!candidate.EndsWith(".swf", StringComparison.OrdinalIgnoreCase))
+    {
+        candidate += ".swf";
+        if (File.Exists(candidate)) return candidate;
+    }
+    throw new FileNotFoundException($"SWF not found: '{nameOrPath}' (checked as given and under FlashMovies/)");
+}
+
+static string SwfTagName(int code) => code switch
+{
+    2 => "DefineShape",
+    6 => "DefineBits",
+    8 => "JPEGTables",
+    9 => "SetBackgroundColor",
+    10 => "DefineFont",
+    11 => "DefineText",
+    20 => "DefineBitsLossless",
+    21 => "DefineBitsJPEG2",
+    22 => "DefineShape2",
+    26 => "PlaceObject2",
+    32 => "DefineShape3",
+    33 => "DefineText2",
+    35 => "DefineBitsJPEG3",
+    36 => "DefineBitsLossless2",
+    37 => "DefineEditText",
+    39 => "DefineSprite",
+    48 => "DefineFont2",
+    56 => "ExportAssets",
+    57 => "ImportAssets",
+    70 => "PlaceObject3",
+    75 => "DefineFont3",
+    82 => "DoABC",
+    83 => "DefineShape4",
+    88 => "DefineFontName",
+    _ => $"Unknown({code})",
+};
 
 static string ResolvePackage(string root, string name)
 {
