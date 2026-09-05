@@ -1341,6 +1341,27 @@ UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
 `QUERY_AND_PHYSICS`. Close the live editor before apply — Error 32 file locks otherwise leave
 meshes unsaved.
 
+## Compiled-world collision — all 15 BioShockLevel maps (5 Sept 2026)
+
+`fix_compiled_world_collision.py` had only ever been run on `BioShockSlice/1-Medical` and
+`BioShockLevel/1-Medical`. The other 13 `/Game/BioShockLevel/*` maps still had their
+compiled-world shell (`Model<n>_<idx>`) on `CTF_USE_DEFAULT` with **1 auto convex hull** and
+non-Static mobility — the original "solid blob, player stuck on the outside / falls through"
+bug, unfixed since those maps were first imported. Surfaced as "collision is gone again" when
+play-testing past Medical (Lighthouse / Welcome / etc.).
+
+Fix: ran `fix_compiled_world_collision.py` with `BIOSHOCK_COLLISION_MAPS` set to all 15 maps
+(`0-Lighthouse,1-Medical,1-Welcome,2-Fisheries,2-SubBay,3-Arcadia,3-Market,4-Recreation,`
+`5-Hephaestus,5-Ryan,6-Resi,6-Slums,7-BossFight,7-Gauntlet,7-Science`). All 15 shells now
+`CTF_USE_COMPLEX_AS_SIMPLE`, 0 convex/box, mobility restored to Static (every one reported
+`restoredStatic=True`). `run_collision.py` re-verify: structural check passes on all 15; the
+only residual failure is "no PlayerStart" on the 14 non-Medical maps (they carry raw geometry
+only — player spawns are a separate gap, not a collision problem).
+
+MSYS path-mangling note: pass the `.exe` / `.uproject` / `-script=` as Windows-style paths
+(backslashes) **and** set `MSYS_NO_PATHCONV=1`, otherwise a lone `/Game/...` env value gets
+rewritten to `C:/Program Files/Git/Game/...` and the map "could not load".
+
 ## Headless gotchas
 
 Both documented the hard way, immediately below.
