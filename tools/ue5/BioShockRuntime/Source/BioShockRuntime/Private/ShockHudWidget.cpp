@@ -147,6 +147,17 @@ UOverlay* MakeMeterStack(
 	FName FillName)
 {
 	UOverlay* Overlay = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), OverlayName);
+	Overlay->SetClipping(EWidgetClipping::ClipToBounds);
+
+	// Frame FIRST (bottom of the overlay stack) — it is the housing. The liquid fill draws
+	// OVER its recessed centre, so the fill is the LAST child. Reversed order hid the fill
+	// entirely behind the frame's opaque brown centre.
+	OutFrame = MakeImage(Tree, FrameName, FVector2D(MeterDisplayWidth, MeterDisplayHeight));
+	if (UOverlaySlot* FrameSlot = Overlay->AddChildToOverlay(OutFrame))
+	{
+		FrameSlot->SetHorizontalAlignment(HAlign_Left);
+		FrameSlot->SetVerticalAlignment(VAlign_Top);
+	}
 
 	OutFillSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FillSizeName);
 	OutFillSize->SetHeightOverride(MeterDisplayHeight - FillInsetTop - FillInsetBottom);
@@ -158,13 +169,6 @@ UOverlay* MakeMeterStack(
 		FillSlot->SetPadding(FMargin(FillInsetLeft, FillInsetTop, FillInsetRight, FillInsetBottom));
 		FillSlot->SetHorizontalAlignment(HAlign_Left);
 		FillSlot->SetVerticalAlignment(VAlign_Top);
-	}
-
-	OutFrame = MakeImage(Tree, FrameName, FVector2D(MeterDisplayWidth, MeterDisplayHeight));
-	if (UOverlaySlot* FrameSlot = Overlay->AddChildToOverlay(OutFrame))
-	{
-		FrameSlot->SetHorizontalAlignment(HAlign_Left);
-		FrameSlot->SetVerticalAlignment(VAlign_Top);
 	}
 	return Overlay;
 }
