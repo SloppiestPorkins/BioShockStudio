@@ -77,6 +77,7 @@ try
         "swf-inspect" => SwfInspect(root, args),
         "export-swf-shapes" => ExportSwfShapes(root, args),
         "export-swf-font" => ExportSwfFont(root, args),
+        "export-swf-sprite" => ExportSwfSprite(root, args),
         _ => Usage(),
     };
 }
@@ -163,6 +164,10 @@ static int Usage()
                                         glyph named by character. --fontId picks a font when a
                                         file embeds more than one; --text limits to just those
                                         characters (default: every glyph in the font).
+          export-swf-sprite <name.swf> <character-id> <out.png> [--size=<px>]
+                                        Composite a DefineSprite's first frame (or a bare
+                                        DefineShape) — depth-ordered children, each transformed
+                                        by its own PlaceObject2 matrix — into one PNG.
 
         Set BIOSHOCK_REMASTERED_PATH to override game auto-detection.
         """);
@@ -2185,6 +2190,40 @@ static int ExportSwfFont(string root, string[] args)
         }
     }
     Console.WriteLine($"{written} glyph(s) written");
+    return 0;
+}
+
+static int ExportSwfSprite(string root, string[] args)
+{
+    var positional = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    if (positional.Count < 3)
+    {
+        Console.Error.WriteLine("usage: export-swf-sprite <name.swf> <character-id> <out.png> [--size=<px>]");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, positional[0]);
+    int characterId = int.Parse(positional[1]);
+    string outPath = positional[2];
+    int size = 256;
+    string? sizeArg = args.FirstOrDefault(a => a.StartsWith("--size=", StringComparison.OrdinalIgnoreCase));
+    if (sizeArg is not null) size = int.Parse(sizeArg["--size=".Length..]);
+
+    var swf = SwfFile.Read(path);
+    var dict = SwfCharacterDictionary.Build(swf);
+    SwfShape composed = SwfSpriteComposer.Compose(characterId, dict);
+
+    Console.WriteLine($"character {characterId}: {composed.Edges.Count} edge(s), " +
+                      $"{composed.FillStyles.Count} fill style(s), bounds={composed.Bounds}");
+    if (composed.Edges.Count == 0)
+    {
+        Console.Error.WriteLine("no edges resolved — character id not found, or an empty/unsupported sprite");
+        return 1;
+    }
+
+    byte[] rgba = SwfShapeRasterizer.Rasterize(composed, size, size);
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+    PngWriter.Write(outPath, rgba, size, size);
+    Console.WriteLine($"wrote {outPath}");
     return 0;
 }
 
