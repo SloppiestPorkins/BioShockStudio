@@ -23,6 +23,8 @@ const TMap<FString, FString>& Table()
 		{TEXT("Crossbow"), TEXT("Crossbow")},
 		{TEXT("ResearchCamera"), TEXT("Research Camera")},
 		{TEXT("Camera"), TEXT("Research Camera")},
+		{TEXT("ShockResearchCamera"), TEXT("Research Camera")},
+		{TEXT("ShockResearchCamera_C"), TEXT("Research Camera")},
 	};
 	return Map;
 }

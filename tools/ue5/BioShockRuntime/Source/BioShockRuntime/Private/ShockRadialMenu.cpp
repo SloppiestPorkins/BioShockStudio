@@ -25,10 +25,10 @@ FString UShockRadialMenu::LastRadialVerifyError;
 
 namespace
 {
-constexpr float RingSize = 420.0f;
-constexpr float SegmentRingSize = 64.0f;
-constexpr float SegmentRadius = 155.0f;
-constexpr float LabelRadiusBase = 215.0f;
+constexpr float RingSize = 360.0f;
+constexpr float SegmentRingSize = 58.0f;
+constexpr float SegmentRadius = 150.0f;
+constexpr float LabelRadiusBase = 232.0f;
 constexpr float StatDigitW = 22.0f;
 constexpr float StatDigitH = 44.0f;
 constexpr int32 MaxStatDigits = 4;
@@ -191,11 +191,16 @@ void UShockRadialMenu::EnsureWidgetTree()
 	RingImage->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.92f));
 	if (UCanvasPanelSlot* RingSlot = RootCanvas->AddChildToCanvas(RingImage))
 	{
-		// Dead-centre of the screen — not offset toward the HUD cluster.
+		// Dead-centre of the screen. Explicit size + a centred anchor RECT (not autosize):
+		// autosize defers to the widget's desired size, which for a SetBrushFromTexture(tex,true)
+		// image is the texture's native size — that's why the wheel came out small and high.
 		RingSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		RingSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-		RingSlot->SetAutoSize(true);
-		RingSlot->SetPosition(FVector2D::ZeroVector);
+		RingSlot->SetAutoSize(false);
+		// The brass ring art sits in the upper part of its source square, so a box centred on
+		// the screen renders the visible ring ~55px high. Nudge it down to sit on the segments.
+		RingSlot->SetPosition(FVector2D(0.0f, 55.0f));
+		RingSlot->SetSize(FVector2D(RingSize, RingSize));
 	}
 
 	CenterNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CenterName"));
@@ -395,7 +400,8 @@ void UShockRadialMenu::RebuildSegments()
 		{
 			RS->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 			RS->SetAlignment(FVector2D(0.5f, 0.5f));
-			RS->SetAutoSize(true);
+			RS->SetAutoSize(false);
+			RS->SetSize(FVector2D(SegmentRingSize, SegmentRingSize));
 			RS->SetPosition(RingPos);
 		}
 		SegmentRings.Add(SegRing);
