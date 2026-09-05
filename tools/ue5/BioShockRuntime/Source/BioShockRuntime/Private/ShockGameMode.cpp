@@ -94,6 +94,10 @@ void EnableDynamicLighting(UWorld* World)
 		// Keep/restore the CSG level shell as Static. CTF_USE_COMPLEX_AS_SIMPLE collision is only
 		// valid for static shapes (Chaos); a prior lighting pass flipped the shell to Movable,
 		// which made FindFloor miss (hit=0) while WorldStatic line traces still hit.
+		// The shell has no UE lightmaps (force_no_precomputed_lighting; BioShock atlases not
+		// imported). Do NOT flip it Movable to "fix" Play lighting — that re-breaks collision.
+		// If the shell still looks wrong after camera exposure matches the repair PPV, use a
+		// dual-mesh (Static collision proxy + Movable render mesh), not a mobility revert.
 		const FString Label = It->GetActorLabel();
 		const UStaticMesh* Asset = Mesh->GetStaticMesh();
 		const FString AssetName = Asset ? Asset->GetName() : FString();

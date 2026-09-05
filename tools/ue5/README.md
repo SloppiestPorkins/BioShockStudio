@@ -366,6 +366,33 @@ verify not re-run here** (agent Shell blocked by Cursor `rtk hook claude` / bash
 conflict). Report: `%TEMP%/weapon_feedback_report.json`. Human confirms feel in
 PIE afterward.
 
+## Play entirely dark vs bright editor viewport (h19) — 5 Sept 2026
+
+User report: editor viewport looks fine (even blown-out bright); pressing Play /
+Standalone goes completely dark.
+
+**Checked first — h11 Static compiled-world shell:** `EnableDynamicLighting` still
+keeps/restores the "compiled world" / `Model\d+_\d+` shell as Static for
+`CTF_USE_COMPLEX_AS_SIMPLE` (Chaos). That shell has **no** UE baked lightmaps
+(`force_no_precomputed_lighting`; BioShock lightmap atlases are not imported;
+`bake_mesh_render_data.py` disables lightmap UV gen). Confirmed risk: Static + no
+lightmap can render unlit in game while the editor shows an unbuilt preview. **Not
+reverted** — flipping the shell back to Movable would re-break h11 collision. If
+walls/floors still look wrong after the exposure fix below, the next step is a
+**dual mesh** (Static invisible collision proxy + Movable lit render mesh), not a
+mobility revert. `run_collision.py` / `verify_collision.py` must stay 0 errors.
+
+**Actual editor-vs-Play gap (confirmed in code):** `AShockPlayer`'s camera pinned
+Manual `AutoExposureBias = 0` at `PostProcessBlendWeight = 1`, which **overrides**
+`repair_level_lighting.py`'s unbound PostProcessVolume (`BIOSHOCK_LIGHT_EV`,
+default **11**). Editor viewport sees the volume → bright; possessed Play sees EV 0
+→ near-black. Lights are present (664 PointLights on Medical + fill sun/sky from
+`EnableDynamicLighting`); this was not a missing-light import gap.
+
+**Fix:** camera Manual bias set to **11.0f** to match the repair PPV default. Human
+confirms in PIE/Standalone after `rebuild_runtime_fast.ps1`. No headless lighting
+assert — render look is the check. Collision path untouched.
+
 ## Tommy Gun fire mode + grip socket align (h12) — 5 Sept 2026
 
 User report (first in-editor weapon test after movement/collision): Tommy Gun is
@@ -1013,6 +1040,59 @@ Supported today: `SkeletalMesh`, `Skeleton`, `AnimSequence`, `Texture2D`, rig `M
 `PointLight`, `SphereReflectionCapture` (29 Medical probes placed live, 25 Aug 2026).
 Explicitly **not** supported, and stated in the report so the map cannot imply otherwise: a UE5
 material *expression graph* for level geometry, and `TextureCube` assembly (face order UNKNOWN).
+
+## Decal mesh NoCollision (5 Sept 2026)
+
+Cosmetic overlay meshes (Wall_Leak, blood smears, damdec, ScorchMark, drips) were getting the
+OBJ importer's default auto convex hull and blocking the player like solid geometry. There is no
+decal-specific collision handling in `import_level.py` / `import_bioshock.py`.
+
+**Do not use `outputBlending in (1, 2)` alone** — that is the codebase's soft-alpha signal for
+"blood splats, drips, decals" (`import_bioshock._material_rendering_kind`), but
+`Wall_Leak_diff_shader` and `reinforcedglass_diffuse_shader` both carry `outputBlending: 1`.
+Thinness alone also fails: offline AABB measurement on the Medical export OBJs
+(`Exports/1-Medical/1-Medical/Meshes/*.obj` + instance census from `1-Medical.ue5-level.json`)
+showed:
+
+| group | n | thinness min / p50 / p90 / max | notes |
+|---|---|---|---|
+| known decals | 14 | 0.0 / 0.0 / 0.171 / 0.171 | Wall_Leak_*, bloodsmear, BloodSplat*, damdec_*, ScorchMark, Drips*; zero-depth quads except volumetric Drips* |
+| known glass | 6 | 0.0 / 0.013 / 0.019 / 0.019 | Int_WindowGlass, BrokenGlassA, glass_safety, … — same flatness band as decals |
+| puddles | 7 | 0.0 / 0.007 / 0.015 / 0.015 | keep collision; excluded by name |
+| baseline props | 25 | 0.084 / 0.313 / 0.697 / 0.929 | furniture / doors / pillars |
+
+Reuse pattern (decal, not architecture): `Wall_Leak_1024` = 78 instances / 27 unique rotations;
+`Wall_Leak_512` = 42 / 17; `BloodSplat3` = 40 / 19. Glass panes share fewer placements
+(`Int_WindowGlass_128x256` = 21 / 5).
+
+**Shipped rule** (mirrors `fix_walkable_prop_collision.py`: keywords + size/thinness filter +
+exclude list):
+
+- keywords (substring, case-insensitive): `wall_leak|bloodsmear|blood.?splat|bloodsplat|damdec|scorch|drip|decal|smear|splat|footprint`
+- excludes: `glass|window|puddle|water`
+- max thinness (local mesh AABB min/max extent): **0.20** (catches all 14 Medical decals including DripsSparse at 0.171; glass/puddles never reach the keyword pass once excluded)
+
+Dry-run on `/Game/BioShockSlice/1-Medical` matched exactly those 14 meshes (273 actor instances),
+excluded 3 drip+puddle names, skipped 0 as too thick. Apply sets BodySetup
+`default_instance` + component to `NoCollision` and clears simple agg geom.
+
+```bash
+# dry-run first — review %TEMP%/fix_decal_collision.json
+BIOSHOCK_DECAL_DRY=1 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\fix_decal_collision.py -unattended -nopause -nosplash
+BIOSHOCK_DECAL_DRY=0 UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\fix_decal_collision.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_collision.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript \
+    -script=tools\ue5\run_decal_collision.py -unattended -nopause -nosplash
+```
+
+**Measured live UE5.7, 5 Sept 2026 — both `Success - 0 error(s)`.** `run_collision.py` failures=`[]`.
+`run_decal_collision.py`: all 14 decal meshes `NO_COLLISION` on component + mesh BodySetup;
+`Int_WindowGlass_128x256` / `glass_safety` / compiled-world `Model1_20761` still
+`QUERY_AND_PHYSICS`. Close the live editor before apply — Error 32 file locks otherwise leave
+meshes unsaved.
 
 ## Headless gotchas
 

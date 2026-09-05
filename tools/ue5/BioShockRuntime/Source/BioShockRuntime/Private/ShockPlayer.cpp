@@ -106,11 +106,15 @@ AShockPlayer::AShockPlayer()
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->bUsePawnControlRotation = true;
+	// Manual exposure must match repair_level_lighting.py's unbound PPV (BIOSHOCK_LIGHT_EV,
+	// default 11). Camera PP at blend weight 1 overrides the volume: pinning EV=0 here made
+	// Play near-black while the editor viewport (volume only) stayed bright — reported
+	// 5 Sept 2026. Do not drop this back to 0 without also removing the repair PPV.
 	FirstPersonCamera->PostProcessBlendWeight = 1.0f;
 	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureMethod = true;
 	FirstPersonCamera->PostProcessSettings.AutoExposureMethod = AEM_Manual;
 	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureBias = true;
-	FirstPersonCamera->PostProcessSettings.AutoExposureBias = 0.0f;
+	FirstPersonCamera->PostProcessSettings.AutoExposureBias = 11.0f;
 
 	// Ticks so the viewmodel grip can be re-pinned each frame — see Tick.
 	PrimaryActorTick.bCanEverTick = true;
