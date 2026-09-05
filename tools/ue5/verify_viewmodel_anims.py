@@ -10,6 +10,7 @@ gross sideways misalignment (TommyGun "off to the side") is headlessly detectabl
 just "did a socket name resolve". Framing feel still needs a human look afterward.
 
 Shotgun / ChemicalThrower equip cleanly with no animation assertion (zero FP clips imported).
+ChemicalThrower still asserts grip socket == Chem (export-firstperson socket; def key differs).
 Wrench is excluded (no skeletal viewmodel — h3). Zoomed-in variants are not wired (no ADS
 signal in this codebase yet).
 """
@@ -50,7 +51,18 @@ _UNANIMATED = {
     "ChemicalThrower": 5,
 }
 
+# Def name → NEWPlayerHands socket when the export socket is not the def string.
+# GrenadeLauncher→Launcher already in runtime; ChemicalThrower→Chem fixed 5 Sept 2026.
+_SOCKET_ALIASES = {
+    "ChemicalThrower": "Chem",
+    "GrenadeLauncher": "Launcher",
+}
+
 _ANIM_ROOT = "/Game/BioShockWeapons/NEWPlayerHands/Animations"
+
+
+def _expected_socket(def_name):
+    return _SOCKET_ALIASES.get(def_name, def_name)
 
 
 def _log(message):
@@ -160,11 +172,13 @@ def main(out):
 
         player.equip_weapon(weapon)
         socket = _socket(player)
+        expected_socket = _expected_socket(def_name)
         entry["socketAfterEquip"] = socket
-        if socket != def_name:
+        entry["expectedSocket"] = expected_socket
+        if socket != expected_socket:
             failures.append(
-                "%s grip socket=%r expected %r (stale TommyGun / NAME_None regression)"
-                % (def_name, socket, def_name)
+                "%s grip socket=%r expected %r (stale TommyGun / NAME_None / missing alias)"
+                % (def_name, socket, expected_socket)
             )
 
         # Socket vs mesh: root bone must sit on the grip (context.md attachment rule). Bounds
@@ -308,10 +322,21 @@ def main(out):
             failures.append("GiveWeaponByDef(%s) null (unanimate — equip must not crash)" % def_name)
         else:
             player.equip_weapon(weapon)
-            entry["socket"] = _socket(player)
+            socket = _socket(player)
+            expected_socket = _expected_socket(def_name)
+            entry["socket"] = socket
+            entry["expectedSocket"] = expected_socket
             entry["anim"] = _playing(player)
             entry["equipped"] = True
             # No fidget/fire assertion — zero clips on disk; holding bind/last pose is correct.
+            # ChemicalThrower must still resolve Chem (not NAME_None): without the alias the mesh
+            # snaps to the hands component root and reads as "looks borked" (5 Sept 2026).
+            # Shotgun: hands skeleton has no Shotgun socket at all — expect empty; do not invent.
+            if def_name == "ChemicalThrower" and socket != expected_socket:
+                failures.append(
+                    "ChemicalThrower grip socket=%r expected %r (Chem alias regression)"
+                    % (socket, expected_socket)
+                )
         report["weapons"][def_name] = entry
         _log("%s equip-ok (unanimate) socket=%s" % (def_name, entry.get("socket")))
 

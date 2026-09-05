@@ -620,6 +620,56 @@ mesh path `/Game/BioShockWeapons/WP_GrenadeLauncher/WP_GrenadeLauncher.WP_Grenad
 via `GiveWeaponByDef`; Wrench `wrench=static_mesh_blocked`. Projectile/explosive fire for
 the GL was already covered by `verify_weapon_def.py` (not reinvented here).
 
+## ChemicalThrower / Crossbow visual defects (h17) — 5 Sept 2026
+
+User reports (in-editor): ChemicalThrower "looks borked"; Crossbow "textures are wrong".
+Diagnosed with `probe_weapon_visuals.py` against live `/Game/BioShockWeapons` assets
+(report `%TEMP%/weapon_visuals_probe.json`) before changing anything.
+
+**ChemicalThrower — confirmed defect (grip socket alias), not materials/beam.**
+
+| Check | Result |
+|---|---|
+| Mesh / MI / BaseColor+Normal | OK — `ChemThrow_Diff` / `ChemThrow_Norm`, no engine defaults |
+| Sampler Color-vs-Masks (masters under `/Game/BioShockWeapons`) | no issues (that class of bug was Slice-only) |
+| Bounds / scale vs Pistol/TommyGun/Shotgun | comparable (radius ~66 uu) |
+| Beam VFX | none implemented — `FireAtBeam` applies status only; not a held-viewmodel defect |
+| NEWPlayerHands sockets | `Chem=true`, `ChemicalThrower=false` |
+
+Root cause: same alias class as `GrenadeLauncher`→`Launcher`. Def key is
+`ChemicalThrower`; export-firstperson socket is `Chem`. Without the alias,
+`AttachToComponent(..., NAME_None)` snaps to the hands **component root**,
+`FrameViewmodel` never pins, and the gun floats wrong — reads as "borked".
+
+Fix: `ResolveGripSocketForWeapon` maps `ChemicalThrower`→`Chem` when that socket
+exists. `verify_viewmodel_anims.py` now asserts that socket after equip.
+`verify_weapon_meshes.py` also asserts every skeletal starter's material slots
+resolve non-default BaseColor/Normal (audit_level_materials-style).
+
+**Crossbow — no asset-level texture defect found; needs a human description.**
+
+Ruled out: null/default materials, sampler mismatch, missing DIFF/NORM bindings,
+wrong mesh path, missing `Crossbow` grip socket, gross scale outlier. Mesh has
+`MI_Crossbow_Shader` → `crossbow_diffuse` + `crossbow_NormalMap` (game export has
+no specular PNG — same as Content). If it still "looks wrong" in PIE, describe
+the failure mode (UV stretch, wrong atlas, checkerboard, flat lighting, …) —
+do not guess a second fix.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\run_weapon_meshes.py -unattended -nopause -nosplash
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript `
+    -script=<repo>\tools\ue5\run_viewmodel_anims.py -unattended -nopause -nosplash
+```
+
+**Verified live UE5.7, 5 Sept 2026:** `weapon_meshes=ok` 0 failures (incl. Chem/Crossbow
+BaseColor+Normal texture asserts) — `%TEMP%/h17_weapon_meshes_report.json`.
+`viewmodel_anims=ok` 0 failures — ChemicalThrower `socket=Chem` after equip
+(`BIOSHOCK_VIEWMODEL hands=1 socket=Chem weapon=ChemicalThrower`) —
+`%TEMP%/h17_viewmodel_anims_report.json`. Crossbow texture appearance still needs a
+human PIE description if the report persists.
+
 ## Runtime skeleton (Phase 3)
 
 `BioShockRuntime/` is a **runtime** plugin (not editor-only). Copy it into the UE project's

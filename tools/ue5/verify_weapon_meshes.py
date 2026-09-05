@@ -4,6 +4,10 @@ Exercises the real equip path (Resolve → ApplyDef → Mesh->SetSkeletalMesh), 
 SetSkeletalMesh in the test. Wrench is excluded from the skeletal expectation: WP_WrenchMesh in
 ShockGame.U is a plain StaticMesh with no UAPW wrapper (ROADMAP Gate 5 / research/context.md), so
 UShockWeaponDef leaves MeshAssetPath empty rather than pointing at a substitute.
+
+Also asserts each skeletal mesh's material slots resolve non-default BaseColor/Normal texture
+parameters (same class of check as audit_level_materials slot checks) so a null/default-material
+texture on ChemicalThrower/Crossbow cannot ship unnoticed.
 """
 
 import json
@@ -37,6 +41,93 @@ def _asset_path(mesh):
         return mesh.get_path_name()
     except Exception:  # noqa: BLE001
         return str(mesh)
+
+
+_ENGINE_DEFAULT_MARKERS = (
+    "WorldGridMaterial",
+    "DefaultMaterial",
+    "DefaultTextMaterialOpaque",
+    "EngineMaterials/Default",
+    "WhiteSquareTexture",
+    "DefaultTexture",
+    "DefaultNormal",
+)
+
+
+def _is_engine_default(path):
+    if not path:
+        return True
+    return any(marker in path for marker in _ENGINE_DEFAULT_MARKERS)
+
+
+def _texture_ok(texture):
+    path = _asset_path(texture)
+    return texture is not None and not _is_engine_default(path)
+
+
+def _slot_texture_report(material):
+    """BaseColor/Normal resolve status for one material interface (MI or master)."""
+    entry = {
+        "material": _asset_path(material),
+        "isEngineDefault": _is_engine_default(_asset_path(material)),
+        "baseColor": None,
+        "normal": None,
+    }
+    if material is None:
+        return entry
+
+    edit = unreal.MaterialEditingLibrary
+    base = normal = None
+    if isinstance(material, unreal.MaterialInstanceConstant):
+        base = edit.get_material_instance_texture_parameter_value(material, "BaseColor")
+        normal = edit.get_material_instance_texture_parameter_value(material, "Normal")
+    if base is None and isinstance(material, unreal.Material):
+        node = edit.get_material_property_input_node(
+            material, unreal.MaterialProperty.MP_BASE_COLOR)
+        if isinstance(node, unreal.MaterialExpressionTextureSampleParameter2D):
+            base = node.get_editor_property("texture")
+    if normal is None and isinstance(material, unreal.Material):
+        node = edit.get_material_property_input_node(
+            material, unreal.MaterialProperty.MP_NORMAL)
+        if isinstance(node, unreal.MaterialExpressionTextureSampleParameter2D):
+            normal = node.get_editor_property("texture")
+
+    entry["baseColor"] = _asset_path(base)
+    entry["normal"] = _asset_path(normal)
+    entry["baseColorOk"] = _texture_ok(base)
+    entry["normalOk"] = _texture_ok(normal)
+    return entry
+
+
+def _assert_mesh_textures(def_name, skel, failures):
+    """Fail if any material slot is engine-default or has null/default BaseColor/Normal."""
+    slots = skel.get_editor_property("materials") or []
+    reports = []
+    if not slots:
+        failures.append("%s skeletal mesh has no material slots" % def_name)
+        return reports
+    for index, slot in enumerate(slots):
+        mat = slot.get_editor_property("material_interface")
+        slot_entry = _slot_texture_report(mat)
+        slot_entry["index"] = index
+        reports.append(slot_entry)
+        if mat is None or slot_entry["isEngineDefault"]:
+            failures.append(
+                "%s slot %d material null/engine-default (%s)"
+                % (def_name, index, slot_entry["material"])
+            )
+            continue
+        if not slot_entry.get("baseColorOk"):
+            failures.append(
+                "%s slot %d BaseColor null/default (%s)"
+                % (def_name, index, slot_entry.get("baseColor"))
+            )
+        if not slot_entry.get("normalOk"):
+            failures.append(
+                "%s slot %d Normal null/default (%s)"
+                % (def_name, index, slot_entry.get("normal"))
+            )
+    return reports
 
 
 # Def name → (slot, expected skeletal mesh object path). Wrench deliberately omitted.
@@ -117,6 +208,8 @@ def main(out):
             )
         elif got != expected:
             failures.append("%s mesh got %s expected %s" % (def_name, got, expected))
+        else:
+            entry["materialSlots"] = _assert_mesh_textures(def_name, skel, failures)
         report["weapons"][def_name] = entry
 
     try:

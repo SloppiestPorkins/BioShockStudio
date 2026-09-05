@@ -271,6 +271,15 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 		return FName(TEXT("Launcher"));
 	}
 
+	// Def key is ChemicalThrower; NEWPlayerHands socket is Chem (export-firstperson Chem).
+	// Without this alias AttachToComponent gets NAME_None → hands component root, no FrameViewmodel
+	// pin — measured 5 Sept 2026: hands sockets include Chem, not ChemicalThrower (probe_weapon_visuals).
+	if (WeaponDefName.ToString().Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)
+		&& ViewHands->DoesSocketExist(FName(TEXT("Chem"))))
+	{
+		return FName(TEXT("Chem"));
+	}
+
 	if (!LoggedMissingGripSockets.Contains(WeaponDefName))
 	{
 		LoggedMissingGripSockets.Add(WeaponDefName);
