@@ -79,6 +79,7 @@ try
         "export-swf-shapes" => ExportSwfShapes(root, args),
         "export-swf-font" => ExportSwfFont(root, args),
         "export-swf-sprite" => ExportSwfSprite(root, args),
+        "export-swf-images" => ExportSwfImages(root, args),
         "swf-find" => SwfFind(root, args),
         _ => Usage(),
     };
@@ -174,6 +175,10 @@ static int Usage()
                                         Composite a DefineSprite's first frame (or a bare
                                         DefineShape) — depth-ordered children, each transformed
                                         by its own PlaceObject2 matrix — into one PNG.
+          export-swf-images <name.swf> <out-dir> [--id=<id>]
+                                        Decode Scaleform tag-512 DXT bitmaps to PNG (<id>.png,
+                                        plus a named copy when ExportAssets/ImportAssets binds
+                                        a name). Writes swf_images_manifest.json.
           swf-find <name.swf> <substring>
                                         Search this file's ExportAssets names (the same names an
                                         authoring tool's Library panel would show) for a
@@ -2149,7 +2154,7 @@ static int SwfInspect(string root, string[] args)
     foreach (var tag in swf.Tags)
         counts[tag.Code] = counts.GetValueOrDefault(tag.Code) + 1;
     foreach (var (code, count) in counts.OrderByDescending(kv => kv.Value))
-        Console.WriteLine($"  tag {code,3} ({SwfTagName(code),-24}): {count}");
+        Console.WriteLine($"  tag {code,3} ({SwfTagNames.Get(code),-24}): {count}");
     return 0;
 }
 
@@ -2295,6 +2300,95 @@ static int ExportSwfSprite(string root, string[] args)
     return 0;
 }
 
+static int ExportSwfImages(string root, string[] args)
+{
+    var positional = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: export-swf-images <name.swf> <out-dir> [--id=<id>]");
+        return 1;
+    }
+    string path = ResolveSwfPath(root, positional[0]);
+    string outputDirectory = positional[1];
+    Directory.CreateDirectory(outputDirectory);
+
+    int? onlyId = null;
+    string? idArg = args.FirstOrDefault(a => a.StartsWith("--id=", StringComparison.OrdinalIgnoreCase));
+    if (idArg is not null) onlyId = int.Parse(idArg["--id=".Length..]);
+
+    var swf = SwfFile.Read(path);
+    var dict = SwfCharacterDictionary.Build(swf);
+
+    var manifest = new List<object>();
+    int written = 0;
+    foreach (SwfBitmap bitmap in dict.Bitmaps)
+    {
+        if (onlyId is not null && bitmap.CharacterId != onlyId) continue;
+
+        string idPath = Path.Combine(outputDirectory, $"{bitmap.CharacterId}.png");
+        PngWriter.Write(idPath, bitmap.Rgba, bitmap.Width, bitmap.Height);
+        written++;
+
+        var exportNames = dict.ExportNames
+            .Where(e => e.Id == bitmap.CharacterId)
+            .Select(e => e.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var importNames = dict.ImportNames
+            .Where(e => e.Id == bitmap.CharacterId)
+            .Select(e => e.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        foreach (string name in exportNames.Concat(importNames).Distinct(StringComparer.Ordinal))
+        {
+            string safe = SanitizeFileName(name);
+            if (string.IsNullOrEmpty(safe)) continue;
+            string namedPath = Path.Combine(outputDirectory, $"{safe}.png");
+            if (!string.Equals(Path.GetFullPath(namedPath), Path.GetFullPath(idPath), StringComparison.OrdinalIgnoreCase))
+                File.Copy(idPath, namedPath, overwrite: true);
+        }
+
+        string formatName = bitmap.Format switch
+        {
+            SwfBitmapFormat.Dxt5 => "DXT5",
+            SwfBitmapFormat.Dxt1 => "DXT1",
+            _ => bitmap.Format.ToString(),
+        };
+        string? primaryName = exportNames.FirstOrDefault() ?? importNames.FirstOrDefault();
+        manifest.Add(new
+        {
+            id = bitmap.CharacterId,
+            name = primaryName,
+            width = bitmap.Width,
+            height = bitmap.Height,
+            format = formatName,
+            formatCode = (int)bitmap.Format,
+            flags = bitmap.Flags,
+            exportNames,
+            importNames,
+        });
+        Console.WriteLine($"  wrote {idPath} ({bitmap.Width}x{bitmap.Height} {formatName}" +
+                          (primaryName is null ? "" : $", name={primaryName}") + ")");
+    }
+
+    string manifestPath = Path.Combine(outputDirectory, "swf_images_manifest.json");
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    }));
+    Console.WriteLine($"{written} image(s) written; manifest {manifestPath}");
+    return 0;
+}
+
+static string SanitizeFileName(string name)
+{
+    char[] invalid = Path.GetInvalidFileNameChars();
+    var chars = name.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
+    return new string(chars).Trim();
+}
+
 static int SwfFind(string root, string[] args)
 {
     if (args.Length < 3)
@@ -2326,35 +2420,6 @@ static string ResolveSwfPath(string root, string nameOrPath)
     }
     throw new FileNotFoundException($"SWF not found: '{nameOrPath}' (checked as given and under FlashMovies/)");
 }
-
-static string SwfTagName(int code) => code switch
-{
-    2 => "DefineShape",
-    6 => "DefineBits",
-    8 => "JPEGTables",
-    9 => "SetBackgroundColor",
-    10 => "DefineFont",
-    11 => "DefineText",
-    20 => "DefineBitsLossless",
-    21 => "DefineBitsJPEG2",
-    22 => "DefineShape2",
-    26 => "PlaceObject2",
-    32 => "DefineShape3",
-    33 => "DefineText2",
-    35 => "DefineBitsJPEG3",
-    36 => "DefineBitsLossless2",
-    37 => "DefineEditText",
-    39 => "DefineSprite",
-    48 => "DefineFont2",
-    56 => "ExportAssets",
-    57 => "ImportAssets",
-    70 => "PlaceObject3",
-    75 => "DefineFont3",
-    82 => "DoABC",
-    83 => "DefineShape4",
-    88 => "DefineFontName",
-    _ => $"Unknown({code})",
-};
 
 static string ResolvePackage(string root, string name)
 {

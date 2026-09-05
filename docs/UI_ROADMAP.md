@@ -39,11 +39,18 @@ machine faces, Deco chevron markers, character status roundels, the quest arrow)
 Proof scripts (throwaway, in `%TEMP%`): `dxt512.py`, `dxt_any.py`. They are the reference
 for the C# implementation, not production code.
 
-Two more unknown tags to check while implementing: **tag 12** (30× in HUDPC — likely the
-sub-image / atlas-rect or DefineScalingGrid that maps shapes onto the big 2048×1024
-atlases) and **tag 34** (38× in PCWeaponSelection). Neither is on the critical path if the
-per-character bitmaps decode standalone, but tag 12 probably carries the 9-slice data the
-frames need to scale cleanly.
+Two more unknown tags checked while implementing U1 (5 Sept 2026):
+
+- **tag 12** (30× in HUDPC) — standard SWF **`DoAction`**. Bodies are ActionScript
+  bytecode (ActionDefineFunction2 / ActionConstantPool / ActionPush / …); 29/30 parse as
+  clean ACTIONRECORD streams ending in ActionEnd. **Not** DefineScalingGrid / atlas-rect.
+  We are not building an AS interpreter; Phase U2 measures 9-slice insets on the meter
+  frames by hand.
+- **tag 34** (38× in PCWeaponSelection) — standard SWF **`DefineButton2`** (buttonId +
+  flags + button records carrying more DoAction). Noted only; not on U1/U2 critical path.
+
+Tag 78 (`DefineScalingGrid`) is the real 9-slice tag in the SWF spec; it was not observed
+as the mystery payload here.
 
 ---
 
@@ -128,8 +135,8 @@ Not a from-scratch reinterpretation, not a decode-the-timeline-and-replay-it emu
 (Scaleform ActionScript is out of scope). Extract the art, rebuild the layout by hand
 against reference screenshots.
 
-Where a bitmap is a 9-slice frame (the meter housings, plates, panels), slice it (tag 12
-likely gives the grid; otherwise measure it once). Where the real font is available
+Where a bitmap is a 9-slice frame (the meter housings, plates, panels), slice it by hand
+(tag 12 is DoAction AS, not a scaling grid — see §1). Where the real font is available
 (decoded DefineFont2/3 + the digit-glyph bitmaps), use it. Tint fills from the vector
 `DefineShape` colours already decoded.
 
@@ -141,16 +148,16 @@ weapon defs, quests).
 
 ## 4. Phases (each = one Cursor task)
 
-| # | Phase | Deliverable | Depends on |
-|---|---|---|---|
-| **U1** | SWF bitmap decode | tag-512 (DXT5/DXT1) + tag-12 decode in `src/BioShockStudio.Core/UI/Swf/**`; `export-swf-images <file> <out>` CLI; bulk-extract every FlashMovies SWF to `%TEMP%`/an out dir; catalogue what each id is. Tests against HUDPC's known 14. | — |
-| **U2** | Art import + HUD | `import_bioshock_ui.py` brings the extracted HUD/shared PNGs into `/Game/BioShockUI/**` as `Texture2D`. Rebuild `UShockHudWidget`: health+EVE **upper-left** in the real frames with kit/hypo counts and icons; weapon cluster lower-right with the real digit font; plasmid lower-left; crosshair; damage-direction; pickup/objective toasts top-center; bottom vignette. | U1 |
-| **U3** | Radial + full select | `UShockRadialMenu` (hold-key weapon/plasmid wheel) + `UShockWeaponSelectScreen` (Shift). Real wheel art + icons. | U1, U2 |
-| **U4** | Status + pause | Status menu (Map/Goals/Messages/Help) bound to quests + audio diaries; pause menu with Money/ADAM/Little-Sister count. | U1 |
-| **U5** | Station UIs | Vending, Gene Bank, U-Invent, Gatherer's Garden, combo lock — bound to inventory / plasmid / ADAM / money systems. | U1, U4 |
-| **U6** | Hacking minigame | `hackingPC.swf` pipe puzzle recreated as an interactive UMG widget bound to `UShockSecuritySubsystem` / `TryHackDevice`. | U1 |
-| **U7** | Menus + frontend | Main menu, difficulty select, save/load screens, loading screens, plane intro. | U1 |
-| **U8** | Polish | research overlay, Vita-Chamber, Little Sister choice, subtitles styling, localisation text hookup (`Localized*.lbf`). | U2-U7 |
+| # | Phase | Deliverable | Depends on | Status |
+|---|---|---|---|---|
+| **U1** | SWF bitmap decode | tag-512 (DXT5/DXT1) + CLI `export-swf-images` + `tools/ue5/export_all_ui_images.py`; HUDPC regression (14 bitmaps). Tag 12 turned out to be genuine `DoAction` AS bytecode (not 9-slice) — U2 measures meter insets by hand. Tag 34 is standard `DefineButton2` (noted; not on critical path). | — | **done 5 Sept 2026** |
+| **U2** | Art import + HUD | `import_bioshock_ui.py` brings the extracted HUD/shared PNGs into `/Game/BioShockUI/**` as `Texture2D`. Rebuild `UShockHudWidget`: health+EVE **upper-left** in the real frames with kit/hypo counts and icons; weapon cluster lower-right with the real digit font; plasmid lower-left; crosshair; damage-direction; pickup/objective toasts top-center; bottom vignette. | U1 | |
+| **U3** | Radial + full select | `UShockRadialMenu` (hold-key weapon/plasmid wheel) + `UShockWeaponSelectScreen` (Shift). Real wheel art + icons. | U1, U2 | |
+| **U4** | Status + pause | Status menu (Map/Goals/Messages/Help) bound to quests + audio diaries; pause menu with Money/ADAM/Little-Sister count. | U1 | |
+| **U5** | Station UIs | Vending, Gene Bank, U-Invent, Gatherer's Garden, combo lock — bound to inventory / plasmid / ADAM / money systems. | U1, U4 | |
+| **U6** | Hacking minigame | `hackingPC.swf` pipe puzzle recreated as an interactive UMG widget bound to `UShockSecuritySubsystem` / `TryHackDevice`. | U1 | |
+| **U7** | Menus + frontend | Main menu, difficulty select, save/load screens, loading screens, plane intro. | U1 | |
+| **U8** | Polish | research overlay, Vita-Chamber, Little Sister choice, subtitles styling, localisation text hookup (`Localized*.lbf`). | U2-U7 | |
 
 Do **not** run these in parallel — they all rebuild `BioShockRuntime` and share the
 HostProject. One at a time, reviewed and committed before the next.

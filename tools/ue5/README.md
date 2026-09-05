@@ -1,5 +1,24 @@
 # UE5 import bridge
 
+## Phase U1 — SWF tag-512 bitmap decode — 5 Sept 2026
+
+Scaleform **tag 512** is a raw DXT texture (`DefineBitsDxt`). Decoder:
+`SwfBitmapReader` in `src/BioShockStudio.Core/UI/Swf/` (reuses `BlockCompression`).
+CLI: `export-swf-images <file.swf> <out-dir> [--id=N]` writes `<id>.png` +
+`swf_images_manifest.json`. Bulk driver (no Unreal):
+
+```powershell
+$env:BIOSHOCK_REMASTERED_PATH = "G:\SteamLibrary\steamapps\common\BioShock Remastered"
+# optional: $env:BIOSHOCK_UI_EXPORT = "$env:TEMP\bioshock-ui"
+py -3 tools\ue5\export_all_ui_images.py
+```
+
+Output defaults to `%TEMP%/bioshock-ui/<movieStem>/` plus a top-level `catalogue.json`.
+PNGs stay outside git. Tag 12 = DoAction (AS bytecode, not 9-slice); tag 34 =
+DefineButton2. Fast tests: `SwfBitmapReaderTests` (HUDPC → 14 bitmaps).
+
+---
+
 ## HUD reskin with decoded Scaleform art — 5 Sept 2026
 
 `UShockHudWidget` now draws health/EVE with `UImage` textures decoded from BioShock's
@@ -20,10 +39,10 @@ FlashMovies (not plain `UProgressBar`s). Ammo stays `UTextBlock`.
   HUDPC; EVE/health chrome live mainly in `sharedlibrary.swf` (pulled in via HUDPC
   `ImportAssets`).
 - Canonical `sharedlibrary.swf` `HUD_HealthBar_Frame01..21` and `HUD_EveBar_Frame01..21` (plus
-  `HUD_Ammo_Base*`) are **Bitmap** fills whose pixels live in Scaleform **tag 512** (not classic
-  `DefineBits*`; sharedlibrary has zero tag 6/20/21/35/36). `export-swf-sprite` yields the grey
-  placeholder — **bitmap/tag-512 decode is the hard blocker** for those named meters. Do not treat
-  the placeholders as usable art.
+  `HUD_Ammo_Base*`) are **Bitmap** fills whose pixels live in Scaleform **tag 512**
+  (`DefineBitsDxt`). **U1 landed** — `export-swf-images` / `export_all_ui_images.py` decode
+  them; Phase U2 imports the PNGs into `/Game/BioShockUI/**`.
+
 - `FrozenHealth_DangerBar` has 20 frames animated by `PlaceObject2` **ColorTransform** (not
   Ratio/morph; no DefineMorphShape in HUDPC). `export-swf-sprite` is first-frame only; the widget
   maps health%/eve% → `UImage` opacity as a first-pass stand-in.
