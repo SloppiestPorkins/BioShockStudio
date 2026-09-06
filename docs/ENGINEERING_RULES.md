@@ -586,6 +586,52 @@ the next agent back to running everything — which is the cost this rule exists
 **This does not weaken any evidence rule.** Nothing here permits reporting a number that was not
 measured: an unrun tier is reported as unrun (see the stamp's own wording), never as passing.
 
+### First-person viewmodels are a look-at-it problem — added 6 Sept 2026
+
+Added after the shotgun viewmodel shipped broken through several sessions: a headless verify
+(`run_verify_wrench`, `run_weapon_slots`) reported the weapon "equipped, visible, socketed" and
+passed while, in the -game view, the gun was a full-screen blob at the camera with the hands
+gripping air. The verify was true and useless — it checks attach parenting and visibility, not
+placement.
+
+- **Never mark a viewmodel/first-person-hands change done from a headless verify.** The only
+  acceptable evidence is a `capture_shot.ps1` PNG opened and looked at, one per affected weapon
+  slot: `powershell -Command "& tools/ue5/capture_shot.ps1 -Out <png> -SettleTicks 16 -Extra @('-bioshockstartslot=N')"`
+  (0=Wrench 1=Pistol 2=TommyGun 3=Shotgun 4=GrenadeLauncher 5=ChemThrower 6=Crossbow 7=Camera).
+- **Never dispatch a viewmodel-placement task to a cursor/external worker.** It cannot see the
+  result, so it will tune blind against a headless proxy and report success on a broken frame.
+  Claude keeps this class of work and iterates against captures directly.
+- **Weapon grip anchoring, measured 6 Sept 2026.** FBX export drops `MeshSocket.Transform`
+  (`FbxExporter` writes sockets as `{Name, Bone}` only), so every imported UE socket is
+  identity-on-bone. Guns whose skeleton root bone *is* the grip (TommyGun/Pistol/Crossbow/
+  GrenadeLauncher → `R_grip`, which carries the orienting rotation) self-correct in
+  `AlignEquippedWeaponRootToGripSocket` by cancelling the root-bone transform. The Shotgun's root
+  is `SG_Body` (the gun body, identity rotation) with no `R_grip` bone at all — cancelling nothing
+  leaves it unoriented, so it gets an explicit tuned rotation+offset routed through the same
+  function, reopened from the capture harness with `-bioshockshotgunrot=P,Y,R` /
+  `-bioshockshotgunoffset=X,Y,Z`. The general fix (deferred) is to carry `MeshSocket.Transform`
+  through the manifest into `import_bioshock` so UE sockets keep their authored rotation.
+
+### Capture-harness invocation gotchas — added 6 Sept 2026
+
+- **`capture_shot.ps1 -Extra 'a','b'` invoked from the Bash tool comma-joins the flags into one
+  argument** (`-a,-b`), so `FParse::Param` never matches and the flag is silently ignored — a shot
+  that looks like "the flag does nothing". Invoke it through PowerShell with a real array:
+  `powershell -Command "& tools/ue5/capture_shot.ps1 ... -Extra @('-x','-y')"`, or call
+  `UnrealEditor-Cmd.exe` directly with each flag as its own token.
+- **HUD/UMG never appears in a SceneCapture2D shot.** `-bioshockshothud` renders the widget layer
+  separately via `FWidgetRenderer` to `<name>_hud.png` (grey background). For radial/status/pause/
+  hacking, pass `-bioshockshothud` *plus* the force-open flag (`-bioshockshotradial`,
+  `-bioshockshotstatus`, `-bioshockshotpause`, `-bioshockshothack`) and read the `_hud.png`.
+- **Running `verify_*.py` directly with `-run=pythonscript -script=` fails if the script
+  `import`s a sibling module** — the commandlet does not put the script's own directory on
+  `sys.path`. Use the matching `run_<name>.py` driver (they all do `sys.path.append`), or a
+  one-line wrapper that does `sys.path.insert(0, r"...tools\ue5")` before importing.
+- **MSYS mangles lone `/Game/...` and drops backslash path segments** in Bash-tool commands. Pass
+  exe / uproject / `-script` as forward-slash Windows paths (`C:/Users/...`) and
+  `export MSYS_NO_PATHCONV=1`. A `${var}.py` interpolated into a backslash path can lose its
+  separator — build the full path in a shell variable first.
+
 ### Process instructions
 
 - **Read the reference projects before deriving from bytes.** `UModel-master/`, `hk2012_2_0_r1/`,
@@ -616,6 +662,13 @@ measured: an unrun tier is reported as unrun (see the stamp's own wording), neve
 Investigated and **closed** at the user's instruction. The event→sound-name chain is decoded and
 documented in `docs/research/audio.md`; where sound-effect sample data ships is `UNKNOWN`. The
 deferred items in that note are deferred, not queued: do not resume audio work unless asked.
+
+**Runtime audio is a separate, untouched gap (noted 6 Sept 2026).** `BioShockRuntime/` has no
+audio code at all — no `UAudioComponent` / `USoundBase` / `PlaySound` anywhere; the only "sound"
+symbol is `ShockActionEnableOrDisableSoundPropagation`, a script-action stub that flips a bool.
+So the playable slice has no weapon fire, footsteps, ambience, music, VO or audio diaries. This is
+a known content gap, not a regression — do not treat its absence as a bug to chase, and do not
+start wiring runtime audio unless the user asks.
 
 ---
 
