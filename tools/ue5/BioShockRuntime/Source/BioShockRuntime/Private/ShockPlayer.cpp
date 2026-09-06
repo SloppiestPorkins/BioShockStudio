@@ -312,10 +312,19 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 	// No alias required when the imported hands mesh carries it; fall through already returns
 	// WeaponDefName above. Kept as an explicit check only if a future hands import renames it.
 
-	// Shotgun has no named socket on the hands mesh at all — every per-weapon socket sits on the
-	// R_grip bone, and the FidgetShotgun/FireShotgun clips already pose the hands around the gun,
-	// so pinning the weapon to that bone is the correct anchor. Bones satisfy DoesSocketExist on a
-	// skeletal mesh component.
+	// Shotgun.uc: AttachBone="Launcher" — the shotgun shares the Grenade Launcher's hands socket in
+	// the base game (WP_ShotgunMesh pivot is authored to that bone). Its own skeleton root is SG_Body,
+	// the gun body, NOT a grip bone, so the root-align path below must be skipped for it (handled in
+	// AlignEquippedWeaponRootToGripSocket by the grip-bone name check).
+	if (WeaponDefName.ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase)
+		&& ViewHands->DoesSocketExist(FName(TEXT("Launcher"))))
+	{
+		return FName(TEXT("Launcher"));
+	}
+
+	// Any remaining weapon without a named socket: every per-weapon socket sits on the R_grip bone,
+	// and the fidget/fire clips already pose the hands around the gun, so pinning the weapon to that
+	// bone is the correct anchor. Bones satisfy DoesSocketExist on a skeletal mesh component.
 	for (const TCHAR* GripBone : {TEXT("R_grip"), TEXT("R_Grip"), TEXT("Bip01_R_Hand")})
 	{
 		if (ViewHands->DoesSocketExist(FName(GripBone)))
@@ -712,6 +721,47 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 
 	WeaponMesh->RefreshBoneTransforms();
 	const FName RootBoneName = WeaponMesh->GetBoneName(0);
+
+	// Only weapons whose skeleton root IS the grip bone (TommyGun/Pistol/Crossbow/GrenadeLauncher →
+	// R_grip) carry the orienting rotation on that bone, so cancelling the bone transform lands the
+	// gun correctly. The Shotgun's root bone is SG_Body — the gun body — with an IDENTITY rotation in
+	// component space (measured: rootCS_rot ~0,0,0) and a ~10cm offset from the mesh origin. Cancelling
+	// that gives the gun no orientation at all: it points straight down the socket's +X and sits
+	// down-and-right of the hands (the FidgetShotgun clip poses the hands where the gun *should* be).
+	// The shotgun shares the Grenade Launcher's hands socket (Shotgun.uc AttachBone="Launcher"), so
+	// borrow the Launcher socket's known-good orientation, tunable from the capture harness.
+	if (!RootBoneName.ToString().Contains(TEXT("grip"), ESearchCase::IgnoreCase))
+	{
+		// Tuned in the -game capture harness (sg_A): barrel level and forward, receiver at the right
+		// hand, gun in frame. -bioshockshotgunrot / -bioshockshotgunoffset re-open the loop.
+		FRotator ShotgunRot(12.0f, 18.0f, 3.0f);
+		FVector ShotgunOff(-14.0f, -4.0f, -10.0f);
+		FString S;
+		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
+		{
+			TArray<FString> P;
+			S.ParseIntoArray(P, TEXT(","));
+			if (P.Num() == 3) { ShotgunRot = FRotator(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
+		}
+		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunoffset="), S, false))
+		{
+			TArray<FString> P;
+			S.ParseIntoArray(P, TEXT(","));
+			if (P.Num() == 3) { ShotgunOff = FVector(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
+		}
+		WeaponMesh->SetRelativeLocationAndRotation(ShotgunOff, ShotgunRot);
+		WeaponMesh->RefreshBoneTransforms();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_VIEWMODEL alignRoot weapon=%s root=%s (non-grip) rot=%s off=%s"),
+			*EquippedWeapon->GetWeaponDefName().ToString(),
+			*RootBoneName.ToString(),
+			*ShotgunRot.ToCompactString(),
+			*ShotgunOff.ToCompactString());
+		return;
+	}
+
 	const FTransform RootCS = WeaponMesh->GetBoneTransform(RootBoneName, RTS_Component);
 	if (RootCS.Equals(FTransform::Identity, 0.05f))
 	{
