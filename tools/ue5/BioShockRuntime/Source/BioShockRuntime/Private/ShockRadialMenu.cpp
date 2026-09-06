@@ -248,7 +248,8 @@ void UShockRadialMenu::EnsureWidgetTree()
 		PromptSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		PromptSlot->SetAlignment(FVector2D(0.5f, 0.0f));
 		PromptSlot->SetAutoSize(true);
-		PromptSlot->SetPosition(FVector2D(0.0f, SegmentRadius + 78.0f));
+		// Clear the bottom segment's label (which sits at LabelRadiusBase ~236 + its own height).
+		PromptSlot->SetPosition(FVector2D(0.0f, LabelRadiusBase + 46.0f));
 	}
 }
 
