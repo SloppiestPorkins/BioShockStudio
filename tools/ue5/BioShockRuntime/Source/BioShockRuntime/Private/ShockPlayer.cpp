@@ -149,7 +149,8 @@ AShockPlayer::AShockPlayer()
 	FirstPersonCamera->PostProcessSettings.bOverride_AutoExposureBias = true;
 	FirstPersonCamera->PostProcessSettings.AutoExposureBias = 11.0f;
 
-	// Ticks so the viewmodel grip can be re-pinned each frame — see Tick.
+	// Tick: held-fire, one-shot hands→fidget, recoil. ViewHands is NOT re-pinned each frame
+	// (docs/research/viewmodel.md) — only PlaceViewHandsFixed on equip.
 	PrimaryActorTick.bCanEverTick = true;
 
 	ViewHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ViewHands"));
@@ -324,31 +325,22 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 	}
 
 	// Def key is ChemicalThrower; NEWPlayerHands socket is Chem (export-firstperson Chem).
-	// Without this alias AttachToComponent gets NAME_None → hands component root, no FrameViewmodel
-	// pin — measured 5 Sept 2026: hands sockets include Chem, not ChemicalThrower (probe_weapon_visuals).
+	// Without this alias AttachToComponent gets NAME_None → hands component root.
 	if (WeaponDefName.ToString().Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)
 		&& ViewHands->DoesSocketExist(FName(TEXT("Chem"))))
 	{
 		return FName(TEXT("Chem"));
 	}
 
-	// Wrench: NEWPlayerHands socket is also named Wrench (on R_Grip) — research/skeletalmesh.md.
-	// No alias required when the imported hands mesh carries it; fall through already returns
-	// WeaponDefName above. Kept as an explicit check only if a future hands import renames it.
-
-	// Shotgun.uc: AttachBone="Launcher" — the shotgun shares the Grenade Launcher's hands socket in
-	// the base game (WP_ShotgunMesh pivot is authored to that bone). Its own skeleton root is SG_Body,
-	// the gun body, NOT a grip bone, so the root-align path below must be skipped for it (handled in
-	// AlignEquippedWeaponRootToGripSocket by the grip-bone name check).
+	// Shotgun.uc / Weapons.ini: AttachBone="Launcher" — no Shotgun socket on the hands.
+	// WP_ShotgunMesh root is SG_Body; it still attaches here (BioShock AttachToBone).
 	if (WeaponDefName.ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase)
 		&& ViewHands->DoesSocketExist(FName(TEXT("Launcher"))))
 	{
 		return FName(TEXT("Launcher"));
 	}
 
-	// Any remaining weapon without a named socket: every per-weapon socket sits on the R_grip bone,
-	// and the fidget/fire clips already pose the hands around the gun, so pinning the weapon to that
-	// bone is the correct anchor. Bones satisfy DoesSocketExist on a skeletal mesh component.
+	// Any remaining weapon without a named socket: every per-weapon socket sits on R_grip.
 	for (const TCHAR* GripBone : {TEXT("R_grip"), TEXT("R_Grip"), TEXT("Bip01_R_Hand")})
 	{
 		if (ViewHands->DoesSocketExist(FName(GripBone)))
@@ -363,7 +355,7 @@ FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("BIOSHOCK_VIEWMODEL no grip socket for weapon=%s — framing without socket correction"),
+			TEXT("BIOSHOCK_VIEWMODEL no grip socket for weapon=%s — attach without named socket"),
 			*WeaponDefName.ToString());
 	}
 	return NAME_None;
@@ -418,7 +410,7 @@ void AShockPlayer::PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop)
 	}
 
 	ViewHands->PlayAnimation(Sequence, bLoop);
-	// Evaluate immediately so FrameViewmodel / socket reads see the posed grip, not bind pose.
+	// Evaluate immediately so socket attachment sees the posed grip, not bind pose.
 	ViewHands->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
 	ViewHands->RefreshBoneTransforms();
 	LastViewHandsAnim = Sequence;
@@ -433,6 +425,34 @@ void AShockPlayer::PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop)
 		bViewHandsPlayingOneShot = true;
 		ViewHandsOneShotRemaining = Sequence->GetPlayLength();
 	}
+
+	SyncEquippedWeaponMeshAnimation(bLoop);
+}
+
+void AShockPlayer::SyncEquippedWeaponMeshAnimation(bool bLoop)
+{
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+	switch (CurrentViewHandsPhase)
+	{
+	case EViewHandsPhase::Equip:
+		EquippedWeapon->PlayEquipMeshAnimation();
+		break;
+	case EViewHandsPhase::Fidget:
+		EquippedWeapon->PlayIdleMeshAnimation();
+		break;
+	case EViewHandsPhase::Fire:
+		EquippedWeapon->PlayFireMeshAnimation();
+		break;
+	case EViewHandsPhase::Reload:
+		// AShockWeapon::Reload already starts the weapon mesh clip.
+		break;
+	default:
+		break;
+	}
+	(void)bLoop;
 }
 
 void AShockPlayer::StartViewHandsForEquippedWeapon()
@@ -447,16 +467,17 @@ void AShockPlayer::StartViewHandsForEquippedWeapon()
 
 	if (ViewHandsEquipAnim)
 	{
+		CurrentViewHandsPhase = EViewHandsPhase::Equip;
 		PlayViewHandsAnimation(ViewHandsEquipAnim, false);
 	}
 	else if (ViewHandsFidgetAnim)
 	{
+		CurrentViewHandsPhase = EViewHandsPhase::Fidget;
 		PlayViewHandsAnimation(ViewHandsFidgetAnim, true);
 	}
 	else
 	{
-		// Shotgun / ChemicalThrower: no FP clips — stop any prior weapon's looping fidget rather
-		// than silently reusing it. Hold last/bind pose pending an asset import.
+		CurrentViewHandsPhase = EViewHandsPhase::None;
 		ViewHands->Stop();
 		LastViewHandsAnim = nullptr;
 		bViewHandsPlayingOneShot = false;
@@ -480,6 +501,7 @@ void AShockPlayer::TickViewHandsAnimation(float DeltaSeconds)
 	bViewHandsPlayingOneShot = false;
 	if (ViewHandsFidgetAnim)
 	{
+		CurrentViewHandsPhase = EViewHandsPhase::Fidget;
 		PlayViewHandsAnimation(ViewHandsFidgetAnim, true);
 	}
 }
@@ -488,6 +510,7 @@ void AShockPlayer::NotifyViewHandsWeaponFired()
 {
 	if (ViewHandsFireAnim)
 	{
+		CurrentViewHandsPhase = EViewHandsPhase::Fire;
 		PlayViewHandsAnimation(ViewHandsFireAnim, false);
 	}
 }
@@ -496,6 +519,7 @@ void AShockPlayer::NotifyViewHandsWeaponReloadStarted()
 {
 	if (ViewHandsReloadAnim)
 	{
+		CurrentViewHandsPhase = EViewHandsPhase::Reload;
 		PlayViewHandsAnimation(ViewHandsReloadAnim, false);
 	}
 }
@@ -626,27 +650,19 @@ float AShockPlayer::GetEquippedWeaponBoneDistanceForVerify(FName BoneA, FName Bo
 	return FVector::Dist(WeaponMesh->GetBoneLocation(BoneA), WeaponMesh->GetBoneLocation(BoneB));
 }
 
-void AShockPlayer::FrameViewmodel(FName GripSocket)
+void AShockPlayer::PlaceViewHandsFixed()
 {
 	if (!FirstPersonCamera || !ViewHands)
 	{
 		return;
 	}
 
-	// Where the grip should sit, in the camera's own space. Editor-tunable (ViewmodelOffset) —
-	// framing this is a judgement made looking at it, not one a headless verify can make.
-	//
-	// Overridable from the command line as well, because "looking at it" here means the -game
-	// capture harness, and a rebuild per candidate value costs about a minute on top of a ten
-	// minute shot. -bioshockvmoffset=X,Y,Z and -bioshockvmrot=P,Y,R let one build test many.
+	// BioShock Hands.UpdateLocation: PlayerViewOffset (0,0,0) at the eye. Mesh origin on the
+	// camera; authored clips place R_Grip. Do NOT subtract the animated socket — that cancels
+	// the arm motion the weapon must inherit (docs/research/viewmodel.md).
 	FVector DesiredLocal = ViewmodelOffset;
 	FRotator DesiredRotation = ViewmodelRotation;
 	{
-		// bShouldStopOnSeparator=false is REQUIRED and is why the first version of this silently
-		// did nothing: FParse::Value's FString overload defaults it to true, and comma is one of
-		// the separators it stops on, so "-bioshockvmrot=90,0,0" yielded "90". That split to one
-		// part, the three-part check failed, and the default was kept with nothing logged --
-		// a capture that looked like "pitch 90 changes nothing" rather than "the flag was ignored".
 		const auto ParseTriple = [](const TCHAR* Key, float& A, float& B, float& C) -> bool
 		{
 			FString Value;
@@ -679,60 +695,26 @@ void AShockPlayer::FrameViewmodel(FName GripSocket)
 			DesiredRotation = FRotator(X, Y, Z);
 		}
 	}
-	// Once, not every frame — this runs on Tick now. The values are constant for a given run, so
-	// repeating them would bury the probe output under thousands of identical lines.
+
+	ViewHands->SetRelativeRotation(DesiredRotation);
+	ViewHands->SetRelativeLocation(DesiredLocal);
+	ViewHands->RefreshBoneTransforms();
+
 	if (!bLoggedViewmodelFraming)
 	{
 		bLoggedViewmodelFraming = true;
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL framing offset=%s rot=%s"),
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL fixed offset=%s rot=%s"),
 			*DesiredLocal.ToCompactString(), *DesiredRotation.ToCompactString());
 	}
-
-	// The grip socket expressed in ViewHands' OWN component space, so the correction below is a
-	// property of the mesh's pivot rather than of wherever the player happened to be looking.
-	FVector SocketLocal = FVector::ZeroVector;
-	if (!GripSocket.IsNone() && ViewHands->DoesSocketExist(GripSocket))
-	{
-		SocketLocal = ViewHands->GetComponentTransform().InverseTransformPosition(
-			ViewHands->GetSocketLocation(GripSocket));
-	}
-	// The socket's local offset is the whole correction, and reading it is what showed the grip has
-	// no forward extent from the root at all. Logged on the first framing only, for the same
-	// reason as above; it is re-measured every frame regardless, which is the point.
-	if (!bLoggedViewmodelSocket)
-	{
-		bLoggedViewmodelSocket = true;
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL socket=%s socketLocal=%s"),
-			*GripSocket.ToString(), *SocketLocal.ToCompactString());
-	}
-
-	// SetRelativeLocation/Rotation, not AddWorldOffset. ViewHands is attached to the camera, and the
-	// camera uses the pawn's control rotation - so a world-space nudge computed once at equip time is
-	// only correct for the orientation the player held at that instant. Look anywhere else and the
-	// baked offset swings the arms out of frame. A relative placement rides the camera through every
-	// rotation.
-	//
-	// Rotation is applied FIRST, and the socket correction is rotated into the parent's space before
-	// being subtracted: DesiredLocal is in camera space while SocketLocal is in the mesh's own space,
-	// so subtracting one from the other directly is only valid while the two spaces are aligned. With
-	// ViewmodelRotation non-zero they are not, and the grip lands somewhere arbitrary.
-	ViewHands->SetRelativeRotation(DesiredRotation);
-	const FVector SocketInCameraSpace = DesiredRotation.RotateVector(SocketLocal);
-	ViewHands->SetRelativeLocation(DesiredLocal - SocketInCameraSpace);
 }
 
 void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 {
-	// context.md CONFIRMED: the weapon's root bone IS the hands' socket (R_grip ↔ TommyGun/Pistol/…).
+	// context.md CONFIRMED: for R_grip-rooted guns the root bone IS the hands' socket.
 	// SnapToTarget puts the mesh *component origin* on the socket. After FBX import those two are
-	// not always the same point — a non-zero root-bone component-space transform leaves the visible
-	// gun offset from the grip (reported as "off to the side"). Cancel that transform so the root
-	// bone lands on the socket. No authored fudge offset: the correction is read from the mesh.
-	//
-	// TommyGun ammo drum is bone TG_AmmoClip on the same WP_TommyGun skeleton (ue5_manifest /
-	// WP_TommyGun.fbx: R_grip, TG_TommyGunBody, TG_AmmoClip, …) — not a second component/actor.
-	// SetRelativeTransform moves the whole component; bone hierarchy is preserved. A "detached
-	// drum" look is therefore not explained by skipping a secondary mesh here.
+	// not always the same point — cancel the root-bone component-space transform so the root
+	// bone lands on the socket. Same rule for Shotgun (SG_Body): BioShock AttachToBone places the
+	// mesh root on Launcher; aligning SG_Body to the socket is that semantics, not a fudge.
 	if (!EquippedWeapon)
 	{
 		return;
@@ -746,11 +728,15 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	WeaponMesh->RefreshBoneTransforms();
 	const FName RootBoneName = WeaponMesh->GetBoneName(0);
 
-	// The Shotgun's root is SG_Body (the gun body) and FidgetShotgun poses the hands around a spot
-	// no placed socket offset reaches. It is pinned to the camera directly in PinShotgunToCamera()
-	// on Tick instead — nothing to align here.
+	// Shotgun root is SG_Body (gun body), not a grip. Aligning it onto Launcher (R_Grip) drags the
+	// receiver into the hand the way a R_grip-rooted pistol should — and the capture then shows
+	// the left hand open (plasmid-ish) with the body mashed into the right. BioShock AttachToBone
+	// still parents the actor to Launcher; the authored SG_Body bind + SingleFrame idle are what
+	// meet the fingers. Skip the FBX root-cancel for this mesh only.
 	if (EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL alignRoot skip weapon=Shotgun root=%s (SG_Body)"),
+			*RootBoneName.ToString());
 		return;
 	}
 
@@ -798,61 +784,8 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	TickViewHandsAnimation(DeltaSeconds);
 	TickHeldFire();
 
-	// Re-pin the grip EVERY FRAME. Framing once at equip time is only correct on the frame it runs:
-	// a looping fidget carries the hands a long way, and the grip socket moves with them. Measured
-	// eight seconds after equip, with the framing maths guaranteeing the grip sits at
-	// ViewmodelOffset (28,10,-24), the socket was actually at camera-space (-26.1, 10.3, 39.2) -
-	// behind the eye, and off screen. That is the reported "animations play above the camera" and
-	// "animations aren't lined up with the viewmodel": not a wrong rotation, a correction computed
-	// once against a pose that then changed.
-	//
-	// Pinning the socket rather than the root means the gun holds still in the frame and the arms
-	// animate around it, which is what a first-person viewmodel wants anyway. It also makes the
-	// framing offset an actual screen-space placement instead of a value that is only true for an
-	// instant.
-	if (!ActiveGripSocket.IsNone() && ViewHands && ViewHands->GetSkeletalMeshAsset())
-	{
-		FrameViewmodel(ActiveGripSocket);
-	}
-
-	PinShotgunToCamera();
-}
-
-void AShockPlayer::PinShotgunToCamera()
-{
-	if (!EquippedWeapon || !FirstPersonCamera
-		|| !EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
-	{
-		return;
-	}
-	USkeletalMeshComponent* GunMesh = EquippedWeapon->Mesh;
-	if (!GunMesh || !GunMesh->GetSkeletalMeshAsset())
-	{
-		return;
-	}
-
-	FVector Off = ShotgunViewmodelOffset;
-	FRotator Rot = ShotgunViewmodelRotation;
-	{
-		const auto ParseTriple = [](const TCHAR* Key, float& A, float& B, float& C) -> bool
-		{
-			FString Value;
-			if (!FParse::Value(FCommandLine::Get(), Key, Value, false)) { return false; }
-			TArray<FString> P;
-			Value.ParseIntoArray(P, TEXT(","));
-			if (P.Num() != 3) { return false; }
-			A = FCString::Atof(*P[0]); B = FCString::Atof(*P[1]); C = FCString::Atof(*P[2]);
-			return true;
-		};
-		float X, Y, Z;
-		if (ParseTriple(TEXT("bioshockshotgunpos="), X, Y, Z)) { Off = FVector(X, Y, Z); }
-		if (ParseTriple(TEXT("bioshockshotgunworldrot="), X, Y, Z)) { Rot = FRotator(X, Y, Z); }
-	}
-
-	const FTransform CamT = FirstPersonCamera->GetComponentTransform();
-	const FVector WorldLoc = CamT.TransformPosition(Off);
-	const FQuat WorldRot = CamT.GetRotation() * Rot.Quaternion();
-	GunMesh->SetWorldLocationAndRotation(WorldLoc, WorldRot);
+	// ViewHands stays at the fixed eye-relative transform from PlaceViewHandsFixed. The looping
+	// fidget moves R_Grip (via the arm chain) and the weapon attached to that socket rides with it.
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
@@ -870,6 +803,8 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	const FName GripSocket = ResolveGripSocketForWeapon(DefName);
 	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
 	{
+		bLoggedViewmodelFraming = false;
+		PlaceViewHandsFixed();
 		Weapon->AttachToComponent(
 			ViewHands,
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
@@ -877,7 +812,6 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 		ActiveGripSocket = GripSocket;
 		AlignEquippedWeaponRootToGripSocket();
 		StartViewHandsForEquippedWeapon();
-		FrameViewmodel(GripSocket);
 	}
 	else if (FirstPersonCamera)
 	{

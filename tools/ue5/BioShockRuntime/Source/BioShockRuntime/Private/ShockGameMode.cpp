@@ -2589,7 +2589,35 @@ void AShockGameMode::TickScreenshotCapture()
 	// this harness exists to prevent.
 	int32 SettleTicks = 12;
 	FParse::Value(FCommandLine::Get(), TEXT("bioshockshotsettle="), SettleTicks);
-	if (ScreenshotTicks < FMath::Max(1, SettleTicks))
+	SettleTicks = FMath::Max(1, SettleTicks);
+
+	// Fire / reload a few settle-ticks before the shot so the one-shot clips have time to pose.
+	// -bioshockshotfire / -bioshockshotreload (flags).
+	const int32 ActionTick = FMath::Max(1, SettleTicks - 4);
+	if (ScreenshotTicks == ActionTick)
+	{
+		if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+		{
+			if (AShockPlayer* Player = PC ? Cast<AShockPlayer>(PC->GetPawn()) : nullptr)
+			{
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshotfire")))
+				{
+					Player->TryFireEquippedWeapon();
+					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_FIRE tick=%d"), ScreenshotTicks);
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshotreload")))
+				{
+					if (AShockWeapon* W = Player->GetEquippedWeapon())
+					{
+						W->Reload();
+						UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_RELOAD tick=%d"), ScreenshotTicks);
+					}
+				}
+			}
+		}
+	}
+
+	if (ScreenshotTicks < SettleTicks)
 	{
 		return;
 	}

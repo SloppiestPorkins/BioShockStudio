@@ -41,56 +41,26 @@ public:
 	TObjectPtr<UNavigationInvokerComponent> NavInvoker;
 
 	/**
-	 * Where the weapon grip sits in camera space: +X forward, +Y right, -Z down. Tunable in the
-	 * editor because framing a viewmodel is a look-at-it judgement, not something a headless
-	 * verify can settle — lower Z to bring the gun down into frame, raise X to push it away.
-	 * Applied by FrameViewmodel on equip.
-	 */
-	/**
-	 * Where the weapon's grip socket sits in camera space: forward, right, up.
+	 * Camera-relative placement of the NEWPlayerHands mesh origin (not the grip socket).
 	 *
-	 * Re-applied every frame (see Tick), so this is an actual screen placement rather than a value
-	 * that is only true on the frame the weapon is equipped. Chosen by capture: at the old
-	 * (28,10,-24) the grip sat below the frame and the gun's stock was almost touching the eye.
-	 * Pushed forward to 68 the whole weapon reads at a sensible size, low and right with the stock
-	 * running off the bottom corner, which is where BioShock holds the Tommy gun.
-	 *
-	 * Override without a rebuild via -bioshockvmoffset=X,Y,Z.
+	 * BioShock's Hands.UpdateLocation uses config PlayerViewOffset — dumped as (0,0,0) — so the
+	 * mesh origin sits on the eye and the authored clips place the gun. Defaults match that.
+	 * Override via -bioshockvmoffset=X,Y,Z for capture A/B only; do not re-pin against an animated
+	 * socket (see docs/research/viewmodel.md).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
-	FVector ViewmodelOffset = FVector(68.0f, 17.0f, -28.0f);
+	FVector ViewmodelOffset = FVector::ZeroVector;
 
 	/**
-	 * Viewmodel orientation relative to the camera. Separate from ViewmodelOffset because the first
-	 * captured render of the possessed scene showed the arms and weapon INVERTED at the top of
-	 * frame - a rotation fault, which no amount of moving the mesh would have fixed.
-	 *
-	 * Left at identity, which is the state that produces that inverted render, because guessing is
-	 * expensive here: one trial is a rebuild plus a ~10 minute capture, and roll 180 (the obvious
-	 * first guess) pushed the mesh out of frame entirely rather than righting it. Pitch 180 and yaw
-	 * 180 are the untried candidates. In the editor this is a five-second drag with live feedback,
-	 * which is the right loop for it.
+	 * Camera-relative orientation of the hands mesh. Identity matches BioShock's UpdateLocation
+	 * (hands actor rotation = view rotation, no extra tilt). -bioshockvmrot=P,Y,R overrides.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
 	FRotator ViewmodelRotation = FRotator::ZeroRotator;
 
-	/** Camera FOV in degrees. BioShock 1's default is ~75, narrower than UE's 90 — the world reads
-	 *  enclosed and the viewmodel large. -bioshockfov=<deg> overrides. */
+	/** Camera FOV in degrees. BioShock 1 reads ~75 vs UE's 90 — PLAUSIBLE; -bioshockfov=<deg> overrides. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
 	float CameraFieldOfView = 75.0f;
-
-	/**
-	 * The Shotgun does not follow its hands cleanly through FidgetShotgun (SG_Body is the gun body,
-	 * not a grip; the clip poses fingers around a place a placed socket offset can't reach). So it
-	 * is pinned to the camera directly each frame instead — this is where it sits, in camera space
-	 * (+X forward, +Y right, +Z up) and the rotation applied to the camera. Editor-tunable and
-	 * -bioshockshotgunpos=X,Y,Z / -bioshockshotgunworldrot=P,Y,R override without a rebuild.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
-	FVector ShotgunViewmodelOffset = FVector(40.0f, 15.0f, -18.0f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
-	FRotator ShotgunViewmodelRotation = FRotator(4.0f, -8.0f, 0.0f);
 
 	/**
 	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
@@ -648,7 +618,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void AdvanceWeaponRecoilForVerify(float DeltaSeconds);
 
-	/** Grip socket currently used by FrameViewmodel / AttachToComponent (NAME_None = no correction). */
+	/** Grip socket used by AttachToComponent (NAME_None = no named socket). */
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|ViewHands")
 	FName GetActiveGripSocketForVerify() const { return ActiveGripSocket; }
 
@@ -799,10 +769,9 @@ private:
 	void TurnAtRate(float Value);
 	void LookUpAtRate(float Value);
 	void EnsureViewHands();
-	void FrameViewmodel(FName GripSocket);
+	/** Place ViewHands once at ViewmodelOffset/Rotation (BioShock PlayerViewOffset). No socket pin. */
+	void PlaceViewHandsFixed();
 	void AlignEquippedWeaponRootToGripSocket();
-	/** Pin the Shotgun mesh to a fixed camera-relative pose each frame (see ShotgunViewmodelOffset). */
-	void PinShotgunToCamera();
 	void TickHeldFire();
 	void TickWeaponRecoil();
 	void TickViewHandsAnimation(float DeltaSeconds);
@@ -810,16 +779,21 @@ private:
 	void PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop);
 	void StartViewHandsForEquippedWeapon();
 	FName ResolveGripSocketForWeapon(FName WeaponDefName);
+	/** Drive the equipped weapon mesh clip that pairs with the current hands phase. */
+	void SyncEquippedWeaponMeshAnimation(bool bLoop);
 
-	/** Grip socket the equipped weapon is attached to, so Tick can re-pin the viewmodel to it. */
+	/** Grip socket the equipped weapon is attached to (AttachBone). */
 	FName ActiveGripSocket;
+
+	/** Which hands phase is playing — selects the paired weapon-mesh leaf. */
+	enum class EViewHandsPhase : uint8 { None, Equip, Fidget, Fire, Reload };
+	EViewHandsPhase CurrentViewHandsPhase = EViewHandsPhase::None;
 
 	/** Fire ActionMapping held — automatic weapons re-fire from Tick while this is true. */
 	bool bFireInputHeld = false;
 
-	/** FrameViewmodel runs per frame now; these keep its diagnostics to one line each. */
+	/** PlaceViewHandsFixed logs framing once per equip. */
 	bool bLoggedViewmodelFraming = false;
-	bool bLoggedViewmodelSocket = false;
 
 	/** Logged once per def name when the hands skeleton has no matching grip socket. */
 	UPROPERTY()

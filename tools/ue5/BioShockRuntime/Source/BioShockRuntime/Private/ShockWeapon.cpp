@@ -486,9 +486,54 @@ const TCHAR* AShockWeapon::ResolveReloadMeshAnimLeaf() const
 	if (DefWeaponName == FName(TEXT("TommyGun"))
 		|| DefWeaponName == FName(TEXT("Crossbow"))
 		|| DefWeaponName == FName(TEXT("Shotgun"))
-		|| DefWeaponName == FName(TEXT("ChemicalThrower")))
+		|| DefWeaponName == FName(TEXT("ChemicalThrower"))
+		|| DefWeaponName == FName(TEXT("GrenadeLauncher")))
 	{
 		return TEXT("Reload");
+	}
+	return nullptr;
+}
+
+const TCHAR* AShockWeapon::ResolveIdleMeshAnimLeaf() const
+{
+	// Only some weapon rigs ship an idle/fidget; others hold bind pose while hands fidget.
+	if (DefWeaponName == FName(TEXT("Shotgun")))
+	{
+		return TEXT("SingleFrame");
+	}
+	if (DefWeaponName == FName(TEXT("ChemicalThrower")))
+	{
+		return TEXT("Fidget");
+	}
+	return nullptr;
+}
+
+const TCHAR* AShockWeapon::ResolveFireMeshAnimLeaf() const
+{
+	if (DefWeaponName == FName(TEXT("Pistol")))
+	{
+		return TEXT("FireSingle");
+	}
+	if (DefWeaponName == FName(TEXT("TommyGun"))
+		|| DefWeaponName == FName(TEXT("Shotgun"))
+		|| DefWeaponName == FName(TEXT("Crossbow"))
+		|| DefWeaponName == FName(TEXT("GrenadeLauncher")))
+	{
+		return TEXT("Fire");
+	}
+	if (DefWeaponName == FName(TEXT("ChemicalThrower")))
+	{
+		return TEXT("FireStart");
+	}
+	return nullptr;
+}
+
+const TCHAR* AShockWeapon::ResolveEquipMeshAnimLeaf() const
+{
+	if (DefWeaponName == FName(TEXT("TommyGun"))
+		|| DefWeaponName == FName(TEXT("GrenadeLauncher")))
+	{
+		return TEXT("Equip");
 	}
 	return nullptr;
 }
@@ -519,20 +564,20 @@ void AShockWeapon::PlayMeshAnimation(UAnimSequence* Sequence, bool bLoop)
 	LastMeshAnim = Sequence;
 }
 
-void AShockWeapon::PlayReloadMeshAnimation()
+void AShockWeapon::PlayMeshAnimLeaf(const TCHAR* Leaf, bool bLoop, const TCHAR* PhaseLog)
 {
-	const TCHAR* Leaf = ResolveReloadMeshAnimLeaf();
 	if (!Leaf)
 	{
 		return;
 	}
 	if (UAnimSequence* Sequence = LoadMeshAnim(Leaf))
 	{
-		PlayMeshAnimation(Sequence, false);
+		PlayMeshAnimation(Sequence, bLoop);
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("BIOSHOCK_WEAPON_MESH_ANIM reload=%s weapon=%s"),
+			TEXT("BIOSHOCK_WEAPON_MESH_ANIM %s=%s weapon=%s"),
+			PhaseLog,
 			Leaf,
 			*DefWeaponName.ToString());
 	}
@@ -541,10 +586,31 @@ void AShockWeapon::PlayReloadMeshAnimation()
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("BIOSHOCK_WEAPON_MESH_ANIM missing reload leaf=%s weapon=%s"),
+			TEXT("BIOSHOCK_WEAPON_MESH_ANIM missing %s leaf=%s weapon=%s"),
+			PhaseLog,
 			Leaf,
 			*DefWeaponName.ToString());
 	}
+}
+
+void AShockWeapon::PlayReloadMeshAnimation()
+{
+	PlayMeshAnimLeaf(ResolveReloadMeshAnimLeaf(), false, TEXT("reload"));
+}
+
+void AShockWeapon::PlayIdleMeshAnimation()
+{
+	PlayMeshAnimLeaf(ResolveIdleMeshAnimLeaf(), true, TEXT("idle"));
+}
+
+void AShockWeapon::PlayFireMeshAnimation()
+{
+	PlayMeshAnimLeaf(ResolveFireMeshAnimLeaf(), false, TEXT("fire"));
+}
+
+void AShockWeapon::PlayEquipMeshAnimation()
+{
+	PlayMeshAnimLeaf(ResolveEquipMeshAnimLeaf(), false, TEXT("equip"));
 }
 
 FName AShockWeapon::GetPlayingMeshAnimationNameForVerify() const

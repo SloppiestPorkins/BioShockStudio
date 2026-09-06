@@ -211,6 +211,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	bool Reload();
 
+	/**
+	 * Two-rig viewmodel: play the weapon-side leaf that pairs with the hands clip
+	 * (docs/research/viewmodel.md). Missing leaves are a no-op (bind pose / last pose).
+	 */
+	void PlayIdleMeshAnimation();
+	void PlayFireMeshAnimation();
+	void PlayEquipMeshAnimation();
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Ammo")
 	void SetAutoReload(bool bEnable) { bAutoReload = bEnable; }
 
@@ -280,9 +288,13 @@ private:
 	void TryAutoReloadOnEmpty();
 	/** Leaf name under /Game/BioShockWeapons/WP_<Def>/Animations/ for this def's reload clip. */
 	const TCHAR* ResolveReloadMeshAnimLeaf() const;
+	const TCHAR* ResolveIdleMeshAnimLeaf() const;
+	const TCHAR* ResolveFireMeshAnimLeaf() const;
+	const TCHAR* ResolveEquipMeshAnimLeaf() const;
 	UAnimSequence* LoadMeshAnim(const TCHAR* LeafName) const;
 	void PlayMeshAnimation(UAnimSequence* Sequence, bool bLoop);
 	void PlayReloadMeshAnimation();
+	void PlayMeshAnimLeaf(const TCHAR* Leaf, bool bLoop, const TCHAR* PhaseLog);
 	bool CanMeleeNow(UWorld* World) const;
 	float GetDamageForAmmoIndex(int32 Index) const;
 	void SyncActiveAmmoFacingFields();
