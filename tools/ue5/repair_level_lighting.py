@@ -14,7 +14,7 @@ from the original, not the already-scaled value.
 Run headless:
   UnrealEditor-Cmd <proj> -run=pythonscript -script=tools/ue5/repair_level_lighting.py \
     -unattended -nopause -nosplash
-Env: BIOSHOCK_LIGHT_MAP (default /Game/BioShockLevel/1-Medical),
+Env: BIOSHOCK_LIGHT_MAP (default /Game/BioShockLevel/1-Medical; comma-separated for a batch),
      BIOSHOCK_LIGHT_FACTOR (default 120), BIOSHOCK_LIGHT_MIN/MAX (8 / 400),
      BIOSHOCK_LIGHT_DRY=1 to report without saving.
 """
@@ -27,6 +27,7 @@ import os
 import unreal
 
 MAP = os.environ.get("BIOSHOCK_LIGHT_MAP", "/Game/BioShockLevel/1-Medical")
+MAPS = [m.strip() for m in MAP.split(",") if m.strip()]
 FACTOR = float(os.environ.get("BIOSHOCK_LIGHT_FACTOR", "8"))
 CLAMP_MIN = float(os.environ.get("BIOSHOCK_LIGHT_MIN", "2"))
 CLAMP_MAX = float(os.environ.get("BIOSHOCK_LIGHT_MAX", "64"))
@@ -221,12 +222,11 @@ def _ensure_post_process(report):
     report["postProcessVolume"] = "ok"
 
 
-def main():
-    report = {"map": MAP, "dryRun": DRY, "error": None}
-    if not _lvl().load_level(MAP):
-        report["error"] = "could not load %s" % MAP
-        _write(report)
-        raise RuntimeError(report["error"])
+def _repair_one(map_path):
+    report = {"map": map_path, "dryRun": DRY, "error": None}
+    if not _lvl().load_level(map_path):
+        report["error"] = "could not load %s" % map_path
+        return report
 
     world = unreal.EditorLevelLibrary.get_editor_world()
     world.get_world_settings().set_editor_property("force_no_precomputed_lighting", True)
@@ -239,25 +239,42 @@ def main():
 
     if DRY:
         report["saved"] = False
-    else:
-        # EditorLoadingAndSavingUtils.save_map, not LevelEditorSubsystem.save_current_level: the
-        # latter routes through InternalPromptForCheckoutAndSave, whose completion notification
-        # asserts on Slate (CurrentApplication.IsValid()) under -run=pythonscript.
-        saved = False
-        _write(report)  # persist findings before a save that can still trip a headless assert
-        try:
-            saved = bool(unreal.EditorLoadingAndSavingUtils.save_map(world, MAP))
-        except Exception as exc:  # noqa: BLE001
-            unreal.log_warning("[light-repair] save_map failed (%s); falling back" % exc)
-        if not saved and not _lvl().save_current_level():
-            report["error"] = "save_current_level failed"
-            _write(report)
-            raise RuntimeError(report["error"])
-        report["saved"] = True
+        return report
 
-    _write(report)
-    unreal.log("[light-repair] %s" % json.dumps(report))
+    # EditorLoadingAndSavingUtils.save_map, not LevelEditorSubsystem.save_current_level: the
+    # latter routes through InternalPromptForCheckoutAndSave, whose completion notification
+    # asserts on Slate (CurrentApplication.IsValid()) under -run=pythonscript.
+    saved = False
+    try:
+        saved = bool(unreal.EditorLoadingAndSavingUtils.save_map(world, map_path))
+    except Exception as exc:  # noqa: BLE001
+        unreal.log_warning("[light-repair] save_map failed (%s); falling back" % exc)
+    if not saved and not _lvl().save_current_level():
+        report["error"] = "save failed"
+        return report
+    report["saved"] = True
     return report
+
+
+def main():
+    if len(MAPS) == 1:
+        report = _repair_one(MAPS[0])
+        _write(report)
+        unreal.log("[light-repair] %s" % json.dumps(report))
+        if report.get("error"):
+            raise RuntimeError(report["error"])
+        return report
+
+    multi = {"maps": [], "dryRun": DRY}
+    for m in MAPS:
+        r = _repair_one(m)
+        multi["maps"].append(r)
+        _write(multi)  # persist after each map so a mid-run assert leaves a partial record
+    unreal.log("[light-repair] %s" % json.dumps(multi))
+    errs = [r["map"] for r in multi["maps"] if r.get("error")]
+    if errs:
+        raise RuntimeError("light repair failed for: %s" % ", ".join(errs))
+    return multi
 
 
 def _write(report):
