@@ -17,6 +17,7 @@
 #include "Components/InputComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "NavigationInvokerComponent.h"
 #include "CollisionQueryParams.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Scene.h"
@@ -169,6 +170,14 @@ AShockPlayer::AShockPlayer()
 	ViewHands->VisibilityBasedAnimTickOption =
 		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	ViewHands->SetBoundsScale(4.0f);
+
+	// The imported 1-Medical BSP has no placed NavMeshBoundsVolume, and a volume spawned at runtime
+	// has no brush geometry to scale (ConstructTiledNavMesh: navmesh of size 0). A NavigationInvoker
+	// on the player, with NavigationSystemV1 bGenerateNavigationOnlyAroundNavigationInvokers=True and
+	// the RecastNavMesh RuntimeGeneration=Dynamic (both in DefaultEngine.ini), makes the nav system
+	// build tiles in a radius around the pawn — enough for the encounter AI to path around geometry.
+	NavInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker"));
+	NavInvoker->SetGenerationRadii(4000.0f, 5500.0f);
 
 	EquippedPlasmids.SetNum(6);
 	WeaponSlots.SetNum(8);

@@ -8,6 +8,7 @@ class AShockSecurityDevice;
 class UAnimSequence;
 class UCameraComponent;
 class UInputComponent;
+class UNavigationInvokerComponent;
 class UShockPlasmid;
 class USkeletalMeshComponent;
 class UWorld;
@@ -33,6 +34,11 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
 	TObjectPtr<USkeletalMeshComponent> ViewHands;
+
+	/** Drives runtime nav-tile generation around the player (invokers-only mode) so imported
+	 *  BSP levels get a real navmesh without a placed NavMeshBoundsVolume. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Navigation")
+	TObjectPtr<UNavigationInvokerComponent> NavInvoker;
 
 	/**
 	 * Where the weapon grip sits in camera space: +X forward, +Y right, -Z down. Tunable in the

@@ -322,6 +322,35 @@ def _ensure_game_instance_class():
     }
 
 
+NAV_CONFIG_BLOCK = """
+[/Script/NavigationSystem.NavigationSystemV1]
+; Imported 1-Medical BSP has no placed NavMeshBoundsVolume, and one spawned at runtime has no brush
+; geometry to size (ConstructTiledNavMesh: navmesh of size 0). A UNavigationInvokerComponent on the
+; player (AShockPlayer ctor) plus invokers-only generation builds tiles in a radius around the pawn,
+; so the encounter AI paths around geometry instead of the straight-line fallback.
+bAutoCreateNavigationData=True
+bSpawnNavDataInNavBoundsLevel=True
+bAllowClientSideNavigation=True
+bGenerateNavigationOnlyAroundNavigationInvokers=True
+
+[/Script/NavigationSystem.RecastNavMesh]
+RuntimeGeneration=Dynamic
+"""
+
+
+def _ensure_navigation_config():
+    """Nav-system config so a runtime RecastNavMesh generates around the player invoker."""
+    ini_path = os.path.join(_project_config_dir(), "DefaultEngine.ini")
+    if not os.path.isfile(ini_path):
+        return {"ini": ini_path, "nav": "missing ini"}
+    original = open(ini_path, encoding="utf-8").read()
+    if "[/Script/NavigationSystem.NavigationSystemV1]" in original:
+        return {"ini": ini_path, "nav": "already present", "changed": False}
+    text = original.rstrip() + "\n" + NAV_CONFIG_BLOCK
+    open(ini_path, "w", encoding="utf-8", newline="\n").write(text)
+    return {"ini": ini_path, "nav": "appended", "changed": True}
+
+
 def _level_subsystem():
     return unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 
@@ -405,6 +434,7 @@ STEPS = [
     ("status_menu_key_mapping", None, _ensure_status_menu_mapping, ()),
     ("pause_menu_key_mapping", None, _ensure_pause_menu_mapping, ()),
     ("game_instance_class", None, _ensure_game_instance_class, ()),
+    ("navigation_config", None, _ensure_navigation_config, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
 ]
