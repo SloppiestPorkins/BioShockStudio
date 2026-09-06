@@ -111,6 +111,9 @@ private:
 	TObjectPtr<UTextBlock> CenterNameText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> SelectPromptText = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UHorizontalBox> CenterStatDigits = nullptr;
 
 	UPROPERTY(Transient)

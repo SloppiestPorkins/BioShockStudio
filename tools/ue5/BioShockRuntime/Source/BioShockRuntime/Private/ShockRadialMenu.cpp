@@ -26,9 +26,9 @@ FString UShockRadialMenu::LastRadialVerifyError;
 namespace
 {
 constexpr float RingSize = 360.0f;
-constexpr float SegmentRingSize = 58.0f;
+constexpr float SegmentRingSize = 76.0f;   // brass medallion
 constexpr float SegmentRadius = 150.0f;
-constexpr float LabelRadiusBase = 232.0f;
+constexpr float LabelRadiusBase = 236.0f;
 constexpr float StatDigitW = 22.0f;
 constexpr float StatDigitH = 44.0f;
 constexpr int32 MaxStatDigits = 4;
@@ -187,20 +187,20 @@ void UShockRadialMenu::EnsureWidgetTree()
 		DimSlot->SetOffsets(FMargin(0.0f));
 	}
 
+	// BioShock's weapon/plasmid select has NO big brass ring in the centre — the centre holds
+	// only the selected item's name (top) and the "SELECT WEAPON" prompt (bottom). The choices are
+	// a ring/arc of circular brass medallions around that empty centre. RingImage is kept
+	// (collapsed) so the verify hook that checks for it still resolves.
 	RingImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("RadialRing"));
 	RingImage->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.92f));
+	RingImage->SetVisibility(ESlateVisibility::Collapsed);
 	if (UCanvasPanelSlot* RingSlot = RootCanvas->AddChildToCanvas(RingImage))
 	{
-		// Dead-centre of the screen. Explicit size + a centred anchor RECT (not autosize):
-		// autosize defers to the widget's desired size, which for a SetBrushFromTexture(tex,true)
-		// image is the texture's native size — that's why the wheel came out small and high.
 		RingSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		RingSlot->SetAlignment(FVector2D(0.5f, 0.5f));
 		RingSlot->SetAutoSize(false);
-		// The brass ring art sits in the upper part of its source square, so a box centred on
-		// the screen renders the visible ring ~55px high. Nudge it down to sit on the segments.
-		RingSlot->SetPosition(FVector2D(0.0f, 55.0f));
-		RingSlot->SetSize(FVector2D(RingSize, RingSize));
+		RingSlot->SetPosition(FVector2D::ZeroVector);
+		RingSlot->SetSize(FVector2D(4.0f, 4.0f));
 	}
 
 	CenterNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CenterName"));
@@ -236,6 +236,19 @@ void UShockRadialMenu::EnsureWidgetTree()
 		StatSlot->SetAlignment(FVector2D(0.5f, 0.0f));
 		StatSlot->SetAutoSize(true);
 		StatSlot->SetPosition(FVector2D(0.0f, 10.0f));
+	}
+
+	// "SELECT WEAPON" / "SELECT PLASMID" prompt under the ring, like the game.
+	SelectPromptText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectPrompt"));
+	SelectPromptText->SetFont(RadialFont(15, true));
+	SelectPromptText->SetColorAndOpacity(White());
+	SelectPromptText->SetJustification(ETextJustify::Center);
+	if (UCanvasPanelSlot* PromptSlot = RootCanvas->AddChildToCanvas(SelectPromptText))
+	{
+		PromptSlot->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+		PromptSlot->SetAlignment(FVector2D(0.5f, 0.0f));
+		PromptSlot->SetAutoSize(true);
+		PromptSlot->SetPosition(FVector2D(0.0f, SegmentRadius + 78.0f));
 	}
 }
 
@@ -327,6 +340,12 @@ void UShockRadialMenu::RebuildSegments()
 	if (!Player || !RootCanvas)
 	{
 		return;
+	}
+
+	if (SelectPromptText)
+	{
+		SelectPromptText->SetText(FText::FromString(
+			Mode == EShockRadialMode::Weapon ? TEXT("SELECT WEAPON") : TEXT("SELECT PLASMID")));
 	}
 
 	if (Mode == EShockRadialMode::Weapon)
