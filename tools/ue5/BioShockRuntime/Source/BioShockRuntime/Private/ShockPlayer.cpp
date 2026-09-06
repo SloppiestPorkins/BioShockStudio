@@ -740,10 +740,11 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	{
 		// The Shotgun shares the Grenade Launcher's "Launcher" socket, which is identity (a
 		// non-identity socket there double-rotates the GrenadeLauncher, whose R_grip root already
-		// self-corrects). So the shotgun carries its whole orientation here. rsg_P: barrel forward,
-		// right hand on the receiver. -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
-		FRotator ShotgunRot(12.0f, 18.0f, 3.0f);
-		FVector ShotgunOff(-14.0f, -4.0f, -10.0f);
+		// self-corrects). So the shotgun carries its whole orientation here. sgx: barrel forward
+		// toward the crosshair, raised a little, right hand on the receiver (user: "up and forward
+		// a bit"). -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
+		FRotator ShotgunRot(9.0f, 22.0f, 4.0f);
+		FVector ShotgunOff(-12.0f, -4.0f, -8.0f);
 		FString S;
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
 		{
