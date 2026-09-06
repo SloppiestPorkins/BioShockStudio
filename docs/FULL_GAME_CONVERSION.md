@@ -40,18 +40,34 @@ find, not permanently — see D4.
 Goal: **you can open the UE5 project and walk through all 21 Rapture maps**, lit, textured,
 with the placed static/skeletal geometry, even before any of it is a "game".
 
-### A1. Batch level conversion — all 21 maps ✅ scaffolded (4-map proof, 31 Aug 2026)
+### A1. Batch level conversion — all 21 maps 🔄 wide run in progress (6 Sept 2026)
 
-**Status:** `tools/ue5/import_all_levels.py` + `run_import_all_levels.py` landed. Proof run on
-four maps into `/Game/BioShockLevel/<map>` (geometry-only rig policy: `BIOSHOCK_IMPORT_RIGS=none`;
-character rigs deferred to A2). Report: `%TEMP%/bioshock_import_all_levels.json`.
+**Status:** `tools/ue5/import_all_levels.py` + `run_import_all_levels.py` landed. The full story-map
+re-import with every wall/UV/collision fix in place is running (6 Sept). Geometry-only rig policy
+(`BIOSHOCK_IMPORT_RIGS=none`; character rigs deferred to A2). Report:
+`%TEMP%/bioshock_import_all_levels.json`. Post-import repair (collision + lighting + PlayerStart
+snap onto the nearest AI path node) is `tools/ue5/repair_imported_levels.py`.
 
-| Map | Imported | Idempotent re-run | Created / updated / skipped / unsupported | Notes |
+| Map | Re-imported (6 Sept) | Repaired | Time | Notes |
 |---|---|---|---|---|
-| `0-Lighthouse` | ✅ | ✅ (~0 s second pass) | 1,865 / 436 / 0 / 395 | Matches prior single-map proof (1,274 instances, 0 mesh skipped). Unsupported = gameplay/dec FX classes → tagged `TargetPoint`s. |
-| `1-Medical` | ✅ | ✅ (~0 s second pass) | 8,075 / 1,132 / 0 / 2,910 | Slice map; unsupported dominated by `Script`, spawners, FX emitters, Havok constraint stubs. |
-| `2-Fisheries` | ✅ | — | 11,354 / 0 / 0 / 4,011 | Largest proof map (~11 min export+import). Extra unsupported vs Medical: door classes (`FishFreezerDoor*`), Fisheries-specific spawners/annotations. |
-| `7-BossFight` | ✅ | — | 1,699 / 0 / 0 / 490 | Set-piece map; smallest unsupported tail of the four. |
+| `0-Lighthouse` | ✅ | ✅ | 226 s | `UnderwaterStart` was 3111 uu from any path node → snapped. |
+| `1-Medical` | (already current) | ✅ | — | The slice. |
+| `1-Welcome` | ✅ | ✅ | 8 m | `-game` capture: spawns in the "Welcome to Rapture" statue foyer. 2nd start was 655 uu below the floor → snapped. |
+| `2-Fisheries` | ✅ | ✅ | 10 m | `PlayerStart1` snapped; `FromSubBayPS` (a level-travel arrival) kept. |
+| `2-SubBay` | ✅ | ✅ | 3 m | `FromFisheriesPS` snapped; `FromArcadiaPS` kept. |
+| `3-Arcadia` | ✗ crashed | — | — | UnrealEditor-Cmd exit 127 mid-export (~7000 instances). Arcadia is the forest map — largest, likely OOM. Retry isolated. |
+| `3-Market` … `7-Science` (9) | 🔄 batch 2 running | — | — | 3-Market, 4-Recreation, 5-Hephaestus, 5-Ryan, 6-Resi, 6-Slums, 7-BossFight, 7-Gauntlet, 7-Science. |
+
+**PlayerStart placement is now automated.** Imported starts come raw from the manifest and some
+land buried/floating (1-Welcome's 2nd was 655 uu under the floor). `repair_player_starts` snaps any
+start >180 uu from every imported `PlayerPathNode`/`PathNode`/`FloorPoint`/`PatrolPoint` onto the
+nearest one (+96 uu lift). No physics trace — `line_trace_single` misses compiled-world complex
+collision in a `-run=pythonscript` commandlet (verified on 1-Medical and 1-Welcome both); the path
+nodes are the game's own walkable ground truth. The `From<Level>PS` starts are the level-to-level
+arrival points (feeds A3).
+
+**Prior 4-map proof (31 Aug), for reference:** `0-Lighthouse` 1,865/436/0/395; `1-Medical`
+8,075/1,132/0/2,910; `2-Fisheries` 11,354/0/0/4,011; `7-BossFight` 1,699/0/0/490.
 
 **Decode gaps (expected, not blockers):** every map's `unsupported_classes` list is the same shape
 — `Script`, `*Spawner`, `Light` (authored lights become real `PointLight`s; duplicate actor rows
