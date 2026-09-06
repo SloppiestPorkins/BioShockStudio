@@ -257,6 +257,17 @@ def _restore_manifest_sockets(mesh, sockets):
     # reference skeleton. Keep it in BioShockSockets metadata but do not create an invalid UE socket.
     names = [item["name"] for item in valid]
     bones = [item["bone"] for item in valid]
+    # Only weapons that do NOT self-correct in AShockPlayer::AlignEquippedWeaponRootToGripSocket
+    # want the decoded socket transform: the Wrench (a static mesh, no align at all). Every grip
+    # weapon (Pistol/TommyGun/GrenadeLauncher/Crossbow → R_grip root) cancels its root-bone
+    # rotation in that function, so a non-identity socket on top double-rotates it — reported in
+    # PIE as "GrenadeLauncher pointing up, TommyGun facing the wrong way" (6 Sept 2026). Drop the
+    # transform for those; keep name+bone.
+    _SOCKET_TRANSFORM_WEAPONS = {"Wrench"}
+    for item in valid:
+        if item["name"] not in _SOCKET_TRANSFORM_WEAPONS:
+            item.pop("translation", None)
+            item.pop("rotation", None)
     has_transform = any("translation" in item or "rotation" in item for item in valid)
     if not has_transform:
         return library.restore_sockets(mesh, names, bones, [], [])

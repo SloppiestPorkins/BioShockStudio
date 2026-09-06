@@ -738,10 +738,12 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	// offset/rotation on top handles a residual pivot mismatch (default from the capture harness).
 	if (EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
-		// sg_sn_C: levels the barrel against the Launcher socket's ~(20,23,4) and lands both hands
-		// on the gun. -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
-		FRotator ShotgunRot(-5.0f, -7.0f, -1.0f);
-		FVector ShotgunOff(2.0f, 0.0f, -1.0f);
+		// The Shotgun shares the Grenade Launcher's "Launcher" socket, which is identity (a
+		// non-identity socket there double-rotates the GrenadeLauncher, whose R_grip root already
+		// self-corrects). So the shotgun carries its whole orientation here. rsg_P: barrel forward,
+		// right hand on the receiver. -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
+		FRotator ShotgunRot(12.0f, 18.0f, 3.0f);
+		FVector ShotgunOff(-14.0f, -4.0f, -10.0f);
 		FString S;
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
 		{
