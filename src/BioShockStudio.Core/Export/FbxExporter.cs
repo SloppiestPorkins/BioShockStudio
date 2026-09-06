@@ -204,7 +204,7 @@ public static class FbxExporter
             Mesh = meshFile,
             BoneCount = scene.Bones.Count,
             VertexCount = scene.Mesh is null ? 0 : scene.Mesh.Positions.Length / 3,
-            Sockets = scene.Sockets.Select(s => new FbxSocketEntry { Name = s.Name, Bone = s.BoneName }).ToList(),
+            Sockets = scene.Sockets.Select(ToFbxSocket).ToList(),
             Textures = TextureEntries(scene),
             Materials = MaterialEntries(scene),
             AttachedTo = attachedTo,
@@ -243,6 +243,24 @@ public static class FbxExporter
             : sourceObject;
 
     private static string Sanitise(string name) => string.Concat(name.Split(Path.GetInvalidFileNameChars()));
+
+    /// <summary>
+    /// Manifest socket entry: name and bone always; translation/rotation only when
+    /// <see cref="AnimationSceneExporter"/> successfully decomposed the socket frame.
+    /// </summary>
+    /// <remarks>
+    /// Values are centimetres in the project's internal basis — the same numbers a bone's
+    /// <c>translation</c> / <c>rotation</c> already carry in the scene — so the UE importer can
+    /// reverse <c>GameBasis.Convert</c> exactly as it does for level instance transforms.
+    /// Absence (not identity) means decompose failed; do not invent a zero offset.
+    /// </remarks>
+    private static FbxSocketEntry ToFbxSocket(SceneSocket socket) => new()
+    {
+        Name = socket.Name,
+        Bone = socket.BoneName,
+        Translation = socket.Translation,
+        Rotation = socket.Rotation,
+    };
 }
 
 /// <summary>Everything an engine import needs that the FBX files themselves cannot express.</summary>
@@ -358,6 +376,17 @@ public sealed record FbxSocketEntry
 {
     public required string Name { get; init; }
     public required string Bone { get; init; }
+
+    /// <summary>
+    /// Offset from the bone in centimetres, internal basis. Null when decompose failed.
+    /// </summary>
+    public float[]? Translation { get; init; }
+
+    /// <summary>
+    /// Rotation relative to the bone as <c>(x, y, z, w)</c>, same handedness as a bone's.
+    /// Null when decompose failed.
+    /// </summary>
+    public float[]? Rotation { get; init; }
 }
 
 public sealed record FbxAttachmentPoint

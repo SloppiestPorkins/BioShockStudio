@@ -223,8 +223,9 @@ public static class AnimationSceneExporter
     /// A socket with its own transform, decomposed the same way a bone's is.
     /// </summary>
     /// <remarks>
-    /// A transform that will not decompose yields identity rather than a guess, and the socket then
-    /// marks its bone — which is what every socket did before this and is honest about what is known.
+    /// A transform that will not decompose omits translation and rotation rather than inventing
+    /// identity — absence stays distinguishable from a measured identity frame, and the socket
+    /// still marks its bone.
     /// </remarks>
     private static SceneSocket ToSceneSocket(MeshSocket socket)
     {
@@ -448,6 +449,7 @@ public sealed record SceneSocket
 
     /// <summary>
     /// The socket's own offset from its bone, as translation and an <c>(x, y, z, w)</c> rotation.
+    /// Null when the frame would not decompose — do not treat that as measured identity.
     /// </summary>
     /// <remarks>
     /// A socket marker placed on the bone alone marks the wrong place for 200 of the game's 332
@@ -455,9 +457,9 @@ public sealed record SceneSocket
     /// used to carry only the name and the bone, so every socket in a <c>.blend</c> sat on its bone
     /// head regardless of what the game says.
     /// </remarks>
-    public float[] Translation { get; init; } = [0f, 0f, 0f];
+    public float[]? Translation { get; init; }
 
-    public float[] Rotation { get; init; } = [0f, 0f, 0f, 1f];
+    public float[]? Rotation { get; init; }
 }
 
 public sealed record SceneBone

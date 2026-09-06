@@ -226,6 +226,27 @@ def _tag(asset, values):
         unreal.EditorAssetLibrary.set_metadata_tag(asset, key, str(value))
 
 
+def _to_unreal_location(location):
+    """Reverses GameBasis.Convert(Vector3) -- negates Y.
+
+    Manifest / scene values are in this project's right-handed, +Y-left internal basis (the same
+    numbers bone translation already carries after decode). Unreal sockets want left-handed,
+    +Y-right. Same involution `import_level._to_unreal_location` applies to level instances.
+    """
+    x, y, z = location
+    return [x, -y, z]
+
+
+def _to_unreal_rotator(rotation):
+    """Reverses GameBasis.Convert(Quaternion) -- negate X and Z -- then to FRotator degrees.
+
+    Same formula as `import_level._decompose`'s quaternion step for GameBasis-converted matrices.
+    """
+    x, y, z, w = rotation
+    quat = unreal.Quat(x=-float(x), y=float(y), z=-float(z), w=float(w))
+    return quat.rotator()
+
+
 def _restore_manifest_sockets(mesh, sockets):
     """Restore markers dropped by the FBX round-trip through the native editor bridge."""
     library = getattr(unreal, "BioShockSocketLibrary", None)
@@ -234,8 +255,27 @@ def _restore_manifest_sockets(mesh, sockets):
     valid = [item for item in sockets if item["bone"] != "PistolBody"]
     # WP_Pistol's legacy RimLight marker targets PistolBody, which is not present in the shipped
     # reference skeleton. Keep it in BioShockSockets metadata but do not create an invalid UE socket.
-    return library.restore_sockets(mesh, [item["name"] for item in valid],
-                                   [item["bone"] for item in valid])
+    names = [item["name"] for item in valid]
+    bones = [item["bone"] for item in valid]
+    has_transform = any("translation" in item or "rotation" in item for item in valid)
+    if not has_transform:
+        return library.restore_sockets(mesh, names, bones, [], [])
+
+    locations = []
+    rotations = []
+    for item in valid:
+        translation = item.get("translation")
+        rotation = item.get("rotation")
+        if translation is not None and len(translation) >= 3:
+            loc = _to_unreal_location(translation)
+            locations.append(unreal.Vector(float(loc[0]), float(loc[1]), float(loc[2])))
+        else:
+            locations.append(unreal.Vector(0.0, 0.0, 0.0))
+        if rotation is not None and len(rotation) >= 4:
+            rotations.append(_to_unreal_rotator(rotation))
+        else:
+            rotations.append(unreal.Rotator(0.0, 0.0, 0.0))
+    return library.restore_sockets(mesh, names, bones, locations, rotations)
 
 
 def _import_textures(rig, export_directory, destination, report=None):
@@ -916,7 +956,15 @@ def _rig_fingerprint(manifest, rig, export_directory):
         "sourceObject": rig.get("sourceObject"),
         "boneCount": rig["boneCount"],
         "vertexCount": rig["vertexCount"],
-        "sockets": [(item["name"], item["bone"]) for item in (rig.get("sockets") or [])],
+        "sockets": [
+            {
+                "name": item["name"],
+                "bone": item["bone"],
+                "translation": item.get("translation"),
+                "rotation": item.get("rotation"),
+            }
+            for item in (rig.get("sockets") or [])
+        ],
         "mesh": _file_stamp(os.path.join(export_directory, rig["mesh"].replace("/", os.sep))),
         "normalizerAxisPolicy": NORMALIZER_AXIS_POLICY,
         "animations": animations,

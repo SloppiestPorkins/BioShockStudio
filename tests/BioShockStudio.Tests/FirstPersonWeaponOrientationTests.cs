@@ -692,13 +692,15 @@ public sealed class FirstPersonWeaponOrientationTests(GameFixture game)
 
             Matrix4x4.Decompose(source.Transform, out _, out var rotation, out var translation);
 
-            Assert.Equal(translation.X, written.Translation[0], 3);
+            Assert.NotNull(written.Translation);
+            Assert.NotNull(written.Rotation);
+            Assert.Equal(translation.X, written.Translation![0], 3);
             Assert.Equal(translation.Y, written.Translation[1], 3);
             Assert.Equal(translation.Z, written.Translation[2], 3);
 
             // A quaternion and its negation are the same rotation, so compare on that basis rather
             // than component by component.
-            var q = new Quaternion(written.Rotation[0], written.Rotation[1], written.Rotation[2], written.Rotation[3]);
+            var q = new Quaternion(written.Rotation![0], written.Rotation[1], written.Rotation[2], written.Rotation[3]);
             Assert.True(MathF.Abs(Quaternion.Dot(rotation, q)) > 0.999f,
                 $"socket '{source.Name}' exported a different rotation from the one it carries");
 

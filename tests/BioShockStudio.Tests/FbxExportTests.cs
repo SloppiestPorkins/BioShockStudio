@@ -380,6 +380,58 @@ public sealed class FbxExportTests(GameFixture game)
         }
     }
 
+    /// <summary>
+    /// <c>ue5_manifest.json</c> must carry each socket's translation/rotation — the FBX path drops
+    /// SOCKET_ null transforms, and the importer restores sockets from the manifest alone.
+    /// </summary>
+    [RequiresGameFact]
+    public void Manifest_CarriesSocketTranslationAndRotation()
+    {
+        var scene = HandsScene();
+        var wrench = Assert.Single(scene.Sockets, s =>
+            string.Equals(s.Name, "Wrench", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(wrench.Translation);
+        Assert.NotNull(wrench.Rotation);
+        // Wrench is the canary: ~180° about Z, not identity — identity would not prove the fields
+        // survived (absence and measured identity both look like sitting on the bone in UE).
+        var sourceQ = new Quaternion(
+            wrench.Rotation![0], wrench.Rotation[1], wrench.Rotation[2], wrench.Rotation[3]);
+        Assert.True(MathF.Abs(sourceQ.W) < 0.1f,
+            "expected the Wrench socket to carry a near-180° rotation; fixture may have changed");
+
+        string directory = Path.Combine(Path.GetTempPath(), $"bioshock-fbx-sock-{Guid.NewGuid():N}");
+        try
+        {
+            var manifest = FbxExporter.Write(scene, directory);
+            var written = Assert.Single(Assert.Single(manifest.Rigs).Sockets, s =>
+                string.Equals(s.Name, "Wrench", StringComparison.OrdinalIgnoreCase));
+
+            Assert.Equal(wrench.BoneName, written.Bone);
+            Assert.Equal(wrench.Translation, written.Translation);
+            Assert.Equal(wrench.Rotation, written.Rotation);
+
+            using var document = JsonDocument.Parse(
+                File.ReadAllText(Path.Combine(directory, FbxExporter.ManifestFileName)));
+            var jsonSocket = document.RootElement
+                .GetProperty("rigs")[0]
+                .GetProperty("sockets")
+                .EnumerateArray()
+                .Single(s => s.GetProperty("name").GetString() == "Wrench");
+
+            Assert.Equal(wrench.BoneName, jsonSocket.GetProperty("bone").GetString());
+            Assert.Equal(3, jsonSocket.GetProperty("translation").GetArrayLength());
+            Assert.Equal(4, jsonSocket.GetProperty("rotation").GetArrayLength());
+            for (int i = 0; i < 3; i++)
+                Assert.Equal(wrench.Translation![i], jsonSocket.GetProperty("translation")[i].GetSingle(), 3);
+            for (int i = 0; i < 4; i++)
+                Assert.Equal(wrench.Rotation![i], jsonSocket.GetProperty("rotation")[i].GetSingle(), 3);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static Matrix4x4 ToMatrix(double[] values) => new(
         (float)values[0], (float)values[1], (float)values[2], (float)values[3],
         (float)values[4], (float)values[5], (float)values[6], (float)values[7],

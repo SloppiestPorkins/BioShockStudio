@@ -122,26 +122,12 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 				StaticMesh->SetHiddenInGame(false);
 				StaticMesh->SetVisibility(true);
 
-				// The hands rig's "Wrench" socket carries a ~180° rotation (decoded — see
-				// FirstPersonWeaponOrientationTests: the Pistol socket is identity, the Wrench's is
-				// not). Our imported UE socket is identity (the FBX manifest drops the socket
-				// transform), so the static wrench mesh sits un-rotated — it reads as "in the wrist,
-				// pointing back". Apply the socket rotation here. -bioshockwrenchrot=P,Y,R /
-				// -bioshockwrenchoffset=X,Y,Z override it for capture-tuning.
-				FRotator WrenchRot(0.0f, 180.0f, 0.0f);
-				FVector WrenchOff(0.0f, 0.0f, 0.0f);
-				FString S;
-				if (FParse::Value(FCommandLine::Get(), TEXT("bioshockwrenchrot="), S, false))
-				{
-					TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
-					if (P.Num() == 3) WrenchRot = FRotator(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2]));
-				}
-				if (FParse::Value(FCommandLine::Get(), TEXT("bioshockwrenchoffset="), S, false))
-				{
-					TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
-					if (P.Num() == 3) WrenchOff = FVector(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2]));
-				}
-				StaticMesh->SetRelativeLocationAndRotation(WrenchOff, WrenchRot);
+				// The hands rig's "Wrench" socket carries a ~180° rotation, now applied to the
+				// imported UE socket itself (BioShockSocketLibrary::RestoreSockets reads the
+				// manifest's socket translation/rotation — the FbxExporter carries them). No
+				// component-level compensation here any more: SnapToTarget onto the Wrench socket
+				// picks the rotation up, and a hack here would double-correct.
+				StaticMesh->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
 			}
 			// Clear skeletal asset so nothing draws from Mesh — do NOT hide Mesh itself:
 			// StaticMesh is a child of Mesh, and parent HiddenInGame/Visibility hides children.
