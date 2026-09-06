@@ -493,18 +493,31 @@ def _punch_meter_cavity(frame):
 
 
 def _fill_mask_from_l_mask(mask):
-    """White→darker vertical gradient RGB + mask alpha — liquid feel under a tint."""
+    """Vertical liquid shading baked into RGB + mask alpha.
+
+    The HUD renders this straight (Mask texture x Tint) — there is no working liquid
+    material — so all the "liquid" look has to live in these pixels: a bright meniscus band
+    near the top, a strong falloff to a dark base, and a thin dark line along the very
+    bottom edge. Multiplied by the crimson/blue tint this reads as a filled tube of fluid.
+    """
     from PIL import Image
 
     w, h = mask.size
     grad = Image.new("RGB", (w, h))
     pixels = grad.load()
     for y in range(h):
-        # Brighter at top (highlight), darker at bottom (liquid depth).
-        t = y / max(1, h - 1)
-        v = int(255 * (1.0 - 0.42 * t))
+        t = y / max(1, h - 1)  # 0 at top, 1 at bottom
+        # Base: bright top, ~45% at the bottom — a real gradient, not a wash.
+        v = 1.0 - 0.55 * t
+        # Meniscus highlight: a soft bright band in the top ~18%.
+        if t < 0.18:
+            v += 0.35 * (1.0 - t / 0.18) ** 2
+        # Bottom-edge shadow: last ~8% dips dark so the fluid has a floor.
+        if t > 0.92:
+            v -= 0.30 * (t - 0.92) / 0.08
+        value = max(0, min(255, int(round(255 * v))))
         for x in range(w):
-            pixels[x, y] = (v, v, v)
+            pixels[x, y] = (value, value, value)
     return Image.merge("RGBA", (*grad.split(), mask))
 
 
