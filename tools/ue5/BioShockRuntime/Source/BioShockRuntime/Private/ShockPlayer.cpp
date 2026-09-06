@@ -735,15 +735,14 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	// R_grip) carry the orienting rotation on that bone, so cancelling the bone transform lands the
 	// gun correctly. The Shotgun's root is SG_Body — the gun body, identity rotation — nothing to
 	// cancel. It attaches to the "Launcher" hands socket (Shotgun.uc AttachBone="Launcher"), which
-	// now carries a real rotation from the manifest, but that value is tuned for the Grenade
-	// Launcher's geometry and reads wrong on the shotgun. Override with values found in the -game
-	// capture harness (sg_g3_P): barrel level, in frame, receiver at the right hand. The hands still
-	// don't perfectly wrap it — the FidgetShotgun clip poses around the gun's authored position and
-	// this is a placed offset, not that pose. -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
+	// carries the Grenade Launcher's ~(20,23,4) rotation from the manifest — the shotgun sits IN that
+	// socket frame, so this relative rotation is the residual on top. Tuned in the -game capture
+	// harness (sg_sk_S): barrel level, receiver at the right hand.
+	// -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
 	if (!RootBoneName.ToString().Contains(TEXT("grip"), ESearchCase::IgnoreCase))
 	{
-		FRotator ShotgunRot(12.0f, 18.0f, 3.0f);
-		FVector ShotgunOff(-14.0f, -4.0f, -10.0f);
+		FRotator ShotgunRot(-6.0f, -4.0f, 0.0f);
+		FVector ShotgunOff(-6.0f, -2.0f, -4.0f);
 		FString S;
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
 		{
