@@ -135,6 +135,10 @@ AShockPlayer::AShockPlayer()
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->bUsePawnControlRotation = true;
+	// BioShock 1 renders at a narrower FOV than UE's 90 default — the world reads more enclosed and
+	// the viewmodel sits large and close, the way an FPS gun is meant to. Overridable in the
+	// editor and via -bioshockfov=<deg>.
+	FirstPersonCamera->SetFieldOfView(CameraFieldOfView);
 	// Manual exposure must match repair_level_lighting.py's unbound PPV (BIOSHOCK_LIGHT_EV,
 	// default 11). Camera PP at blend weight 1 overrides the volume: pinning EV=0 here made
 	// Play near-black while the editor viewport (volume only) stayed bright — reported
@@ -255,6 +259,17 @@ void AShockPlayer::PossessedBy(AController* NewController)
 	if (USkeletalMeshComponent* BodyMesh = GetMesh())
 	{
 		BodyMesh->SetHiddenInGame(true);
+	}
+
+	if (FirstPersonCamera)
+	{
+		float Fov = CameraFieldOfView;
+		FString S;
+		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockfov="), S, false) && !S.IsEmpty())
+		{
+			Fov = FCString::Atof(*S);
+		}
+		FirstPersonCamera->SetFieldOfView(FMath::Clamp(Fov, 40.0f, 120.0f));
 	}
 
 	if (APlayerController* PC = Cast<APlayerController>(NewController))
@@ -731,38 +746,11 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	WeaponMesh->RefreshBoneTransforms();
 	const FName RootBoneName = WeaponMesh->GetBoneName(0);
 
-	// The Shotgun's root is SG_Body — the gun body, not a grip point — so cancelling it drags the
-	// body onto the socket and the gun fills the camera. Instead the game attaches WP_ShotgunMesh's
-	// ORIGIN to the Launcher bone (Shotgun.uc AttachBone="Launcher"), which is exactly what
-	// SnapToTarget already did; the FidgetShotgun clip poses the hands around the gun there. A small
-	// offset/rotation on top handles a residual pivot mismatch (default from the capture harness).
+	// The Shotgun's root is SG_Body (the gun body) and FidgetShotgun poses the hands around a spot
+	// no placed socket offset reaches. It is pinned to the camera directly in PinShotgunToCamera()
+	// on Tick instead — nothing to align here.
 	if (EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
-		// The Shotgun shares the Grenade Launcher's "Launcher" socket, which is identity (a
-		// non-identity socket there double-rotates the GrenadeLauncher, whose R_grip root already
-		// self-corrects). So the shotgun carries its whole orientation here. sgx: barrel forward
-		// toward the crosshair, raised a little, right hand on the receiver (user: "up and forward
-		// a bit"). -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
-		FRotator ShotgunRot(9.0f, 22.0f, 4.0f);
-		FVector ShotgunOff(-12.0f, -4.0f, -8.0f);
-		FString S;
-		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
-		{
-			TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
-			if (P.Num() == 3) { ShotgunRot = FRotator(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
-		}
-		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunoffset="), S, false))
-		{
-			TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
-			if (P.Num() == 3) { ShotgunOff = FVector(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
-		}
-		if (!ShotgunRot.IsNearlyZero() || !ShotgunOff.IsNearlyZero())
-		{
-			WeaponMesh->SetRelativeLocationAndRotation(ShotgunOff, ShotgunRot);
-			WeaponMesh->RefreshBoneTransforms();
-		}
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL alignRoot Shotgun snap-to-socket rot=%s off=%s"),
-			*ShotgunRot.ToCompactString(), *ShotgunOff.ToCompactString());
 		return;
 	}
 
@@ -826,6 +814,45 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	{
 		FrameViewmodel(ActiveGripSocket);
 	}
+
+	PinShotgunToCamera();
+}
+
+void AShockPlayer::PinShotgunToCamera()
+{
+	if (!EquippedWeapon || !FirstPersonCamera
+		|| !EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+	USkeletalMeshComponent* GunMesh = EquippedWeapon->Mesh;
+	if (!GunMesh || !GunMesh->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
+	FVector Off = ShotgunViewmodelOffset;
+	FRotator Rot = ShotgunViewmodelRotation;
+	{
+		const auto ParseTriple = [](const TCHAR* Key, float& A, float& B, float& C) -> bool
+		{
+			FString Value;
+			if (!FParse::Value(FCommandLine::Get(), Key, Value, false)) { return false; }
+			TArray<FString> P;
+			Value.ParseIntoArray(P, TEXT(","));
+			if (P.Num() != 3) { return false; }
+			A = FCString::Atof(*P[0]); B = FCString::Atof(*P[1]); C = FCString::Atof(*P[2]);
+			return true;
+		};
+		float X, Y, Z;
+		if (ParseTriple(TEXT("bioshockshotgunpos="), X, Y, Z)) { Off = FVector(X, Y, Z); }
+		if (ParseTriple(TEXT("bioshockshotgunworldrot="), X, Y, Z)) { Rot = FRotator(X, Y, Z); }
+	}
+
+	const FTransform CamT = FirstPersonCamera->GetComponentTransform();
+	const FVector WorldLoc = CamT.TransformPosition(Off);
+	const FQuat WorldRot = CamT.GetRotation() * Rot.Quaternion();
+	GunMesh->SetWorldLocationAndRotation(WorldLoc, WorldRot);
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)

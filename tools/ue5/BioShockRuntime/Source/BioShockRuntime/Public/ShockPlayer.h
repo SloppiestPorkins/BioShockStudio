@@ -74,6 +74,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
 	FRotator ViewmodelRotation = FRotator::ZeroRotator;
 
+	/** Camera FOV in degrees. BioShock 1's default is ~75, narrower than UE's 90 — the world reads
+	 *  enclosed and the viewmodel large. -bioshockfov=<deg> overrides. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
+	float CameraFieldOfView = 75.0f;
+
+	/**
+	 * The Shotgun does not follow its hands cleanly through FidgetShotgun (SG_Body is the gun body,
+	 * not a grip; the clip poses fingers around a place a placed socket offset can't reach). So it
+	 * is pinned to the camera directly each frame instead — this is where it sits, in camera space
+	 * (+X forward, +Y right, +Z up) and the rotation applied to the camera. Editor-tunable and
+	 * -bioshockshotgunpos=X,Y,Z / -bioshockshotgunworldrot=P,Y,R override without a rebuild.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
+	FVector ShotgunViewmodelOffset = FVector(40.0f, 15.0f, -18.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Camera")
+	FRotator ShotgunViewmodelRotation = FRotator(4.0f, -8.0f, 0.0f);
+
 	/**
 	 * When true, SetupPlayerInputComponent binds Fire + Move/Look axes.
 	 * Defaults true so GameMode-spawned PIE pawns walk/fire without an extra script call.
@@ -783,6 +801,8 @@ private:
 	void EnsureViewHands();
 	void FrameViewmodel(FName GripSocket);
 	void AlignEquippedWeaponRootToGripSocket();
+	/** Pin the Shotgun mesh to a fixed camera-relative pose each frame (see ShotgunViewmodelOffset). */
+	void PinShotgunToCamera();
 	void TickHeldFire();
 	void TickWeaponRecoil();
 	void TickViewHandsAnimation(float DeltaSeconds);
