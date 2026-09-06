@@ -1,0 +1,4 @@
+Landed 6 Sept 2026 (d479fbe) — files copied from the worktree (patch wouldn't apply, CRLF).
+Required retiring the runtime double-correction hacks (35f459c wrench yaw, and keeping the
+shotgun tuned offset since its root has no rotation to inherit) + a full weapon-rig rebuild
+after the worker's re-import corrupted NEWPlayerHands/WP_Shotgun.
