@@ -2068,6 +2068,12 @@ void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 	const bool bMesh = Enemy->GetMesh() && Enemy->GetMesh()->GetSkeletalMeshAsset() != nullptr;
 	const float HealthBefore = Enemy->GetCurrentHealth();
 
+	// The arrival loadout starts on the Wrench (slot 0, MeleeReach 180), but SliceEnemy0 spawns
+	// ~388 units out — melee cannot reach it before the enemy closes, which is realistic play but
+	// makes this instantaneous check a guaranteed miss. Switch to the Pistol (slot 1) so the check
+	// exercises what it is actually for: possess -> aim -> deal damage to a live enemy.
+	Player->SelectWeaponSlot(1);
+
 	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
 	{
 		const FVector ToEnemy = Enemy->GetActorLocation() - Player->GetActorLocation();
