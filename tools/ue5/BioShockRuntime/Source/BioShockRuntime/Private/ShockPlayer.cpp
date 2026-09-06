@@ -731,41 +731,35 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	WeaponMesh->RefreshBoneTransforms();
 	const FName RootBoneName = WeaponMesh->GetBoneName(0);
 
-	// Only weapons whose skeleton root IS the grip bone (TommyGun/Pistol/Crossbow/GrenadeLauncher →
-	// R_grip) carry the orienting rotation on that bone, so cancelling the bone transform lands the
-	// gun correctly. The Shotgun's root is SG_Body — the gun body, identity rotation — nothing to
-	// cancel. It attaches to the "Launcher" hands socket (Shotgun.uc AttachBone="Launcher"), which
-	// carries the Grenade Launcher's ~(20,23,4) rotation from the manifest — the shotgun sits IN that
-	// socket frame, so this relative rotation is the residual on top. Tuned in the -game capture
-	// harness (sg_sk_S): barrel level, receiver at the right hand.
-	// -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
-	if (!RootBoneName.ToString().Contains(TEXT("grip"), ESearchCase::IgnoreCase))
+	// The Shotgun's root is SG_Body — the gun body, not a grip point — so cancelling it drags the
+	// body onto the socket and the gun fills the camera. Instead the game attaches WP_ShotgunMesh's
+	// ORIGIN to the Launcher bone (Shotgun.uc AttachBone="Launcher"), which is exactly what
+	// SnapToTarget already did; the FidgetShotgun clip poses the hands around the gun there. A small
+	// offset/rotation on top handles a residual pivot mismatch (default from the capture harness).
+	if (EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
-		FRotator ShotgunRot(-6.0f, -4.0f, 0.0f);
-		FVector ShotgunOff(-6.0f, -2.0f, -4.0f);
+		// sg_sn_C: levels the barrel against the Launcher socket's ~(20,23,4) and lands both hands
+		// on the gun. -bioshockshotgunrot / -bioshockshotgunoffset re-tune.
+		FRotator ShotgunRot(-5.0f, -7.0f, -1.0f);
+		FVector ShotgunOff(2.0f, 0.0f, -1.0f);
 		FString S;
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunrot="), S, false))
 		{
-			TArray<FString> P;
-			S.ParseIntoArray(P, TEXT(","));
+			TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
 			if (P.Num() == 3) { ShotgunRot = FRotator(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
 		}
 		if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotgunoffset="), S, false))
 		{
-			TArray<FString> P;
-			S.ParseIntoArray(P, TEXT(","));
+			TArray<FString> P; S.ParseIntoArray(P, TEXT(","));
 			if (P.Num() == 3) { ShotgunOff = FVector(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2])); }
 		}
-		WeaponMesh->SetRelativeLocationAndRotation(ShotgunOff, ShotgunRot);
-		WeaponMesh->RefreshBoneTransforms();
-		UE_LOG(
-			LogTemp,
-			Display,
-			TEXT("BIOSHOCK_VIEWMODEL alignRoot weapon=%s root=%s (non-grip) rot=%s off=%s"),
-			*EquippedWeapon->GetWeaponDefName().ToString(),
-			*RootBoneName.ToString(),
-			*ShotgunRot.ToCompactString(),
-			*ShotgunOff.ToCompactString());
+		if (!ShotgunRot.IsNearlyZero() || !ShotgunOff.IsNearlyZero())
+		{
+			WeaponMesh->SetRelativeLocationAndRotation(ShotgunOff, ShotgunRot);
+			WeaponMesh->RefreshBoneTransforms();
+		}
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL alignRoot Shotgun snap-to-socket rot=%s off=%s"),
+			*ShotgunRot.ToCompactString(), *ShotgunOff.ToCompactString());
 		return;
 	}
 
