@@ -30,8 +30,13 @@ AShockDoor::AShockDoor()
 		DoorMesh->SetRelativeScale3D(FVector(0.15f, 1.2f, 2.2f));
 	}
 
+	// DoorMesh carries a thin-slab cube scale (0.15,1.2,2.2). Fully decouple the animated door
+	// from it — absolute location/rotation/scale — so it sits at the actor transform undistorted.
 	DoorSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("DoorSkeletalMesh"));
 	DoorSkeletalMesh->SetupAttachment(DoorMesh);
+	DoorSkeletalMesh->SetUsingAbsoluteLocation(true);
+	DoorSkeletalMesh->SetUsingAbsoluteRotation(true);
+	DoorSkeletalMesh->SetUsingAbsoluteScale(true);
 	DoorSkeletalMesh->SetMobility(EComponentMobility::Movable);
 	DoorSkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	DoorSkeletalMesh->SetHiddenInGame(true);
@@ -161,7 +166,9 @@ void AShockDoor::ConfigureSkeletalDoor(
 	DoorSkeletalMesh->SetSkeletalMesh(Mesh);
 	DoorSkeletalMesh->SetHiddenInGame(false);
 	DoorSkeletalMesh->SetVisibility(true);
-	DoorSkeletalMesh->SetRelativeTransform(FTransform::Identity);
+	// Absolute — sit exactly at the actor transform, unit scale, ignoring the cube slab.
+	DoorSkeletalMesh->SetWorldLocationAndRotation(GetActorLocation(), GetActorRotation());
+	DoorSkeletalMesh->SetWorldScale3D(FVector::OneVector);
 
 	// The static slab stays as the invisible collision blocker (Tick toggles it by OpenAlpha).
 	if (DoorMesh)
