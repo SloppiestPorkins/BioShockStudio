@@ -8,10 +8,13 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   3. playable input         - Fire -> LMB, Reload -> R in DefaultInput.ini (legacy input)
   4. repair_null_master_textures - fill NULL master-material params (wall-texture fix)
   5. fix_exterior_collision - make window-view/backdrop geometry render-only
-  6. fix_prop_collision     - class-based simple/multi-convex/complex collision policy
-  7. repair_light_beams     - shipped falloff+dust additive god-ray material
-  8. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
-  9. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
+  6. repair_light_beams     - shipped falloff+dust additive god-ray material
+  7. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
+  8. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
+
+fix_prop_collision (v4) is intentionally NOT run here: its static complex-as-simple proxies
+acted as invisible walls (per-poly collision on walk-through tunnel/archway shells). Prop
+collision fidelity is being redone properly - see tasks/v5-*.
 
 Each step is idempotent and its own failure does not stop the others; a summary
 prints at the end and a JSON report is written to
@@ -443,7 +446,6 @@ STEPS = [
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
     ("fix_exterior_collision", "fix_exterior_collision", "main", ()),
-    ("fix_prop_collision", "fix_prop_collision", "main", ()),
     ("repair_light_beams", "repair_light_beams", "main", ()),
     # Scripted events: doors + MessageTrigger relays, then AShockScript actors on the slice map.
     ("import_slice_doors", "import_slice_doors", "main", ()),
