@@ -50,16 +50,14 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 		return 0;
 	}
 
-	// LoadRoomDoor / Med_DoorAnim scripts drive their door via PlayAnimation(<clip>). Route the
-	// exact clip name to the door: skeletal doors play that AnimSequence, swing doors fall back
-	// to Open/CloseDoor on *OPEN* / *CLOS*.
+	// LoadRoomDoor script drives MedicalLoadRoomDoor via PlayAnimation(LoadRoomDoor_OPEN).
+	// Until skeletal door clips are wired, treat *OPEN* clips on a placed AShockDoor as OpenDoor.
 	const FString AnimName = Animation.ToString();
-	if (AnimName.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase)
-		|| AnimName.Contains(TEXT("CLOS"), ESearchCase::IgnoreCase))
+	if (AnimName.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase))
 	{
 		if (AShockDoor* Door = AShockDoor::FindByLabel(World, TargetLabel))
 		{
-			if (Door->PlayDoorClip(Animation))
+			if (Door->OpenDoor(/*bStayOpen=*/true))
 			{
 				LastPlayedAnimation = Animation;
 				LastPlayedActorName = Door->GetName();

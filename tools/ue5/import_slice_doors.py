@@ -113,109 +113,6 @@ def _import_load_room_doors(manifest, existing, report):
         report["loadRoomDoorsPlaced"] = report.get("loadRoomDoorsPlaced", 0) + 1
 
 
-# Manifest door-mesh prefix → imported skeletal pack + (open, opened, close, closed) clip leafs.
-# Packs live under /Game/BioShockCharacters/<pack>/ ; clips under .../Animations/.
-_SKELETAL_DOOR_PACKS = {
-    "LoadRoomDoorMESH": ("LoadRoomDoorAnim",
-                         "LoadRoomDoor_OPEN", "LoadRoomDoor_OPENED",
-                         "LoadRoomDoor_CLOSE", "LoadRoomDoor_CLOSED"),
-    "Med_DoorAnim": ("Med_DoorAnim", "Med_DoorOPEN", None, "Med_DoorCLOSE", None),
-    "BulkheadDoorANIM": ("BulkheadDoor", "TestDoorOpen", None, "TestDoorClose", None),
-    "AccGateAnimMesh": ("AccGateAnim",
-                        "AccGateAnim_OPEN", "AccGateAnim_OPENED",
-                        "AccGateAnim_CLOSE", "AccGateAnim_CLOSED"),
-    "Gate01Anim": ("Gate01Anim", "Gate01OPEN", None, "Gate01CLOSE", None),
-    "SlidingBrokeStoreDoor": ("SlidingBrokeStoreDoor",
-                              "SlidingStoreDoorOpen", None, "SlidingStoreDoorClose", None),
-}
-
-
-def _load_anim(pack, leaf):
-    if not leaf:
-        return None
-    path = "/Game/BioShockCharacters/%s/Animations/%s.%s" % (pack, leaf, leaf)
-    return unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
-
-
-def _configure_skeletal_doors(manifest, existing, report):
-    """Give each placed AShockDoor its real animated mesh + open/close clips where one exists."""
-    instances = import_level._instances_by_actor_key(manifest)
-    asset_names = import_level._manifest_asset_names(manifest)
-    by_key = dict(existing)
-    by_key.update(import_level._existing_by_key())
-    door_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockDoor")
-    configured = 0
-
-    for entry in manifest.get("actors") or []:
-        # This door's mesh asset name (strip the SkeletalMesh_ prefix + trailing _<index>).
-        mesh_name = ""
-        for inst in instances.get(entry["key"]) or []:
-            nm = asset_names.get(inst.get("asset"), "")
-            if nm:
-                mesh_name = nm
-                break
-        if not mesh_name:
-            continue
-        pack = None
-        for prefix, spec in _SKELETAL_DOOR_PACKS.items():
-            if mesh_name.startswith(prefix):
-                pack = spec
-                break
-        if pack is None:
-            continue
-
-        # The AShockDoor for this actor: door_attachments keys "door:<key>", load-room "door:<key>".
-        actor = by_key.get(DOOR_KEY_PREFIX + entry["key"])
-        if actor is None or (door_cls is not None
-                             and not unreal.MathLibrary.class_is_child_of(actor.get_class(), door_cls)):
-            continue
-
-        pack_name, o, od, c, cd = pack
-        mesh_path = "/Game/BioShockCharacters/%s/%s.%s" % (pack_name, pack_name, pack_name)
-        if not unreal.EditorAssetLibrary.does_asset_exist(mesh_path):
-            report.setdefault("skeletalDoorPackMissing", []).append(pack_name)
-            continue
-        mesh = unreal.load_asset(mesh_path)
-        open_a = _load_anim(pack_name, o)
-        if mesh is None or open_a is None:
-            continue
-        actor.configure_skeletal_door(
-            mesh, open_a, _load_anim(pack_name, od),
-            _load_anim(pack_name, c), _load_anim(pack_name, cd))
-        configured += 1
-
-        # Hide the static door-mesh StaticMeshActor the full import placed for this door — the
-        # animated AShockDoor now owns the visual (they were z-fighting). Match by mesh-name
-        # prefix within ~400uu of the door.
-        _hide_static_door_mesh_near(actor, mesh_name, report)
-
-    report["skeletalDoorsConfigured"] = configured
-
-
-def _hide_static_door_mesh_near(door_actor, mesh_name, report):
-    """Hide the StaticMeshActor whose mesh matches this door's animated mesh (same name minus
-    the trailing _<index>), within 300uu of the door."""
-    import re
-
-    want = re.sub(r"_\d+$", "", mesh_name)
-    if not want:
-        return
-    world = unreal.EditorLevelLibrary.get_editor_world()
-    dl = door_actor.get_actor_location()
-    for sma in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.StaticMeshActor):
-        comp = sma.get_component_by_class(unreal.StaticMeshComponent)
-        sm = comp.get_editor_property("static_mesh") if comp else None
-        if sm is None or re.sub(r"_\d+$", "", sm.get_name()) != want:
-            continue
-        sl = sma.get_actor_location()
-        if ((sl.x - dl.x) ** 2 + (sl.y - dl.y) ** 2 + (sl.z - dl.z) ** 2) ** 0.5 > 300.0:
-            continue
-        comp.set_editor_property("hidden_in_game", True)
-        comp.set_editor_property("visible", False)
-        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
-        report["staticDoorMeshesHidden"] = report.get("staticDoorMeshesHidden", 0) + 1
-
-
 def _wire_existing_trigger_relays(manifest, report):
     """Re-bind relays on TriggerBoxes already in the slice (idempotent InstallOnActor)."""
     by_key = import_level._existing_by_key()
@@ -258,7 +155,6 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
     meshes = {}
     import_level._import_door_attachments(manifest, meshes, existing, report, handled)
     _import_load_room_doors(manifest, existing, report)
-    _configure_skeletal_doors(manifest, existing, report)
     _wire_existing_trigger_relays(manifest, report)
 
     if save:
