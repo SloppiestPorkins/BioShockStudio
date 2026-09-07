@@ -261,7 +261,7 @@ Durable C# fix landed 7 Sept: `ResolveMesh` passes `BulkTextureCatalog.Load(root
 | Additive hand-bob channel in UE | deferred |
 | Shotgun shell-by-shell reload | done (`41c0e1a`) — `PlayViewHandsAnimationChain` plays `_Start` → `_LOOP`×shells → `_End`; reload timer scales `0.5 + 0.55/shell`. Weapon mesh still plays `Reload` once (not looped) |
 | Wrench swing variation | done (`41c0e1a`) — alternates `Swing_A` (+ `Swing_A_Wrench_Start` wind-up) and `Swing_B` |
-| Smooth clip transitions (crossfade) | open — single-node anim hard-cuts every transition; needs a ViewHands AnimBlueprint with montage blending (would smooth all weapons) |
+| Smooth clip transitions (crossfade) | done (`ba2973f`) — `UShockViewHandsAnimInstance` / `FShockViewHandsProxy` samples current + previous clip and blends over 0.04–0.12s. Replaces `UAnimSingleNodeInstance`. `AlignShotgunToHandPose` still uses single-node for its one measurement pose, then `StartViewHandsForEquippedWeapon` restores the instance |
 | Chem `FireLoop`/`FireEnd` while trigger held | deferred (`FireStart` on fire notify) |
 | Whether Launcher socket rotation should be restored for Shotgun only | `PLAUSIBLE`, capture-gated |
 | Shotgun placement | solved 7 Sept — `AlignShotgunToHandPose` lands SG_Body on the grip socket and rotates SG_Body→SG_Pump onto the Bip01_R_Hand→Bip01_L_Hand line (bodyToGrip 0.0, pumpToLHand 2.8). Needs a PIE look |
