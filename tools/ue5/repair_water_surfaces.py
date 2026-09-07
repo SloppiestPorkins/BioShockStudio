@@ -119,8 +119,10 @@ def main():
         # Half-extent from actor bounds (world) — axis-aligned approximation.
         origin, extent = actor.get_actor_bounds(False)
         half = unreal.Vector(abs(extent.x), abs(extent.y), abs(extent.z))
-        # Prefer the volume box if already a ShockWaterVolume.
-        already = isinstance(actor, water_cls) or actor.get_class() == water_cls
+        # Prefer the volume box if already a ShockWaterVolume. water_cls is a unreal.Class
+        # (not a Python type), so compare via get_class / class_is_child_of, not isinstance.
+        actor_cls = actor.get_class()
+        already = actor_cls == water_cls or unreal.MathLibrary.class_is_child_of(actor_cls, water_cls)
 
         if already:
             if DRY:
