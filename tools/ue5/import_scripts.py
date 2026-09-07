@@ -179,6 +179,26 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 action.configure(instigator)
                 stats["instance_applied"] += 1
                 return True
+        if action_class == "ActionOpenDoor":
+            door = _prop(bag, "DoorLabel")
+            stay = _prop(bag, "StayOpen", "OpenAndHold", "bStayOpen")
+            if door is not None and hasattr(action, "configure"):
+                action.configure(door, bool(stay) if stay is not None else False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionCloseDoor":
+            door = _prop(bag, "DoorLabel")
+            force = _prop(bag, "ForceClose", "bForceClose")
+            if door is not None and hasattr(action, "configure"):
+                action.configure(door, bool(force) if force is not None else False)
+                stats["instance_applied"] += 1
+                return True
+        if action_class in ("ActionLockDoor", "ActionUnlockDoor"):
+            door = _prop(bag, "DoorLabel")
+            if door is not None and hasattr(action, "configure"):
+                action.configure(door)
+                stats["instance_applied"] += 1
+                return True
         if action_class == "ActionLog":
             text = _prop(bag, "Text")
             if text is not None and hasattr(action, "configure"):
@@ -538,6 +558,13 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
     registry = None
     sample_actor = None
     sample_tb = ""
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    if world is not None and hasattr(unreal, "ShockScriptSubsystem"):
+        try:
+            registry = unreal.ShockScriptSubsystem.get_registry_for_world(world)
+        except Exception:
+            registry = None
+
     for actor_doc in scripts:
         key = actor_doc.get("key") or ("Script_%s" % actor_doc.get("exportIndex"))
         label = actor_doc.get("label") or actor_doc.get("name") or key

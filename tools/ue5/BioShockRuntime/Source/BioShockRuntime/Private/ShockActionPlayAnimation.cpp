@@ -2,6 +2,8 @@
 
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockAnimatedProp.h"
+#include "ShockDoor.h"
 
 UShockActionPlayAnimation::UShockActionPlayAnimation()
 {
@@ -31,6 +33,12 @@ bool UShockActionPlayAnimation::PlayOnActor(AActor* Target)
 	}
 	LastPlayedAnimation = Animation;
 	LastPlayedActorName = Target->GetName();
+
+	if (AShockAnimatedProp* Prop = Cast<AShockAnimatedProp>(Target))
+	{
+		const bool bLoop = EndBehavior == EShockAnimEndBehavior::Loop;
+		return Prop->PlayScriptedMotion(Animation, AnimationRate, bLoop);
+	}
 	return true;
 }
 
@@ -41,6 +49,23 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 	{
 		return 0;
 	}
+
+	// LoadRoomDoor script drives MedicalLoadRoomDoor via PlayAnimation(LoadRoomDoor_OPEN).
+	// Until skeletal door clips are wired, treat *OPEN* clips on a placed AShockDoor as OpenDoor.
+	const FString AnimName = Animation.ToString();
+	if (AnimName.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase))
+	{
+		if (AShockDoor* Door = AShockDoor::FindByLabel(World, TargetLabel))
+		{
+			if (Door->OpenDoor(/*bStayOpen=*/true))
+			{
+				LastPlayedAnimation = Animation;
+				LastPlayedActorName = Door->GetName();
+				++Played;
+			}
+		}
+	}
+
 	const FString Want = TargetLabel.ToString();
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -49,16 +74,27 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 		{
 			continue;
 		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
+		if (Cast<AShockDoor>(Actor))
 		{
+			// Doors are handled by the FindByLabel OpenDoor path above.
 			continue;
 		}
-		if (PlayOnActor(Actor))
+
+		bool bMatch = false;
+		if (const AShockAnimatedProp* Prop = Cast<AShockAnimatedProp>(Actor))
+		{
+			bMatch = Prop->PropLabel.ToString().Equals(Want, ESearchCase::CaseSensitive);
+		}
+#if WITH_EDITOR
+		if (!bMatch)
+		{
+			bMatch = Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive);
+		}
+#endif
+		if (bMatch && PlayOnActor(Actor))
 		{
 			++Played;
 		}
-#endif
 	}
 	return Played;
 }

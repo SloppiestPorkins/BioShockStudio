@@ -16,6 +16,8 @@ inverse-square falloff off so intensity stays a brightness scale. A light with n
 spawned — its reach is UNKNOWN. **Drawable** geometry instances become `StaticMeshActor`/
 `SkeletalMeshActor`. **Gameplay volumes** (`TriggerVolume`, `BlockingVolume`, `FluidVolume`, …)
 become invisible UE5 volume actors sized from their brush OBJ bounds — never as visible meshes.
+**Water volumes** (`FluidVolume`, `CascadingWaterVolume`, `TunnelCollapseWaterVolume`) spawn as
+`AShockWaterVolume`: hidden query box plus a visible top-face plane (`M_ShockWater`).
 **Source CSG brushes** (`kind: Brush` on a plain `Brush` actor) are omitted: their geometry is
 already in the single `BuiltWorld` instance, and placing them again would duplicate architecture
 (the studio viewer hides them for the same reason). `CubemapProbe` actors become
@@ -33,6 +35,7 @@ Run headless:
 import json
 import math
 import os
+import struct
 
 import unreal
 
@@ -647,15 +650,28 @@ def _is_non_drawn_volume(class_name):
             or class_name.endswith("Zone"))
 
 
-def _should_place_mesh_instance(actor_class, asset_kind):
+def _is_animated_prop_class(actor_class):
+    """ScriptableMover / Fan / Mover — placed as AShockAnimatedProp, not a static mesh."""
+    return actor_class in ("ScriptableMover", "Fan", "Mover")
+
+
+def _is_fan_mesh_name(name):
+    """Medical has no Fan class; spinning props ship as StaticMeshActors named *fan*."""
+    return bool(name) and "fan" in name.lower()
+
+
+def _should_place_mesh_instance(actor_class, asset_kind, asset_name=""):
     """Whether a manifest instance should become a visible mesh actor.
 
     Gameplay volumes are placed separately by `_import_region_volumes`. Source CSG brushes are never
-    drawn in the shipped game — the compiled world already contains them.
+    drawn in the shipped game — the compiled world already contains them. Animated props
+    (ScriptableMover / Fan / fan meshes) are placed by `_import_animated_props`.
     """
     if asset_kind == "Brush" and not _is_non_drawn_volume(actor_class):
         return False
     if _is_non_drawn_volume(actor_class):
+        return False
+    if _is_animated_prop_class(actor_class) or _is_fan_mesh_name(asset_name):
         return False
     return True
 
@@ -677,22 +693,75 @@ def _remove_owned_mesh(key, existing, report):
 
 # UE2 volume class -> UE5 spawn class. TriggerBox is used for TriggerVolume because its box extent
 # is settable from Python; ATriggerVolume's brush builder is not. Collision semantics match.
+# Water volumes become AShockWaterVolume (overlap + rendered surface), not PhysicsVolume — the
+# brush-backed PhysicsVolume was drawing green bars in -game captures (see _hide_volume_in_game).
+_WATER_VOLUME_CLASSES = frozenset({
+    "FluidVolume",
+    "CascadingWaterVolume",
+    "TunnelCollapseWaterVolume",
+})
+
 _VOLUME_SPAWN_CLASS = {
     "TriggerVolume": ("TriggerBox", "TriggerVolume"),
     "BlockingVolume": ("BlockingVolume",),
     "PathBlockingVolume": ("BlockingVolume",),
-    "FluidVolume": ("PhysicsVolume",),
+    "FluidVolume": ("PhysicsVolume",),  # fallback if ShockWaterVolume missing
     "CascadingWaterVolume": ("PhysicsVolume",),
+    "TunnelCollapseWaterVolume": ("PhysicsVolume",),
     "Volume": ("PhysicsVolume",),
 }
 
 
 def _resolve_volume_class(bio_class):
+    if bio_class in _WATER_VOLUME_CLASSES:
+        water_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWaterVolume")
+        if water_cls is not None:
+            return water_cls
     for name in _VOLUME_SPAWN_CLASS.get(bio_class, ()):
         cls = getattr(unreal, name, None)
         if cls is not None:
             return cls
     return None
+
+
+def _is_water_volume_class(class_name):
+    return class_name in _WATER_VOLUME_CLASSES
+
+
+def _ensure_water_materials_for_import(report):
+    """Author M_ShockWater if missing — surfaces need it before ConfigureFromHalfExtent."""
+    try:
+        import author_water_material
+    except ImportError:
+        report["waterMaterialError"] = "author_water_material import failed"
+        return
+    water_report = {"failures": [], "assets": {}}
+    author_water_material.ensure_water_materials(water_report)
+    report["waterMaterials"] = water_report.get("assets") or {}
+    if water_report.get("failures"):
+        report.setdefault("waterMaterialFailures", []).extend(water_report["failures"])
+
+
+def _configure_shock_water_volume(actor, half_extent, class_name, report):
+    """Size AShockWaterVolume, hide the query box, place the top-face surface."""
+    cascading = class_name == "CascadingWaterVolume"
+    configure = getattr(actor, "configure_from_half_extent", None)
+    if configure is not None:
+        configure(half_extent, cascading)
+        report["waterSurfacesConfigured"] = report.get("waterSurfacesConfigured", 0) + 1
+        return True
+    # Fallback if the C++ API is unavailable on a stale binary.
+    if _try_set_box_extent(actor, half_extent):
+        refresh = getattr(actor, "refresh_surface", None)
+        if refresh is not None:
+            try:
+                actor.set_editor_property("b_cascading", cascading)
+            except Exception:  # noqa: BLE001
+                pass
+            refresh()
+            report["waterSurfacesConfigured"] = report.get("waterSurfacesConfigured", 0) + 1
+            return True
+    return False
 
 
 def _hide_volume_in_game(actor):
@@ -708,9 +777,16 @@ def _hide_volume_in_game(actor):
 
     Sets both flags: hidden_in_game covers the running game, and visible covers a scene capture,
     which does not respect hidden_in_game on every component type.
+
+    AShockWaterVolume owns a separate Surface mesh for the waterline; this still hides the
+    query/brush primitives so only the surface draws.
     """
     hidden = 0
+    surface = getattr(actor, "surface", None)
     for component in actor.get_components_by_class(unreal.PrimitiveComponent):
+        # Keep the authored water surface visible.
+        if surface is not None and component == surface:
+            continue
         # Collision must keep working - this is a volume, being inside it is its whole job.
         try:
             component.set_editor_property("hidden_in_game", True)
@@ -836,9 +912,20 @@ def _volume_tags(entry):
 
 
 def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
-    """Place brush-backed gameplay volumes as invisible UE5 volume actors."""
+    """Place brush-backed gameplay volumes as invisible UE5 volume actors.
+
+    Water volumes (FluidVolume / CascadingWaterVolume / TunnelCollapseWaterVolume) spawn as
+    AShockWaterVolume: hidden query box + visible top-face surface with M_ShockWater.
+    """
     assets = _manifest_assets_by_key(manifest)
     instances = _instances_by_actor_key(manifest)
+
+    water_entries = [
+        e for e in (manifest.get("actors") or [])
+        if _is_water_volume_class(e.get("className") or "")
+    ]
+    if water_entries:
+        _ensure_water_materials_for_import(report)
 
     for entry in manifest.get("actors") or []:
         class_name = entry.get("className") or ""
@@ -895,14 +982,40 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
             actor.set_actor_location(center, False, False)
             actor.set_actor_rotation(rotation, False)
 
-        sized = _set_volume_half_extent(actor, half_extent)
-        report["volumeSizeMethod"] = report.get("volumeSizeMethod") or {}
-        report["volumeSizeMethod"][sized] = report["volumeSizeMethod"].get(sized, 0) + 1
+        if _is_water_volume_class(class_name) and _configure_shock_water_volume(
+                actor, half_extent, class_name, report):
+            report["volumeSizeMethod"] = report.get("volumeSizeMethod") or {}
+            report["volumeSizeMethod"]["shock_water"] = (
+                report["volumeSizeMethod"].get("shock_water", 0) + 1)
+            report["waterVolumesPlaced"] = report.get("waterVolumesPlaced", 0) + 1
+        else:
+            sized = _set_volume_half_extent(actor, half_extent)
+            report["volumeSizeMethod"] = report.get("volumeSizeMethod") or {}
+            report["volumeSizeMethod"][sized] = report["volumeSizeMethod"].get(sized, 0) + 1
 
         actor.set_actor_label(entry.get("label") or entry.get("name") or key)
         actor.tags = _volume_tags(entry)
         _hide_volume_in_game(actor)
+        if class_name == "TriggerVolume":
+            _ensure_trigger_relay(actor, entry)
         existing[key] = actor
+
+
+def _ensure_trigger_relay(actor, entry):
+    """Attach UShockTriggerRelayComponent so player overlap → MessageTrigger(volume label)."""
+    relay_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTriggerRelayComponent")
+    if relay_cls is None or actor is None:
+        return None
+    region = entry.get("regionActor") or {}
+    label = entry.get("label") or entry.get("name") or entry.get("key") or ""
+    # One-shot is the safe default when the export omits triggerOnlyOnce.
+    once = True if "triggerOnlyOnce" not in region else bool(region.get("triggerOnlyOnce"))
+    disabled = bool(region.get("disabled") or False)
+    try:
+        return unreal.ShockTriggerRelayComponent.install_on_actor(
+            actor, str(label), once, disabled)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root, rig_names=None):
@@ -972,12 +1085,15 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
 
         actor_class_name = actor_classes.get(instance["actorKey"], "")
         asset_kind = asset_kinds.get(instance["asset"], "")
-        if not _should_place_mesh_instance(actor_class_name, asset_kind):
+        asset_name = _manifest_asset_names(manifest).get(instance["asset"], "")
+        if not _should_place_mesh_instance(actor_class_name, asset_kind, asset_name):
             _remove_owned_mesh(key, existing, report)
-            report["meshInstancesSkipped"] = report.get("meshInstancesSkipped", 0) + 1
+            if _is_animated_prop_class(actor_class_name) or _is_fan_mesh_name(asset_name):
+                report["animatedPropMeshDeferred"] = report.get("animatedPropMeshDeferred", 0) + 1
+            else:
+                report["meshInstancesSkipped"] = report.get("meshInstancesSkipped", 0) + 1
             continue
 
-        asset_name = _manifest_asset_names(manifest).get(instance["asset"], "")
         needs_skeletal = _requires_skeletal_rig(actor_class_name, asset_name)
         skeletal_mesh = skeletal_meshes.get(instance["asset"])
         static_mesh = meshes.get(instance["asset"])
@@ -1042,6 +1158,274 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
         # 2,018 to 7,337, since 5,321 actors with working geometry were double-counted as if they
         # had none.
         handled.add(instance["actorKey"])
+
+
+def _decode_float32_hex(value_hex):
+    if not value_hex or len(value_hex) < 8:
+        return None
+    try:
+        return struct.unpack("<f", bytes.fromhex(value_hex[:8]))[0]
+    except (ValueError, struct.error):
+        return None
+
+
+def _decode_vector_hex(value_hex):
+    if not value_hex or len(value_hex) < 24:
+        return None
+    try:
+        return struct.unpack("<fff", bytes.fromhex(value_hex[:24]))
+    except (ValueError, struct.error):
+        return None
+
+
+def _decode_rotator_hex(value_hex):
+    """Package Rotator (int32 pitch/yaw/roll) → degrees. APPROXIMATED KeyRot decode."""
+    if not value_hex or len(value_hex) < 24:
+        return None
+    try:
+        pitch, yaw, roll = struct.unpack("<iii", bytes.fromhex(value_hex[:24]))
+    except (ValueError, struct.error):
+        return None
+    return (
+        pitch * ROTATOR_TO_DEGREES,
+        yaw * ROTATOR_TO_DEGREES,
+        roll * ROTATOR_TO_DEGREES,
+    )
+
+
+def _mover_keyframes_from_properties(entry):
+    """Decode KeyPos/KeyRot from raw tagged properties (not typed in the C# mover record).
+
+    Key 0 is implicit rest pose (actor placement). Indices observed start at 1.
+    Confidence: CONFIRMED_BYTES for float/int layout; motion path APPROXIMATED until rendered.
+    """
+    by_index = {}
+    move_time = None
+    for prop in entry.get("properties") or []:
+        name = prop.get("name")
+        if name == "MoveTime":
+            decoded = _decode_float32_hex(prop.get("valueHex") or "")
+            if decoded is not None:
+                move_time = decoded
+        elif name == "KeyPos":
+            vec = _decode_vector_hex(prop.get("valueHex") or "")
+            if vec is None:
+                continue
+            idx = int(prop.get("arrayIndex") or 0)
+            slot = by_index.setdefault(idx, {})
+            slot["pos"] = vec
+        elif name == "KeyRot":
+            rot = _decode_rotator_hex(prop.get("valueHex") or "")
+            if rot is None:
+                continue
+            idx = int(prop.get("arrayIndex") or 0)
+            slot = by_index.setdefault(idx, {})
+            slot["rot"] = rot
+
+    mover = entry.get("mover") or {}
+    if move_time is None and mover.get("moveTime") is not None:
+        move_time = float(mover["moveTime"])
+
+    keys = []
+    for idx in sorted(by_index):
+        if idx <= 0:
+            continue
+        slot = by_index[idx]
+        pos = slot.get("pos") or (0.0, 0.0, 0.0)
+        rot = slot.get("rot") or (0.0, 0.0, 0.0)
+        # KeyPos shares Actor Location's Unreal-native basis (not GameBasis) — use as-is.
+        keys.append({
+            "location": unreal.Vector(pos[0], pos[1], pos[2]),
+            "rotation": unreal.Rotator(pitch=rot[0], yaw=rot[1], roll=rot[2]),
+        })
+    return keys, (move_time if move_time is not None else 1.0)
+
+
+# Default fan spin when RotationRate is absent from the export (Medical: StaticMeshActor + fanv2).
+_DEFAULT_FAN_REVOLUTIONS_PER_SECOND = 0.75
+
+
+def _import_animated_props(manifest, meshes, existing, report, handled):
+    """Place ScriptableMover / Fan / fan-mesh actors as AShockAnimatedProp."""
+    prop_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockAnimatedProp")
+    if prop_cls is None:
+        report["animatedPropsSkipped"] = report.get("animatedPropsSkipped", 0) + 1
+        _log("ShockAnimatedProp class missing — animated props not placed")
+        return
+
+    instances = _instances_by_actor_key(manifest)
+    by_name = {
+        asset["name"]: meshes[asset["key"]]
+        for asset in manifest.get("assets") or []
+        if asset.get("key") in meshes
+    }
+    asset_names = _manifest_asset_names(manifest)
+
+    for entry in manifest.get("actors") or []:
+        class_name = entry.get("className") or ""
+        mesh_name = entry.get("staticMesh") or ""
+        is_mover = _is_animated_prop_class(class_name)
+        is_fan = class_name == "Fan" or _is_fan_mesh_name(mesh_name)
+        if not is_mover and not is_fan:
+            actor_instances = instances.get(entry["key"]) or []
+            for inst in actor_instances:
+                if _is_fan_mesh_name(asset_names.get(inst.get("asset"), "")):
+                    is_fan = True
+                    mesh_name = asset_names.get(inst.get("asset"), mesh_name)
+                    break
+        if not is_mover and not is_fan:
+            continue
+
+        actor_instances = instances.get(entry["key"]) or []
+        transform = actor_instances[0].get("transform") if actor_instances else entry.get("transform")
+        if transform is not None:
+            location, rotation, scale = _decompose(transform)
+        else:
+            location = unreal.Vector(*(entry.get("location") or [0.0, 0.0, 0.0]))
+            rotation = _rotation(entry.get("rotation") or [0, 0, 0])
+            scale = unreal.Vector(1.0, 1.0, 1.0)
+
+        for inst in actor_instances:
+            old_key = "instance:" + entry["key"] + ":" + inst["asset"]
+            old = existing.get(old_key)
+            if old is not None:
+                _actor_subsystem().destroy_actor(old)
+                existing.pop(old_key, None)
+
+        label = entry.get("label") or entry.get("name") or entry["key"]
+        akey = "aprop:" + entry["key"]
+        actor = existing.get(akey)
+        if actor is not None:
+            actor_cls = actor.get_class()
+            if actor_cls != prop_cls and not unreal.MathLibrary.class_is_child_of(actor_cls, prop_cls):
+                _actor_subsystem().destroy_actor(actor)
+                actor = None
+
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(prop_cls, location, rotation)
+            if actor is None:
+                report["skipped"] += 1
+                continue
+            report["created"] += 1
+        else:
+            report["updated"] += 1
+            actor.set_actor_location(location, False, False)
+            actor.set_actor_rotation(rotation, False)
+
+        actor.set_actor_scale3d(scale)
+        actor.set_actor_label(label)
+        actor.tags = [
+            unreal.Name(KEY_TAG_PREFIX + akey),
+            unreal.Name("BioShockClass=" + class_name),
+        ]
+
+        mesh = by_name.get(mesh_name)
+        if mesh is None and actor_instances:
+            mesh = meshes.get(actor_instances[0].get("asset"))
+        mesh_comp = actor.get_editor_property("prop_mesh")
+        if mesh is not None and mesh_comp is not None:
+            mesh_comp.set_static_mesh(mesh)
+            mesh_comp.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+            mesh_comp.set_relative_scale3d(unreal.Vector(1.0, 1.0, 1.0))
+
+        # Movers with a mover record use keyframes; pure fans spin continuously.
+        use_keyframes = bool(entry.get("mover")) or (is_mover and class_name != "Fan")
+        if use_keyframes and not (class_name == "Fan"):
+            keys, move_time = _mover_keyframes_from_properties(entry)
+            relative_keys = []
+            for key in keys:
+                relative_keys.append(unreal.Transform(
+                    key["location"],
+                    key["rotation"],
+                    unreal.Vector(1.0, 1.0, 1.0)))
+            # TriggerToggle → one-shot; script PlayAnimation toggles direction.
+            loop_mode = 0  # EShockPropLoopMode::OneShot
+            if hasattr(unreal, "ShockPropLoopMode"):
+                loop_mode = unreal.ShockPropLoopMode.ONE_SHOT
+            if hasattr(actor, "configure_keyframe_motion"):
+                actor.configure_keyframe_motion(
+                    unreal.Name(label), relative_keys, float(move_time), loop_mode)
+            report["scriptableMoversPlaced"] = report.get("scriptableMoversPlaced", 0) + 1
+        else:
+            if hasattr(actor, "configure_continuous_spin"):
+                actor.configure_continuous_spin(
+                    unreal.Name(label),
+                    unreal.Vector(1.0, 0.0, 0.0),
+                    _DEFAULT_FAN_REVOLUTIONS_PER_SECOND,
+                    True)
+            report["fansPlaced"] = report.get("fansPlaced", 0) + 1
+            report["fanDefaultSpinUsed"] = report.get("fanDefaultSpinUsed", 0) + 1
+
+        existing[akey] = actor
+        handled.add(akey)
+        handled.add(entry["key"])
+        report["animatedPropsPlaced"] = report.get("animatedPropsPlaced", 0) + 1
+
+
+def _property_present(entry, name):
+    for prop in entry.get("properties") or []:
+        if prop.get("name") == name:
+            return True
+    return False
+
+
+def _import_turret_spawners(manifest, existing, report, handled):
+    """Place hostile AShockTurret at TurretSpawner markers (unless ForScriptedSpawn)."""
+    turret_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTurret")
+    if turret_cls is None:
+        _log("ShockTurret class missing — turret spawners not placed")
+        return
+
+    for entry in manifest.get("actors") or []:
+        if entry.get("className") != "TurretSpawner":
+            continue
+
+        key = entry["key"]
+        if key in handled:
+            continue
+
+        label = entry.get("label") or entry.get("name") or key
+        # ForScriptedSpawn present → keep TargetPoint path for ActionSpawnTurret.
+        if _property_present(entry, "ForScriptedSpawn"):
+            report["turretSpawnersScriptOnly"] = report.get("turretSpawnersScriptOnly", 0) + 1
+            continue
+
+        location = unreal.Vector(*(entry.get("location") or [0.0, 0.0, 0.0]))
+        rotation = _rotation(entry.get("rotation") or [0, 0, 0])
+        tkey = "turret:" + key
+        actor = existing.get(tkey)
+        if actor is not None:
+            actor_cls = actor.get_class()
+            if actor_cls != turret_cls and not unreal.MathLibrary.class_is_child_of(
+                    actor_cls, turret_cls):
+                _actor_subsystem().destroy_actor(actor)
+                actor = None
+
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(turret_cls, location, rotation)
+            if actor is None:
+                report["skipped"] += 1
+                continue
+            report["created"] += 1
+        else:
+            report["updated"] += 1
+            actor.set_actor_location(location, False, False)
+            actor.set_actor_rotation(rotation, False)
+
+        actor.set_actor_label(label)
+        actor.tags = [
+            unreal.Name(KEY_TAG_PREFIX + tkey),
+            unreal.Name("BioShockClass=TurretSpawner"),
+        ]
+        if hasattr(actor, "configure_for_verify"):
+            actor.configure_for_verify(unreal.Name(label), 1, 40.0)
+        elif hasattr(actor, "set_device_label"):
+            actor.set_device_label(unreal.Name(label))
+
+        existing[tkey] = actor
+        handled.add(tkey)
+        handled.add(key)
+        report["turretsPlaced"] = report.get("turretsPlaced", 0) + 1
 
 
 def _import_door_attachments(manifest, meshes, existing, report, handled):
@@ -1247,6 +1631,8 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
     _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)
+    _import_animated_props(manifest, meshes, existing, report, handled)
+    _import_turret_spawners(manifest, existing, report, handled)
     _import_door_attachments(manifest, meshes, existing, report, handled)
     _import_region_volumes(manifest, manifest_dir, existing, report, handled)
 
@@ -1256,12 +1642,18 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
     _log("import report: %d created, %d updated, %d skipped, %d unsupported, "
          "%d mesh instance(s) not drawn, %d volume(s) placed, %d volume(s) skipped, "
          "%d ShockDoor(s) placed, %d door attachment(s) placed, %d door attachment(s) skipped, "
+         "%d animated prop(s) placed (%d mover, %d fan), %d turret(s) placed, "
          "%d mesh(es) with a material assigned, %d material slot(s) resolved"
          % (report["created"], report["updated"], report["skipped"], report["unsupported"],
             report.get("meshInstancesSkipped", 0), report.get("volumesPlaced", 0),
             report.get("volumesSkipped", 0), report.get("doorsPlaced", 0),
             report.get("doorAttachmentsPlaced", 0),
-            report.get("doorAttachmentsSkipped", 0), report.get("materialsAssigned", 0),
+            report.get("doorAttachmentsSkipped", 0),
+            report.get("animatedPropsPlaced", 0),
+            report.get("scriptableMoversPlaced", 0),
+            report.get("fansPlaced", 0),
+            report.get("turretsPlaced", 0),
+            report.get("materialsAssigned", 0),
             report.get("materialSlotsResolved", 0)))
 
     main.last_report = report

@@ -1,8 +1,9 @@
 import json, os, sys, traceback
-sys.path.append(r"C:\Users\Jack\Documents\BioshockHavok\tools\ue5")
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get(
     "BIOSHOCK_ACTION_OUT",
-    r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\script_doors_report.json",
+    os.path.join(os.environ.get("TEMP", "."), "script_doors_report.json"),
 )
 try:
     import verify_script_doors

@@ -7,6 +7,8 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   2. setup_main_menu        - MainMenu map + WBP + startup-map repoint
   3. playable input         - Fire -> LMB, Reload -> R in DefaultInput.ini (legacy input)
   4. repair_null_master_textures - fill NULL master-material params (wall-texture fix)
+  5. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
+  6. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
 
 Each step is idempotent and its own failure does not stop the others; a summary
 prints at the end and a JSON report is written to
@@ -437,6 +439,9 @@ STEPS = [
     ("navigation_config", None, _ensure_navigation_config, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
+    # Scripted events: doors + MessageTrigger relays, then AShockScript actors on the slice map.
+    ("import_slice_doors", "import_slice_doors", "main", ()),
+    ("import_slice_scripts", "import_slice_scripts", "main", ()),
 ]
 
 

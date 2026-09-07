@@ -8,6 +8,7 @@
 #include "ShockStationActor.h"
 #include "ShockTurret.h"
 #include "ShockViewHandsAnimInstance.h"
+#include "ShockWaterVolume.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
@@ -1031,9 +1032,80 @@ void AShockPlayer::Tick(float DeltaSeconds)
 
 	TickViewHandsAnimation(DeltaSeconds);
 	TickHeldFire();
+	TickUnderwaterPostProcess(DeltaSeconds);
 
 	// ViewHands stays at the fixed eye-relative transform from PlaceViewHandsFixed. The looping
 	// fidget moves R_Grip (via the arm chain) and the weapon attached to that socket rides with it.
+}
+
+void AShockPlayer::TickUnderwaterPostProcess(float DeltaSeconds)
+{
+	if (!FirstPersonCamera)
+	{
+		return;
+	}
+
+	const bool bInWater = AShockWaterVolume::IsActorInWater(this);
+	const float Target = bInWater ? 1.0f : 0.0f;
+	const float FadeRate = 1.0f / FMath::Max(UnderwaterFadeSeconds, 0.01f);
+	UnderwaterBlend = FMath::FInterpConstantTo(UnderwaterBlend, Target, DeltaSeconds, FadeRate);
+
+	FPostProcessSettings& PPS = FirstPersonCamera->PostProcessSettings;
+	// Keep the manual-exposure pin from the constructor (must stay at blend weight 1).
+	FirstPersonCamera->PostProcessBlendWeight = 1.0f;
+
+	const float W = UnderwaterBlend;
+	const bool bActive = W > 0.001f;
+
+	// Blue-green colour grade (APPROXIMATION of BioShock's underwater look — not a shipped LUT).
+	PPS.bOverride_SceneColorTint = bActive;
+	PPS.SceneColorTint = FMath::Lerp(
+		FLinearColor::White,
+		FLinearColor(0.42f, 0.78f, 0.88f),
+		W);
+
+	PPS.bOverride_ColorSaturation = bActive;
+	PPS.ColorSaturation = FVector4(
+		FMath::Lerp(1.0f, 0.75f, W),
+		FMath::Lerp(1.0f, 0.85f, W),
+		FMath::Lerp(1.0f, 1.05f, W),
+		1.0f);
+
+	PPS.bOverride_ColorContrast = bActive;
+	PPS.ColorContrast = FVector4(
+		FMath::Lerp(1.0f, 0.92f, W),
+		FMath::Lerp(1.0f, 0.95f, W),
+		FMath::Lerp(1.0f, 1.0f, W),
+		1.0f);
+
+	// Slight murk / bloom stand-in for exponential fog (world fog is a separate concern).
+	PPS.bOverride_BloomIntensity = bActive;
+	PPS.BloomIntensity = FMath::Lerp(0.675f, 1.35f, W);
+
+	PPS.bOverride_VignetteIntensity = bActive;
+	PPS.VignetteIntensity = FMath::Lerp(0.0f, 0.45f, W);
+
+	// Chromatic edge.
+	PPS.bOverride_SceneFringeIntensity = bActive;
+	PPS.SceneFringeIntensity = 2.0f * W;
+
+	// Soft blur via DOF — cheap, gated; not a shipped underwater shader.
+	PPS.bOverride_DepthOfFieldFstop = bActive;
+	PPS.DepthOfFieldFstop = FMath::Lerp(22.0f, 4.0f, W);
+	PPS.bOverride_DepthOfFieldFocalDistance = bActive;
+	PPS.DepthOfFieldFocalDistance = FMath::Lerp(10000.0f, 280.0f, W);
+	PPS.bOverride_DepthOfFieldDepthBlurAmount = bActive;
+	PPS.DepthOfFieldDepthBlurAmount = 0.4f * W;
+}
+
+void AShockPlayer::AdvanceUnderwaterPostProcessForVerify(float DeltaSeconds)
+{
+	TickUnderwaterPostProcess(DeltaSeconds);
+}
+
+bool AShockPlayer::IsInWaterForVerify() const
+{
+	return AShockWaterVolume::IsActorInWater(this);
 }
 
 void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)

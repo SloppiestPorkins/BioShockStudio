@@ -721,6 +721,21 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Research")
 	float GetResearchPointsForVerify(FName Archetype) const;
 
+	/**
+	 * Underwater post-process blend 0..1 (fades ~0.3s when entering/leaving AShockWaterVolume).
+	 * Driven from Tick off IsActorInWater — audio muffling is out of scope.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Water|Verify")
+	float GetUnderwaterBlendForVerify() const { return UnderwaterBlend; }
+
+	/** Headless: drive the underwater PP fade without a full world Tick. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Water|Verify")
+	void AdvanceUnderwaterPostProcessForVerify(float DeltaSeconds);
+
+	/** Headless: AShockWaterVolume::IsActorInWater(this). */
+	UFUNCTION(BlueprintPure, Category="BioShock|Water|Verify")
+	bool IsInWaterForVerify() const;
+
 	/** Level-travel: copy inventory stacks without exposing the private map. */
 	TMap<FName, int32> GetInventoryStacksForTravel() const;
 
@@ -782,6 +797,7 @@ private:
 
 	void TickHeldFire();
 	void TickWeaponRecoil();
+	void TickUnderwaterPostProcess(float DeltaSeconds);
 	void TickViewHandsAnimation(float DeltaSeconds);
 	void ResolveViewHandsAnimsForWeapon(FName WeaponDefName);
 	void PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop);
@@ -986,6 +1002,10 @@ private:
 	float WeaponRecoilKickRemaining = 0.0f;
 	float WeaponRecoilKickTotal = 0.0f;
 	FTimerHandle WeaponRecoilTimerHandle;
+
+	/** 0 = dry, 1 = fully underwater grade. Fades over UnderwaterFadeSeconds. */
+	float UnderwaterBlend = 0.0f;
+	static constexpr float UnderwaterFadeSeconds = 0.3f;
 
 	double LastPlasmidCastWorldSeconds = -1.0;
 };

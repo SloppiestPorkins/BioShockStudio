@@ -52,8 +52,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Door")
 	float ProximityRadius = 180.0f;
 
+	/**
+	 * When false, proximity overlap does not open the door — script OpenDoor / PlayAnimation only.
+	 * Used to prove the scripted path in headless verifies; leave true for playable slice.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Door")
+	bool bEnableProximityOpen = true;
+
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	void SetDoorLabel(FName Label) { DoorLabel = Label; }
+
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	void SetEnableProximityOpen(bool bEnable) { bEnableProximityOpen = bEnable; }
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	void SetLocked(bool bInLocked);

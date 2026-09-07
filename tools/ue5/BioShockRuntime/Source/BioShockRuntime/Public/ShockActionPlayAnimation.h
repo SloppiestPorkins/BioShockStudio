@@ -17,9 +17,9 @@ enum class EShockAnimEndBehavior : uint8
 };
 
 /**
- * UnrealScript `ActionPlayAnimation` (ShockGame.U). Finds mesh actors by TargetLabel and calls
- * PlayAnimationOnChannel. First slice holds params and records the play request; no mesh anim
- * playback / channel / wait-for-completion yet.
+ * UnrealScript `ActionPlayAnimation` (ShockGame.U). Finds actors by TargetLabel and plays:
+ * - AShockAnimatedProp: start/toggle keyframe move or enable spin
+ * - otherwise: records the play request only (mesh AnimSequence path not wired)
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPlayAnimation : public UShockAction
@@ -79,7 +79,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FString GetLastPlayedActorName() const { return LastPlayedActorName; }
 
-	/** Records the PlayAnimationOnChannel call. Does not play a mesh animation. */
+	/** Records the play request; drives AShockAnimatedProp when the target is one. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool PlayOnActor(AActor* Target);
 

@@ -8,7 +8,7 @@ class UWorld;
 
 /**
  * UnrealScript `ActionSpawnTurret`. RequestSpawn records Spawner label.
- * SpawnInWorld places a TargetPoint stand-in at that label — not a turret pawn.
+ * SpawnInWorld finds the labeled spawner marker and spawns a hostile AShockTurret there.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSpawnTurret : public UShockAction

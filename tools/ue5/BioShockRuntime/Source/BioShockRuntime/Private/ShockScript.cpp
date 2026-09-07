@@ -3,6 +3,7 @@
 #include "Engine/World.h"
 #include "ShockScriptRegistry.h"
 #include "ShockScriptRunner.h"
+#include "ShockScriptSubsystem.h"
 
 AShockScript::AShockScript()
 {
@@ -39,6 +40,16 @@ UShockScriptRegistry* AShockScript::EnsureRegistry()
 	if (Runner->Registry)
 	{
 		return Runner->Registry;
+	}
+	// Prefer the world-shared registry so DispatchMessage reaches every script in the level.
+	if (UWorld* World = GetWorld())
+	{
+		if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World))
+		{
+			UShockScriptRegistry* Shared = Sub->GetOrCreateRegistry();
+			Runner->SetRegistry(Shared);
+			return Shared;
+		}
 	}
 	UShockScriptRegistry* Owned = NewObject<UShockScriptRegistry>(this, TEXT("Registry"));
 	Runner->SetRegistry(Owned);

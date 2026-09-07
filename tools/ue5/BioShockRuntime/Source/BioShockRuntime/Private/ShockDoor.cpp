@@ -263,7 +263,10 @@ void AShockDoor::OnProximityBeginOverlap(
 	AutoCloseRemaining = -1.0f;
 	// APPROXIMATED — BioShock doors are often Use/script-driven; proximity-open is the v1 path
 	// because ShockPlayer has no Interact bind yet (only UseFirstAid / UseEveHypo).
-	OpenDoor(false);
+	if (bEnableProximityOpen)
+	{
+		OpenDoor(false);
+	}
 }
 
 void AShockDoor::OnProximityEndOverlap(
