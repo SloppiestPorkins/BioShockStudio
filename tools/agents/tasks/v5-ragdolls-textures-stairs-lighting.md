@@ -19,35 +19,39 @@ Do 3 and 4 first — both are quick, and 4 is already fully diagnosed. Then 1, t
 
 ---
 
-## 3. Stairs are un-walkable — a v4 regression, root cause known
+## 3. Prop collision — the invisible wall is fixed; make the fidelity pass actually good
 
-v4's `fix_prop_collision.py` put `stairs_3461`, `stairs_open_3473`, `railing_stairs_open_3512`,
-`FX_StairWater_C_5312` (and anything matching `_ARCHITECTURE = stairs?|ramp|walkway|catwalk|…`
-with `largest >= 200`) into the `static_complex_proxy` bucket: it clears the mesh's convex hull,
-sets `CTF_USE_COMPLEX_AS_SIMPLE`, disables collision on the visible render actor, and spawns an
-invisible Static per-poly proxy.
+UPDATE (`3288d5c`): the "huge invisible wall at the top of the Medical Pavilion sign stairs"
+was one of v4's **invisible Static proxies** (`fix_prop_collision._sync_proxy` spawned an
+invisible complex-as-simple collider beside each proxied prop and disabled the render actor's
+collision — a mis-placed/duplicated one blocked the stairs). That scheme is **already reverted**:
+all 580 proxies destroyed, `fix_prop_collision` removed from `setup_playable_slice` STEPS,
+`verify_collision.py` back to its pre-v4 form. The 71 formerly-proxied meshes now carry
+`CTF_USE_COMPLEX_AS_SIMPLE` **directly on the visible render mesh** (Movable — fine for
+query/sweep) via `undo_prop_collision_proxies.py`. `run_game_movement` is green again.
 
-**A single convex hull over a staircase is a smooth walkable wedge — exactly what you want.**
-Per-poly collision on the same mesh makes the character-movement step-up logic catch on every
-riser / on the open gaps between treads, so the player can't climb. v4 made stairs *worse*.
+So the interim state is: you collide with exactly what you see, no invisible geometry. Your job
+is to turn `fix_prop_collision.py` into something worth wiring back in:
+- Per-poly (`CTF_USE_COMPLEX_AS_SIMPLE`) is right for a couch or a pipe, and acceptable for a
+  proper open tunnel/archway tube. It is **wrong** for anything the movement step-up logic has
+  to climb (`stairs*`, `ramp`, `Broken_Stairs`) — a single convex hull there is a smooth
+  walkable wedge; per-poly catches on every riser. And it is wrong for a mesh with interior
+  caps / back-faces that seal a space.
+- UE5.7's headless Auto Convex / `set_convex_decomposition_collision` / `add_simple_collisions`
+  all silently produce **zero** geometry in `-run=pythonscript` (confirmed this session and by
+  v4). If you need generated hulls, they have to come from an **in-editor** pass (the editor
+  UI's "Auto Convex Collision" works) scripted through the editor, or from re-importing the OBJ
+  (auto-collision regenerates on import). Work out which is reproducible and document it.
+- Rebuild the classifier: stairs/ramps → simple hull (regen via re-import if needed);
+  hollow/concave enclosing props → per-poly on the render mesh (no proxy); small/simple props →
+  keep their single hull; walk-through tubes → per-poly is OK but **walk-test them**.
+- `verify_collision.py`: add a `-game` check that drives the player up the Medical Pavilion sign
+  stairs and asserts Z increased, and one that walks the bathysphere→Pavilion path without
+  entering `MOVE_Falling`.
 
-Fix `fix_prop_collision.py`:
-- Remove `stairs?`, `ramp`, `walkway`, `catwalk`, `bridge`, `platform` from the proxy trigger.
-  Stairs/ramps must keep (or be given back) a **simple convex hull** — walkable wedge, not
-  per-poly. If a mesh already had its hull cleared by an earlier v4 run, regenerate one
-  (`unreal` simple-collision / `KDOP` box or a single convex from the render mesh) or restore
-  `CTF_USE_DEFAULT` with a rebuilt hull.
-- Keep the complex-proxy route only for genuinely hollow/concave *enclosing* geometry (cabinet,
-  shelving, wall-with-hole, tunnel interiors) where a hull would seal the opening.
-- Add a `verify_collision.py` check that a known staircase mesh is walkable: either it has
-  `convex/box` simple collision and `CTF_USE_DEFAULT`, or (better) a `-game` walk test that
-  drives the player up the Medical Pavilion sign stairs and asserts Z increased.
-- Re-run `fix_prop_collision` on the slice and re-save; confirm the stairs render actors have
-  collision back.
-
-Also sanity-check the new movement values from v4 (`ShockPlayer.cpp`: `MaxStepHeight = 35`,
-`SetWalkableFloorAngle(44)`): if the Medical stairs have risers taller than 35uu or a pitch
-steeper than 44°, bump these. Measure the actual stair mesh, don't guess.
+Also sanity-check v4's movement values (`ShockPlayer.cpp`: `MaxStepHeight = 35`,
+`SetWalkableFloorAngle(44)`) against the real Medical stair mesh — measure riser height / pitch,
+bump if needed.
 
 ---
 
@@ -78,30 +82,40 @@ on top.
 
 ---
 
-## 1. Ragdolls
+## 1. Ragdolls + world physics
 
 `ABaseShockAI::OnDeathFromDamage` (`BaseShockAI.cpp` ~696) plays an `AnimDeath` clip then fades
 the corpse — **there is no physics ragdoll anywhere**. `SetSimulatePhysics` / a "Ragdoll"
 collision profile / `SetAllBodiesSimulatePhysics` appear nowhere in the runtime. `ApplyCombatSkeletalMesh`
 also explicitly `SetCollisionEnabled(NoCollision)` on the body mesh.
 
-BioShock 1 ragdolls on death (Havok). Build it:
-- The AI character skeletal meshes almost certainly have no `PhysicsAsset` (the door rig didn't;
-  see `LoadRoomDoorAnim_PhysicsAsset` missing note). Generate one per combat rig headless
+The user wants **three** things physics-driven, not just the one:
+  a. **AI death → ragdoll** (Havok in the original).
+  b. **Pre-placed dead bodies** that aren't AI-driven — corpses dressed into the level (Medical
+     has several). Find how they're placed (`Corpse*` / `DeadBody*` / `Body*` actor classes or
+     skeletal-mesh actors in `1-Medical.ue5-level.json`); they should spawn as settled ragdolls
+     (or at least physics-enabled skeletal meshes that react to being shot / walked into), not
+     frozen T-pose / frozen-anim props.
+  c. **Props with physics** — the small dynamic clutter BioShock lets you knock around (bottles,
+     cans, trays, chairs, debris, trash). Identify the movable-prop classes / meshes, give them
+     `Simulate Physics` + a simple collision + mass, so shooting or bumping them moves them.
+     Don't make heavy furniture or fixtures dynamic — pick the set deliberately and document it.
+
+For all three:
+- The skeletal meshes almost certainly have no `PhysicsAsset` (the door rig didn't — see the
+  `LoadRoomDoorAnim_PhysicsAsset` missing note). Generate one per combat rig + per corpse rig
   (`unreal` physics-asset creation from the skeleton, capsule bodies per bone, sensible
-  constraints) as an import/repair step, or at minimum for `Agg_BabyJane` / `ThuggishSplicer` /
-  `LeadheadSplicer`.
-- On death: switch the body mesh to its physics asset, set collision to a ragdoll profile
-  (block WorldStatic, ignore Pawn/Camera), `SetAllBodiesSimulatePhysics(true)` +
-  `WakeAllRigidBodies`, detach from the capsule (or shrink/disable the capsule as it already
-  does), and apply an impulse along the killing hit direction/impact bone so they fall away from
-  the shot. Blend from the current pose (`SetAllBodiesBelowPhysicsBlendWeight` ramp) rather than
-  snapping.
-- Keep `CorpseFadeSeconds` behaviour (fade/sink the settled ragdoll), but let it settle first.
+  constraints) as an import/repair step. As with §3's collision gen, if the headless API won't
+  cook them, do it via an in-editor scripted pass or on re-import — work out what's reproducible.
+- AI death: switch the body mesh to its physics asset, ragdoll collision profile (block
+  WorldStatic, ignore Pawn/Camera), `SetAllBodiesSimulatePhysics(true)` + `WakeAllRigidBodies`,
+  disable/shrink the capsule (it already does), apply an impulse along the killing hit
+  direction/impact bone. Blend from the death pose (`SetAllBodiesBelowPhysicsBlendWeight` ramp),
+  don't snap. Keep `CorpseFadeSeconds` but let it settle first.
 - Gate cleanly so the headless encounter/possess verifies still pass (they check health/target,
   not physics) and a dead AI still reports dead.
-- `docs/research/ragdoll.md` — what physics assets exist/were generated, the death→sim flow,
-  impulse sourcing, what's approximated.
+- `docs/research/ragdoll.md` — physics assets generated, the death→sim flow, impulse sourcing,
+  the pre-placed-corpse path, the dynamic-prop set and why, what's approximated.
 
 ---
 
