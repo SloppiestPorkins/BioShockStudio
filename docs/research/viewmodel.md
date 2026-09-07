@@ -167,9 +167,19 @@ Nudging `ViewmodelOffset` / per-weapon shotgun pins could never converge: every 
    capture A/B. **No per-frame socket re-pin. No `PinShotgunToCamera`.**
 
 2. **Attach weapon to the script `AttachBone` socket** (`ResolveGripSocketForWeapon`, including
-   Shotgun → `Launcher`). `SnapToTarget` + `AlignEquippedWeaponRootToGripSocket` for skeletal
-   weapons (including Shotgun) so FBX root drift is cancelled and the mesh root lands on the
-   socket — BioShock `AttachToBone` semantics.
+   Shotgun → `Launcher`). `SnapToTarget` + `AlignEquippedWeaponRootToGripSocket` for the
+   `R_grip`-rooted guns cancels FBX root drift so the root lands on the socket — BioShock
+   `AttachToBone` semantics.
+
+   **Shotgun** has no grip bone (`SG_Body` root = the receiver body), so
+   `AlignEquippedWeaponRootToGripSocket` skips it and `AlignShotgunToHandPose` (called from
+   `EquipWeapon` after the fidget clip is installed, so the hands are posed) solves the
+   placement from geometry: `FQuat::FindBetweenNormals` rotates the barrel axis
+   `SG_Body → SG_Pump` onto the `Bip01_R_Hand → Bip01_L_Hand` line, a second `FindBetweenNormals`
+   rolls the gun so its up sits as near world-up as the barrel allows, then a translation lands
+   `SG_Body` on the grip socket. Baked to a relative transform against the animated socket so it
+   rides the fidget. No tuned constants — measured `bodyToGrip 0.00`, `pumpToLHand 2.84` uu.
+   Probe: `tools/ue5/probe_shotgun_grip.py`.
 
 3. **Two-rig playback.** When ViewHands plays equip / fidget / fire / reload, the equipped
    `AShockWeapon` plays the matching mesh leaf at the same time (loop flag shared). Leaves:
@@ -252,4 +262,4 @@ Durable C# fix landed 7 Sept: `ResolveMesh` passes `BulkTextureCatalog.Load(root
 | Shotgun shell-by-shell reload (`_Start`/`_LOOP`/`_End` + weapon `Reload_Loop`) | deferred (trigger clip only) |
 | Chem `FireLoop`/`FireEnd` while trigger held | deferred (`FireStart` on fire notify) |
 | Whether Launcher socket rotation should be restored for Shotgun only | `PLAUSIBLE`, capture-gated |
-| Shotgun mesh placement — hands don't grip it, gun sits too low / off-frame | open, Claude iterates against captures |
+| Shotgun placement | solved 7 Sept — `AlignShotgunToHandPose` lands SG_Body on the grip socket and rotates SG_Body→SG_Pump onto the Bip01_R_Hand→Bip01_L_Hand line (bodyToGrip 0.0, pumpToLHand 2.8). Needs a PIE look |
