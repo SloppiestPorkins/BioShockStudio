@@ -770,6 +770,7 @@ private:
 	void TurnAtRate(float Value);
 	void LookUpAtRate(float Value);
 	void EnsureViewHands();
+	class UShockViewHandsAnimInstance* GetViewHandsAnimInstance() const;
 	/** Place ViewHands once at ViewmodelOffset/Rotation (BioShock PlayerViewOffset). No socket pin. */
 	void PlaceViewHandsFixed();
 	void AlignEquippedWeaponRootToGripSocket();

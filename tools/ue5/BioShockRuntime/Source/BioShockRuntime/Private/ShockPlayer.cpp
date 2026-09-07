@@ -7,6 +7,7 @@
 #include "ShockSecuritySubsystem.h"
 #include "ShockStationActor.h"
 #include "ShockTurret.h"
+#include "ShockViewHandsAnimInstance.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
@@ -307,8 +308,16 @@ void AShockPlayer::EnsureViewHands()
 	ViewHands->SetHiddenInGame(false);
 	ViewHands->SetOnlyOwnerSee(false);
 	ViewHands->SetOwnerNoSee(false);
+	// Crossfading native anim instance — smooths every equip/fire/reload/swing/fidget transition
+	// instead of UAnimSingleNodeInstance's hard cut. Clips go through PlayViewHandsAnimation.
+	ViewHands->SetAnimInstanceClass(UShockViewHandsAnimInstance::StaticClass());
 	// Idle / equip / fire / reload clips are selected per weapon by StartViewHandsForEquippedWeapon.
 	// Do not hardcode FidgetTommygun here — that locked every weapon to the Tommy Gun pose.
+}
+
+UShockViewHandsAnimInstance* AShockPlayer::GetViewHandsAnimInstance() const
+{
+	return ViewHands ? Cast<UShockViewHandsAnimInstance>(ViewHands->GetAnimInstance()) : nullptr;
 }
 
 FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
@@ -426,7 +435,19 @@ void AShockPlayer::PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop)
 		return;
 	}
 
-	ViewHands->PlayAnimation(Sequence, bLoop);
+	if (UShockViewHandsAnimInstance* Inst = GetViewHandsAnimInstance())
+	{
+		// Blend: quick settle into the looping fidget, snappier for one-shots, near-instant on
+		// a fresh equip. The crossfade removes the hard cut between clips.
+		float Blend = 0.06f;
+		if (bLoop) { Blend = 0.12f; }
+		else if (CurrentViewHandsPhase == EViewHandsPhase::Equip) { Blend = 0.04f; }
+		Inst->PlayClip(Sequence, bLoop, Blend);
+	}
+	else
+	{
+		ViewHands->PlayAnimation(Sequence, bLoop);
+	}
 	// Evaluate immediately so socket attachment sees the posed grip, not bind pose.
 	ViewHands->TickAnimation(0.0f, /*bNeedsValidRootMotion*/ false);
 	ViewHands->RefreshBoneTransforms();
@@ -497,6 +518,13 @@ void AShockPlayer::StartViewHandsForEquippedWeapon()
 	if (!EquippedWeapon || !ViewHands || !ViewHands->GetSkeletalMeshAsset())
 	{
 		return;
+	}
+
+	// AlignShotgunToHandPose drops the mesh into single-node mode for its measurement — put the
+	// crossfading instance back before the equip clip plays.
+	if (!GetViewHandsAnimInstance())
+	{
+		ViewHands->SetAnimInstanceClass(UShockViewHandsAnimInstance::StaticClass());
 	}
 
 	const FName DefName = EquippedWeapon->GetWeaponDefName();
@@ -881,16 +909,20 @@ void AShockPlayer::AlignShotgunToHandPose()
 	ResolveViewHandsAnimsForWeapon(EquippedWeapon->GetWeaponDefName());
 	if (ViewHandsFidgetAnim)
 	{
+		// Single-node pose for the one measurement, then hand the mesh back to the crossfading
+		// instance (StartViewHandsForEquippedWeapon, called next, installs the real clip).
 		ViewHands->PlayAnimation(ViewHandsFidgetAnim, true);
 		ViewHands->SetPosition(0.4f, false);
 		ViewHands->TickAnimation(0.0f, false);
+		ViewHands->RefreshBoneTransforms();
+		Gun->RefreshBoneTransforms();
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_VIEWMODEL shotgun align: no FidgetShotgun to pose against"));
+		ViewHands->RefreshBoneTransforms();
+		Gun->RefreshBoneTransforms();
 	}
-	ViewHands->RefreshBoneTransforms();
-	Gun->RefreshBoneTransforms();
 
 	// Left-hand target: the centre of the closed grip — the cylinder the fist wraps sits above
 	// the palm, roughly between the knuckle bases and the curled fingertips. Averaging the
