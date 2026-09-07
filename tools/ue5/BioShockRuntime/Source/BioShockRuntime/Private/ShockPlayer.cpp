@@ -831,50 +831,67 @@ void AShockPlayer::AlignShotgunToHandPose()
 		? ViewHands->GetSocketLocation(ActiveGripSocket)
 		: RHand;
 
-	const FVector BodyW = Gun->GetBoneLocation(FName(TEXT("SG_Body")));
+	// The BARREL LINE is SG_Shell → SG_Pump (both ~4 uu above SG_Body in mesh Z — the receiver
+	// body drops below the bore). Using SG_Body → SG_Pump as the axis tilted the whole gun nose-up
+	// ~4°, which is why the tube kept clipping the hand. Orient and translate against the true
+	// bore instead.
+	const FVector ShellW = Gun->GetBoneIndex(FName(TEXT("SG_Shell"))) != INDEX_NONE
+		? Gun->GetBoneLocation(FName(TEXT("SG_Shell")))
+		: Gun->GetBoneLocation(FName(TEXT("SG_Body")));
 	const FVector PumpW = Gun->GetBoneLocation(FName(TEXT("SG_Pump")));
+	const FVector BodyW = Gun->GetBoneLocation(FName(TEXT("SG_Body")));
 
-	const FVector CurAxis = (PumpW - BodyW).GetSafeNormal();
-	const FVector WantAxis = (LHand - RHand).GetSafeNormal();
+	const FVector CurAxis = (PumpW - ShellW).GetSafeNormal();
+	const FVector WantAxis = (LHand - GripW).GetSafeNormal();
 	if (CurAxis.IsNearlyZero() || WantAxis.IsNearlyZero())
 	{
 		return;
 	}
 
-	// 1. Turn the barrel onto the hand-to-hand line.
+	// 1. Turn the bore onto the grip → forestock line.
 	FQuat DeltaQ = FQuat::FindBetweenNormals(CurAxis, WantAxis);
 
-	// 2. Roll about that new axis so the gun's up sits as close to world up as the barrel allows
-	//    (keeps the receiver flat rather than canted).
+	// 2. Roll about that axis so the receiver hangs below the bore (gun local −Z ≈ world down).
 	{
-		const FVector GunUp = (DeltaQ * Gun->GetComponentQuat()).GetUpVector();
-		const FVector RefUp = (FVector::UpVector - WantAxis * (FVector::UpVector | WantAxis)).GetSafeNormal();
-		const FVector CurUp = (GunUp - WantAxis * (GunUp | WantAxis)).GetSafeNormal();
-		if (!RefUp.IsNearlyZero() && !CurUp.IsNearlyZero())
+		const FVector GunDown = (DeltaQ * Gun->GetComponentQuat()).RotateVector(FVector(0, 0, -1));
+		const FVector RefDown = (-FVector::UpVector - WantAxis * (-FVector::UpVector | WantAxis)).GetSafeNormal();
+		const FVector CurDown = (GunDown - WantAxis * (GunDown | WantAxis)).GetSafeNormal();
+		if (!RefDown.IsNearlyZero() && !CurDown.IsNearlyZero())
 		{
-			DeltaQ = FQuat::FindBetweenNormals(CurUp, RefUp) * DeltaQ;
+			DeltaQ = FQuat::FindBetweenNormals(CurDown, RefDown) * DeltaQ;
 		}
 	}
 
 	const FQuat NewGunQ = DeltaQ * Gun->GetComponentQuat();
 
-	// 3. Translate so SG_Body lands on the grip socket, which puts the barrel centreline through
-	//    the grip target by construction (the rotation aimed it there). SG_Body's mesh-local
-	//    offset is invariant; place it under the new rotation, then shift the component.
-	const FVector BodyLocal = Gun->GetComponentTransform().InverseTransformPosition(BodyW);
-	const FVector BodyWorldAfterRot = NewGunQ.RotateVector(BodyLocal) + Gun->GetComponentLocation();
-	const FVector NewGunLoc = Gun->GetComponentLocation() + (GripW - BodyWorldAfterRot);
+	// 3. Translate so the bore line passes exactly through the left-hand grip point, and SG_Body
+	//    sits as near the right-hand grip socket as the fixed mesh geometry allows (exact along
+	//    the bore; the perpendicular residual is the receiver drop, which is what we want).
+	const FQuat OldQ = Gun->GetComponentQuat();
+	const FVector OldLoc = Gun->GetComponentLocation();
+	const FVector ShellLocal = OldQ.UnrotateVector(ShellW - OldLoc);
+	const FVector BodyLocal = OldQ.UnrotateVector(BodyW - OldLoc);
+	const FVector ShellAfter = NewGunQ.RotateVector(ShellLocal) + OldLoc;      // before translate
+	const FVector BodyMinusShell = NewGunQ.RotateVector(BodyLocal - ShellLocal);
+	const float K = WantAxis | (LHand + BodyMinusShell - GripW);
+	const FVector T = LHand - ShellAfter - WantAxis * K;
+	const FVector NewGunLoc = OldLoc + T;
 
 	Gun->SetWorldLocationAndRotation(NewGunLoc, NewGunQ);
 	Gun->RefreshBoneTransforms();
 
+	// Perpendicular gap from the bore line to the left grip point should be ~0 by construction.
+	const FVector NewShellW = Gun->GetBoneLocation(FName(TEXT("SG_Shell")));
 	const FVector NewPumpW = Gun->GetBoneLocation(FName(TEXT("SG_Pump")));
+	const FVector BoreDir = (NewPumpW - NewShellW).GetSafeNormal();
+	const FVector ToL = LHand - NewShellW;
+	const float BorePerp = (ToL - BoreDir * (ToL | BoreDir)).Size();
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_VIEWMODEL shotgun handPose: bodyToGrip=%.2f pumpToLHand=%.2f deltaRot=%s"),
+		TEXT("BIOSHOCK_VIEWMODEL shotgun handPose: bodyToGrip=%.2f borePerpToLGrip=%.2f deltaRot=%s"),
 		FVector::Dist(Gun->GetBoneLocation(FName(TEXT("SG_Body"))), GripW),
-		FVector::Dist(NewPumpW, LHand),
+		BorePerp,
 		*DeltaQ.Rotator().ToCompactString());
 }
 
