@@ -24,9 +24,12 @@ OUT = os.environ.get(
 )
 
 HAND_BONES = (
-    "Bip01_R_Hand", "Bip01_R_Finger0", "Bip01_R_Finger1", "Bip01_R_Finger01",
-    "Bip01_L_Hand", "Bip01_L_Finger0", "Bip01_L_Finger1", "Bip01_L_Finger01",
-    "Bip01_R_Forearm", "Bip01_L_Forearm", "R_grip", "R_Grip",
+    "Bip01_R_Hand", "Bip01_L_Hand", "Bip01_R_Forearm", "Bip01_L_Forearm",
+    "R_grip", "R_Grip",
+    "kBone_L_Thumb1", "kBone_L_Thumb3", "kBone_L_Index1", "kBone_L_Index2",
+    "kBone_L_Index3", "kBone_L_Middle1", "kBone_L_Middle3", "kBone_L_Ring1",
+    "kBone_L_Pinky1",
+    "kBone_R_Thumb1", "kBone_R_Index1", "kBone_R_Middle1",
 )
 
 
@@ -84,13 +87,23 @@ def main():
         return report
     player.equip_weapon(weapon)
 
-    # Advance past equip so FidgetShotgun is the installed clip.
-    for _ in range(40):
-        player.advance_view_hands_animation_for_verify(0.05)
-
     view_hands = player.get_editor_property("view_hands")
     cam = player.get_editor_property("first_person_camera")
     gun = weapon.get_editor_property("mesh")
+
+    # Sample L_Hand vs R_grip across the FidgetShotgun loop to see how rigid the two-hand
+    # hold is (if L_Hand swings a lot relative to R_grip, a frame-0 bake is wrong).
+    sway = []
+    if view_hands and cam:
+        for step in range(0, 60, 6):
+            cam_xf0 = cam.get_world_transform()
+            rg = view_hands.get_socket_location(unreal.Name("R_grip"))
+            lh = view_hands.get_socket_location(unreal.Name("Bip01_L_Hand"))
+            rel = cam_xf0.inverse_transform_location(lh) - cam_xf0.inverse_transform_location(rg)
+            sway.append({"t": round(step * 0.05, 2), "LHand_minus_Rgrip_cam": _v(rel)})
+            for _ in range(6):
+                player.advance_view_hands_animation_for_verify(0.05)
+    report["fidgetSway"] = sway
     report["playingAnim"] = str(player.get_playing_view_hands_animation_name_for_verify())
     report["activeGripSocket"] = str(player.get_active_grip_socket_for_verify())
 

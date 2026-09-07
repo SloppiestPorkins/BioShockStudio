@@ -767,8 +767,8 @@ void AShockPlayer::AlignShotgunToHandPose()
 	// self-correct the way every R_grip-rooted gun does. Instead solve its placement from the
 	// posed hands: land SG_Body on the grip socket and rotate the barrel (SG_Body → SG_Pump)
 	// onto the line between the two hands. Deterministic from the FidgetShotgun pose + the mesh
-	// geometry — no tuned offsets. Called once per equip, after the fidget clip is installed;
-	// the result is baked relative to the animated socket so it rides the fidget like the others.
+	// geometry — no tuned offsets. Called once per equip; the result is baked relative to the
+	// animated socket so it rides the fidget like the others.
 	if (!EquippedWeapon || !ViewHands)
 	{
 		return;
@@ -789,11 +789,28 @@ void AShockPlayer::AlignShotgunToHandPose()
 		return;
 	}
 
+	// Measure against the SETTLED FidgetShotgun pose, not whatever is currently installed
+	// (EquipShotgun frame 0, or a mid-blend frame). The two-hand hold is only stable ~0.3s into
+	// the fidget — a probe of Bip01_L_Hand − R_grip showed it jump ~12 uu in Z between fidget
+	// frame 0 and the settled pose, which was the "barrel not in the left hand" gap. Pose it
+	// here, bake, and let StartViewHandsForEquippedWeapon install the real clip afterwards.
+	if (ViewHandsFidgetAnim)
+	{
+		ViewHands->PlayAnimation(ViewHandsFidgetAnim, true);
+		ViewHands->SetPosition(0.4f, false);
+		ViewHands->TickAnimation(0.0f, false);
+	}
 	ViewHands->RefreshBoneTransforms();
 	Gun->RefreshBoneTransforms();
 
+	// Left-hand target: the palm, not the wrist bone — midpoint of Bip01_L_Hand and the
+	// middle-finger base, so the forestock sits where the fingers close rather than above them.
+	const FVector LWrist = ViewHands->GetBoneLocation(FName(TEXT("Bip01_L_Hand")));
+	const FVector LMid = ViewHands->GetBoneIndex(FName(TEXT("kBone_L_Middle1"))) != INDEX_NONE
+		? ViewHands->GetBoneLocation(FName(TEXT("kBone_L_Middle1")))
+		: LWrist;
 	const FVector RHand = ViewHands->GetBoneLocation(FName(TEXT("Bip01_R_Hand")));
-	const FVector LHand = ViewHands->GetBoneLocation(FName(TEXT("Bip01_L_Hand")));
+	const FVector LHand = (LWrist + LMid) * 0.5f;
 	const FVector GripW = (!ActiveGripSocket.IsNone() && ViewHands->DoesSocketExist(ActiveGripSocket))
 		? ViewHands->GetSocketLocation(ActiveGripSocket)
 		: RHand;
@@ -893,8 +910,10 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 			GripSocket);
 		ActiveGripSocket = GripSocket;
 		AlignEquippedWeaponRootToGripSocket();
-		StartViewHandsForEquippedWeapon();
+		// Shotgun placement is solved against the settled fidget pose, which this poses itself;
+		// StartViewHandsForEquippedWeapon then installs the real equip/idle clip.
 		AlignShotgunToHandPose();
+		StartViewHandsForEquippedWeapon();
 	}
 	else if (FirstPersonCamera)
 	{
