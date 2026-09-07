@@ -2,7 +2,7 @@
 #
 # Farms queued task files (tools/agents/tasks/*.md) out to coding-agent "workers" so BioShock work
 # can run in PARALLEL with this Claude session and with Cursor -- each worker gets its own throwaway
-# git worktree next to the repo, so nobody edits anyone else's files.
+# git worktree under ../BioShockHavok-agents/<task-id>, so nobody edits anyone else's files.
 #
 # WORKERS (see Get-WorkerSpec below)
 #   chatgpt   codex exec, authenticated with the machine's ChatGPT account. Cloud; runs fully
@@ -59,8 +59,10 @@ $agentDir   = Join-Path $repoRoot 'tools\agents'
 $taskDir    = Join-Path $agentDir 'tasks'
 $runDir     = Join-Path $agentDir 'runs'
 $localLock  = Join-Path $agentDir '.local.lock'
-$wtParent   = Split-Path -Parent $repoRoot          # worktrees are siblings of the repo
+# All agent worktrees live under one folder next to the repo, not spewed across it.
+$wtParent   = Join-Path (Split-Path -Parent $repoRoot) 'BioShockHavok-agents'
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+New-Item -ItemType Directory -Force -Path $wtParent | Out-Null
 
 # --- task file parsing -------------------------------------------------------------------------
 # Format: a YAML-ish frontmatter block between --- lines, then the free-text prompt.
@@ -201,7 +203,7 @@ $jobBody = {
     $patch  = Join-Path $outDir 'changes.patch'
     $vout   = Join-Path $outDir 'verify.txt'
     $result = Join-Path $outDir 'RESULT.json'
-    $wt     = Join-Path $WtParent "BioShockHavok-agent-$($Task.Id)"
+    $wt     = Join-Path $WtParent $Task.Id
 
     function Log($m) { $line = "[{0:HH:mm:ss}] {1}" -f (Get-Date), $m; $line | Tee-Object -FilePath $log -Append | Out-Host }
 
@@ -363,7 +365,7 @@ function Invoke-Run {
         throw "codex CLI not found on PATH."
     }
 
-    Write-Host ("Dispatching {0} task(s), up to {1} in parallel. Worktrees: {2}\BioShockHavok-agent-*`n" -f $pending.Count, $Parallel, $wtParent)
+    Write-Host ("Dispatching {0} task(s), up to {1} in parallel. Worktrees under {2}\`n" -f $pending.Count, $Parallel, $wtParent)
 
     $jobs = @()
     foreach ($t in $pending) {
@@ -371,7 +373,7 @@ function Invoke-Run {
             Start-Sleep 3
             $jobs | Receive-Job -ErrorAction SilentlyContinue 2>$null
         }
-        $spec = Get-WorkerSpec -Worker $t.Worker -Worktree (Join-Path $wtParent "BioShockHavok-agent-$($t.Id)")
+        $spec = Get-WorkerSpec -Worker $t.Worker -Worktree (Join-Path $wtParent $t.Id)
         Write-Host "  -> $($t.Id)  [$($t.Worker)]"
         $jobs += Start-Job -Name "agent-$($t.Id)" -ScriptBlock $jobBody -ArgumentList `
             $repoRoot, $wtParent, $runDir, $localLock, $t, $spec, $PSScriptRoot
@@ -419,13 +421,15 @@ function Invoke-Apply {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`nApplied. Review with 'git -C `"$repoRoot`" diff', then commit by hand and create tools/agents/tasks/$Task.done"
     } else {
-        throw "git apply failed -- inspect $patch and the worktree at $wtParent\BioShockHavok-agent-$Task"
+        throw "git apply failed -- inspect $patch and the worktree at $wtParent\$Task"
     }
 }
 
 function Invoke-Clean {
     dotnet build-server shutdown 2>&1 | Out-Null
-    git -C $repoRoot worktree list --porcelain | Select-String '^worktree (.+BioShockHavok-agent-.+)$' | ForEach-Object {
+    # Every registered agent worktree (new layout: under BioShockHavok-agents\ ; old layout:
+    # sibling BioShockHavok-agent-* dirs — both matched).
+    git -C $repoRoot worktree list --porcelain | Select-String '^worktree (.+[\\/](BioShockHavok-agents[\\/].+|BioShockHavok-agent-.+))$' | ForEach-Object {
         $wt = $_.Matches[0].Groups[1].Value
         Write-Host "worktree remove $wt"
         # Drop the artifacts junction via Delete() (not rmdir/Remove-Item -Recurse, which would
@@ -436,6 +440,18 @@ function Invoke-Clean {
         if (Test-Path $wt) { Remove-Item -Recurse -Force $wt -ErrorAction SilentlyContinue }
     }
     git -C $repoRoot worktree prune
+    # Orphaned dirs git no longer tracks (old sibling layout, or a killed run).
+    Get-ChildItem -Directory (Split-Path -Parent $repoRoot) -Filter 'BioShockHavok-agent-*' -ErrorAction SilentlyContinue | ForEach-Object {
+        $j = Join-Path $_.FullName 'artifacts'
+        if (Test-Path $j) { try { (Get-Item $j).Delete() } catch {} }
+        Write-Host "rm orphan $($_.FullName)"
+        Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $wtParent) {
+        Get-ChildItem -Directory $wtParent -ErrorAction SilentlyContinue | Where-Object {
+            -not (git -C $repoRoot worktree list --porcelain | Select-String ([regex]::Escape($_.FullName)))
+        } | ForEach-Object { Write-Host "rm orphan $($_.FullName)"; Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue }
+    }
     Write-Host "Done. runs/ logs and patches are kept -- delete tools/agents/runs/<id> by hand if you want them gone."
 }
 
