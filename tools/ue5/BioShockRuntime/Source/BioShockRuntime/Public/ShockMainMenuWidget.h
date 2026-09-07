@@ -127,17 +127,17 @@ protected:
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 private:
+	// Order and wording match BioShock Remastered's front end: Continue (only when a save
+	// exists) / New Game / Load Game / Options / Extras / Credits / Quit.
 	enum class EMainMenuAction : uint8
 	{
-		NewGame = 0,
-		Continue,
+		Continue = 0,
+		NewGame,
 		LoadGame,
 		Options,
+		Extras,
 		Credits,
-		DirectorsCommentary,
-		Museum,
-		ChallengeRooms,
-		Exit,
+		Quit,
 		Count
 	};
 
@@ -149,6 +149,13 @@ private:
 	void OpenStub(const FString& Title);
 	void TryContinue();
 	static const TCHAR* ActionLabel(int32 Index);
+	/** True when any save slot holds a game — gates the Continue entry. */
+	bool HasAnySave() const;
+	/** Menu actions shown this frame, in order (Continue dropped when HasAnySave() is false). */
+	TArray<EMainMenuAction> BuildVisibleActions() const;
+
+	/** Rebuilt every RebuildList(); SelectedIndex and row indices are into this. */
+	TArray<EMainMenuAction> VisibleActions;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UBorder> RootBorder = nullptr;

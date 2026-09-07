@@ -49,18 +49,44 @@ FLinearColor MenuCream() { return FLinearColor(0.92f, 0.88f, 0.75f, 1.0f); }
 const TCHAR* UShockMainMenuWidget::ActionLabel(int32 Index)
 {
 	static const TCHAR* Labels[] = {
-		TEXT("New Game"),
 		TEXT("Continue"),
+		TEXT("New Game"),
 		TEXT("Load Game"),
 		TEXT("Options"),
+		TEXT("Extras"),
 		TEXT("Credits"),
-		TEXT("Director's Commentary"),
-		TEXT("Museum"),
-		TEXT("Challenge Rooms"),
-		TEXT("Exit"),
+		TEXT("Quit"),
 	};
 	return (Index >= 0 && Index < static_cast<int32>(EMainMenuAction::Count)) ? Labels[Index]
 																			  : TEXT("?");
+}
+
+bool UShockMainMenuWidget::HasAnySave() const
+{
+	for (int32 i = 0; i < UShockSaveGame::MaxSlots; ++i)
+	{
+		if (UGameplayStatics::DoesSaveGameExist(UShockSaveGame::MakeSlotName(i), 0))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+TArray<UShockMainMenuWidget::EMainMenuAction> UShockMainMenuWidget::BuildVisibleActions() const
+{
+	TArray<EMainMenuAction> Out;
+	const bool bHasSave = HasAnySave();
+	for (int32 i = 0; i < static_cast<int32>(EMainMenuAction::Count); ++i)
+	{
+		const EMainMenuAction Action = static_cast<EMainMenuAction>(i);
+		if (Action == EMainMenuAction::Continue && !bHasSave)
+		{
+			continue;
+		}
+		Out.Add(Action);
+	}
+	return Out;
 }
 
 void UShockMainMenuRow::Configure(
@@ -209,7 +235,7 @@ FString UShockMainMenuWidget::GetResolvedPlayLevelPath() const
 
 int32 UShockMainMenuWidget::GetMenuEntryCount() const
 {
-	return static_cast<int32>(EMainMenuAction::Count);
+	return BuildVisibleActions().Num();
 }
 
 void UShockMainMenuWidget::EnsureTextures()
@@ -313,8 +339,9 @@ void UShockMainMenuWidget::RebuildList()
 		return;
 	}
 	ListBox->ClearChildren();
-	const int32 Count = static_cast<int32>(EMainMenuAction::Count);
-	SelectedIndex = FMath::Clamp(SelectedIndex, 0, Count - 1);
+	VisibleActions = BuildVisibleActions();
+	const int32 Count = VisibleActions.Num();
+	SelectedIndex = FMath::Clamp(SelectedIndex, 0, FMath::Max(0, Count - 1));
 	for (int32 i = 0; i < Count; ++i)
 	{
 		UShockMainMenuRow* Row = CreateWidget<UShockMainMenuRow>(this, UShockMainMenuRow::StaticClass());
@@ -322,7 +349,8 @@ void UShockMainMenuWidget::RebuildList()
 		{
 			continue;
 		}
-		Row->Configure(this, i, ActionLabel(i), i == SelectedIndex, ChevronTexture);
+		Row->Configure(
+			this, i, ActionLabel(static_cast<int32>(VisibleActions[i])), i == SelectedIndex, ChevronTexture);
 		if (UVerticalBoxSlot* BoxSlot = ListBox->AddChildToVerticalBox(Row))
 		{
 			BoxSlot->SetPadding(FMargin(4.0f, 6.0f));
@@ -348,7 +376,7 @@ void UShockMainMenuWidget::NativeConstruct()
 
 void UShockMainMenuWidget::SetSelectedIndex(int32 Index)
 {
-	const int32 Count = static_cast<int32>(EMainMenuAction::Count);
+	const int32 Count = FMath::Max(1, BuildVisibleActions().Num());
 	SelectedIndex = FMath::Clamp(Index, 0, Count - 1);
 	RebuildList();
 }
@@ -443,13 +471,21 @@ void UShockMainMenuWidget::TryContinue()
 
 void UShockMainMenuWidget::ActivateSelected()
 {
-	switch (static_cast<EMainMenuAction>(SelectedIndex))
+	if (VisibleActions.Num() == 0)
 	{
-	case EMainMenuAction::NewGame:
-		OpenDifficulty();
-		break;
+		VisibleActions = BuildVisibleActions();
+	}
+	if (!VisibleActions.IsValidIndex(SelectedIndex))
+	{
+		return;
+	}
+	switch (VisibleActions[SelectedIndex])
+	{
 	case EMainMenuAction::Continue:
 		TryContinue();
+		break;
+	case EMainMenuAction::NewGame:
+		OpenDifficulty();
 		break;
 	case EMainMenuAction::LoadGame:
 		OpenSaveLoad(false);
@@ -457,20 +493,15 @@ void UShockMainMenuWidget::ActivateSelected()
 	case EMainMenuAction::Options:
 		OpenStub(TEXT("Options"));
 		break;
+	case EMainMenuAction::Extras:
+		// Remastered groups Director's Commentary / Museum / Developer's Film here — stub for now.
+		OpenStub(TEXT("Extras"));
+		break;
 	case EMainMenuAction::Credits:
 		// CreditsContainer.swf text extract deferred — stub panel.
 		OpenStub(TEXT("Credits"));
 		break;
-	case EMainMenuAction::DirectorsCommentary:
-		OpenStub(TEXT("Director's Commentary"));
-		break;
-	case EMainMenuAction::Museum:
-		OpenStub(TEXT("Museum"));
-		break;
-	case EMainMenuAction::ChallengeRooms:
-		OpenStub(TEXT("Challenge Rooms"));
-		break;
-	case EMainMenuAction::Exit:
+	case EMainMenuAction::Quit:
 		OnQuitClicked();
 		break;
 	default:
@@ -486,7 +517,8 @@ void UShockMainMenuWidget::HandleRowClicked(int32 Index)
 
 void UShockMainMenuWidget::OnPlayClicked()
 {
-	SelectedIndex = static_cast<int32>(EMainMenuAction::NewGame);
+	VisibleActions = BuildVisibleActions();
+	VisibleActions.Find(EMainMenuAction::NewGame, SelectedIndex);
 	OpenDifficulty();
 }
 
@@ -505,7 +537,7 @@ void UShockMainMenuWidget::OnQuitClicked()
 FReply UShockMainMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
 	const FKey Key = InKeyEvent.GetKey();
-	const int32 Count = static_cast<int32>(EMainMenuAction::Count);
+	const int32 Count = FMath::Max(1, BuildVisibleActions().Num());
 	if (Key == EKeys::Up || Key == EKeys::Gamepad_DPad_Up)
 	{
 		SetSelectedIndex(SelectedIndex <= 0 ? Count - 1 : SelectedIndex - 1);
@@ -545,10 +577,12 @@ bool UShockMainMenuWidget::RunHeadlessMainMenuVerify(UObject* WorldContextObject
 	}
 
 	Menu->RebuildWidget();
-	if (Menu->GetMenuEntryCount() != 9)
+	// 7 with a save (Continue shown), 6 without — matches Remastered's front end.
+	const int32 Entries = Menu->GetMenuEntryCount();
+	if (Entries != 6 && Entries != 7)
 	{
 		LastMainMenuVerifyError = FString::Printf(
-			TEXT("expected 9 menu entries, got %d"), Menu->GetMenuEntryCount());
+			TEXT("expected 6 or 7 menu entries, got %d"), Entries);
 		return false;
 	}
 	if (!Menu->GetResolvedPlayLevelPath().Contains(TEXT("1-Medical")))

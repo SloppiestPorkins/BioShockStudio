@@ -118,12 +118,13 @@ def main(report_path):
     if "ShockGameMode" not in travel:
         failures.append("Play travel options missing ShockGameMode: %s" % travel)
 
-    # U7: list has 9 entries (New Game … Exit); keep Play→Medical wiring above intact.
+    # Remastered front end: Continue (save-gated) / New Game / Load Game / Options / Extras /
+    # Credits / Quit — 6 with no save, 7 with one. Keep Play->Medical wiring above intact.
     try:
         entry_count = int(cdo.get_menu_entry_count())
         report["menuEntryCount"] = entry_count
-        if entry_count != 9:
-            failures.append("main menu entry count is %d, want 9" % entry_count)
+        if entry_count not in (6, 7):
+            failures.append("main menu entry count is %d, want 6 or 7" % entry_count)
     except Exception as exc:  # noqa: BLE001
         report["menuEntryCount"] = "unreadable: %s" % exc
 
