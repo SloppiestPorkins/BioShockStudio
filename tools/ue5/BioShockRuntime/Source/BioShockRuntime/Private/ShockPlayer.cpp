@@ -728,14 +728,13 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 	WeaponMesh->RefreshBoneTransforms();
 	const FName RootBoneName = WeaponMesh->GetBoneName(0);
 
-	// Shotgun root is SG_Body (gun body), not a grip. Aligning it onto Launcher (R_Grip) drags the
-	// receiver into the hand the way a R_grip-rooted pistol should — and the capture then shows
-	// the left hand open (plasmid-ish) with the body mashed into the right. BioShock AttachToBone
-	// still parents the actor to Launcher; the authored SG_Body bind + SingleFrame idle are what
-	// meet the fingers. Skip the FBX root-cancel for this mesh only.
+	// Shotgun root is SG_Body (the gun body), not a grip bone — there is no root rotation to
+	// cancel. It is placed from the posed hands instead (AlignShotgunToHandPose, called from
+	// EquipWeapon after the fidget starts): SG_Body → the grip socket, barrel (SG_Body→SG_Pump)
+	// → the hand-to-hand line. Nothing to do in the FBX root-cancel path.
 	if (EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL alignRoot skip weapon=Shotgun root=%s (SG_Body)"),
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_VIEWMODEL alignRoot skip weapon=Shotgun root=%s (SG_Body) — hand-pose aligned"),
 			*RootBoneName.ToString());
 		return;
 	}
@@ -760,6 +759,89 @@ void AShockPlayer::AlignEquippedWeaponRootToGripSocket()
 		*EquippedWeapon->GetWeaponDefName().ToString(),
 		*RootCS.GetLocation().ToCompactString(),
 		FVector::Dist(SocketWorld, RootWorld));
+}
+
+void AShockPlayer::AlignShotgunToHandPose()
+{
+	// The shotgun skeleton has no grip bone (root SG_Body is the receiver body), so it can't
+	// self-correct the way every R_grip-rooted gun does. Instead solve its placement from the
+	// posed hands: land SG_Body on the grip socket and rotate the barrel (SG_Body → SG_Pump)
+	// onto the line between the two hands. Deterministic from the FidgetShotgun pose + the mesh
+	// geometry — no tuned offsets. Called once per equip, after the fidget clip is installed;
+	// the result is baked relative to the animated socket so it rides the fidget like the others.
+	if (!EquippedWeapon || !ViewHands)
+	{
+		return;
+	}
+	if (!EquippedWeapon->GetWeaponDefName().ToString().Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+	USkeletalMeshComponent* Gun = EquippedWeapon->Mesh;
+	if (!Gun || !Gun->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+	if (Gun->GetBoneIndex(FName(TEXT("SG_Body"))) == INDEX_NONE
+		|| Gun->GetBoneIndex(FName(TEXT("SG_Pump"))) == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_VIEWMODEL shotgun align: SG_Body/SG_Pump missing"));
+		return;
+	}
+
+	ViewHands->RefreshBoneTransforms();
+	Gun->RefreshBoneTransforms();
+
+	const FVector RHand = ViewHands->GetBoneLocation(FName(TEXT("Bip01_R_Hand")));
+	const FVector LHand = ViewHands->GetBoneLocation(FName(TEXT("Bip01_L_Hand")));
+	const FVector GripW = (!ActiveGripSocket.IsNone() && ViewHands->DoesSocketExist(ActiveGripSocket))
+		? ViewHands->GetSocketLocation(ActiveGripSocket)
+		: RHand;
+
+	const FVector BodyW = Gun->GetBoneLocation(FName(TEXT("SG_Body")));
+	const FVector PumpW = Gun->GetBoneLocation(FName(TEXT("SG_Pump")));
+
+	const FVector CurAxis = (PumpW - BodyW).GetSafeNormal();
+	const FVector WantAxis = (LHand - RHand).GetSafeNormal();
+	if (CurAxis.IsNearlyZero() || WantAxis.IsNearlyZero())
+	{
+		return;
+	}
+
+	// 1. Turn the barrel onto the hand-to-hand line.
+	FQuat DeltaQ = FQuat::FindBetweenNormals(CurAxis, WantAxis);
+
+	// 2. Roll about that new axis so the gun's up sits as close to world up as the barrel allows
+	//    (keeps the receiver flat rather than canted).
+	{
+		const FVector GunUp = (DeltaQ * Gun->GetComponentQuat()).GetUpVector();
+		const FVector RefUp = (FVector::UpVector - WantAxis * (FVector::UpVector | WantAxis)).GetSafeNormal();
+		const FVector CurUp = (GunUp - WantAxis * (GunUp | WantAxis)).GetSafeNormal();
+		if (!RefUp.IsNearlyZero() && !CurUp.IsNearlyZero())
+		{
+			DeltaQ = FQuat::FindBetweenNormals(CurUp, RefUp) * DeltaQ;
+		}
+	}
+
+	const FQuat NewGunQ = DeltaQ * Gun->GetComponentQuat();
+
+	// 3. Translate so SG_Body lands on the grip socket. SG_Body's mesh-local offset is invariant;
+	//    place it under the new rotation, then shift the component to put it on the socket.
+	const FVector BodyLocal = Gun->GetComponentTransform().InverseTransformPosition(BodyW);
+	const FVector BodyWorldAfterRot = NewGunQ.RotateVector(BodyLocal) + Gun->GetComponentLocation();
+	const FVector NewGunLoc = Gun->GetComponentLocation() + (GripW - BodyWorldAfterRot);
+
+	Gun->SetWorldLocationAndRotation(NewGunLoc, NewGunQ);
+	Gun->RefreshBoneTransforms();
+
+	const FVector NewPumpW = Gun->GetBoneLocation(FName(TEXT("SG_Pump")));
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_VIEWMODEL shotgun handPose: bodyToGrip=%.2f pumpToLHand=%.2f deltaRot=%s"),
+		FVector::Dist(Gun->GetBoneLocation(FName(TEXT("SG_Body"))), GripW),
+		FVector::Dist(NewPumpW, LHand),
+		*DeltaQ.Rotator().ToCompactString());
 }
 
 void AShockPlayer::TickHeldFire()
@@ -812,6 +894,7 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 		ActiveGripSocket = GripSocket;
 		AlignEquippedWeaponRootToGripSocket();
 		StartViewHandsForEquippedWeapon();
+		AlignShotgunToHandPose();
 	}
 	else if (FirstPersonCamera)
 	{

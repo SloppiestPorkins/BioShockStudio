@@ -772,6 +772,8 @@ private:
 	/** Place ViewHands once at ViewmodelOffset/Rotation (BioShock PlayerViewOffset). No socket pin. */
 	void PlaceViewHandsFixed();
 	void AlignEquippedWeaponRootToGripSocket();
+	/** Shotgun-only: solve mesh placement from the posed hands (no grip bone to align to). */
+	void AlignShotgunToHandPose();
 	void TickHeldFire();
 	void TickWeaponRecoil();
 	void TickViewHandsAnimation(float DeltaSeconds);
