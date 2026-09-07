@@ -253,6 +253,9 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
             channel = _prop(bag, "Channel")
             if target is not None and hasattr(action, "configure"):
                 action.configure(target, anim or "", 1.0, int(channel) if channel is not None else 0)
+                if hasattr(action, "set_wait_for_completion"):
+                    action.set_wait_for_completion(
+                        bool(_prop(bag, "bWaitForCompletion") or False))
                 stats["instance_applied"] += 1
                 return True
         if action_class == "ActionSpawnAI":

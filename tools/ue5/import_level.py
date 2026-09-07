@@ -1428,13 +1428,15 @@ def _import_turret_spawners(manifest, existing, report, handled):
         report["turretsPlaced"] = report.get("turretsPlaced", 0) + 1
 
 
-def _import_door_attachments(manifest, meshes, existing, report, handled):
-    """Spawn AShockDoor for each door actor; place extra leaf meshes as StaticMeshActors.
+def _import_door_attachments(
+        manifest, meshes, existing, report, handled, skeletal_meshes=None):
+    """Spawn AShockDoor for each door actor and reproduce its source visual shape.
 
-    Source MedicalDoors attach multiple static leaves to an animation-proxy skeleton. The first
-    leaf becomes the interactive AShockDoor mesh (yaw-swing APPROXIMATION); further leaves stay
-    as visual StaticMeshActors until dual-leaf skeletal open is wired.
+    Source MedicalDoors attach rigid static leaves to an animation-proxy skeleton. When that
+    proxy rig was imported, leaves become components attached to its named sockets. If the rig
+    is unavailable, retain the static-slide fallback rather than drawing the proxy itself.
     """
+    skeletal_meshes = skeletal_meshes or {}
     door_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockDoor")
     instances = _instances_by_actor_key(manifest)
     by_name = {
@@ -1466,6 +1468,19 @@ def _import_door_attachments(manifest, meshes, existing, report, handled):
         door_label = entry.get("label") or entry.get("name") or entry["key"]
         dkey = "door:" + entry["key"]
         actor = existing.get(dkey)
+        proxy_ref = entry.get("skeletalMeshReference") or {}
+        proxy_mesh = skeletal_meshes.get(proxy_ref.get("sourceKey"))
+
+        # The source mesh instance is the animation proxy, not a second visible door. Remove
+        # only this actor's exact owned instance and reserve its key before generic placement.
+        for instance in actor_instances:
+            instance_key = "instance:" + entry["key"] + ":" + instance["asset"]
+            old_instance = existing.get(instance_key)
+            if old_instance is not None:
+                _actor_subsystem().destroy_actor(old_instance)
+                existing.pop(instance_key, None)
+                report["removed"] = report.get("removed", 0) + 1
+            handled.add(instance_key)
 
         if door_cls is not None:
             if actor is not None:
@@ -1500,6 +1515,36 @@ def _import_door_attachments(manifest, meshes, existing, report, handled):
                 else:
                     if hasattr(actor, "set_locked"):
                         actor.set_locked(locked)
+
+                if proxy_mesh is not None and hasattr(actor, "configure_skeletal_door"):
+                    actor.configure_skeletal_door(proxy_mesh, False)
+                    if hasattr(actor, "clear_door_leaves"):
+                        actor.clear_door_leaves()
+                    for att in attachments:
+                        static_mesh = att.get("staticMesh")
+                        object_name = (
+                            static_mesh.get("objectName")
+                            if isinstance(static_mesh, dict) else None)
+                        leaf_mesh = by_name.get(object_name)
+                        if leaf_mesh is None:
+                            report["doorAttachmentsSkipped"] = (
+                                report.get("doorAttachmentsSkipped", 0) + 1)
+                            continue
+                        lx, ly, lz = components(att.get("attachLocationOffset"))
+                        pitch, yaw, roll = components(att.get("attachRotationOffset"))
+                        added = actor.add_door_leaf(
+                            leaf_mesh,
+                            unreal.Name(att.get("attachSocket") or ""),
+                            unreal.Vector(lx, ly, lz),
+                            unreal.Rotator(
+                                pitch=pitch * ROTATOR_TO_DEGREES,
+                                yaw=yaw * ROTATOR_TO_DEGREES,
+                                roll=roll * ROTATOR_TO_DEGREES),
+                            bool(att.get("interactWithPhysicalObjects") or False))
+                        if added:
+                            report["doorAttachmentsPlaced"] = (
+                                report.get("doorAttachmentsPlaced", 0) + 1)
+                    attachments = []
 
                 first_mesh = None
                 if attachments:
@@ -1630,10 +1675,11 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
 
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
+    _import_door_attachments(
+        manifest, meshes, existing, report, handled, skeletal_meshes=skeletal_meshes)
     _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)
     _import_animated_props(manifest, meshes, existing, report, handled)
     _import_turret_spawners(manifest, existing, report, handled)
-    _import_door_attachments(manifest, meshes, existing, report, handled)
     _import_region_volumes(manifest, manifest_dir, existing, report, handled)
 
     if import_actors:

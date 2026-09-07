@@ -65,6 +65,15 @@ public:
 	void Configure(FName InTargetLabel, FName InAnimation, float InRate, int32 InChannel);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void SetWaitForCompletion(bool bWait) { bWaitForCompletion = bWait; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Action")
+	bool ShouldWaitForCompletion() const { return bWaitForCompletion; }
+
+	/** Door-only latent completion used by UShockScriptRunner. */
+	bool IsCompleteInWorld(UWorld* World) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	FName GetAnimation() const { return Animation; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")

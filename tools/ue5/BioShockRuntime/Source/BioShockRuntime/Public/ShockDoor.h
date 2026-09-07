@@ -4,7 +4,12 @@
 #include "ShockDoor.generated.h"
 
 class UBoxComponent;
+class UAnimSequence;
+class USceneComponent;
+class USkeletalMesh;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
+class UStaticMesh;
 class UWorld;
 
 /**
@@ -12,12 +17,10 @@ class UWorld;
  *
  * Source data (docs/research/interaction.md, CONFIRMED_BYTES): doors carry bLocked,
  * bInitiallyOpen, OpenAnimationName / OpenAnimationRate, Attachments[], DoorPortal, etc.
- * Shipped MedicalDoors drive a skeletal animation proxy (Med_DoorAnim) with static-mesh
- * leaves on sockets — that anim path is not wired here yet.
- *
- * This actor approximates plain doors as: proximity (or script Open/Close) → yaw swing →
- * collision off when open. Locked / broken state is respected; keypad doors and dual-leaf
- * skeletal open are documented follow-ups.
+ * Shipped MedicalDoors drive an animation-proxy skeleton with rigid static-mesh leaves
+ * attached to its sockets. LoadRoomDoor is the other real source shape: a skinned,
+ * rigid-weighted door mesh. This actor supports both and keeps collision on a separate
+ * blocker because the source physics asset is not part of the visual FBX import.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockDoor : public AActor
@@ -40,11 +43,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Door")
 	bool bStayOpen = false;
 
-	/** APPROXIMATED — source uses OpenAnimationName skeletal clips, not a yaw swing. */
+	/** Used only when a source rig/clip is unavailable; LoadRoomDoor_OPEN moves ~199 uu in local Y. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Door")
-	float OpenYawDegrees = 90.0f;
+	FVector SlideOffset = FVector(0.0f, 199.0f, 0.0f);
 
-	/** APPROXIMATED — OpenAnimationRate exists in source but is not mapped yet. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Door")
 	float OpenDuration = 0.75f;
 
@@ -97,7 +99,33 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	bool ToggleDoor();
 
-	/** Headless: set label + locked + initially-open without playing a swing. */
+	/** Use a visible skinned mesh (LoadRoomDoor) or an invisible socket proxy (MedicalDoors). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	void ConfigureSkeletalDoor(USkeletalMesh* Mesh, bool bVisibleMesh);
+
+	/** Add one source Attachments[] static leaf to the proxy skeleton. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	bool AddDoorLeaf(
+		UStaticMesh* Mesh,
+		FName Socket,
+		FVector RelativeLocation,
+		FRotator RelativeRotation,
+		bool bPhysical);
+
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	void ClearDoorLeaves();
+
+	/** Starts the named source clip; falls back to the measured local-Y slide when unavailable. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	bool PlayDoorAnimation(FName AnimationName, float PlaybackRate = 1.0f, bool bLoop = false);
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Door")
+	bool IsDoorAnimationComplete(FName AnimationName) const;
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Door")
+	FName GetPlayingDoorAnimationForVerify() const;
+
+	/** Headless: set label + locked + initially-open without playing an animation. */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	void ConfigureForVerify(FName Label, bool bInLocked = false, bool bInitiallyOpen = false);
 
@@ -123,7 +151,16 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
+	TObjectPtr<USceneComponent> DoorRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
 	TObjectPtr<UStaticMeshComponent> DoorMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
+	TObjectPtr<USkeletalMeshComponent> DoorSkeleton;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
+	TObjectPtr<UBoxComponent> DoorBlocker;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
 	TObjectPtr<UBoxComponent> ProximityTrigger;
@@ -131,6 +168,7 @@ protected:
 private:
 	void ApplyVisualAndCollision(float Alpha);
 	void UpdateProximityAutoClose(float DeltaSeconds);
+	UAnimSequence* LoadDoorAnimation(FName AnimationName) const;
 
 	UFUNCTION()
 	void OnProximityBeginOverlap(
@@ -148,8 +186,15 @@ private:
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex);
 
-	FRotator ClosedRelativeRotation;
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> DoorLeaves;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> PlayingDoorAnimation;
+
+	FVector ClosedRelativeLocation = FVector::ZeroVector;
 	bool bOpen = false;
+	bool bSkeletalVisual = false;
 	float OpenAlpha = 0.0f;
 	float AutoCloseRemaining = -1.0f;
 	int32 OverlappingPlayers = 0;

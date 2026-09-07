@@ -7,6 +7,7 @@
 #include "ShockActionFor.h"
 #include "ShockActionIf.h"
 #include "ShockActionLoop.h"
+#include "ShockActionPlayAnimation.h"
 #include "ShockActionSendTriggerMessage.h"
 #include "ShockActionVariableAssign.h"
 #include "ShockActionVariableDecrement.h"
@@ -124,6 +125,7 @@ bool UShockScriptRunner::StartExecution()
 	bExitRequested = false;
 	bWaitPrepared = false;
 	PendingWait = nullptr;
+	PendingAnimation = nullptr;
 	PendingChild = nullptr;
 	SpawnedChildren.Reset();
 	LoopStack.Reset();
@@ -136,6 +138,7 @@ void UShockScriptRunner::FinishExecution()
 {
 	bIsExecuting = false;
 	PendingWait = nullptr;
+	PendingAnimation = nullptr;
 	PendingChild = nullptr;
 	bWaitPrepared = false;
 	CurrentlyExecutingActionIndex = -1;
@@ -297,6 +300,19 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 {
 	while (true)
 	{
+		if (PendingAnimation)
+		{
+			if (!PendingAnimation->IsCompleteInWorld(GetOuterWorld()))
+			{
+				TickSpawnedChildren(WorldTimeSeconds);
+				return true;
+			}
+			PendingAnimation = nullptr;
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			continue;
+		}
+
 		if (PendingChild)
 		{
 			if (PendingChild->bIsExecuting)
@@ -326,7 +342,7 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 				continue;
 			}
 			// Blocked on Wait — leave until a later Tick with later WorldTime.
-			if (PendingWait)
+			if (PendingWait || PendingAnimation)
 			{
 				break;
 			}
@@ -384,6 +400,27 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		}
 		PendingWait = nullptr;
 		bWaitPrepared = false;
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionPlayAnimation* Animation = Cast<UShockActionPlayAnimation>(Action))
+	{
+		FShockActionContext Ctx;
+		Ctx.World = GetOuterWorld();
+		Ctx.OwnerActor = Cast<AActor>(GetOuter());
+		Ctx.Variables = EnsureVariables();
+		Ctx.SourceLabel = ScriptLabel;
+		const bool bApplied = Animation->ApplyInWorld(Ctx);
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_ACTION %s applied=%d"), *Animation->ActionClassName, bApplied ? 1 : 0);
+		if (bApplied
+			&& Animation->ShouldWaitForCompletion()
+			&& !Animation->IsCompleteInWorld(Ctx.World))
+		{
+			PendingAnimation = Animation;
+			return false;
+		}
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

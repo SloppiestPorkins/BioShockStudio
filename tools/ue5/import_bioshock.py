@@ -54,7 +54,7 @@ def _asset_tools():
     return unreal.AssetToolsHelpers.get_asset_tools()
 
 
-def _skeletal_mesh_options(uniform_scale=1.0):
+def _skeletal_mesh_options(uniform_scale=1.0, use_t0_as_ref_pose=False):
     """Import options for a skinned mesh and its skeleton.
 
     Studio FBX is centimetres, Z-up / -Y-front / RH after one `GameBasis.Convert` at decode
@@ -73,6 +73,7 @@ def _skeletal_mesh_options(uniform_scale=1.0):
     mesh_data.set_editor_property("force_front_x_axis", False)
     mesh_data.set_editor_property("import_morph_targets", False)
     mesh_data.set_editor_property("update_skeleton_reference_pose", False)
+    mesh_data.set_editor_property("use_t0_as_ref_pose", use_t0_as_ref_pose)
     # SOCKET_* nulls must stay bones-to-be-stripped / restored as sockets, not nested meshes.
     mesh_data.set_editor_property("import_meshes_in_bone_hierarchy", False)
     # The game ships tangents, binormals and normals per vertex; recomputing them would discard the
@@ -1124,7 +1125,12 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         mesh_file = os.path.join(export_directory, rig["mesh"])
         if normalize_fbx:
             mesh_file = _normalize_fbx(mesh_file, export_directory, blender_path)
-        assets = _import(mesh_file, destination, _skeletal_mesh_options())
+        assets = _import(
+            mesh_file,
+            destination,
+            _skeletal_mesh_options(
+                use_t0_as_ref_pose=rig["name"] == "LoadRoomDoorAnim"),
+        )
         mesh = next((a for a in assets if isinstance(a, unreal.SkeletalMesh)), None)
         if mesh is None:
             _log(f"FAILED to import {rig['mesh']}")

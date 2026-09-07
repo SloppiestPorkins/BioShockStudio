@@ -2,21 +2,28 @@
 
 #include "ShockPlayer.h"
 
+#include "Animation/AnimSequence.h"
 #include "Components/BoxComponent.h"
+#include "Components/SceneComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UObjectGlobals.h"
 
 AShockDoor::AShockDoor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	DoorRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DoorRoot"));
+	SetRootComponent(DoorRoot);
+
 	DoorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorMesh"));
-	SetRootComponent(DoorMesh);
+	DoorMesh->SetupAttachment(DoorRoot);
 	DoorMesh->SetMobility(EComponentMobility::Movable);
-	DoorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	DoorMesh->SetCollisionProfileName(TEXT("BlockAll"));
+	DoorMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
 		TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -27,23 +34,44 @@ AShockDoor::AShockDoor()
 		DoorMesh->SetRelativeScale3D(FVector(0.15f, 1.2f, 2.2f));
 	}
 
+	DoorSkeleton = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("DoorSkeleton"));
+	DoorSkeleton->SetupAttachment(DoorRoot);
+	DoorSkeleton->SetMobility(EComponentMobility::Movable);
+	DoorSkeleton->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	DoorSkeleton->SetVisibility(false, true);
+
+	DoorBlocker = CreateDefaultSubobject<UBoxComponent>(TEXT("DoorBlocker"));
+	DoorBlocker->SetupAttachment(DoorRoot);
+	DoorBlocker->SetBoxExtent(FVector(20.0f, 105.0f, 150.0f));
+	DoorBlocker->SetCollisionProfileName(TEXT("BlockAll"));
+	DoorBlocker->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
 	ProximityTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("ProximityTrigger"));
-	ProximityTrigger->SetupAttachment(DoorMesh);
+	ProximityTrigger->SetupAttachment(DoorRoot);
 	ProximityTrigger->SetBoxExtent(FVector(ProximityRadius, ProximityRadius, ProximityRadius));
 	ProximityTrigger->SetCollisionProfileName(TEXT("Trigger"));
 	ProximityTrigger->SetGenerateOverlapEvents(true);
 	ProximityTrigger->OnComponentBeginOverlap.AddDynamic(this, &AShockDoor::OnProximityBeginOverlap);
 	ProximityTrigger->OnComponentEndOverlap.AddDynamic(this, &AShockDoor::OnProximityEndOverlap);
 
-	ClosedRelativeRotation = FRotator::ZeroRotator;
 }
 
 void AShockDoor::BeginPlay()
 {
 	Super::BeginPlay();
-	ClosedRelativeRotation = DoorMesh ? DoorMesh->GetRelativeRotation() : FRotator::ZeroRotator;
+	ClosedRelativeLocation = FVector::ZeroVector;
 	ProximityTrigger->SetBoxExtent(FVector(ProximityRadius, ProximityRadius, ProximityRadius));
 	ApplyVisualAndCollision(OpenAlpha);
+	if (DoorSkeleton && DoorSkeleton->GetSkeletalMeshAsset())
+	{
+		FString Prefix = DoorSkeleton->GetSkeletalMeshAsset()->GetName();
+		Prefix.RemoveFromEnd(TEXT("Anim"));
+		const FName ClosedPose(*FString::Printf(TEXT("%s_CLOSED"), *Prefix));
+		if (LoadDoorAnimation(ClosedPose))
+		{
+			PlayDoorAnimation(ClosedPose, 1.0f, true);
+		}
+	}
 }
 
 void AShockDoor::Tick(float DeltaSeconds)
@@ -82,6 +110,152 @@ void AShockDoor::SetBroken(bool bInBroken)
 	{
 		// Broken doors stay where they are; scripts may still ForceClose.
 	}
+}
+
+void AShockDoor::ConfigureSkeletalDoor(USkeletalMesh* Mesh, bool bVisibleMesh)
+{
+	if (!DoorSkeleton)
+	{
+		return;
+	}
+	DoorSkeleton->SetSkeletalMeshAsset(Mesh);
+	bSkeletalVisual = Mesh != nullptr;
+	DoorSkeleton->SetVisibility(Mesh != nullptr && bVisibleMesh, true);
+	if (Mesh && DoorMesh)
+	{
+		DoorMesh->SetVisibility(false, true);
+	}
+}
+
+bool AShockDoor::AddDoorLeaf(
+	UStaticMesh* Mesh,
+	FName Socket,
+	FVector RelativeLocation,
+	FRotator RelativeRotation,
+	bool bPhysical)
+{
+	if (!Mesh || !DoorSkeleton)
+	{
+		return false;
+	}
+	UStaticMeshComponent* Leaf = NewObject<UStaticMeshComponent>(this);
+	if (!Leaf)
+	{
+		return false;
+	}
+	Leaf->CreationMethod = EComponentCreationMethod::Instance;
+	Leaf->SetMobility(EComponentMobility::Movable);
+	Leaf->SetStaticMesh(Mesh);
+	Leaf->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AddInstanceComponent(Leaf);
+	Leaf->RegisterComponent();
+	Leaf->AttachToComponent(
+		DoorSkeleton,
+		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+		Socket);
+	Leaf->SetRelativeLocation(RelativeLocation);
+	Leaf->SetRelativeRotation(RelativeRotation);
+	DoorLeaves.Add(Leaf);
+	(void)bPhysical; // Source flag is represented by the common DoorBlocker until per-leaf physics exists.
+	return true;
+}
+
+void AShockDoor::ClearDoorLeaves()
+{
+	for (UStaticMeshComponent* Leaf : DoorLeaves)
+	{
+		if (Leaf)
+		{
+			Leaf->DestroyComponent();
+		}
+	}
+	DoorLeaves.Reset();
+}
+
+UAnimSequence* AShockDoor::LoadDoorAnimation(FName AnimationName) const
+{
+	if (!DoorSkeleton || !DoorSkeleton->GetSkeletalMeshAsset() || AnimationName.IsNone())
+	{
+		return nullptr;
+	}
+	FString MeshPath = DoorSkeleton->GetSkeletalMeshAsset()->GetPathName();
+	int32 Slash = INDEX_NONE;
+	if (!MeshPath.FindLastChar(TEXT('/'), Slash))
+	{
+		return nullptr;
+	}
+	const FString Folder = MeshPath.Left(Slash);
+	const FString Leaf = AnimationName.ToString();
+	const FString ObjectPath = FString::Printf(
+		TEXT("%s/Animations/%s.%s"),
+		*Folder,
+		*Leaf,
+		*Leaf);
+	return LoadObject<UAnimSequence>(nullptr, *ObjectPath);
+}
+
+bool AShockDoor::PlayDoorAnimation(FName AnimationName, float PlaybackRate, bool bLoop)
+{
+	const FString Name = AnimationName.ToString();
+	const bool bClosedHold = Name.Contains(TEXT("CLOSED"), ESearchCase::IgnoreCase);
+	const bool bOpenedHold = Name.Contains(TEXT("OPENED"), ESearchCase::IgnoreCase);
+	const bool bClosing = !bClosedHold && Name.Contains(TEXT("CLOSE"), ESearchCase::IgnoreCase);
+	const bool bOpening = !bOpenedHold && Name.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase);
+
+	if (bOpening && !OpenDoor(true))
+	{
+		return false;
+	}
+	if (bClosing)
+	{
+		CloseDoor(true);
+	}
+	if (bOpenedHold)
+	{
+		bOpen = true;
+		OpenAlpha = 1.0f;
+		ApplyVisualAndCollision(OpenAlpha);
+	}
+	else if (bClosedHold)
+	{
+		bOpen = false;
+		OpenAlpha = 0.0f;
+		ApplyVisualAndCollision(OpenAlpha);
+	}
+
+	PlayingDoorAnimation = LoadDoorAnimation(AnimationName);
+	if (PlayingDoorAnimation && DoorSkeleton)
+	{
+		DoorSkeleton->PlayAnimation(PlayingDoorAnimation, bLoop);
+		DoorSkeleton->SetPlayRate(FMath::IsNearlyZero(PlaybackRate) ? 1.0f : PlaybackRate);
+		DoorSkeleton->TickAnimation(0.0f, false);
+		DoorSkeleton->RefreshBoneTransforms();
+		if (bOpening || bClosing)
+		{
+			OpenDuration = PlayingDoorAnimation->GetPlayLength()
+				/ FMath::Max(FMath::Abs(PlaybackRate), KINDA_SMALL_NUMBER);
+		}
+	}
+	return bOpening || bClosing || bOpenedHold || bClosedHold || PlayingDoorAnimation != nullptr;
+}
+
+bool AShockDoor::IsDoorAnimationComplete(FName AnimationName) const
+{
+	const FString Name = AnimationName.ToString();
+	if (Name.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase))
+	{
+		return IsFullyOpen();
+	}
+	if (Name.Contains(TEXT("CLOSE"), ESearchCase::IgnoreCase))
+	{
+		return IsFullyClosed();
+	}
+	return true;
+}
+
+FName AShockDoor::GetPlayingDoorAnimationForVerify() const
+{
+	return PlayingDoorAnimation ? PlayingDoorAnimation->GetFName() : NAME_None;
 }
 
 bool AShockDoor::OpenDoor(bool bInStayOpen)
@@ -131,7 +305,7 @@ void AShockDoor::ConfigureForVerify(FName Label, bool bInLocked, bool bInitially
 	OverlappingPlayers = 0;
 	if (DoorMesh)
 	{
-		ClosedRelativeRotation = DoorMesh->GetRelativeRotation();
+		ClosedRelativeLocation = DoorMesh->GetRelativeLocation();
 	}
 	ApplyVisualAndCollision(OpenAlpha);
 }
@@ -165,17 +339,17 @@ void AShockDoor::AdvanceDoorForVerify(float DeltaSeconds)
 
 bool AShockDoor::IsBlockingCollisionEnabled() const
 {
-	return DoorMesh
-		&& DoorMesh->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+	return DoorBlocker
+		&& DoorBlocker->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
 }
 
 uint8 AShockDoor::GetCollisionEnabledForVerify() const
 {
-	if (!DoorMesh)
+	if (!DoorBlocker)
 	{
 		return static_cast<uint8>(ECollisionEnabled::NoCollision);
 	}
-	return static_cast<uint8>(DoorMesh->GetCollisionEnabled());
+	return static_cast<uint8>(DoorBlocker->GetCollisionEnabled());
 }
 
 AShockDoor* AShockDoor::FindByLabel(UWorld* World, FName Label)
@@ -209,17 +383,24 @@ AShockDoor* AShockDoor::FindByLabel(UWorld* World, FName Label)
 
 void AShockDoor::ApplyVisualAndCollision(float Alpha)
 {
-	if (!DoorMesh)
+	// The source clip drives a configured skeleton. If no clip is available, preserve the
+	// measured LoadRoomDoor_OPEN displacement as a clean local-Y slide of the visible fallback.
+	if (!PlayingDoorAnimation)
 	{
-		return;
+		const FVector Location = ClosedRelativeLocation + SlideOffset * Alpha;
+		if (DoorMesh)
+		{
+			DoorMesh->SetRelativeLocation(Location);
+		}
+		if (DoorSkeleton)
+		{
+			DoorSkeleton->SetRelativeLocation(Location);
+		}
 	}
 
-	const FRotator OpenRotation = ClosedRelativeRotation + FRotator(0.0f, OpenYawDegrees, 0.0f);
-	DoorMesh->SetRelativeRotation(FMath::Lerp(ClosedRelativeRotation, OpenRotation, Alpha));
-
-	// Walk-through once mostly open — mirrors the "collision updates when open" requirement.
-	const bool bBlocking = Alpha < 0.85f;
-	DoorMesh->SetCollisionEnabled(
+	// The blocker is independent of missing source PhysicsAssets and is gone at the open pose.
+	const bool bBlocking = Alpha < 1.0f - KINDA_SMALL_NUMBER;
+	DoorBlocker->SetCollisionEnabled(
 		bBlocking ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 }
 

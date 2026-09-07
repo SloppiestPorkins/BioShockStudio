@@ -6,6 +6,7 @@
 class UShockAction;
 class UShockActionLoop;
 class UShockActionFor;
+class UShockActionPlayAnimation;
 class UShockActionWait;
 class UShockScriptRegistry;
 class UShockScriptRunner;
@@ -166,6 +167,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UShockActionWait> PendingWait;
+
+	UPROPERTY()
+	TObjectPtr<UShockActionPlayAnimation> PendingAnimation;
 
 	UPROPERTY()
 	TObjectPtr<UShockScriptRunner> PendingChild;

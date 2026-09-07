@@ -63,8 +63,39 @@ def _decompose_location_rotation(entry):
     return loc, rot
 
 
-def _import_load_room_doors(manifest, existing, report):
-    """LoadRoomDoor has skeletal open clips, not Attachments[] — still place as AShockDoor."""
+def _load_existing_level_meshes(manifest):
+    meshes = {}
+    for asset in manifest.get("assets") or []:
+        rel = asset.get("file")
+        if not rel:
+            continue
+        stem = os.path.splitext(os.path.basename(rel))[0]
+        path = "/Game/BioShockSlice/Content/Meshes/" + stem
+        mesh = (
+            unreal.EditorAssetLibrary.load_asset(path)
+            if unreal.EditorAssetLibrary.does_asset_exist(path) else None)
+        if isinstance(mesh, unreal.StaticMesh):
+            meshes[asset["key"]] = mesh
+    return meshes
+
+
+def _load_existing_door_proxies(manifest):
+    proxies = {}
+    for asset in manifest.get("assets") or []:
+        if asset.get("kind") != "SkeletalMesh":
+            continue
+        rig_name = asset.get("group") or asset.get("name")
+        path = "/Game/BioShockCharacters/%s/%s" % (rig_name, rig_name)
+        mesh = (
+            unreal.EditorAssetLibrary.load_asset(path)
+            if unreal.EditorAssetLibrary.does_asset_exist(path) else None)
+        if isinstance(mesh, unreal.SkeletalMesh):
+            proxies[asset["key"]] = mesh
+    return proxies
+
+
+def _import_load_room_doors(manifest, existing, report, meshes, skeletal_mesh):
+    """Replace the exact source instance with the clean T0-pose skeletal door."""
     door_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockDoor")
     if door_cls is None:
         report["loadRoomDoorsSkipped"] = report.get("loadRoomDoorsSkipped", 0) + 1
@@ -82,6 +113,15 @@ def _import_load_room_doors(manifest, existing, report):
             location, rotation, _scale = import_level._decompose(actor_instances[0]["transform"])
         else:
             location, rotation = _decompose_location_rotation(entry)
+
+        for instance in actor_instances:
+            source_key = "instance:" + key + ":" + instance["asset"]
+            old_source = existing.get(source_key)
+            if old_source is not None:
+                import_level._actor_subsystem().destroy_actor(old_source)
+                existing.pop(source_key, None)
+                report["sourceDoorMeshesRemoved"] = (
+                    report.get("sourceDoorMeshesRemoved", 0) + 1)
 
         actor = existing.get(dkey)
         if actor is not None:
@@ -109,6 +149,19 @@ def _import_load_room_doors(manifest, existing, report):
             actor.set_door_label(unreal.Name(str(door_label)))
         if hasattr(actor, "configure_for_verify"):
             actor.configure_for_verify(unreal.Name(str(door_label)), False, False)
+        if skeletal_mesh is not None and hasattr(actor, "configure_skeletal_door"):
+            actor.configure_skeletal_door(skeletal_mesh, True)
+            report["loadRoomSkeletal"] = report.get("loadRoomSkeletal", 0) + 1
+        elif actor_instances:
+            fallback = meshes.get(actor_instances[0].get("asset"))
+            mesh_comp = actor.get_editor_property("door_mesh")
+            if fallback is not None and mesh_comp is not None:
+                mesh_comp.set_static_mesh(fallback)
+                mesh_comp.set_relative_scale3d(unreal.Vector(1.0, 1.0, 1.0))
+                actor.set_editor_property("slide_offset", unreal.Vector(0.0, 199.0, 0.0))
+                actor.set_editor_property("open_duration", 6.0)
+                report["loadRoomStaticFallback"] = (
+                    report.get("loadRoomStaticFallback", 0) + 1)
         existing[dkey] = actor
         report["loadRoomDoorsPlaced"] = report.get("loadRoomDoorsPlaced", 0) + 1
 
@@ -151,10 +204,20 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
         "triggerRelaysWired": 0,
     }
     handled = set()
-    # Mesh dict empty → cube stand-in doors; labels still drive ActionOpenDoor / PlayAnimation.
-    meshes = {}
-    import_level._import_door_attachments(manifest, meshes, existing, report, handled)
-    _import_load_room_doors(manifest, existing, report)
+    meshes = _load_existing_level_meshes(manifest)
+    proxies = _load_existing_door_proxies(manifest)
+    load_room_asset = next(
+        (asset for asset in (manifest.get("assets") or [])
+         if asset.get("name") == "LoadRoomDoorMESH"),
+        None,
+    )
+    load_room_mesh = proxies.get(load_room_asset["key"]) if load_room_asset else None
+    report["loadRoomRig"] = (
+        load_room_mesh.get_path_name() if load_room_mesh is not None else None)
+    import_level._import_door_attachments(
+        manifest, meshes, existing, report, handled, skeletal_meshes=proxies)
+    _import_load_room_doors(
+        manifest, existing, report, meshes=meshes, skeletal_mesh=load_room_mesh)
     _wire_existing_trigger_relays(manifest, report)
 
     if save:

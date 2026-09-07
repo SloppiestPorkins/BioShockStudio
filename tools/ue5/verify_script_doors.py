@@ -22,6 +22,7 @@ def main(out):
     close_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionCloseDoor")
     lock_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionLockDoor")
     unlock_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionUnlockDoor")
+    play_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockActionPlayAnimation")
     relay_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTriggerRelayComponent")
 
     script = subsystem.spawn_actor_from_class(
@@ -131,6 +132,52 @@ def main(out):
             report["message_trigger_door"] = "ok"
             if relay is not None:
                 report["relay_has_fired"] = bool(relay.has_fired())
+
+            # ActionPlayAnimation bWaitForCompletion is latent for a door: *_OPENED
+            # cannot apply until the opening motion has reached its final pose.
+            door.configure_for_verify(unreal.Name("MsgDoor"), False, False)
+            door.set_enable_proximity_open(False)
+            latent_script = subsystem.spawn_actor_from_class(
+                script_cls, unreal.Vector(110, 0, 200), unreal.Rotator(0, 0, 0)
+            )
+            spawned.append(latent_script)
+            latent_script.configure("LatentDoorSequence", "")
+            opening = unreal.new_object(play_cls, latent_script.get_runner())
+            opening.configure("MsgDoor", "LoadRoomDoor_OPEN", 1.0, 0)
+            opening.set_wait_for_completion(True)
+            opened = unreal.new_object(play_cls, latent_script.get_runner())
+            opened.configure("MsgDoor", "LoadRoomDoor_OPENED", 1.0, 0)
+            latent_runner = latent_script.get_runner()
+            latent_runner.add_action(opening)
+            latent_runner.add_action(opened)
+            if not latent_runner.start_execution():
+                f.append("latent sequence did not start")
+            latent_runner.tick_execution(0.0)
+            if int(latent_runner.get_actions_completed()) != 0:
+                f.append("latent OPEN completed before door motion")
+            if str(opened.get_last_played_animation()) not in ("None", ""):
+                f.append("OPENED ran before OPEN completion")
+            door.advance_door_for_verify(0.4)
+            latent_runner.tick_execution(0.4)
+            if int(latent_runner.get_actions_completed()) != 0:
+                f.append("latent OPEN completed at partial pose")
+            door.advance_door_for_verify(0.4)
+            latent_runner.tick_execution(0.8)
+            if bool(latent_runner.is_executing):
+                f.append("latent sequence still executing after full open")
+            if str(opened.get_last_played_animation()) != "LoadRoomDoor_OPENED":
+                f.append("OPENED did not follow OPEN")
+            if not bool(door.is_fully_open()):
+                f.append("door not IsFullyOpen after latent sequence")
+            if bool(door.is_blocking_collision_enabled()):
+                f.append("door collision still blocks after latent sequence")
+            report["latent_play_animation_door"] = {
+                "open": str(opening.get_last_played_animation()),
+                "opened": str(opened.get_last_played_animation()),
+                "actionsCompleted": int(latent_runner.get_actions_completed()),
+                "fullyOpen": bool(door.is_fully_open()),
+                "collisionOff": not bool(door.is_blocking_collision_enabled()),
+            }
     finally:
         for actor in spawned:
             try:

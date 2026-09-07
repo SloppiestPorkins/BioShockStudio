@@ -50,19 +50,18 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 		return 0;
 	}
 
-	// LoadRoomDoor script drives MedicalLoadRoomDoor via PlayAnimation(LoadRoomDoor_OPEN).
-	// Until skeletal door clips are wired, treat *OPEN* clips on a placed AShockDoor as OpenDoor.
-	const FString AnimName = Animation.ToString();
-	if (AnimName.Contains(TEXT("OPEN"), ESearchCase::IgnoreCase))
+	// Source ShockDoor is a mesh actor: ActionPlayAnimation names the exact door clip,
+	// including the short *_OPENED hold that follows a latent *_OPEN.
+	if (AShockDoor* Door = AShockDoor::FindByLabel(World, TargetLabel))
 	{
-		if (AShockDoor* Door = AShockDoor::FindByLabel(World, TargetLabel))
+		if (Door->PlayDoorAnimation(
+				Animation,
+				AnimationRate,
+				EndBehavior == EShockAnimEndBehavior::Loop))
 		{
-			if (Door->OpenDoor(/*bStayOpen=*/true))
-			{
-				LastPlayedAnimation = Animation;
-				LastPlayedActorName = Door->GetName();
-				++Played;
-			}
+			LastPlayedAnimation = Animation;
+			LastPlayedActorName = Door->GetName();
+			++Played;
 		}
 	}
 
@@ -97,6 +96,21 @@ int32 UShockActionPlayAnimation::PlayInWorld(UWorld* World)
 		}
 	}
 	return Played;
+}
+
+bool UShockActionPlayAnimation::IsCompleteInWorld(UWorld* World) const
+{
+	if (!bWaitForCompletion)
+	{
+		return true;
+	}
+	if (const AShockDoor* Door = AShockDoor::FindByLabel(World, TargetLabel))
+	{
+		return Door->IsDoorAnimationComplete(Animation);
+	}
+	// Completion polling is currently implemented only for doors. Other targets retain
+	// their existing immediate behaviour rather than introducing an unbounded wait.
+	return true;
 }
 
 bool UShockActionPlayAnimation::ApplyInWorld(const FShockActionContext& Ctx)
