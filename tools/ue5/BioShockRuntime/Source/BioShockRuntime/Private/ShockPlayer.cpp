@@ -119,6 +119,8 @@ AShockPlayer::AShockPlayer()
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
+	BaseEyeHeight = 60.0f;
+	CrouchedEyeHeight = 36.0f;
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
@@ -134,6 +136,16 @@ AShockPlayer::AShockPlayer()
 	{
 		Movement->MaxWalkSpeed = 450.0f;
 		Movement->JumpZVelocity = 525.0f;
+		Movement->MaxAcceleration = 2048.0f;
+		Movement->BrakingDecelerationWalking = 2048.0f;
+		Movement->GroundFriction = 8.0f;
+		Movement->AirControl = 0.05f;
+		Movement->FallingLateralFriction = 0.0f;
+		Movement->MaxStepHeight = 35.0f;
+		Movement->SetWalkableFloorAngle(44.0f);
+		Movement->SetCrouchedHalfHeight(40.0f);
+		Movement->MaxWalkSpeedCrouched = 450.0f * 0.45f;
+		Movement->GetNavAgentPropertiesRef().bCanCrouch = true;
 	}
 	if (USkeletalMeshComponent* BodyMesh = GetMesh())
 	{
@@ -2158,6 +2170,35 @@ void AShockPlayer::LookUpAtRate(float Value)
 	AddControllerPitchInput(Value);
 }
 
+void AShockPlayer::HandleJumpPressed()
+{
+	if (!bMovementDisabled)
+	{
+		Jump();
+	}
+}
+
+void AShockPlayer::HandleJumpReleased()
+{
+	StopJumping();
+}
+
+void AShockPlayer::HandleCrouchPressed()
+{
+	if (!bMovementDisabled)
+	{
+		Crouch();
+	}
+}
+
+void AShockPlayer::HandleCrouchReleased()
+{
+	if (!bForcedCrouch)
+	{
+		UnCrouch();
+	}
+}
+
 int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 {
 	if (ItemClass.IsNone() || StackSize <= 0)
@@ -2976,6 +3017,10 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("RadialStepRight"), IE_Pressed, this, &AShockPlayer::HandleRadialStepRight);
 	PlayerInputComponent->BindAction(TEXT("StatusMenu"), IE_Pressed, this, &AShockPlayer::HandleStatusMenuToggle);
 	PlayerInputComponent->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AShockPlayer::HandlePauseMenuToggle);
+	PlayerInputComponent->BindAction(TEXT("Jump"), IE_Pressed, this, &AShockPlayer::HandleJumpPressed);
+	PlayerInputComponent->BindAction(TEXT("Jump"), IE_Released, this, &AShockPlayer::HandleJumpReleased);
+	PlayerInputComponent->BindAction(TEXT("Crouch"), IE_Pressed, this, &AShockPlayer::HandleCrouchPressed);
+	PlayerInputComponent->BindAction(TEXT("Crouch"), IE_Released, this, &AShockPlayer::HandleCrouchReleased);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AShockPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AShockPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AShockPlayer::TurnAtRate);

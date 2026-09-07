@@ -618,19 +618,114 @@ ABaseShockAI* AShockGameMode::SpawnOneSliceEnemy(
 		return nullptr;
 	}
 
+	const FString Label = FString::Printf(TEXT("SliceEnemy%d"), Index);
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		if (*It && (*It)->GetScriptLabel() == FName(*Label))
+		{
+			return *It;
+		}
+	}
+
+	// The encounter is verification scaffolding, but it still has to obey the real level. The
+	// authored offsets can land over stairs or gaps, so resolve a walkable floor and nav point
+	// before creating (and especially before arming) an enemy.
+	FHitResult FloorHit;
+	FCollisionQueryParams FloorQuery(SCENE_QUERY_STAT(SliceEnemyFloor), false, Player);
+	const FVector TraceStart = SpawnLoc + FVector(0.0f, 0.0f, 200.0f);
+	const FVector TraceEnd = SpawnLoc - FVector(0.0f, 0.0f, 3000.0f);
+	if (!World->LineTraceSingleByChannel(
+			FloorHit, TraceStart, TraceEnd, ECC_Visibility, FloorQuery)
+		|| !FloorHit.bBlockingHit
+		|| FloorHit.ImpactNormal.Z < 0.70f)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("BIOSHOCK_SLICE_SPAWN_SKIP index=%d reason=no_walkable_floor requested=%s"),
+			Index,
+			*SpawnLoc.ToString());
+		return nullptr;
+	}
+
+	const float CapsuleHalfHeight =
+		GetDefault<ABaseShockAI>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	FVector GroundedLoc = FloorHit.ImpactPoint;
+	if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+	{
+		FNavLocation NavLoc;
+		if (!NavSys->ProjectPointToNavigation(
+				FloorHit.ImpactPoint, NavLoc, FVector(300.0f, 300.0f, 300.0f)))
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("BIOSHOCK_SLICE_SPAWN_NAV_UNAVAILABLE index=%d floor=%s"),
+				Index,
+				*FloorHit.ImpactPoint.ToString());
+		}
+		else
+		{
+			GroundedLoc = NavLoc.Location;
+		}
+	}
+	GroundedLoc.Z += CapsuleHalfHeight + 2.0f;
+
 	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(
 		ABaseShockAI::StaticClass(),
-		SpawnLoc,
+		GroundedLoc,
 		SpawnRot,
 		Params);
 	if (!AI)
 	{
+		static const FVector2D ClearOffsets[] = {
+			FVector2D(100.0f, 0.0f),
+			FVector2D(-100.0f, 0.0f),
+			FVector2D(0.0f, 100.0f),
+			FVector2D(0.0f, -100.0f),
+			FVector2D(200.0f, 0.0f),
+			FVector2D(-200.0f, 0.0f),
+			FVector2D(0.0f, 200.0f),
+			FVector2D(0.0f, -200.0f),
+		};
+		for (const FVector2D& Offset : ClearOffsets)
+		{
+			const FVector RetryBase = SpawnLoc + FVector(Offset.X, Offset.Y, 0.0f);
+			FHitResult RetryFloor;
+			if (!World->LineTraceSingleByChannel(
+					RetryFloor,
+					RetryBase + FVector(0.0f, 0.0f, 200.0f),
+					RetryBase - FVector(0.0f, 0.0f, 3000.0f),
+					ECC_Visibility,
+					FloorQuery)
+				|| !RetryFloor.bBlockingHit
+				|| RetryFloor.ImpactNormal.Z < 0.70f)
+			{
+				continue;
+			}
+			const FVector RetryLoc =
+				RetryFloor.ImpactPoint + FVector(0.0f, 0.0f, CapsuleHalfHeight + 2.0f);
+			AI = World->SpawnActor<ABaseShockAI>(
+				ABaseShockAI::StaticClass(), RetryLoc, SpawnRot, Params);
+			if (AI)
+			{
+				break;
+			}
+		}
+	}
+	if (!AI)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("BIOSHOCK_SLICE_SPAWN_SKIP index=%d reason=no_clear_capsule"),
+			Index);
 		return nullptr;
 	}
 
-	const FString Label = FString::Printf(TEXT("SliceEnemy%d"), Index);
 	AI->ConfigureIdentity(ArchetypeKey, FName(*Label));
 	AI->ApplyArchetypeLookup(ArchetypeKey);
 	EquipSliceRangedWeaponIfNeeded(World, AI, bForceRangedWeapon);
@@ -782,6 +877,23 @@ void AShockGameMode::SpawnSliceEncounter(AShockPlayer* Player, AActor* StartSpot
 		FName(TEXT("Agg_BabyJane")),
 		MeleeLeftLoc,
 		FacePlayer,
+		false);
+
+	// Runtime nav generation completes asynchronously in -game. Retry the first slot after the
+	// generated tiles are available; SpawnOneSliceEnemy de-duplicates if the immediate attempt won.
+	World->GetTimerManager().SetTimer(
+		SliceEncounterSpawnTimer0,
+		FTimerDelegate::CreateUObject(
+			this,
+			&AShockGameMode::SpawnSliceEnemyStaggered,
+			Player,
+			StartSpot,
+			0,
+			MeleeLeftLoc,
+			FacePlayer,
+			FName(TEXT("Agg_BabyJane")),
+			false),
+		3.25f,
 		false);
 
 	const FName RangedArchetype = ResolveSliceRangedArchetypeKey();
@@ -2147,21 +2259,30 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				EnsureHudForPlayer(NewPlayer);
-				SpawnSliceEncounter(Player, Start);
-				ABaseShockAI* PrimaryEnemy = nullptr;
-				if (UWorld* World = GetWorld())
+				const bool bVerifySliceEncounter =
+					FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
+					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"));
+				if (bVerifySliceEncounter)
 				{
-					for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+					SpawnSliceEncounter(Player, Start);
+				}
+				ABaseShockAI* PrimaryEnemy = nullptr;
+				if (bVerifySliceEncounter)
+				{
+					if (UWorld* World = GetWorld())
 					{
-						if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceEnemy0")))
+						for (TActorIterator<ABaseShockAI> It(World); It; ++It)
 						{
-							PrimaryEnemy = *It;
-							break;
+							if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceEnemy0")))
+							{
+								PrimaryEnemy = *It;
+								break;
+							}
 						}
 					}
+					SpawnSliceAmmoPickup(Player, Start, PrimaryEnemy);
+					SpawnSliceConsumablePickup(Player, Start, PrimaryEnemy);
 				}
-				SpawnSliceAmmoPickup(Player, Start, PrimaryEnemy);
-				SpawnSliceConsumablePickup(Player, Start, PrimaryEnemy);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{
 					VerifySliceFire(Player, PrimaryEnemy);
@@ -2181,7 +2302,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 								}
 								FGenericPlatformMisc::RequestExit(false);
 							}),
-							3.5f,
+							6.0f,
 							false);
 					}
 					return;
@@ -2912,6 +3033,15 @@ void AShockGameMode::TickScreenshotCapture()
 		return;   // one more tick so the export lands before the world tears down
 	}
 
+	int32 AICount = 0;
+	if (UWorld* CaptureWorld = GetWorld())
+	{
+		for (TActorIterator<ABaseShockAI> It(CaptureWorld); It; ++It)
+		{
+			AICount += (*It != nullptr) ? 1 : 0;
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_AI count=%d"), AICount);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_OK"));
 	GetWorldTimerManager().ClearTimer(ScreenshotTimer);
 	FGenericPlatformMisc::RequestExit(false);

@@ -784,6 +784,10 @@ private:
 	void MoveRight(float Value);
 	void TurnAtRate(float Value);
 	void LookUpAtRate(float Value);
+	void HandleJumpPressed();
+	void HandleJumpReleased();
+	void HandleCrouchPressed();
+	void HandleCrouchReleased();
 	void EnsureViewHands();
 	class UShockViewHandsAnimInstance* GetViewHandsAnimInstance() const;
 	/** Place ViewHands once at ViewmodelOffset/Rotation (BioShock PlayerViewOffset). No socket pin. */

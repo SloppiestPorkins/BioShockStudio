@@ -19,6 +19,10 @@ def _spawn(cls, loc):
 
 
 FIRE_LINE = '+ActionMappings=(ActionName="Fire",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=LeftMouseButton)'
+ACTION_LINES = [
+    '+ActionMappings=(ActionName="Jump",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=SpaceBar)',
+    '+ActionMappings=(ActionName="Crouch",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=LeftControl)',
+]
 AXIS_LINES = [
     '+AxisMappings=(AxisName="MoveForward",Scale=1.000000,Key=W)',
     '+AxisMappings=(AxisName="MoveForward",Scale=-1.000000,Key=S)',
@@ -29,6 +33,7 @@ AXIS_LINES = [
 ]
 LEGACY_INPUT = "DefaultPlayerInputClass=/Script/Engine.PlayerInput"
 LEGACY_COMPONENT = "DefaultInputComponentClass=/Script/Engine.InputComponent"
+MOUSE_SMOOTHING = "bEnableMouseSmoothing=False"
 
 
 def ensure_fire_in_default_input(project_dir):
@@ -71,6 +76,15 @@ def ensure_fire_in_default_input(project_dir):
         _log("wrote Fire ActionMapping to DefaultInput.ini")
     else:
         _log("DefaultInput.ini already has Fire")
+    for line in ACTION_LINES:
+        action_name = re.search(r'ActionName="([^"]+)"', line).group(1)
+        if ('ActionName="%s"' % action_name) in text or ("ActionName=%s" % action_name) in text:
+            continue
+        if not text.endswith("\n"):
+            text += "\n"
+        text += line + "\n"
+        changed = True
+        _log("wrote %s ActionMapping to DefaultInput.ini" % action_name)
     for line in AXIS_LINES:
         # Match AxisName="MoveForward" etc. already present
         axis_name = re.search(r'AxisName="([^"]+)"', line)
@@ -89,6 +103,17 @@ def ensure_fire_in_default_input(project_dir):
         text += line + "\n"
         changed = True
         _log("wrote axis %s %s" % (axis_name.group(1), key))
+    if re.search(r"^bEnableMouseSmoothing\s*=", text, re.MULTILINE):
+        updated = re.sub(
+            r"^bEnableMouseSmoothing\s*=.*$", MOUSE_SMOOTHING, text,
+            flags=re.MULTILINE)
+        changed = changed or updated != text
+        text = updated
+    else:
+        if not text.endswith("\n"):
+            text += "\n"
+        text += MOUSE_SMOOTHING + "\n"
+        changed = True
     if changed:
         open(path, "w", encoding="utf-8", newline="\n").write(text)
     return path, changed
@@ -110,6 +135,12 @@ def main(out):
         if ('AxisName="%s"' % axis) not in ini_text:
             f.append("axis missing %s" % axis)
     report["axis_mappings"] = "ok"
+    for action in ("Jump", "Crouch"):
+        if ('ActionName="%s"' % action) not in ini_text:
+            f.append("action missing %s" % action)
+    if MOUSE_SMOOTHING not in ini_text:
+        f.append("mouse smoothing not disabled")
+    report["movement_mappings"] = "ok"
 
     player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
     weapon_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWeapon")

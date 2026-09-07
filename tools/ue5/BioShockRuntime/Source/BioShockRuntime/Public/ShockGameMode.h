@@ -173,6 +173,7 @@ private:
 	/** Where the first-person hands sit relative to the eye, and where that lands on screen. */
 	void ProbeViewmodel(APlayerController* PC, int32 ShotW, int32 ShotH);
 
+	FTimerHandle SliceEncounterSpawnTimer0;
 	FTimerHandle SliceEncounterSpawnTimer1;
 	FTimerHandle SliceEncounterSpawnTimer2;
 	FTimerHandle SliceEncounterVerifyTimer;

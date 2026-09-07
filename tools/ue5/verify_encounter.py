@@ -1,6 +1,7 @@
 """Game-mode encounter on 1-Medical: possess prep, then -game -bioshockverifyencounter.
 
-Waits for staggered slice spawns (3.5s), then asserts three labeled enemies, one armed,
+Waits for the asynchronously generated navmesh and staggered slice spawns, then asserts three
+labeled enemies, one armed,
 all targeting SlicePlayer.
 """
 

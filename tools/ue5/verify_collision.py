@@ -32,8 +32,15 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 
 import unreal
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from fix_exterior_collision import is_exterior_name
+from fix_prop_collision import (
+    MIN_SIZE, _ARCHITECTURE, _DETAILED, _PICKUP, _PROXY_TAG, _SIMPLE, _SOURCE_TAG,
+    _SURFACE, _tag_value)
 
 # Model12_34567 - the exporter's stem for a compiled-CSG world asset.
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
@@ -177,6 +184,96 @@ def _check_standable(report):
     return failures
 
 
+def _check_prop_policy(report):
+    """Check the class policy, while leaving intentionally-simple props out of the alarm set."""
+    failures = []
+    checked = {"noCollision": 0, "complexProxy": 0, "multiConvex": 0, "simple": 0}
+    samples = []
+    all_actors = list(_actors().get_all_level_actors())
+    proxies = {
+        _tag_value(actor, _SOURCE_TAG): actor
+        for actor in all_actors
+        if _PROXY_TAG in {str(tag) for tag in actor.tags}
+        and _tag_value(actor, _SOURCE_TAG)
+    }
+    source_rows = []
+    proxy_meshes = set()
+    for actor in all_actors:
+        if not isinstance(actor, unreal.StaticMeshActor) \
+                or _PROXY_TAG in {str(tag) for tag in actor.tags}:
+            continue
+        comp = actor.static_mesh_component
+        mesh = comp.get_editor_property("static_mesh") if comp else None
+        if mesh is None:
+            continue
+        _, extent = actor.get_actor_bounds(False)
+        largest = 2.0 * max(extent.x, extent.y, extent.z)
+        source_rows.append((actor, comp, mesh, largest))
+        if _DETAILED.search(mesh.get_name()) \
+                or (_ARCHITECTURE.search(mesh.get_name()) and largest >= 200.0):
+            proxy_meshes.add(mesh.get_name())
+
+    for actor, comp, mesh, largest in source_rows:
+        name = mesh.get_name()
+        if (actor.get_actor_label() or "").strip().lower() == "compiled world" \
+                or _MODEL_ASSET.match(name):
+            continue
+        try:
+            triangles = mesh.get_num_triangles(0)
+        except Exception:  # noqa: BLE001
+            triangles = 0
+        body = mesh.get_editor_property("body_setup")
+        convex = boxes = spheres = 0
+        flag = ""
+        if body is not None:
+            flag = str(body.get_editor_property("collision_trace_flag"))
+            agg = body.get_editor_property("agg_geom")
+            convex = len(agg.get_editor_property("convex_elems") or [])
+            boxes = len(agg.get_editor_property("box_elems") or [])
+            spheres = len(agg.get_editor_property("sphere_elems") or [])
+        collision = str(comp.get_collision_enabled())
+
+        if is_exterior_name(name) or _PICKUP.search(name) or _SURFACE.search(name):
+            checked["noCollision"] += 1
+            if "NO_COLLISION" not in collision:
+                failures.append("%s is render-only but collision is %s" % (name, collision))
+            policy = "no_collision"
+        elif name in proxy_meshes:
+            checked["complexProxy"] += 1
+            if "COMPLEX_AS_SIMPLE" not in flag:
+                failures.append("%s proxy asset is still %s" % (name, flag))
+            if "NO_COLLISION" not in collision:
+                failures.append("%s Movable render actor still collides" % name)
+            proxy = proxies.get(actor.get_name())
+            if proxy is None:
+                failures.append("%s has no Static collision proxy" % actor.get_name())
+            else:
+                proxy_comp = proxy.static_mesh_component
+                if str(proxy_comp.get_editor_property("mobility")) != \
+                        str(unreal.ComponentMobility.STATIC):
+                    failures.append("%s proxy is not Static" % name)
+                if "NO_COLLISION" in str(proxy_comp.get_collision_enabled()):
+                    failures.append("%s proxy collision is disabled" % name)
+            policy = "static_complex_proxy"
+        elif (largest < MIN_SIZE or triangles <= 24 or _SIMPLE.search(name)) \
+                and not _DETAILED.search(name):
+            checked["simple"] += 1
+            policy = "retain_simple"
+        else:
+            checked["multiConvex"] += 1
+            policy = "multi_convex" if convex + boxes + spheres > 1 else "retain_simple_unclassified"
+
+        if len(samples) < 40 and policy != "retain_simple":
+            samples.append({
+                "actor": actor.get_actor_label(), "mesh": name, "policy": policy,
+                "collision": collision, "traceFlag": flag, "convex": convex,
+                "boxes": boxes, "spheres": spheres,
+            })
+    report["propPolicy"] = checked
+    report["propSamples"] = samples
+    return failures
+
+
 def main(out_path):
     report = {"maps": [], "failures": [], "checks": 0}
     for map_path in MAPS:
@@ -188,6 +285,7 @@ def main(out_path):
 
         failures = _check_structural(map_report)
         failures += _check_standable(map_report)
+        failures += _check_prop_policy(map_report)
         map_report["failures"] = failures
         report["failures"] += ["%s: %s" % (map_path, f) for f in failures]
         report["checks"] += 1
