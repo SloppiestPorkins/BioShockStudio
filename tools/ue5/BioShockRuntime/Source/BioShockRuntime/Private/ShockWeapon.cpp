@@ -455,22 +455,30 @@ bool AShockWeapon::Reload()
 		return false;
 	}
 
+	// Pump shotgun loads shells one at a time — the reload takes longer the more it needs, and
+	// the arms play Start → LOOP-per-shell → End instead of one clip.
+	const bool bShellByShell = DefWeaponName == FName(TEXT("Shotgun"));
+	const int32 ShellsToLoad = FMath::Clamp(MagazineSize - RoundsInMagazine, 1, 8);
+	const float EffectiveReload = bShellByShell
+		? (0.5f + 0.55f * ShellsToLoad)
+		: ReloadSeconds;
+
 	bIsReloading = true;
-	ReloadCountdown = ReloadSeconds;
+	ReloadCountdown = EffectiveReload;
 	World->GetTimerManager().SetTimer(
 		ReloadTimerHandle,
 		this,
 		&AShockWeapon::FinishReload,
-		ReloadSeconds,
+		EffectiveReload,
 		false);
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD start seconds=%.2f"), ReloadSeconds);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD start seconds=%.2f"), EffectiveReload);
 	// Two-rig performance: ViewHands plays the arms clip; this mesh plays the weapon's own
 	// moving parts (barrel hinge, bolt, etc.). h10 only sampled the actor world transform —
 	// that proved socket-follow, not that Mesh::PlayAnimation was ever called.
 	PlayReloadMeshAnimation();
 	if (AShockPlayer* OwnerPlayer = Cast<AShockPlayer>(GetOwner()))
 	{
-		OwnerPlayer->NotifyViewHandsWeaponReloadStarted();
+		OwnerPlayer->NotifyViewHandsWeaponReloadStarted(bShellByShell ? ShellsToLoad : 1);
 	}
 	return true;
 }

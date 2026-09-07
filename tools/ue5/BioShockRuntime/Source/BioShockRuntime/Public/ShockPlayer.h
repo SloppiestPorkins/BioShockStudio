@@ -693,8 +693,9 @@ public:
 	/** Called from AShockWeapon fire feedback when a discrete shot applies recoil. */
 	void NotifyViewHandsWeaponFired();
 
-	/** Called from AShockWeapon::Reload when a reload actually starts. */
-	void NotifyViewHandsWeaponReloadStarted();
+	/** Called from AShockWeapon::Reload when a reload actually starts. RoundsToLoad drives the
+	 *  shell-by-shell loop count for pump weapons (1 = single-clip reload). */
+	void NotifyViewHandsWeaponReloadStarted(int32 RoundsToLoad = 1);
 
 	/** Per-archetype research from the Research Camera (key = BaseShockAI::AITypeName). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Research")
@@ -774,11 +775,17 @@ private:
 	void AlignEquippedWeaponRootToGripSocket();
 	/** Shotgun-only: solve mesh placement from the posed hands (no grip bone to align to). */
 	void AlignShotgunToHandPose();
+	/** Which hands phase is playing — selects the paired weapon-mesh leaf. */
+	enum class EViewHandsPhase : uint8 { None, Equip, Fidget, Fire, Reload };
+	EViewHandsPhase CurrentViewHandsPhase = EViewHandsPhase::None;
+
 	void TickHeldFire();
 	void TickWeaponRecoil();
 	void TickViewHandsAnimation(float DeltaSeconds);
 	void ResolveViewHandsAnimsForWeapon(FName WeaponDefName);
 	void PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop);
+	/** Play Clips[0] now and queue the rest as one-shots before the return to fidget. */
+	void PlayViewHandsAnimationChain(const TArray<UAnimSequence*>& Clips, EViewHandsPhase Phase);
 	void StartViewHandsForEquippedWeapon();
 	FName ResolveGripSocketForWeapon(FName WeaponDefName);
 	/** Drive the equipped weapon mesh clip that pairs with the current hands phase. */
@@ -786,10 +793,6 @@ private:
 
 	/** Grip socket the equipped weapon is attached to (AttachBone). */
 	FName ActiveGripSocket;
-
-	/** Which hands phase is playing — selects the paired weapon-mesh leaf. */
-	enum class EViewHandsPhase : uint8 { None, Equip, Fidget, Fire, Reload };
-	EViewHandsPhase CurrentViewHandsPhase = EViewHandsPhase::None;
 
 	/** Fire ActionMapping held — automatic weapons re-fire from Tick while this is true. */
 	bool bFireInputHeld = false;
@@ -814,8 +817,31 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAnimSequence> ViewHandsReloadAnim;
 
+	/** Optional wind-up before ViewHandsFireAnim (wrench Swing_A_Wrench_Start). */
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsFireWindupAnim;
+
+	/** Optional alternate strike, played on every other swing (wrench Swing_B_Wrench). */
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsFireAltAnim;
+
+	/** Optional per-round reload loop (shotgun ReloadShotgun_LOOP). */
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsReloadLoopAnim;
+
+	/** Optional reload finisher after the loops (shotgun ReloadShotgun_End). */
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ViewHandsReloadEndAnim;
+
 	UPROPERTY()
 	TObjectPtr<UAnimSequence> LastViewHandsAnim;
+
+	/** Clips to play (as one-shots) after the current one before returning to the fidget. */
+	UPROPERTY()
+	TArray<TObjectPtr<UAnimSequence>> ViewHandsOneShotQueue;
+
+	/** Toggles each swing so the wrench alternates its primary and alternate strike. */
+	uint8 ViewHandsSwingVariant = 0;
 
 	FName ViewHandsAnimWeapon = NAME_None;
 	bool bViewHandsPlayingOneShot = false;

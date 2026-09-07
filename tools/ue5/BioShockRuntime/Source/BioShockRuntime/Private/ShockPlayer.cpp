@@ -42,6 +42,10 @@ struct FViewHandsAnimNames
 	const TCHAR* Fidget = nullptr;
 	const TCHAR* Fire = nullptr;
 	const TCHAR* Reload = nullptr;
+	const TCHAR* FireWindup = nullptr; // optional clip before Fire (wrench Swing_A_Wrench_Start)
+	const TCHAR* FireAlt = nullptr;    // optional alternate strike, every other swing (Swing_B_Wrench)
+	const TCHAR* ReloadLoop = nullptr; // optional per-round loop (ReloadShotgun_LOOP)
+	const TCHAR* ReloadEnd = nullptr;  // optional reload finisher (ReloadShotgun_End)
 };
 
 bool TryGetViewHandsAnimNames(FName WeaponDefName, FViewHandsAnimNames& Out)
@@ -65,9 +69,10 @@ bool TryGetViewHandsAnimNames(FName WeaponDefName, FViewHandsAnimNames& Out)
 	}
 	if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
-		// Multi-part reload (ReloadShotgun_Start/_LOOP/_End) collapses to _Start for this
-		// single-clip struct — a first pass; the shell-by-shell loop is a later refinement.
+		// Shell-by-shell reload: Start → LOOP per round → End (NotifyViewHandsWeaponReloadStarted).
 		Out = {TEXT("EquipShotgun"), TEXT("FidgetShotgun"), TEXT("FireShotgun"), TEXT("ReloadShotgun_Start")};
+		Out.ReloadLoop = TEXT("ReloadShotgun_LOOP");
+		Out.ReloadEnd = TEXT("ReloadShotgun_End");
 		return true;
 	}
 	if (Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase))
@@ -83,8 +88,11 @@ bool TryGetViewHandsAnimNames(FName WeaponDefName, FViewHandsAnimNames& Out)
 	}
 	if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
-		// Melee: no reload. "Fire" is the swing; Swing_A_Wrench is the primary strike clip.
+		// Melee: no reload. Swings alternate Swing_A (with a Start wind-up) and Swing_B so the
+		// attack has an over/under variation instead of one repeated clip.
 		Out = {TEXT("EquipWrench"), TEXT("FidgetWrench"), TEXT("Swing_A_Wrench"), nullptr};
+		Out.FireWindup = TEXT("Swing_A_Wrench_Start");
+		Out.FireAlt = TEXT("Swing_B_Wrench");
 		return true;
 	}
 	return false;
@@ -373,6 +381,11 @@ void AShockPlayer::ResolveViewHandsAnimsForWeapon(FName WeaponDefName)
 	ViewHandsFidgetAnim = nullptr;
 	ViewHandsFireAnim = nullptr;
 	ViewHandsReloadAnim = nullptr;
+	ViewHandsFireWindupAnim = nullptr;
+	ViewHandsFireAltAnim = nullptr;
+	ViewHandsReloadLoopAnim = nullptr;
+	ViewHandsReloadEndAnim = nullptr;
+	ViewHandsOneShotQueue.Reset();
 
 	FViewHandsAnimNames Names;
 	if (!TryGetViewHandsAnimNames(WeaponDefName, Names))
@@ -384,6 +397,10 @@ void AShockPlayer::ResolveViewHandsAnimsForWeapon(FName WeaponDefName)
 	ViewHandsFidgetAnim = LoadViewHandsAnim(Names.Fidget);
 	ViewHandsFireAnim = LoadViewHandsAnim(Names.Fire);
 	ViewHandsReloadAnim = LoadViewHandsAnim(Names.Reload);
+	ViewHandsFireWindupAnim = LoadViewHandsAnim(Names.FireWindup);
+	ViewHandsFireAltAnim = LoadViewHandsAnim(Names.FireAlt);
+	ViewHandsReloadLoopAnim = LoadViewHandsAnim(Names.ReloadLoop);
+	ViewHandsReloadEndAnim = LoadViewHandsAnim(Names.ReloadEnd);
 
 	UE_LOG(
 		LogTemp,
@@ -429,6 +446,26 @@ void AShockPlayer::PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop)
 	SyncEquippedWeaponMeshAnimation(bLoop);
 }
 
+void AShockPlayer::PlayViewHandsAnimationChain(const TArray<UAnimSequence*>& Clips, EViewHandsPhase Phase)
+{
+	ViewHandsOneShotQueue.Reset();
+	int32 First = INDEX_NONE;
+	for (int32 i = 0; i < Clips.Num(); ++i)
+	{
+		if (Clips[i])
+		{
+			if (First == INDEX_NONE) { First = i; }
+			else { ViewHandsOneShotQueue.Add(Clips[i]); }
+		}
+	}
+	if (First == INDEX_NONE)
+	{
+		return;
+	}
+	CurrentViewHandsPhase = Phase;
+	PlayViewHandsAnimation(Clips[First], false);
+}
+
 void AShockPlayer::SyncEquippedWeaponMeshAnimation(bool bLoop)
 {
 	if (!EquippedWeapon)
@@ -464,6 +501,7 @@ void AShockPlayer::StartViewHandsForEquippedWeapon()
 
 	const FName DefName = EquippedWeapon->GetWeaponDefName();
 	ResolveViewHandsAnimsForWeapon(DefName);
+	ViewHandsOneShotQueue.Reset();
 
 	if (ViewHandsEquipAnim)
 	{
@@ -498,6 +536,18 @@ void AShockPlayer::TickViewHandsAnimation(float DeltaSeconds)
 		return;
 	}
 
+	// Next queued one-shot (wrench Start→strike, shotgun Start→LOOP…→End) before the fidget.
+	if (ViewHandsOneShotQueue.Num() > 0)
+	{
+		UAnimSequence* Next = ViewHandsOneShotQueue[0];
+		ViewHandsOneShotQueue.RemoveAt(0);
+		if (Next)
+		{
+			PlayViewHandsAnimation(Next, false);
+			return;
+		}
+	}
+
 	bViewHandsPlayingOneShot = false;
 	if (ViewHandsFidgetAnim)
 	{
@@ -508,20 +558,53 @@ void AShockPlayer::TickViewHandsAnimation(float DeltaSeconds)
 
 void AShockPlayer::NotifyViewHandsWeaponFired()
 {
-	if (ViewHandsFireAnim)
+	// Wrench: alternate Swing_A (with wind-up) and Swing_B so the melee has an over/under
+	// variation. Guns: FireAlt/FireWindup are null, so this is just the single fire clip.
+	const bool bUseAlt = ViewHandsFireAltAnim && (ViewHandsSwingVariant & 1);
+	TArray<UAnimSequence*> Chain;
+	if (!bUseAlt && ViewHandsFireWindupAnim)
 	{
-		CurrentViewHandsPhase = EViewHandsPhase::Fire;
-		PlayViewHandsAnimation(ViewHandsFireAnim, false);
+		Chain.Add(ViewHandsFireWindupAnim);
+	}
+	Chain.Add(bUseAlt ? ViewHandsFireAltAnim.Get() : ViewHandsFireAnim.Get());
+	if (Chain.Num() == 0 || (Chain.Num() == 1 && !Chain[0]))
+	{
+		return;
+	}
+	PlayViewHandsAnimationChain(Chain, EViewHandsPhase::Fire);
+	if (ViewHandsFireAltAnim)
+	{
+		ViewHandsSwingVariant ^= 1;
 	}
 }
 
-void AShockPlayer::NotifyViewHandsWeaponReloadStarted()
+void AShockPlayer::NotifyViewHandsWeaponReloadStarted(int32 RoundsToLoad)
 {
-	if (ViewHandsReloadAnim)
+	if (!ViewHandsReloadAnim)
 	{
+		return;
+	}
+	// Single-clip reload (most guns): just the one clip.
+	if (!ViewHandsReloadLoopAnim)
+	{
+		ViewHandsOneShotQueue.Reset();
 		CurrentViewHandsPhase = EViewHandsPhase::Reload;
 		PlayViewHandsAnimation(ViewHandsReloadAnim, false);
+		return;
 	}
+	// Shell-by-shell (shotgun): Start → LOOP per round → End.
+	const int32 Shells = FMath::Clamp(RoundsToLoad, 1, 8);
+	TArray<UAnimSequence*> Chain;
+	Chain.Add(ViewHandsReloadAnim.Get());
+	for (int32 i = 0; i < Shells; ++i)
+	{
+		Chain.Add(ViewHandsReloadLoopAnim.Get());
+	}
+	if (ViewHandsReloadEndAnim)
+	{
+		Chain.Add(ViewHandsReloadEndAnim.Get());
+	}
+	PlayViewHandsAnimationChain(Chain, EViewHandsPhase::Reload);
 }
 
 float AShockPlayer::GetViewHandsReloadPlayLengthForVerify() const
