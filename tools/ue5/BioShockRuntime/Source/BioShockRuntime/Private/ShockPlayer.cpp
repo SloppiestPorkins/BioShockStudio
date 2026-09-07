@@ -809,22 +809,23 @@ void AShockPlayer::AlignShotgunToHandPose()
 	ViewHands->RefreshBoneTransforms();
 	Gun->RefreshBoneTransforms();
 
-	// Left-hand target: the centre of the knuckle ring (the finger-base bones), which is the
-	// cylinder the fist actually closes around — further forward than the wrist bone, so the
-	// barrel runs through the fingers, not through the hand and wrist (user PIE 7 Sept).
+	// Left-hand target: the centre of the closed grip — the cylinder the fist wraps sits above
+	// the palm, roughly between the knuckle bases and the curled fingertips. Averaging the
+	// index/middle MCP (base) and PIP-tip bones lands there; the wrist bone alone put the
+	// barrel through the hand and wrist (user PIE 7 Sept).
 	const FVector LWrist = ViewHands->GetBoneLocation(FName(TEXT("Bip01_L_Hand")));
-	FVector Knuckle = FVector::ZeroVector;
-	int32 KnuckleCount = 0;
+	FVector Grip = FVector::ZeroVector;
+	int32 GripCount = 0;
 	for (const TCHAR* Bone : {TEXT("kBone_L_Index1"), TEXT("kBone_L_Middle1"),
-		TEXT("kBone_L_Ring1"), TEXT("kBone_L_Pinky1")})
+		TEXT("kBone_L_Index3"), TEXT("kBone_L_Middle3")})
 	{
 		if (ViewHands->GetBoneIndex(FName(Bone)) != INDEX_NONE)
 		{
-			Knuckle += ViewHands->GetBoneLocation(FName(Bone));
-			++KnuckleCount;
+			Grip += ViewHands->GetBoneLocation(FName(Bone));
+			++GripCount;
 		}
 	}
-	const FVector LHand = KnuckleCount > 0 ? (Knuckle / KnuckleCount) : LWrist;
+	const FVector LHand = GripCount > 0 ? (Grip / GripCount) : LWrist;
 	const FVector RHand = ViewHands->GetBoneLocation(FName(TEXT("Bip01_R_Hand")));
 	const FVector GripW = (!ActiveGripSocket.IsNone() && ViewHands->DoesSocketExist(ActiveGripSocket))
 		? ViewHands->GetSocketLocation(ActiveGripSocket)
@@ -857,16 +858,12 @@ void AShockPlayer::AlignShotgunToHandPose()
 
 	const FQuat NewGunQ = DeltaQ * Gun->GetComponentQuat();
 
-	// 3. Translate so SG_Body lands on the grip socket. SG_Body's mesh-local offset is invariant;
-	//    place it under the new rotation, then shift the component to put it on the socket.
-	//    Then drop it ~one barrel-radius toward the palm (knuckle→wrist, perpendicular to the
-	//    barrel) so the forestock rests in the fingers instead of the centreline cutting the hand.
+	// 3. Translate so SG_Body lands on the grip socket, which puts the barrel centreline through
+	//    the grip target by construction (the rotation aimed it there). SG_Body's mesh-local
+	//    offset is invariant; place it under the new rotation, then shift the component.
 	const FVector BodyLocal = Gun->GetComponentTransform().InverseTransformPosition(BodyW);
 	const FVector BodyWorldAfterRot = NewGunQ.RotateVector(BodyLocal) + Gun->GetComponentLocation();
-	FVector PalmDir = (LWrist - LHand);
-	PalmDir = (PalmDir - WantAxis * (PalmDir | WantAxis)).GetSafeNormal();
-	const FVector BarrelDrop = PalmDir.IsNearlyZero() ? FVector::ZeroVector : PalmDir * 2.5f;
-	const FVector NewGunLoc = Gun->GetComponentLocation() + (GripW - BodyWorldAfterRot) + BarrelDrop;
+	const FVector NewGunLoc = Gun->GetComponentLocation() + (GripW - BodyWorldAfterRot);
 
 	Gun->SetWorldLocationAndRotation(NewGunLoc, NewGunQ);
 	Gun->RefreshBoneTransforms();

@@ -190,6 +190,41 @@ def main():
             local[name] = _v(inv.transform_location(w))
     report["gunBonesComponentSpace"] = local
 
+    # After the runtime's AlignShotgunToHandPose: how does the barrel sit relative to each
+    # left-hand bone? Sample points along SG_Body -> SG_Pump and past it.
+    body_w = _bone_world(gun, "SG_Body")
+    pump_w = _bone_world(gun, "SG_Pump")
+    lhand = {n: _bone_world(view_hands, n) for n in (
+        "Bip01_L_Hand", "kBone_L_Index1", "kBone_L_Middle1", "kBone_L_Ring1",
+        "kBone_L_Pinky1", "kBone_L_Thumb1", "kBone_L_Index2", "kBone_L_Middle2")}
+    if body_w and pump_w:
+        axis = (pump_w - body_w)
+        blen = axis.length()
+        axis = axis / blen if blen > 0 else axis
+        barrel_pts = {}
+        for frac in (0.8, 1.0, 1.2, 1.4):
+            p = body_w + axis * (blen * frac)
+            near = {}
+            for bn, bw in lhand.items():
+                if bw is None:
+                    continue
+                d = bw - p
+                perp = d - axis * (d | axis)  # perpendicular gap to barrel line
+                near[bn] = {"gap": round(perp.length(), 2), "along": round(d | axis, 2)}
+            barrel_pts["frac_%.1f" % frac] = {"pt_cam": _cam_space(cam_xf, p), "toBones": near}
+        report["barrelVsLeftHand"] = barrel_pts
+    report["gunFinalRot_cam"] = None
+    try:
+        gxf = gun.get_world_transform()
+        # gun local axes expressed in camera space
+        report["gunFinalAxes_cam"] = {
+            "fwd": _v(cam_xf.inverse_transform_vector(gxf.transform_vector(unreal.Vector(1,0,0)))),
+            "right": _v(cam_xf.inverse_transform_vector(gxf.transform_vector(unreal.Vector(0,1,0)))),
+            "up": _v(cam_xf.inverse_transform_vector(gxf.transform_vector(unreal.Vector(0,0,1)))),
+        }
+    except Exception as e:
+        report["gunFinalAxes_cam"] = str(e)
+
     subsystem.destroy_actor(player)
     _write(report)
     unreal.log("[shotgun-grip] wrote %s" % OUT)
