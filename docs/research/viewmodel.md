@@ -206,8 +206,8 @@ before the shot).
 | `1_pistol_reload.png` | 1 | Reload one-shot triggered (`-bioshockshotreload`) |
 | `2_tommygun_idle.png` | 2 | **Best match** — both hands on gun, vertical foregrip + pistol grip, BioShock diagonal, ~40% frame |
 | `2_tommygun_fire.png` | 2 | Fire one-shot triggered |
-| `3_shotgun_idle.png` | 3 | **Residual** — hands present; weapon mesh draws **flat green** (materials/textures not binding on this asset); left hand open. Architecture path correct (socket=Launcher, SingleFrame idle logged); mesh paint is a separate import fault |
-| `3_shotgun_fire.png` | 3 | Fire one-shot on same green mesh |
+| `3_shotgun_idle.png` | 3 | Was flat green (empty mips); fixed 7 Sept — see §6 / shotgun-textures note. Re-capture with `-bioshockstartslot=3` |
+| `3_shotgun_fire.png` | 3 | Was flat green; same texture fix |
 | `4_grenadelauncher_idle.png` | 4 | Two-hand hold, low-right, large in frame |
 | `5_chem_idle.png` | 5 | Chem tank gripped; mesh idle `Fidget` logged |
 | `6_crossbow_idle.png` | 6 | Both hands on crossbow, BioShock diagonal |
@@ -217,13 +217,29 @@ Logs (TEMP): `%TEMP%/bioshock_viewmodel_captures/logs/`. Every equip logged
 logged for Shotgun (`SingleFrame`) and Chem (`Fidget`); Tommy/GL logged weapon `Equip` with the
 hands equip clip.
 
-### Shotgun green mesh
+### Shotgun green mesh — root cause and fix (7 Sept 2026)
 
-`CONFIRMED_BYTES` (capture) — `WP_Shotgun` Content has `Textures/Shotgun_NoUpgrades_*` and an MI,
-but the in-game draw is unlit green. Earlier CLI export of those PNGs was ~4 KB (placeholder-sized).
-**Not fixed in this change** — architecture no longer pins/fudges the shotgun; restoring real
-shotgun mips / material bind is a follow-up import pass (`export-fbx` / `import_bioshock` for
-`WP_Shotgun` only).
+`CONFIRMED_BYTES`. Material names were right (`Shotgun_NoUpgrades_*`, group `WP_Shotgun`);
+the PNGs `export-fbx` wrote were the package's **64×64 stripped tails** (~4 KB), not the
+2048 top mips. Those live in `BulkContent` (`Catalog.bdc` → `BulkChunk0_*.blk`,
+`StrippedNumMips=5`). `Pistol_DIFF` looked fine because it ships **unstripped**
+(`StrippedNumMips=0`, full chain in `ShockGame.U`) — so the same broken path still
+produced a healthy pistol.
+
+Cause: `ResolveMesh` in `src/BioShockStudio.Cli/Program.cs` calls
+`MaterialExporter.Resolve(package, export, outputDirectory)` **without**
+`BulkTextureCatalog.Load(root)`. Level export and the GUI extractor pass bulk; `export-fbx`
+does not. Decoder formats were fine (Diffuse/Normal DXT1, Specular DXT5).
+
+UE5-lane fix (this change):
+1. `tools/ue5/recover_stripped_textures.py` — read Catalog + bulk → 2048 PNGs
+2. `tools/ue5/reimport_shotgun_textures.py` / `run_reimport_shotgun_textures.py` — replace
+   the three `WP_Shotgun` Texture2D assets in place (MI already bound)
+3. Capture: `capture_shot.ps1 -Extra '-bioshockstartslot=3'`
+
+Durable C# fix landed 7 Sept: `ResolveMesh` passes `BulkTextureCatalog.Load(root)` into
+`MaterialExporter.Resolve`, so a clean re-export no longer recreates stubs. See
+`docs/research/shotgun-textures.md`.
 
 ---
 
@@ -236,4 +252,4 @@ shotgun mips / material bind is a follow-up import pass (`export-fbx` / `import_
 | Shotgun shell-by-shell reload (`_Start`/`_LOOP`/`_End` + weapon `Reload_Loop`) | deferred (trigger clip only) |
 | Chem `FireLoop`/`FireEnd` while trigger held | deferred (`FireStart` on fire notify) |
 | Whether Launcher socket rotation should be restored for Shotgun only | `PLAUSIBLE`, capture-gated |
-| Shotgun flat-green draw (textures present on disk, not bound / empty mips) | `CONFIRMED_BYTES` capture; import follow-up |
+| Shotgun mesh placement — hands don't grip it, gun sits too low / off-frame | open, Claude iterates against captures |

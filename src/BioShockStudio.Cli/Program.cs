@@ -744,7 +744,12 @@ static (IReadOnlyList<MeshSocket> Sockets, MeshGeometry? Geometry, SceneMaterial
     byte[] payload = package.ReadExportData(export);
     // Textures are only written when there is somewhere to put them; listing commands resolve the
     // mesh without wanting a directory full of PNGs as a side effect.
-    var material = outputDirectory is null ? null : MaterialExporter.Resolve(package, export, outputDirectory);
+    // Pass the bulk catalog: weapon textures (e.g. Shotgun_NoUpgrades_*) are mip-stripped in the
+    // package (StrippedNumMips>0) with the top mips only in ContentBaked/pc/BulkContent. Without
+    // this they export as the 64x64 tail — a few-KB stub that draws as a flat untextured blob.
+    var material = outputDirectory is null
+        ? null
+        : MaterialExporter.Resolve(package, export, outputDirectory, BulkTextureCatalog.Load(root));
 
     return (SkeletalMeshReader.ReadSockets(payload, package.Names), SkeletalMeshReader.ReadGeometry(payload), material);
 }
