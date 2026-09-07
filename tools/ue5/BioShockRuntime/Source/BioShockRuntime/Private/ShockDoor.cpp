@@ -125,6 +125,14 @@ void AShockDoor::ConfigureSkeletalDoor(USkeletalMesh* Mesh, bool bVisibleMesh)
 	{
 		DoorMesh->SetVisibility(false, true);
 	}
+	// A genuinely skinned, visible door (LoadRoomDoor) is authored at true world size. The source
+	// actor's DrawScale3D (e.g. 0.15/1.2/2.2) only ever squashed the generic LoadRoomDoorMESH block
+	// stand-in; inheriting it here stretches the rig. Proxy-skeleton doors (bVisibleMesh=false)
+	// keep their imported scale because their static leaves are positioned by it.
+	if (Mesh && bVisibleMesh)
+	{
+		SetActorScale3D(FVector::OneVector);
+	}
 }
 
 bool AShockDoor::AddDoorLeaf(
