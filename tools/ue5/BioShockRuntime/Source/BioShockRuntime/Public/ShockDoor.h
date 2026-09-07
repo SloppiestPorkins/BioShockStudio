@@ -3,7 +3,10 @@
 #include "GameFramework/Actor.h"
 #include "ShockDoor.generated.h"
 
+class UAnimSequence;
 class UBoxComponent;
+class USkeletalMesh;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UWorld;
 
@@ -97,6 +100,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	bool ToggleDoor();
 
+	/**
+	 * Switch this door to the real skeletal-mesh + animation path (BulkheadDoor / LoadRoomDoor /
+	 * Med_DoorAnim). OpenDoor/CloseDoor then play the clips instead of the yaw-swing stand-in;
+	 * the static DoorMesh is hidden. Passing a null Mesh or OpenAnim leaves the swing path.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	void ConfigureSkeletalDoor(
+		USkeletalMesh* Mesh,
+		UAnimSequence* OpenAnim,
+		UAnimSequence* OpenedAnim,
+		UAnimSequence* CloseAnim,
+		UAnimSequence* ClosedAnim);
+
+	/** True when ConfigureSkeletalDoor set a mesh + open clip. */
+	UFUNCTION(BlueprintPure, Category = "BioShock|Door")
+	bool IsSkeletalDoor() const { return bUseSkeletalDoor; }
+
+	/**
+	 * Play a specific door clip by asset name (LoadRoomDoor_OPEN / _OPENED / _CLOSE / _CLOSED,
+	 * Med_DoorOPEN, …) — the path ShockActionPlayAnimation uses. Falls back to OpenDoor/CloseDoor
+	 * by matching *OPEN* / *CLOSE* in the name when the exact clip is not one of the four.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	bool PlayDoorClip(FName ClipName);
+
 	/** Headless: set label + locked + initially-open without playing a swing. */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
 	void ConfigureForVerify(FName Label, bool bInLocked = false, bool bInitiallyOpen = false);
@@ -125,12 +153,31 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
 	TObjectPtr<UStaticMeshComponent> DoorMesh;
 
+	/** Real animated door mesh — used only when ConfigureSkeletalDoor set one. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
+	TObjectPtr<USkeletalMeshComponent> DoorSkeletalMesh;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Door")
 	TObjectPtr<UBoxComponent> ProximityTrigger;
 
 private:
 	void ApplyVisualAndCollision(float Alpha);
 	void UpdateProximityAutoClose(float DeltaSeconds);
+	void PlaySkeletalClip(UAnimSequence* Clip, bool bLoop);
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> OpenClip;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> OpenedClip;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> CloseClip;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> ClosedClip;
+
+	bool bUseSkeletalDoor = false;
+	/** Skeletal open clip is playing; on completion hold OpenedClip / last frame. */
+	bool bSkeletalClipPlaying = false;
+	float SkeletalClipRemaining = 0.0f;
 
 	UFUNCTION()
 	void OnProximityBeginOverlap(
