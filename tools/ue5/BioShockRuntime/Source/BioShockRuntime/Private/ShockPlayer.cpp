@@ -790,15 +790,21 @@ void AShockPlayer::AlignShotgunToHandPose()
 	}
 
 	// Measure against the SETTLED FidgetShotgun pose, not whatever is currently installed
-	// (EquipShotgun frame 0, or a mid-blend frame). The two-hand hold is only stable ~0.3s into
-	// the fidget — a probe of Bip01_L_Hand − R_grip showed it jump ~12 uu in Z between fidget
-	// frame 0 and the settled pose, which was the "barrel not in the left hand" gap. Pose it
-	// here, bake, and let StartViewHandsForEquippedWeapon install the real clip afterwards.
+	// (the previous weapon's clip — this runs before StartViewHandsForEquippedWeapon). The
+	// two-hand hold is only stable ~0.3s into the fidget: a probe of Bip01_L_Hand − R_grip
+	// showed a ~12 uu Z jump between fidget frame 0 and the settled pose, which was the "barrel
+	// not in the left hand" gap. Resolve this weapon's clips, pose the fidget, bake; StartView
+	// then installs the real equip/idle clip.
+	ResolveViewHandsAnimsForWeapon(EquippedWeapon->GetWeaponDefName());
 	if (ViewHandsFidgetAnim)
 	{
 		ViewHands->PlayAnimation(ViewHandsFidgetAnim, true);
 		ViewHands->SetPosition(0.4f, false);
 		ViewHands->TickAnimation(0.0f, false);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_VIEWMODEL shotgun align: no FidgetShotgun to pose against"));
 	}
 	ViewHands->RefreshBoneTransforms();
 	Gun->RefreshBoneTransforms();
