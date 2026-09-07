@@ -33,7 +33,6 @@ UShockTriggerRelayComponent* UShockTriggerRelayComponent::InstallOnActor(
 	if (Existing)
 	{
 		Existing->Configure(InLabel, bInTriggerOnlyOnce, bInDisabled);
-		Existing->BindOverlap();
 		return Existing;
 	}
 
@@ -41,7 +40,8 @@ UShockTriggerRelayComponent* UShockTriggerRelayComponent::InstallOnActor(
 	Comp->Configure(InLabel, bInTriggerOnlyOnce, bInDisabled);
 	Owner->AddInstanceComponent(Comp);
 	Comp->RegisterComponent();
-	Comp->BindOverlap();
+	// Overlap binding is a play-time concern — done in BeginPlay, not here (editor time), so a
+	// saved-then-loaded map does not end up double-bound.
 	return Comp;
 }
 
@@ -61,10 +61,6 @@ void UShockTriggerRelayComponent::BeginPlay()
 
 void UShockTriggerRelayComponent::BindOverlap()
 {
-	if (bBound)
-	{
-		return;
-	}
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
@@ -80,6 +76,8 @@ void UShockTriggerRelayComponent::BindOverlap()
 			continue;
 		}
 		Prim->SetGenerateOverlapEvents(true);
+		// Remove-then-add so a re-bind (or a stray serialized binding) can't double up.
+		Prim->OnComponentBeginOverlap.RemoveDynamic(this, &UShockTriggerRelayComponent::OnBeginOverlap);
 		Prim->OnComponentBeginOverlap.AddDynamic(this, &UShockTriggerRelayComponent::OnBeginOverlap);
 		bBound = true;
 		break;

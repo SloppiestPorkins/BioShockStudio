@@ -346,6 +346,7 @@ def try_create_action(
     props_by_key=None,
     depth=0,
     visiting=None,
+    outer=None,
 ):
     shock_name = shock_action_class_name(action_class)
     if not shock_name:
@@ -354,7 +355,11 @@ def try_create_action(
     if not cls:
         return None, "missing-class"
     try:
-        action = unreal.new_object(cls)
+        # Outer to the owning Runner so the action serialises INTO the map package — without
+        # this the action lands in the transient package and resolves to null after the map is
+        # saved and reloaded for play (Runner->Actions became [null,...] → StartExecution
+        # bailed → LoadRoomDoor et al never ran).
+        action = unreal.new_object(cls, outer) if outer is not None else unreal.new_object(cls)
     except Exception:
         return None, "abstract-or-fail"
 
@@ -389,11 +394,12 @@ def try_create_action(
         stats,
         depth=depth,
         visiting=visiting,
+        outer=outer,
     )
     return action, "ok"
 
 
-def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiting, nest_bucket):
+def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiting, nest_bucket, outer=None):
     bag = props_by_key.get(child_key) or {}
     child_class = bag.get("className") or bag.get("class_name") or ""
     child_name = bag.get("objectName") or bag.get("object_name") or child_key
@@ -412,6 +418,7 @@ def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiti
         props_by_key=props_by_key,
         depth=depth + 1,
         visiting=visiting,
+        outer=outer,
     )
     if child is None:
         stats["nested_unmapped"] += 1
@@ -432,6 +439,7 @@ def expand_nested_actions(
     stats,
     depth=0,
     visiting=None,
+    outer=None,
 ):
     """Wire true/else/loop/tests childGraphs from the package dump."""
     if not source_key or source_key not in props_by_key:
@@ -450,20 +458,17 @@ def expand_nested_actions(
         if action_class == "ActionIf":
             for child_key in _child_keys(bag, "trueActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_true"
-                )
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_true", outer=outer)
                 if child is not None and hasattr(action, "add_true_action"):
                     action.add_true_action(child)
             for child_key in _child_keys(bag, "elseActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_else"
-                )
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_else", outer=outer)
                 if child is not None and hasattr(action, "add_else_action"):
                     action.add_else_action(child)
             for child_key in _child_keys(bag, "testsOr"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_tests"
-                )
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_tests", outer=outer)
                 if child is not None and hasattr(action, "add_test"):
                     try:
                         action.add_test(child)
@@ -472,15 +477,13 @@ def expand_nested_actions(
         elif action_class == "ActionLoop":
             for child_key in _child_keys(bag, "loopActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_loop"
-                )
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_loop", outer=outer)
                 if child is not None and hasattr(action, "add_loop_action"):
                     action.add_loop_action(child)
         elif action_class == "ActionFor":
             for child_key in _child_keys(bag, "forActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_for"
-                )
+                    child_key, props_by_key, paths, stats, depth, visiting, "nested_for", outer=outer)
                 if child is not None and hasattr(action, "add_for_action"):
                     action.add_for_action(child)
     finally:
@@ -603,6 +606,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
                 stats,
                 source_key=source_key,
                 props_by_key=props_by_key,
+                outer=runner,
             )
             if action is None:
                 report["actions_unmapped"] += 1

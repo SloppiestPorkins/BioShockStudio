@@ -79,7 +79,27 @@ bool AShockScript::TickScript(float OverrideTimeSeconds)
 void AShockScript::BeginPlay()
 {
 	Super::BeginPlay();
-	if (Runner && Runner->Registry == nullptr)
+	if (!Runner)
+	{
+		return;
+	}
+	// Always bind to THIS world's shared registry at play time. import_scripts.py sets a
+	// registry at editor time; that reference is stale (or null) once the map is reloaded for
+	// play, and EnsureRegistry()'s early-out on a non-null Registry would then leave the runner
+	// registered nowhere — so level-entry DispatchMessage never reached LoadRoomDoor etc.
+	UShockScriptRegistry* Shared = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World))
+		{
+			Shared = Sub->GetOrCreateRegistry();
+		}
+	}
+	if (Shared && Runner->Registry != Shared)
+	{
+		Runner->SetRegistry(Shared);
+	}
+	else if (!Runner->Registry)
 	{
 		EnsureRegistry();
 	}

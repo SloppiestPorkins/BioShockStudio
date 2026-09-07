@@ -77,18 +77,22 @@ void UShockScriptSubsystem::DispatchLevelEntryMessages()
 
 	const FString LevelLabel = ResolveLevelEntryLabel();
 	const FName MessageTrigger(TEXT("MessageTrigger"));
+	int32 Started = 0;
 	if (!LevelLabel.IsEmpty())
 	{
-		DispatchMessage(MessageTrigger, LevelLabel);
+		Started += DispatchMessage(MessageTrigger, LevelLabel);
 	}
 	// TipUnlock / Present_LevelStartedCheck / etc. author TriggeredBy as All/all.
-	DispatchMessage(MessageTrigger, TEXT("All"));
-	DispatchMessage(MessageTrigger, TEXT("all"));
+	Started += DispatchMessage(MessageTrigger, TEXT("All"));
+	Started += DispatchMessage(MessageTrigger, TEXT("all"));
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT levelEntry label=%s started=%d"),
+		*LevelLabel, Started);
 }
 
 void UShockScriptSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT OnWorldBeginPlay world=%s"), *InWorld.GetName());
 	// Actors BeginPlay (script RegisterScript) may still be in flight — defer one tick.
 	if (UWorld* World = GetWorld())
 	{

@@ -39,5 +39,7 @@ int32 UShockScriptRegistry::DispatchMessage(FName MessageClassName, const FStrin
 			++Started;
 		}
 	}
+	UE_LOG(LogTemp, Verbose, TEXT("BIOSHOCK_SCRIPT dispatch msg=%s src=%s runners=%d started=%d"),
+		*MessageClassName.ToString(), *SourceLabel, ByLabel.Num(), Started);
 	return Started;
 }

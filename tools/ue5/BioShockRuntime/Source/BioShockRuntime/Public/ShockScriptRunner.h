@@ -114,6 +114,9 @@ public:
 	int32 GetRunQueueNum() const { return RunQueue.Num(); }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 GetActionCount() const { return Actions.Num(); }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 GetLoopDepth() const { return LoopStack.Num(); }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
