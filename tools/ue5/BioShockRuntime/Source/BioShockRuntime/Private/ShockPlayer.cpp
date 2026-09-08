@@ -121,6 +121,7 @@ AShockPlayer::AShockPlayer()
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
 	BaseEyeHeight = 60.0f;
 	CrouchedEyeHeight = 36.0f;
+	CurrentEyeHeight = 60.0f;
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
@@ -1045,9 +1046,80 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	TickViewHandsAnimation(DeltaSeconds);
 	TickHeldFire();
 	TickUnderwaterPostProcess(DeltaSeconds);
+	TickViewEffects(DeltaSeconds);
 
 	// ViewHands stays at the fixed eye-relative transform from PlaceViewHandsFixed. The looping
 	// fidget moves R_Grip (via the arm chain) and the weapon attached to that socket rides with it.
+}
+
+void AShockPlayer::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	// CMC has usually zeroed Velocity.Z by the time Landed fires; LastFallZSpeed is the downward
+	// speed sampled on the final airborne frame in TickViewEffects.
+	const float DipStrength = FMath::GetMappedRangeValueClamped(
+		FVector2D(180.0f, 1400.0f), FVector2D(1.0f, 9.0f), LastFallZSpeed);
+	LandDipVelocity -= DipStrength * 12.0f;
+	LastFallZSpeed = 0.0f;
+}
+
+void AShockPlayer::TickViewEffects(float DeltaSeconds)
+{
+	if (!FirstPersonCamera || DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+
+	// Smooth eye height between stand (BaseEyeHeight) and crouch (CrouchedEyeHeight). UE lerps the
+	// capsule half-height over the crouch transition; match that on the camera instead of snapping.
+	const float TargetEye = bIsCrouched ? CrouchedEyeHeight : BaseEyeHeight;
+	CurrentEyeHeight = FMath::FInterpTo(CurrentEyeHeight, TargetEye, DeltaSeconds, 10.0f);
+
+	// Critically-damped spring for the landing dip back to rest.
+	const float Stiffness = 170.0f;
+	const float Damping = 2.0f * FMath::Sqrt(Stiffness);
+	LandDipVelocity += (-Stiffness * LandDipOffset - Damping * LandDipVelocity) * DeltaSeconds;
+	LandDipOffset += LandDipVelocity * DeltaSeconds;
+	if (FMath::Abs(LandDipOffset) < 0.01f && FMath::Abs(LandDipVelocity) < 0.01f)
+	{
+		LandDipOffset = 0.0f;
+		LandDipVelocity = 0.0f;
+	}
+
+	const UCharacterMovementComponent* Move = GetCharacterMovement();
+	if (Move && Move->MovementMode == MOVE_Falling)
+	{
+		LastFallZSpeed = FMath::Abs(FMath::Min(0.0f, Move->Velocity.Z));
+	}
+
+	float BobZ = 0.0f;
+	float BobY = 0.0f;
+	if (bViewEffectsEnabled && !bMovementDisabled)
+	{
+		const bool bGrounded = Move && Move->IsMovingOnGround();
+		FVector Horizontal = GetVelocity();
+		Horizontal.Z = 0.0f;
+		const float Speed = Horizontal.Size();
+		const float MaxSpeed = Move ? FMath::Max(Move->MaxWalkSpeed, 1.0f) : 450.0f;
+		const float SpeedAlpha = bGrounded ? FMath::Clamp(Speed / MaxSpeed, 0.0f, 1.0f) : 0.0f;
+
+		// Step frequency scales a little with speed; ~1.9 Hz walking.
+		const float StepHz = 1.75f + 0.9f * SpeedAlpha;
+		ViewBobPhase += DeltaSeconds * StepHz * 2.0f * PI;
+		ViewBobPhase = FMath::Fmod(ViewBobPhase, 2.0f * PI);
+
+		const float Amp = 1.6f * ViewBobScale * SpeedAlpha;   // vertical, two steps per cycle
+		const float AmpLat = 1.1f * ViewBobScale * SpeedAlpha; // lateral, one sway per cycle
+		BobZ = FMath::Abs(FMath::Sin(ViewBobPhase)) * Amp - Amp * 0.5f;
+		BobY = FMath::Sin(ViewBobPhase * 0.5f) * AmpLat;
+	}
+	else
+	{
+		ViewBobPhase = 0.0f;
+	}
+
+	ViewEffectsLocalOffset = FVector(0.0f, BobY, CurrentEyeHeight + BobZ + LandDipOffset);
+	FirstPersonCamera->SetRelativeLocation(ViewEffectsLocalOffset);
 }
 
 void AShockPlayer::TickUnderwaterPostProcess(float DeltaSeconds)

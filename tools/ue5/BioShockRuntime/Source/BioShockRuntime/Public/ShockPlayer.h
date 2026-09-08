@@ -748,6 +748,7 @@ public:
 	virtual void OnDeathFromDamage() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void Landed(const FHitResult& Hit) override;
 
 private:
 	void HandleFireInput();
@@ -882,6 +883,19 @@ private:
 
 	UPROPERTY()
 	bool bMovementDisabled = false;
+
+	// --- First-person view reactions (walk bob, landing dip, smooth crouch). ---
+	/** Master toggle for all view effects. */
+	bool bViewEffectsEnabled = true;
+	/** Scales bob amplitude (0 = no bob, 1 = full). */
+	float ViewBobScale = 1.0f;
+	float ViewBobPhase = 0.0f;
+	float LandDipOffset = 0.0f;
+	float LandDipVelocity = 0.0f;
+	float LastFallZSpeed = 0.0f;
+	float CurrentEyeHeight = 60.0f;
+	FVector ViewEffectsLocalOffset = FVector::ZeroVector;
+	void TickViewEffects(float DeltaSeconds);
 
 	UPROPERTY()
 	TMap<FName, int32> ScriptedSequenceRunNow;
