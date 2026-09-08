@@ -8,7 +8,11 @@ Kept as-is:
   * exterior / backdrop geometry (fix_exterior_collision's set) stays NO_COLLISION — "outside
     geo shouldn't have collision" still stands;
   * pickups / flat surface FX (puddles, splats, carpets, decals) stay NO_COLLISION;
-  * the compiled-world shell already traces complex-as-simple.
+  * the compiled-world shell already traces complex-as-simple;
+  * stairs / ramps keep their walkable convex hull — per-poly on a staircase mesh catches the
+    character-movement capsule on every riser and the player cannot climb (verified: the
+    Medical Pavilion sign stairs go un-climbable under per-poly). restore_stair_hulls.py
+    regenerates the hull; this script leaves those meshes alone.
 
 Everything else: mesh asset trace flag -> COMPLEX_AS_SIMPLE, simple hull primitives cleared,
 render component -> QUERY_AND_PHYSICS / BlockAll. Mobility is left alone (Movable is fine for
@@ -42,6 +46,8 @@ _KEEP_NO_COLLISION = re.compile(
     r"(puddle|bloodsplat|carpet|decal|drip)",
     re.IGNORECASE,
 )
+# Stairs / ramps must keep a convex hull — per-poly makes them un-climbable.
+_KEEP_HULL = re.compile(r"(stairs?|ramp|broken_stairs)", re.IGNORECASE)
 _PROXY_TAG = "BioShockPropCollisionProxy"
 
 
@@ -93,6 +99,14 @@ def main():
             label = (actor.get_actor_label() or "").strip().lower()
             if label == "compiled world" or _MODEL_ASSET.match(name):
                 entry["skippedShell"] += 1
+                continue
+            if _KEEP_HULL.search(name):
+                entry["keptHull"] = entry.get("keptHull", 0) + 1
+                if not DRY and "NO_COLLISION" in str(comp.get_collision_enabled()):
+                    actor.modify()
+                    comp.modify()
+                    comp.set_collision_profile_name("BlockAll")
+                    comp.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
                 continue
             if is_exterior_name(name) or _KEEP_NO_COLLISION.search(name):
                 entry["keptNoCollision"] += 1

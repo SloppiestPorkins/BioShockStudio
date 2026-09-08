@@ -39,9 +39,7 @@ import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from fix_exterior_collision import is_exterior_name
-from fix_prop_collision import (
-    MIN_SIZE, _ARCHITECTURE, _DETAILED, _PICKUP, _PROXY_TAG, _SIMPLE,
-    _STAIR_NON_TREAD, _STAIR_RAMP, _SURFACE)
+from fix_all_complex_collision import _KEEP_HULL, _KEEP_NO_COLLISION, _PROXY_TAG
 
 # Model12_34567 - the exporter's stem for a compiled-CSG world asset.
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
@@ -200,9 +198,13 @@ def _mesh_collision(mesh):
 
 
 def _check_prop_policy(report):
+    """Everything is complex-as-simple now (user decision, fix_all_complex_collision.py).
+
+    Non-exterior static meshes must trace against their own triangles and block; exterior
+    backdrop geo + pickups/decals must be non-colliding.
+    """
     failures = []
-    counts = {}
-    seen_meshes = set()
+    counts = {"complex": 0, "noCollision": 0, "shell": 0}
     for actor in _actors().get_all_level_actors():
         if _PROXY_TAG in {str(tag) for tag in actor.tags}:
             failures.append("%s: stale invisible prop proxy remains" % actor.get_actor_label())
@@ -216,47 +218,30 @@ def _check_prop_policy(report):
         name = mesh.get_name()
         label = (actor.get_actor_label() or "").strip().lower()
         if label == "compiled world" or _MODEL_ASSET.match(name):
+            counts["shell"] += 1
             continue
-        _, extent = actor.get_actor_bounds(False)
-        largest = 2.0 * max(extent.x, extent.y, extent.z)
-        try:
-            triangles = mesh.get_num_triangles(0)
-        except Exception:  # noqa: BLE001
-            triangles = 0
-        flag, primitives = _mesh_collision(mesh)
+        flag, _ = _mesh_collision(mesh)
         collision = str(comp.get_collision_enabled())
 
-        if is_exterior_name(name) or _PICKUP.search(name) or _SURFACE.search(name):
-            policy = "no_collision"
-            if "NO_COLLISION" not in collision:
-                failures.append("%s: render-only mesh collision is %s" % (name, collision))
-        elif _STAIR_RAMP.search(name) and not _STAIR_NON_TREAD.search(name):
-            policy = "walkable_simple_hull"
+        if _KEEP_HULL.search(name):
+            counts["stairHull"] = counts.get("stairHull", 0) + 1
+            _, primitives = _mesh_collision(mesh)
             if primitives <= 0 or "COMPLEX_AS_SIMPLE" in flag:
                 failures.append(
-                    "%s: stair/ramp requires a simple hull, got %d primitives / %s"
+                    "%s: stair/ramp needs a walkable hull, got %d primitives / %s"
                     % (name, primitives, flag))
             if "NO_COLLISION" in collision:
                 failures.append("%s: stair/ramp render collision is disabled" % name)
-        elif _DETAILED.search(name) \
-                or (_ARCHITECTURE.search(name) and largest >= 200.0):
-            policy = "visible_complex"
-            if "COMPLEX_AS_SIMPLE" not in flag:
-                failures.append("%s: concave mesh traces as %s" % (name, flag))
-            if "NO_COLLISION" in collision:
-                failures.append("%s: concave render collision is disabled" % name)
-        elif largest < MIN_SIZE or triangles <= 24 or _SIMPLE.search(name):
-            policy = "retain_simple"
+        elif is_exterior_name(name) or _KEEP_NO_COLLISION.search(name):
+            counts["noCollision"] += 1
+            if "NO_COLLISION" not in collision:
+                failures.append("%s: render-only mesh collision is %s" % (name, collision))
         else:
-            policy = "existing"
-        counts[policy] = counts.get(policy, 0) + 1
-
-        if name not in seen_meshes and policy in ("walkable_simple_hull", "visible_complex"):
-            seen_meshes.add(name)
-            report["propSamples"].append({
-                "mesh": name, "policy": policy, "traceFlag": flag,
-                "simplePrimitives": primitives,
-            })
+            counts["complex"] += 1
+            if "COMPLEX_AS_SIMPLE" not in flag:
+                failures.append("%s: traces as %s, expected COMPLEX_AS_SIMPLE" % (name, flag))
+            if "NO_COLLISION" in collision:
+                failures.append("%s: render collision is disabled" % name)
     report["propPolicy"] = counts
     return failures
 

@@ -460,6 +460,7 @@ STEPS = [
     # User decision 8 Sept 2026: complex-as-simple on EVERYTHING (perf later). This supersedes
     # fix_prop_collision's per-class policy.
     ("fix_all_complex_collision", "fix_all_complex_collision", "main", ()),
+    ("restore_stair_hulls", "restore_stair_hulls", "main", ()),
     ("repair_light_beams", "repair_light_beams", "main", ()),
     ("repair_level_lighting", "repair_level_lighting", "main",
      ("/Game/BioShockSlice/1-Medical",)),
