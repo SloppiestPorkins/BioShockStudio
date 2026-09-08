@@ -55,7 +55,7 @@ SKY_TINT = os.environ.get("BIOSHOCK_LIGHT_SKYTINT", "0.16,0.34,0.38")
 REPAIR_TAG = "BIOSHOCK_LIGHT_REPAIR"
 ORIG_PREFIX = "BIOSHOCK_LIGHT_ORIG="
 SKY_CUBEMAP = "/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap"
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_reports", "repair_level_lighting.json")
+OUT = os.path.join(os.environ.get("TEMP", "."), "repair_level_lighting.json")
 
 
 def _lvl():
@@ -256,9 +256,10 @@ def _repair_one(map_path):
     return report
 
 
-def main():
-    if len(MAPS) == 1:
-        report = _repair_one(MAPS[0])
+def main(map_path=None):
+    maps = [map_path] if map_path else MAPS
+    if len(maps) == 1:
+        report = _repair_one(maps[0])
         _write(report)
         unreal.log("[light-repair] %s" % json.dumps(report))
         if report.get("error"):
@@ -266,7 +267,7 @@ def main():
         return report
 
     multi = {"maps": [], "dryRun": DRY}
-    for m in MAPS:
+    for m in maps:
         r = _repair_one(m)
         multi["maps"].append(r)
         _write(multi)  # persist after each map so a mid-run assert leaves a partial record

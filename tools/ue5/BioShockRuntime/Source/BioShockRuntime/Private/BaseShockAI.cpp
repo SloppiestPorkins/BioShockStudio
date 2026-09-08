@@ -21,6 +21,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 #include "TimerManager.h"
 
 namespace
@@ -726,8 +727,6 @@ void ABaseShockAI::OnDeathFromDamage()
 		LastAnimAbilityName = FName(TEXT("Death"));
 	}
 
-	SetActorTickEnabled(false);
-
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -738,6 +737,8 @@ void ABaseShockAI::OnDeathFromDamage()
 		Move->StopMovementImmediately();
 		Move->DisableMovement();
 	}
+
+	StartRagdoll();
 
 	if (CorpseFadeSeconds > 0.0f)
 	{
@@ -750,6 +751,71 @@ void ABaseShockAI::OnDeathFromDamage()
 				CorpseFadeSeconds,
 				false);
 		}
+	}
+}
+
+void ABaseShockAI::RecordRagdollHit(FVector Impulse, FVector HitLocation, FName HitBone)
+{
+	PendingRagdollImpulse = Impulse;
+	PendingRagdollHitLocation = HitLocation;
+	PendingRagdollHitBone = HitBone;
+}
+
+void ABaseShockAI::StartRagdoll()
+{
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body || !Body->GetSkeletalMeshAsset() || !Body->GetPhysicsAsset())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_RAGDOLL_UNAVAILABLE ai=%s physicsAsset=0"), *GetName());
+		SetActorTickEnabled(false);
+		return;
+	}
+
+	Body->SetCollisionProfileName(TEXT("Ragdoll"));
+	Body->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Body->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	Body->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	Body->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+	Body->SetAllBodiesSimulatePhysics(true);
+	Body->SetSimulatePhysics(true);
+	RagdollBlendWeight = AnimDeath ? 0.2f : 1.0f;
+	Body->SetAllBodiesPhysicsBlendWeight(RagdollBlendWeight, false);
+	Body->WakeAllRigidBodies();
+
+	if (!PendingRagdollImpulse.IsNearlyZero())
+	{
+		const FName ImpulseBone =
+			!PendingRagdollHitBone.IsNone() && Body->GetBoneIndex(PendingRagdollHitBone) != INDEX_NONE
+				? PendingRagdollHitBone
+				: NAME_None;
+		Body->AddImpulseAtLocation(
+			PendingRagdollImpulse,
+			PendingRagdollHitLocation.IsNearlyZero() ? Body->GetComponentLocation() : PendingRagdollHitLocation,
+			ImpulseBone);
+	}
+
+	bRagdollActive = true;
+	SetActorTickEnabled(true);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_RAGDOLL_ACTIVE ai=%s physicsAsset=%s bone=%s impulse=%.1f"),
+		*GetName(),
+		*Body->GetPhysicsAsset()->GetName(),
+		*PendingRagdollHitBone.ToString(),
+		PendingRagdollImpulse.Size());
+}
+
+void ABaseShockAI::TickRagdollBlend(float DeltaSeconds)
+{
+	if (!bRagdollActive || RagdollBlendWeight >= 1.0f)
+	{
+		return;
+	}
+	RagdollBlendWeight = FMath::Min(1.0f, RagdollBlendWeight + DeltaSeconds / 0.2f);
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetAllBodiesPhysicsBlendWeight(RagdollBlendWeight, false);
 	}
 }
 
@@ -804,6 +870,11 @@ void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 void ABaseShockAI::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bIsDead)
+	{
+		TickRagdollBlend(DeltaSeconds);
+		return;
+	}
 	TickCombat(DeltaSeconds);
 	TickAnimationDriver(DeltaSeconds);
 }

@@ -19,7 +19,14 @@ class BIOSHOCKRUNTIME_API UShockDamageLibrary : public UBlueprintFunctionLibrary
 public:
 	/** Returns damage actually applied (0 when blocked or target already dead). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
-	static float ApplyDamage(AActor* Target, float Amount, AActor* Instigator, FName DamageType);
+	static float ApplyDamage(
+		AActor* Target,
+		float Amount,
+		AActor* Instigator,
+		FName DamageType,
+		FVector HitImpulseDirection = FVector::ZeroVector,
+		FVector HitLocation = FVector::ZeroVector,
+		FName HitBone = NAME_None);
 
 	/**
 	 * Damages ShockPawns within OuterRadius of Origin. Full Amount at or inside InnerRadius;

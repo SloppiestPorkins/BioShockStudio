@@ -65,7 +65,14 @@ AShockPlayer* UShockDamageLibrary::ResolvePlayerFrom(AActor* Source)
 	return nullptr;
 }
 
-float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Instigator, FName DamageType)
+float UShockDamageLibrary::ApplyDamage(
+	AActor* Target,
+	float Amount,
+	AActor* Instigator,
+	FName DamageType,
+	FVector HitImpulseDirection,
+	FVector HitLocation,
+	FName HitBone)
 {
 	(void)DamageType;
 
@@ -91,6 +98,19 @@ float UShockDamageLibrary::ApplyDamage(AActor* Target, float Amount, AActor* Ins
 		{
 			AI->NotifyAggroFromPlayer(Player);
 		}
+		FVector ImpulseDirection = HitImpulseDirection.GetSafeNormal();
+		if (ImpulseDirection.IsNearlyZero() && Instigator)
+		{
+			ImpulseDirection =
+				(AI->GetActorLocation() - Instigator->GetActorLocation()).GetSafeNormal();
+		}
+		const FVector ResolvedLocation = HitLocation.IsNearlyZero()
+			? AI->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f)
+			: HitLocation;
+		AI->RecordRagdollHit(
+			ImpulseDirection * FMath::Clamp(Amount * 20.0f, 250.0f, 1400.0f),
+			ResolvedLocation,
+			HitBone);
 	}
 
 	float ScaledAmount = Amount;

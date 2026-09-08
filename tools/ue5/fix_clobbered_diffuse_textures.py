@@ -48,8 +48,8 @@ MASTERS_FOLDER = "/Game/BioShockSlice/Content/Materials/Masters"
 OUT = os.path.join(os.environ.get("TEMP", "."), "fix_clobbered_diffuse_textures.json")
 
 
-def _dual_intent_stems():
-    rig = json.load(open(RIG, encoding="utf-8"))
+def _dual_intent_stems(rig_path):
+    rig = json.load(open(rig_path, encoding="utf-8"))
     srgb_diffuse, mask_use = set(), set()
     for e in rig.get("textures") or []:
         stem = os.path.splitext(os.path.basename(e.get("file", "")))[0]
@@ -119,8 +119,9 @@ def _reset_material_samplers(fixed_asset_paths):
     return changed
 
 
-def main():
-    stems = sorted(_dual_intent_stems())
+def main(rig_path=None):
+    rig_path = rig_path or RIG
+    stems = sorted(_dual_intent_stems(rig_path))
     report = {"dry": DRY, "candidates": stems, "reimported": [], "failed": [], "materialsReset": []}
     fixed_paths = []
     for stem in stems:

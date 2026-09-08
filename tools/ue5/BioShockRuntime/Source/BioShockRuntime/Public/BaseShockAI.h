@@ -409,6 +409,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	float GetMeshUprightDeltaForVerify() const;
 
+	/** Cache the authored hit used if this damage kills the AI. */
+	void RecordRagdollHit(FVector Impulse, FVector HitLocation, FName HitBone);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
+	bool IsRagdollActiveForVerify() const { return bRagdollActive; }
+
 	/**
 	 * Assign a full-body BioShock skeletal mesh onto an ACharacter mesh component.
 	 * Sets visibility, optional mesh collision off (capsule keeps collision), and relative
@@ -539,12 +545,20 @@ private:
 	FTimerHandle CorpseFadeTimer;
 	FTimerHandle HitFlashTimerHandle;
 
+	FVector PendingRagdollImpulse = FVector::ZeroVector;
+	FVector PendingRagdollHitLocation = FVector::ZeroVector;
+	FName PendingRagdollHitBone = NAME_None;
+	float RagdollBlendWeight = 0.0f;
+	bool bRagdollActive = false;
+
 	static constexpr float HitReactRateLimitSeconds = 0.15f;
 	static constexpr float HitFlashSeconds = 0.12f;
 	static constexpr float HitReactMovementScale = 0.4f;
 	static constexpr float ChillMovementScale = 0.4f;
 
 	void HideCorpse();
+	void StartRagdoll();
+	void TickRagdollBlend(float DeltaSeconds);
 	void ClearHitFlash();
 	void ApplyHitFlash();
 	void ApplyBurnFlash();

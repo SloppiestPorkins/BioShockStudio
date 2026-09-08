@@ -8,13 +8,12 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   3. playable input         - Fire -> LMB, Reload -> R in DefaultInput.ini (legacy input)
   4. repair_null_master_textures - fill NULL master-material params (wall-texture fix)
   5. fix_exterior_collision - make window-view/backdrop geometry render-only
-  6. repair_light_beams     - shipped falloff+dust additive god-ray material
-  7. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
-  8. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
-
-fix_prop_collision (v4) is intentionally NOT run here: its static complex-as-simple proxies
-acted as invisible walls (per-poly collision on walk-through tunnel/archway shells). Prop
-collision fidelity is being redone properly - see tasks/v5-*.
+  6. repair_ragdoll_physics - physics assets for combat rigs + reactive placed corpses
+  7. fix_prop_collision     - visible collision, walkable hulls, lightweight physics
+  8. repair_light_beams     - shipped falloff+dust additive god-ray material
+  9. repair_level_lighting  - corrected falloff, practical intensity, ambient, fixed exposure
+ 10. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
+ 11. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
 
 Each step is idempotent and its own failure does not stop the others; a summary
 prints at the end and a JSON report is written to
@@ -178,6 +177,8 @@ TRAVEL_DEST_MAP = "/Game/BioShockSlice/_TravelDest"
 PLAY_GAME_MODE = "/Script/BioShockRuntime.ShockGameMode"
 SHOCK_GAME_INSTANCE = "/Script/BioShockRuntime.ShockGameInstance"
 SLICE_PROJECT = r"C:\Users\Jack\Documents\BioShockUE5"
+SLICE_MANIFEST = os.path.join(
+    SLICE_PROJECT, "Exports", "slice", "1-Medical", "1-Medical.ue5-level.json")
 
 
 def _ensure_action_mapping(action_name, key, existing_line):
@@ -445,8 +446,16 @@ STEPS = [
     ("navigation_config", None, _ensure_navigation_config, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
+    ("repair_placeholder_base_colours", "repair_placeholder_base_colours", "main",
+     (SLICE_MANIFEST,)),
+    ("fix_clobbered_diffuse_textures", "fix_clobbered_diffuse_textures", "main",
+     (SLICE_MANIFEST,)),
     ("fix_exterior_collision", "fix_exterior_collision", "main", ()),
+    ("repair_ragdoll_physics", "repair_ragdoll_physics", "main", ()),
+    ("fix_prop_collision", "fix_prop_collision", "main", ()),
     ("repair_light_beams", "repair_light_beams", "main", ()),
+    ("repair_level_lighting", "repair_level_lighting", "main",
+     ("/Game/BioShockSlice/1-Medical",)),
     # Scripted events: doors + MessageTrigger relays, then AShockScript actors on the slice map.
     ("import_slice_doors", "import_slice_doors", "main", ()),
     ("import_slice_scripts", "import_slice_scripts", "main", ()),

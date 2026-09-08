@@ -1063,7 +1063,7 @@ def _stamp_fingerprint(mesh, rig, destination, fingerprint):
 
 
 def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, blender_path=None,
-         reuse_existing=True):
+         reuse_existing=True, rig_name_override=None, import_animations=True):
     """Import every rig in an export directory. Returns the imported skeletal meshes by rig name.
 
     `normalize_fbx` defaults to true because UE5.7's legacy FBX reader rejects the project's
@@ -1103,6 +1103,9 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
     report = {"created": 0, "updated": 0, "skipped": 0, "unsupported": 0, "reused": 0}
     imported = {}
     for rig in manifest["rigs"]:
+        if rig_name_override:
+            rig = dict(rig)
+            rig["name"] = rig_name_override
         destination = f"{content_root}/{rig['name']}"
         fingerprint = _rig_fingerprint(manifest, rig, export_directory)
         _log(f"importing {rig['name']}: {rig['boneCount']} bones, {rig['vertexCount']} vertices")
@@ -1188,7 +1191,7 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         imported[rig["name"]] = mesh
 
         notifies = 0
-        animations = rig.get("animations") or []
+        animations = (rig.get("animations") or []) if import_animations else []
         for animation in animations:
             animation_file = os.path.join(export_directory, animation["file"])
             if normalize_fbx:
@@ -1214,7 +1217,10 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
         _log(f"  {len(animations)} animations, {notifies} notifies")
         if rig.get("undecoded"):
             _log(f"  {rig['undecoded']} animations did not decode and are not present")
-        _stamp_fingerprint(mesh, rig, destination, fingerprint)
+        if import_animations:
+            _stamp_fingerprint(mesh, rig, destination, fingerprint)
+        else:
+            _log("  animation import intentionally deferred")
 
     _log(f"import report: {report['created']} created, {report['updated']} updated, "
          f"{report['reused']} reused, {report['skipped']} skipped, {report['unsupported']} unsupported")

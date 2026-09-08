@@ -39,8 +39,7 @@ MANIFEST = os.environ.get("BIOSHOCK_PLACEHOLDER_MANIFEST", "")
 CONTENT_ROOT = os.environ.get("BIOSHOCK_PLACEHOLDER_CONTENT_ROOT", "/Game/BioShockLevel")
 DRY = os.environ.get("BIOSHOCK_PLACEHOLDER_DRY", "0") == "1"
 PLACEHOLDERS = {"WhiteSquareTexture", "DefaultDiffuse", "DefaultTexture"}
-OUT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "_reports", "repair_placeholder_base_colours.json")
+OUT = os.path.join(os.environ.get("TEMP", "."), "repair_placeholder_base_colours.json")
 
 
 def _texture_asset(destination, relative):
@@ -54,10 +53,10 @@ def _texture_asset(destination, relative):
     return None, None
 
 
-def main():
+def main(manifest_path=None):
     report = {"contentRoot": CONTENT_ROOT, "dryRun": DRY, "rebound": 0, "alreadyBound": 0,
               "textureMissing": 0, "noDiffuseInManifest": 0, "materials": []}
-    with open(MANIFEST, "r", encoding="utf-8") as handle:
+    with open(manifest_path or MANIFEST, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
     destination = "%s/%s" % (CONTENT_ROOT, manifest.get("package") or "Level")
 

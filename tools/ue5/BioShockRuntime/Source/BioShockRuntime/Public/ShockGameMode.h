@@ -187,8 +187,16 @@ private:
 
 	TWeakObjectPtr<AShockPlayer> MovementVerifyPlayer;
 	FVector MovementVerifyStartLoc = FVector::ZeroVector;
+	FVector MovementVerifyTargetLoc = FVector::ZeroVector;
 	uint8 MovementVerifyModeStart = 0;
 	bool bMovementVerifySawDisabled = false;
+	bool bMovementVerifySawFalling = false;
+	bool bMovementVerifyHasTarget = false;
+	float MovementVerifyMinZIncrease = 0.0f;
+	float MovementVerifyDuration = 2.5f;
+	FString MovementVerifyRoute;
+	TArray<FVector> MovementVerifyWaypoints;
+	int32 MovementVerifyWaypointIndex = 0;
 
 	TWeakObjectPtr<AShockPlayer> WeaponTrackPlayer;
 	TWeakObjectPtr<AShockWeapon> WeaponTrackWeapon;

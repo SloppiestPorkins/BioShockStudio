@@ -4,6 +4,7 @@
 #include "ShockAmmoPickup.h"
 #include "ShockCarryState.h"
 #include "ShockConsumablePickup.h"
+#include "ShockDamageLibrary.h"
 #include "ShockDeathRespawnHandler.h"
 #include "ShockDoor.h"
 #include "ShockGameInstance.h"
@@ -1198,6 +1199,23 @@ const TCHAR* MovementModeName(EMovementMode Mode)
 		return TEXT("MOVE_Unknown");
 	}
 }
+
+bool ParseMovementVector(const TCHAR* Key, FVector& Out)
+{
+	FString Value;
+	if (!FParse::Value(FCommandLine::Get(), Key, Value, false))
+	{
+		return false;
+	}
+	TArray<FString> Parts;
+	Value.ParseIntoArray(Parts, TEXT(","));
+	if (Parts.Num() != 3)
+	{
+		return false;
+	}
+	Out = FVector(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
+	return true;
+}
 } // namespace
 
 void AShockGameMode::BeginVerifyMovement(AShockPlayer* Player)
@@ -1210,9 +1228,48 @@ void AShockGameMode::BeginVerifyMovement(AShockPlayer* Player)
 		return;
 	}
 
+	FVector RequestedStart;
+	if (ParseMovementVector(TEXT("bioshockmovementstart="), RequestedStart))
+	{
+		Player->SetActorLocation(RequestedStart, false, nullptr, ETeleportType::TeleportPhysics);
+		if (UCharacterMovementComponent* Move = Player->GetCharacterMovement())
+		{
+			Move->StopMovementImmediately();
+			Move->SetMovementMode(MOVE_Walking);
+		}
+	}
+	bMovementVerifyHasTarget =
+		ParseMovementVector(TEXT("bioshockmovementtarget="), MovementVerifyTargetLoc);
+	bMovementVerifySawFalling = false;
+	bMovementVerifySawDisabled = Player->IsMovementDisabled();
+	MovementVerifyDuration = 2.5f;
+	MovementVerifyMinZIncrease = 0.0f;
+	MovementVerifyRoute.Reset();
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockmovementduration="), MovementVerifyDuration);
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockmovementminz="), MovementVerifyMinZIncrease);
+	FParse::Value(FCommandLine::Get(), TEXT("bioshockmovementroute="), MovementVerifyRoute);
+
 	MovementVerifyPlayer = Player;
 	MovementVerifyStartLoc = Player->GetActorLocation();
-	bMovementVerifySawDisabled = Player->IsMovementDisabled();
+	MovementVerifyWaypoints.Reset();
+	MovementVerifyWaypointIndex = 0;
+	if (bMovementVerifyHasTarget
+		&& MovementVerifyRoute.Equals(TEXT("bathysphere_pavilion"), ESearchCase::IgnoreCase))
+	{
+		// Authored PathNodes from 1-Medical.ue5-level.json. Start beyond the scripted load-room
+		// doors (door sequencing is verified separately) and follow the shipped Pavilion approach.
+		MovementVerifyWaypoints = {
+			FVector(-18384.0f, 2464.0f, 7805.0f),
+			FVector(-18398.0f, 2228.0f, 7805.0f),
+			FVector(-19120.0f, 2224.0f, 7807.8f),
+		};
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_COLLISION_ROUTE_PATH route=%s points=%d"),
+			*MovementVerifyRoute,
+			MovementVerifyWaypoints.Num());
+	}
 	MovementVerifyModeStart = MOVE_None;
 	const UCharacterMovementComponent* Move = Player->GetCharacterMovement();
 	if (Move)
@@ -1247,7 +1304,7 @@ void AShockGameMode::BeginVerifyMovement(AShockPlayer* Player)
 		MovementVerifyFinishTimer,
 		this,
 		&AShockGameMode::FinishVerifyMovement,
-		2.5f,
+		FMath::Max(0.25f, MovementVerifyDuration),
 		false);
 }
 
@@ -1261,6 +1318,40 @@ void AShockGameMode::TickVerifyMovementDrive()
 	if (Player->IsMovementDisabled())
 	{
 		bMovementVerifySawDisabled = true;
+	}
+	if (const UCharacterMovementComponent* Move = Player->GetCharacterMovement())
+	{
+		bMovementVerifySawFalling |= Move->MovementMode == MOVE_Falling;
+	}
+	if (bMovementVerifyHasTarget)
+	{
+		while (MovementVerifyWaypointIndex < MovementVerifyWaypoints.Num() - 1
+			&& FVector::Dist2D(
+				Player->GetActorLocation(),
+				MovementVerifyWaypoints[MovementVerifyWaypointIndex]) < 180.0f)
+		{
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_COLLISION_ROUTE_WAYPOINT route=%s reached=%d location=%s"),
+				*MovementVerifyRoute,
+				MovementVerifyWaypointIndex,
+				*Player->GetActorLocation().ToCompactString());
+			++MovementVerifyWaypointIndex;
+		}
+		const FVector DriveTarget = MovementVerifyWaypoints.IsValidIndex(MovementVerifyWaypointIndex)
+			? MovementVerifyWaypoints[MovementVerifyWaypointIndex]
+			: MovementVerifyTargetLoc;
+		const FVector Delta = DriveTarget - Player->GetActorLocation();
+		if (!Delta.IsNearlyZero())
+		{
+			if (AController* Controller = Player->GetController())
+			{
+				FRotator Control = Controller->GetControlRotation();
+				Control.Yaw = Delta.Rotation().Yaw;
+				Controller->SetControlRotation(Control);
+			}
+		}
 	}
 	Player->DriveMoveForwardForVerify(1.0f);
 }
@@ -1282,6 +1373,10 @@ void AShockGameMode::FinishVerifyMovement()
 
 	const FVector EndLoc = Player->GetActorLocation();
 	const float Displacement = FVector::Dist(MovementVerifyStartLoc, EndLoc);
+	const float ZIncrease = EndLoc.Z - MovementVerifyStartLoc.Z;
+	const float TargetRemaining = bMovementVerifyHasTarget
+		? FVector::Dist2D(EndLoc, MovementVerifyTargetLoc)
+		: 0.0f;
 	EMovementMode ModeEnd = MOVE_None;
 	FVector Velocity = FVector::ZeroVector;
 	float GravityScale = 0.0f;
@@ -1321,9 +1416,36 @@ void AShockGameMode::FinishVerifyMovement()
 
 	const bool bModeBroken =
 		ModeStart == MOVE_None || ModeEnd == MOVE_None
-		|| ModeStart == MOVE_Falling || ModeEnd == MOVE_Falling;
+		|| ModeStart == MOVE_Falling || ModeEnd == MOVE_Falling || bMovementVerifySawFalling;
 	const bool bNoMove = Displacement < 10.0f;
-	if (bModeBroken || bNoMove || bMovementVerifySawDisabled || !bHasController || !bCmcActive)
+	const bool bMissedTarget = bMovementVerifyHasTarget && TargetRemaining > 180.0f;
+	const bool bInsufficientRise = ZIncrease + KINDA_SMALL_NUMBER < MovementVerifyMinZIncrease;
+	if (bMissedTarget && GetWorld())
+	{
+		const FVector ProbeTarget = MovementVerifyWaypoints.IsValidIndex(MovementVerifyWaypointIndex)
+			? MovementVerifyWaypoints[MovementVerifyWaypointIndex]
+			: MovementVerifyTargetLoc;
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockCollisionRouteBlocker), false, Player);
+		if (GetWorld()->LineTraceSingleByChannel(
+				Hit, EndLoc, FVector(ProbeTarget.X, ProbeTarget.Y, EndLoc.Z),
+				ECC_Visibility, Params))
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("BIOSHOCK_COLLISION_ROUTE_BLOCKED route=%s actor=%s component=%s mesh=%s"),
+				*MovementVerifyRoute,
+				Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("none"),
+				Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),
+				(Hit.GetComponent() && Cast<UStaticMeshComponent>(Hit.GetComponent())
+					&& Cast<UStaticMeshComponent>(Hit.GetComponent())->GetStaticMesh())
+					? *Cast<UStaticMeshComponent>(Hit.GetComponent())->GetStaticMesh()->GetName()
+					: TEXT("none"));
+		}
+	}
+	if (bModeBroken || bNoMove || bMovementVerifySawDisabled || !bHasController || !bCmcActive
+		|| bMissedTarget || bInsufficientRise)
 	{
 		FString Reason = TEXT("unknown");
 		if (!bHasController)
@@ -1341,6 +1463,18 @@ void AShockGameMode::FinishVerifyMovement()
 		else if (ModeStart == MOVE_Falling || ModeEnd == MOVE_Falling)
 		{
 			Reason = TEXT("move_falling");
+		}
+		else if (bMovementVerifySawFalling)
+		{
+			Reason = TEXT("falling_seen");
+		}
+		else if (bMissedTarget)
+		{
+			Reason = TEXT("target_not_reached");
+		}
+		else if (bInsufficientRise)
+		{
+			Reason = TEXT("z_not_increased");
 		}
 		else if (ModeStart == MOVE_None || ModeEnd == MOVE_None)
 		{
@@ -1361,6 +1495,18 @@ void AShockGameMode::FinishVerifyMovement()
 	}
 	else
 	{
+		if (!MovementVerifyRoute.IsEmpty())
+		{
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_COLLISION_ROUTE_OK route=%s z_increase=%.1f remaining=%.1f "
+					 "falling_seen=%d"),
+				*MovementVerifyRoute,
+				ZIncrease,
+				TargetRemaining,
+				bMovementVerifySawFalling ? 1 : 0);
+		}
 		UE_LOG(
 			LogTemp,
 			Display,
@@ -2241,7 +2387,8 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		&& (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifymovement"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
-			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))))
 	{
 		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=no_pawn_spawned"));
 		FGenericPlatformMisc::RequestExit(false);
@@ -2261,7 +2408,9 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				EnsureHudForPlayer(NewPlayer);
 				const bool bVerifySliceEncounter =
 					FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
-					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"));
+					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))
+					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))
+					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockshotragdoll"));
 				if (bVerifySliceEncounter)
 				{
 					SpawnSliceEncounter(Player, Start);
@@ -2282,6 +2431,79 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 					}
 					SpawnSliceAmmoPickup(Player, Start, PrimaryEnemy);
 					SpawnSliceConsumablePickup(Player, Start, PrimaryEnemy);
+				}
+				const bool bVerifyRagdoll =
+					FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"));
+				const bool bCaptureRagdoll =
+					FParse::Param(FCommandLine::Get(), TEXT("bioshockshotragdoll"));
+				if ((bVerifyRagdoll || bCaptureRagdoll) && GetWorld())
+				{
+					GetWorld()->GetTimerManager().SetTimer(
+						SliceEncounterVerifyTimer,
+						FTimerDelegate::CreateLambda([this, bVerifyRagdoll, bCaptureRagdoll]()
+						{
+							ABaseShockAI* Enemy = nullptr;
+							for (TActorIterator<ABaseShockAI> It(GetWorld()); It; ++It)
+							{
+								if (*It && (*It)->GetScriptLabel() == FName(TEXT("SliceEnemy0")))
+								{
+									Enemy = *It;
+									break;
+								}
+							}
+							if (!Enemy)
+							{
+								UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_RAGDOLL_FAIL reason=no_enemy"));
+								if (bVerifyRagdoll)
+								{
+									FGenericPlatformMisc::RequestExit(false);
+								}
+								return;
+							}
+							if (bCaptureRagdoll)
+							{
+								if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+								{
+									if (APawn* Pawn = PC->GetPawn())
+									{
+										// The normal encounter slots are beyond the load-room door,
+										// outside this capture's floor island. Put the photo subject
+										// beside the player so the frame tests a corpse on real floor.
+										Enemy->SetActorLocation(
+											Pawn->GetActorLocation() + FVector(0.0f, 120.0f, 10.0f),
+											false);
+									}
+								}
+							}
+							Enemy->CorpseFadeSeconds = 0.0f;
+							UShockDamageLibrary::ApplyDamage(
+								Enemy, 10000.0f, nullptr, FName(TEXT("RagdollVerify")),
+								FVector::ZeroVector,
+								Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 70.0f),
+								FName(TEXT("Bip01_Spine2")));
+							if (Enemy->IsRagdollActiveForVerify())
+							{
+								UE_LOG(
+									LogTemp, Display, TEXT("BIOSHOCK_RAGDOLL_OK dead=%d active=1"),
+									Enemy->IsDead() ? 1 : 0);
+							}
+							else
+							{
+								UE_LOG(
+									LogTemp, Error, TEXT("BIOSHOCK_RAGDOLL_FAIL dead=%d active=0"),
+									Enemy->IsDead() ? 1 : 0);
+							}
+							if (bVerifyRagdoll)
+							{
+								FGenericPlatformMisc::RequestExit(false);
+							}
+						}),
+						3.75f,
+						false);
+					if (bVerifyRagdoll)
+					{
+						return;
+					}
 				}
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{
@@ -2312,6 +2534,11 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 					if (UWorld* World = GetWorld())
 					{
 						TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+						float MovementStartDelay = 0.5f;
+						FParse::Value(
+							FCommandLine::Get(),
+							TEXT("bioshockmovementdelay="),
+							MovementStartDelay);
 						// Brief settle so CharacterMovement has a real mode after snap.
 						World->GetTimerManager().SetTimer(
 							MovementVerifyFinishTimer,
@@ -2327,10 +2554,13 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 									FGenericPlatformMisc::RequestExit(false);
 								}
 							}),
-							0.5f,
+							FMath::Max(0.1f, MovementStartDelay),
 							false);
 					}
-					return;
+					if (!FParse::Param(FCommandLine::Get(), TEXT("bioshockscreenshot")))
+					{
+						return;
+					}
 				}
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack")))
 				{
@@ -3036,9 +3266,29 @@ void AShockGameMode::TickScreenshotCapture()
 	int32 AICount = 0;
 	if (UWorld* CaptureWorld = GetWorld())
 	{
+		if (APlayerController* PC = CaptureWorld->GetFirstPlayerController())
+		{
+			if (APawn* Pawn = PC->GetPawn())
+			{
+				UE_LOG(
+					LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_PLAYER loc=%s"),
+					*Pawn->GetActorLocation().ToCompactString());
+			}
+		}
 		for (TActorIterator<ABaseShockAI> It(CaptureWorld); It; ++It)
 		{
-			AICount += (*It != nullptr) ? 1 : 0;
+			if (ABaseShockAI* AI = *It)
+			{
+				++AICount;
+				UE_LOG(
+					LogTemp,
+					Display,
+					TEXT("BIOSHOCK_SCREENSHOT_AI_DETAIL label=%s actor=%s mesh=%s ragdoll=%d"),
+					*AI->GetScriptLabel().ToString(),
+					*AI->GetActorLocation().ToCompactString(),
+					AI->GetMesh() ? *AI->GetMesh()->GetComponentLocation().ToCompactString() : TEXT("none"),
+					AI->IsRagdollActiveForVerify() ? 1 : 0);
+			}
 		}
 	}
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCREENSHOT_AI count=%d"), AICount);

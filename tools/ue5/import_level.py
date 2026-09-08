@@ -1058,7 +1058,15 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
             continue
 
         try:
-            imported = import_bioshock.main(rig_dir, content_root=character_content_root)
+            # Every Medical corpse export comes from UAPW_AggressorBabyJane and therefore calls
+            # its FBX object AggressorBabyJane. Without an override each distinct body overwrites
+            # the same content package. Corpses do not need the wrapper's 457 combat animations.
+            rig_override = None if asset["name"] == "Agg_BabyJane" else asset["name"]
+            imported = import_bioshock.main(
+                rig_dir,
+                content_root=character_content_root,
+                rig_name_override=rig_override,
+                import_animations=asset["name"] not in _dead_body_mesh_names(manifest))
         except Exception as error:
             _log("rig import failed for %s: %s" % (asset["name"], error))
             continue

@@ -32,8 +32,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
 
 import unreal
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from fix_exterior_collision import is_exterior_name
+from fix_prop_collision import (
+    MIN_SIZE, _ARCHITECTURE, _DETAILED, _PICKUP, _PROXY_TAG, _SIMPLE,
+    _STAIR_NON_TREAD, _STAIR_RAMP, _SURFACE)
 
 # Model12_34567 - the exporter's stem for a compiled-CSG world asset.
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
@@ -46,6 +54,9 @@ MAPS = [m.strip() for m in os.environ.get(
 # down" counts as standing on it.
 MAX_DROP_TO_FLOOR = 400.0
 BURIED_PROBE = 20.0
+UE_CMD = r"G:\Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+PROJECT = r"C:\Users\Jack\Documents\BioShockUE5\BioShockUE5.uproject"
+GAME_URL = "/Game/BioShockSlice/1-Medical?game=/Script/BioShockRuntime.ShockGameMode"
 
 
 def _lvl():
@@ -177,10 +188,132 @@ def _check_standable(report):
     return failures
 
 
+def _mesh_collision(mesh):
+    body = mesh.get_editor_property("body_setup")
+    if body is None:
+        return "", 0
+    flag = str(body.get_editor_property("collision_trace_flag"))
+    agg = body.get_editor_property("agg_geom")
+    count = sum(len(agg.get_editor_property(prop) or []) for prop in (
+        "convex_elems", "box_elems", "sphere_elems"))
+    return flag, count
+
+
+def _check_prop_policy(report):
+    failures = []
+    counts = {}
+    seen_meshes = set()
+    for actor in _actors().get_all_level_actors():
+        if _PROXY_TAG in {str(tag) for tag in actor.tags}:
+            failures.append("%s: stale invisible prop proxy remains" % actor.get_actor_label())
+            continue
+        if not isinstance(actor, unreal.StaticMeshActor):
+            continue
+        comp = actor.static_mesh_component
+        mesh = comp.get_editor_property("static_mesh") if comp else None
+        if mesh is None:
+            continue
+        name = mesh.get_name()
+        label = (actor.get_actor_label() or "").strip().lower()
+        if label == "compiled world" or _MODEL_ASSET.match(name):
+            continue
+        _, extent = actor.get_actor_bounds(False)
+        largest = 2.0 * max(extent.x, extent.y, extent.z)
+        try:
+            triangles = mesh.get_num_triangles(0)
+        except Exception:  # noqa: BLE001
+            triangles = 0
+        flag, primitives = _mesh_collision(mesh)
+        collision = str(comp.get_collision_enabled())
+
+        if is_exterior_name(name) or _PICKUP.search(name) or _SURFACE.search(name):
+            policy = "no_collision"
+            if "NO_COLLISION" not in collision:
+                failures.append("%s: render-only mesh collision is %s" % (name, collision))
+        elif _STAIR_RAMP.search(name) and not _STAIR_NON_TREAD.search(name):
+            policy = "walkable_simple_hull"
+            if primitives <= 0 or "COMPLEX_AS_SIMPLE" in flag:
+                failures.append(
+                    "%s: stair/ramp requires a simple hull, got %d primitives / %s"
+                    % (name, primitives, flag))
+            if "NO_COLLISION" in collision:
+                failures.append("%s: stair/ramp render collision is disabled" % name)
+        elif _DETAILED.search(name) \
+                or (_ARCHITECTURE.search(name) and largest >= 200.0):
+            policy = "visible_complex"
+            if "COMPLEX_AS_SIMPLE" not in flag:
+                failures.append("%s: concave mesh traces as %s" % (name, flag))
+            if "NO_COLLISION" in collision:
+                failures.append("%s: concave render collision is disabled" % name)
+        elif largest < MIN_SIZE or triangles <= 24 or _SIMPLE.search(name):
+            policy = "retain_simple"
+        else:
+            policy = "existing"
+        counts[policy] = counts.get(policy, 0) + 1
+
+        if name not in seen_meshes and policy in ("walkable_simple_hull", "visible_complex"):
+            seen_meshes.add(name)
+            report["propSamples"].append({
+                "mesh": name, "policy": policy, "traceFlag": flag,
+                "simplePrimitives": primitives,
+            })
+    report["propPolicy"] = counts
+    return failures
+
+
+def _run_game_route(route, start, target, duration, min_z, delay):
+    log_path = os.path.join(os.environ.get("TEMP", "."), "collision_%s.log" % route)
+    cmd = [
+        UE_CMD, PROJECT, GAME_URL, "-game", "-bioshockverifymovement",
+        "-bioshockmovementroute=%s" % route,
+        "-bioshockmovementtarget=%s" % target,
+        "-bioshockmovementduration=%.2f" % duration,
+        "-bioshockmovementminz=%.2f" % min_z,
+        "-bioshockmovementdelay=%.2f" % delay,
+        "-unattended", "-nopause", "-nosplash", "-log", "-abslog=%s" % log_path,
+    ]
+    if start:
+        cmd.insert(5, "-bioshockmovementstart=%s" % start)
+    proc = subprocess.run(cmd, timeout=600)
+    text = open(log_path, encoding="utf-8", errors="replace").read() \
+        if os.path.isfile(log_path) else ""
+    ok = re.search(
+        r"BIOSHOCK_COLLISION_ROUTE_OK route=(\S+) z_increase=([-\d.]+) "
+        r"remaining=([-\d.]+) falling_seen=(\d)", text)
+    result = {"route": route, "exitCode": proc.returncode, "log": log_path, "ok": bool(ok)}
+    if ok:
+        result.update({
+            "zIncrease": float(ok.group(2)),
+            "targetRemaining": float(ok.group(3)),
+            "fallingSeen": int(ok.group(4)),
+        })
+    else:
+        fail = re.search(r"BIOSHOCK_MOVEMENT_FAIL reason=(\S+)", text)
+        result["reason"] = fail.group(1) if fail else "route marker missing"
+    return result
+
+
+def _check_game_routes(report):
+    routes = [
+        # Southern half of the curved stairs immediately in front of sign_medical_pavillion.
+        ("pavilion_stairs", "-19040,1840,7792", "-19040,2070,7792", 2.5, 60.0, 0.5),
+        # Beyond scripted load-room doors, authored PathNodes cover the Pavilion approach.
+        ("bathysphere_pavilion", "-18096,2480,7794", "-19120,2224,7808",
+         8.0, -20.0, 0.5),
+    ]
+    failures = []
+    for args in routes:
+        result = _run_game_route(*args)
+        report["gameRoutes"].append(result)
+        if not result["ok"]:
+            failures.append("%s: %s" % (result["route"], result.get("reason", "failed")))
+    return failures
+
+
 def main(out_path):
-    report = {"maps": [], "failures": [], "checks": 0}
+    report = {"maps": [], "failures": [], "checks": 0, "gameRoutes": []}
     for map_path in MAPS:
-        map_report = {"map": map_path, "meshes": [], "starts": []}
+        map_report = {"map": map_path, "meshes": [], "starts": [], "propSamples": []}
         if not _lvl().load_level(map_path):
             report["failures"].append("could not load %s" % map_path)
             report["maps"].append(map_report)
@@ -188,10 +321,14 @@ def main(out_path):
 
         failures = _check_structural(map_report)
         failures += _check_standable(map_report)
+        failures += _check_prop_policy(map_report)
         map_report["failures"] = failures
         report["failures"] += ["%s: %s" % (map_path, f) for f in failures]
         report["checks"] += 1
         report["maps"].append(map_report)
+
+    if os.environ.get("BIOSHOCK_COLLISION_GAME", "1") != "0" and not report["failures"]:
+        report["failures"] += _check_game_routes(report)
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as handle:

@@ -938,7 +938,9 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	{
 		if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
 		{
-			UShockDamageLibrary::ApplyDamage(Victim, ShotDamage, InstigatorActor, NAME_None);
+			UShockDamageLibrary::ApplyDamage(
+				Victim, ShotDamage, InstigatorActor, NAME_None,
+				(End - Start).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
 			ApplyAmmoHitEffect(InstigatorActor, Victim, Hit.ImpactPoint, AmmoIndex);
 			LastHitPawn = Victim;
 			bDamaged = true;
@@ -1088,7 +1090,9 @@ bool AShockWeapon::FireAtMelee(AActor* InstigatorActor, FVector Start, FVector D
 	{
 		if (AShockPawn* Victim = Cast<AShockPawn>(Hit.GetActor()))
 		{
-			UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, InstigatorActor, NAME_None);
+			UShockDamageLibrary::ApplyDamage(
+				Victim, HitscanDamage, InstigatorActor, NAME_None,
+				(TraceEnd - Start).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
 			LastHitPawn = Victim;
 			bDamaged = true;
 		}
@@ -1168,7 +1172,9 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 			{
 				const int32 AmmoIndex = ChamberedAmmoTypeIndex;
 				const float PelletDamage = GetDamageForAmmoIndex(AmmoIndex);
-				UShockDamageLibrary::ApplyDamage(Victim, PelletDamage, InstigatorActor, NAME_None);
+				UShockDamageLibrary::ApplyDamage(
+					Victim, PelletDamage, InstigatorActor, NAME_None,
+					(End - Start).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
 				ApplyAmmoHitEffect(InstigatorActor, Victim, Hit.ImpactPoint, AmmoIndex);
 				LastHitPawn = Victim;
 				bDamaged = true;
@@ -1277,7 +1283,9 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 		VictimPawn = Cast<AShockPawn>(Hit.GetActor());
 		if (VictimPawn)
 		{
-			UShockDamageLibrary::ApplyDamage(VictimPawn, HitscanDamage, InstigatorActor, NAME_None);
+			UShockDamageLibrary::ApplyDamage(
+				VictimPawn, HitscanDamage, InstigatorActor, NAME_None,
+				(End - MuzzleLoc).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
 			LastHitPawn = VictimPawn;
 			bDamaged = true;
 
