@@ -1,6 +1,7 @@
 #include "ShockWeapon.h"
 
 #include "BaseShockAI.h"
+#include "ShockAudioLibrary.h"
 #include "ShockDamageLibrary.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockPawn.h"
@@ -68,6 +69,9 @@ void AShockWeapon::ApplyDef(UShockWeaponDef* Def)
 	DefProjectileImpactRadius = Def->ProjectileImpactRadius;
 	DefProjectileLifeSeconds = Def->ProjectileLifeSeconds;
 	DefWeaponName = Def->WeaponName;
+	FireSoundCue = Def->FireSoundCue;
+	ReloadSoundCue = Def->ReloadSoundCue;
+	ImpactSoundCue = Def->ImpactSoundCue;
 	PelletCount = FMath::Max(1, Def->PelletCount);
 	PelletSpreadDeg = FMath::Max(0.0f, Def->PelletSpreadDeg);
 	BeamTickInterval = FMath::Max(0.01f, Def->BeamTickInterval);
@@ -472,6 +476,7 @@ bool AShockWeapon::Reload()
 		EffectiveReload,
 		false);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_WEAPON_RELOAD start seconds=%.2f"), EffectiveReload);
+	PlayReloadAudio();
 	// Two-rig performance: ViewHands plays the arms clip; this mesh plays the weapon's own
 	// moving parts (barrel hinge, bolt, etc.). h10 only sampled the actor world transform —
 	// that proved socket-follow, not that Mesh::PlayAnimation was ever called.
@@ -815,6 +820,42 @@ void AShockWeapon::PlayDryFireFeedback(const FVector& TraceStart)
 	FlashMuzzleLight(MuzzleLoc, FLinearColor(0.55f, 0.08f, 0.05f), 1200.0f, 0.03f);
 }
 
+void AShockWeapon::PlayFireAudio()
+{
+	LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(FireSoundCue, Mesh);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AUDIO fire weapon=%s sound=%s component=%d"),
+		*DefWeaponName.ToString(),
+		*FireSoundCue.ToString(),
+		LastAudioComponent ? 1 : 0);
+}
+
+void AShockWeapon::PlayReloadAudio()
+{
+	LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(ReloadSoundCue, Mesh);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AUDIO reload weapon=%s sound=%s component=%d"),
+		*DefWeaponName.ToString(),
+		*ReloadSoundCue.ToString(),
+		LastAudioComponent ? 1 : 0);
+}
+
+void AShockWeapon::PlayMeleeImpactAudio()
+{
+	LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(ImpactSoundCue, Mesh);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AUDIO impact weapon=%s sound=%s component=%d"),
+		*DefWeaponName.ToString(),
+		*ImpactSoundCue.ToString(),
+		LastAudioComponent ? 1 : 0);
+}
+
 void AShockWeapon::PlayFireFeedback(
 	AActor* InstigatorActor,
 	const FVector& MuzzleLocation,
@@ -919,6 +960,7 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	}
 	++FireCount;
 	LastHitPawn = nullptr;
+	PlayFireAudio();
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector End = Start + NormDir * HitscanRange;
@@ -1014,6 +1056,7 @@ bool AShockWeapon::FireAtProjectile(AActor* InstigatorActor, FVector Start, FVec
 	}
 	++FireCount;
 	LastHitPawn = nullptr;
+	PlayFireAudio();
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
@@ -1066,6 +1109,7 @@ bool AShockWeapon::FireAtMelee(AActor* InstigatorActor, FVector Start, FVector D
 	LastMeleeWorldSeconds = World->GetTimeSeconds();
 	++FireCount;
 	LastHitPawn = nullptr;
+	PlayFireAudio();
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector TraceEnd = Start + NormDir * MeleeReach;
@@ -1096,6 +1140,10 @@ bool AShockWeapon::FireAtMelee(AActor* InstigatorActor, FVector Start, FVector D
 			LastHitPawn = Victim;
 			bDamaged = true;
 		}
+	}
+	if (bHit)
+	{
+		PlayMeleeImpactAudio();
 	}
 
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
@@ -1137,6 +1185,7 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 	}
 	++FireCount;
 	LastHitPawn = nullptr;
+	PlayFireAudio();
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
@@ -1248,6 +1297,7 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 		return false;
 	}
 
+	const bool bStartingBeam = !bBeamActive;
 	bBeamActive = true;
 	LastFireWorldSeconds = World->GetTimeSeconds();
 
@@ -1264,6 +1314,10 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 
 	++FireCount;
 	LastHitPawn = nullptr;
+	if (bStartingBeam)
+	{
+		PlayFireAudio();
+	}
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);

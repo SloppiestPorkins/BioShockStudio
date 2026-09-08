@@ -22,6 +22,8 @@ class BIOSHOCKRUNTIME_API AShockPawn : public ACharacter
 public:
 	AShockPawn();
 
+	virtual void Tick(float DeltaSeconds) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString SchemaClassName;
 
@@ -79,6 +81,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pawn")
 	bool IsPhysicsDisabled() const { return bPhysicsDisabled; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
+	int32 GetFootstepAudioCountForVerify() const { return FootstepAudioCount; }
+
 	/** Editor actor label, or BaseShockAI ScriptLabel. C++ action helper only. */
 	static TArray<AShockPawn*> CollectLabeled(UWorld* World, FName Label);
+
+private:
+	void TickFootstepAudio(float DeltaSeconds);
+	FName ResolveFootstepSurface() const;
+
+	float FootstepTravel = 0.0f;
+	int32 FootstepAudioCount = 0;
 };

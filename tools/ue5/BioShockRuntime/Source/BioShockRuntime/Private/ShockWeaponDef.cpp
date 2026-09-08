@@ -135,6 +135,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("Armor-piercing Auto"), 30.0f, EAmmoEffect::ArmorPiercing, 150);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_TommyGun"));
 		Def->bAutomatic = true; // Machine Gun — hold trigger to keep firing at FireRate
+		// 1-Medical SoundEventReader: MachineGun + IsFiring / Hands + ReloadTommy.
+		Def->FireSoundCue = TEXT("weapons_tommy_fire");
+		Def->ReloadSoundCue = TEXT("weapons_tommy_reload");
 	}
 	else if (Key.Equals(TEXT("Wrench"), ESearchCase::IgnoreCase))
 	{
@@ -158,6 +161,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			0.0f);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Wrench"));
+		// 1-Medical SoundEventReader: Hands + SwingWrench; Actor + WeaponImpacted.
+		Def->FireSoundCue = TEXT("weapons_wrench_swipe");
+		Def->ImpactSoundCue = TEXT("weapons_wrench_hit");
 	}
 	else if (Key.Equals(TEXT("GrenadeLauncher"), ESearchCase::IgnoreCase))
 	{
@@ -182,6 +188,8 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			650.0f,
 			10.0f);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_GrenadeLauncher"));
+		// 1-Medical SoundEventReader: GrenadeLauncher + FiredSound.
+		Def->FireSoundCue = TEXT("weapons_GL_launch");
 	}
 	else if (Key.Equals(TEXT("Pistol"), ESearchCase::IgnoreCase))
 	{
@@ -206,6 +214,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("Armor-piercing"), 40.0f, EAmmoEffect::ArmorPiercing, 48);
 		AddAmmoType(Def, TEXT("Antipersonnel"), 40.0f, EAmmoEffect::AntiPersonnel, 48);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Pistol"));
+		// 1-Medical SoundEventReader: Pistol + FiredSound / Hands + ReloadPistolOne.
+		Def->FireSoundCue = TEXT("pistol_fire");
+		Def->ReloadSoundCue = TEXT("weapons_pistol_reload_one");
 	}
 	else if (Key.Equals(TEXT("Shotgun"), ESearchCase::IgnoreCase))
 	{
@@ -233,6 +244,9 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 		AddAmmoType(Def, TEXT("Electric Buck"), 35.0f, EAmmoEffect::Electric, 24);
 		AddAmmoType(Def, TEXT("Exploding Buck"), 49.0f, EAmmoEffect::Explosive, 24);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Shotgun"));
+		// 1-Medical SoundEventReader: Shotgun + FiredSound / Hands + ReloadShotgun.
+		Def->FireSoundCue = TEXT("weapons_shotgun_launch");
+		Def->ReloadSoundCue = TEXT("weapons_shotgun_reload");
 	}
 	else if (
 		Key.Equals(TEXT("ChemicalThrower"), ESearchCase::IgnoreCase)
@@ -286,6 +300,7 @@ UShockWeaponDef* UShockWeaponDef::Resolve(FName InWeaponName)
 			0.0f,
 			10.0f);
 		Def->MeshAssetPath = WeaponMeshPath(TEXT("WP_Crossbow"));
+		Def->FireSoundCue = TEXT("weapons_xbow_launch");
 	}
 
 	if (Def)

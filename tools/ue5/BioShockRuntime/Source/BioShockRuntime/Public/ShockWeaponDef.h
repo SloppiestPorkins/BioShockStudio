@@ -159,6 +159,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock")
 	FSoftObjectPath MeshAssetPath;
 
+	/** Exact SoundEffectSpecification reached by the shipped SourceClassName + fire event. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock|Audio")
+	FName FireSoundCue;
+
+	/** Exact SoundEffectSpecification reached by the shipped Hands reload event. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock|Audio")
+	FName ReloadSoundCue;
+
+	/** Exact impact specification for melee weapons; empty for ranged weapons. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BioShock|Audio")
+	FName ImpactSoundCue;
+
 	/** Resolve baked defs for TommyGun / Wrench / GrenadeLauncher / Pistol / Shotgun / ChemicalThrower / Crossbow. Unknown keys return nullptr. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	static UShockWeaponDef* Resolve(FName InWeaponName);

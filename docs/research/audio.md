@@ -667,3 +667,101 @@ is reporting.
 Numeric validation has passed on visibly wrong output in this project more than once, and the audio
 equivalent is a manifest that is perfectly well-formed and plays the wrong sample. Nothing here is
 claimed as verified in UE5 until it has been imported and heard.
+
+## UE5 runtime core loop — implemented 8 Sep 2026
+
+**Status: IMPLEMENTED; structural verification is automated, listening remains a human Play check.**
+`tools/ue5/export_slice_audio.ps1` runs the existing `export-audio --locate` path and writes outside
+the repository, then materializes the English `1-Medical_int` native VO beside the slice package's
+own MP3 payloads. `tools/ue5/import_audio.py` imports only payloads that actually exist; a located
+stream/native sample with no exported file is reported and skipped, never replaced.
+
+Generated assets are owned by the importer:
+
+```
+/Game/BioShockAudio/_1_Medical/Waves/<sample>
+/Game/BioShockAudio/_1_Medical/Cues/<specification>
+/Game/BioShockAudio/_1_Medical/Events/<SourceClassName>__<Event>
+```
+
+`AudioExporter` now carries an additive `events` list in version-1 manifests. Its key is the exact
+`SourceClassName + Event` pair decoded by `SoundEventReader`; its values are the response's
+specifications and parallel chance values. This is what lets `ShockActionAISpeech` play an imported
+event alias instead of matching a speech label to a similarly named file.
+
+### Import mapping
+
+- `SoundSpecs[]` become wave-player inputs under UE5's factory-created random node.
+- Explicit `Volume`, `Pitch`, `InnerRadius` and `OuterRadius` become cue multipliers and spherical
+  attenuation. Missing values retain the documented class defaults (100, 1, and 3000).
+- A non-negative `Monoloop`/`PolyloopRange` marks the cue's wave players looping.
+- `LoopSoundLimit`, when positive, becomes local concurrency; otherwise looping/non-looping cues use
+  conservative caps of 8/16.
+- Footstep alternatives are additionally split by the confirmed `MVT_*` flag into
+  `<cue>__<surface>` cues. UE5's random node has a confirmed engine limit of 32 children; broader
+  imported cues retain the first 32 available alternatives and the report names every truncation.
+- Existing level placeholders are joined by the level manifest's source object name/key and replaced
+  by `AAmbientSound`, preserving transform, label and source tags. The actor records the selected cue
+  and first sample in `BioShockAudioCue` / `BioShockAudioSample` tags for headless inspection.
+
+On the measured located `1-Medical` export, the clean idempotence run found 2,040 importable
+payloads, built 928 base cues plus 170 surface cues and 1,327 event aliases, and wired **258
+AmbientSound actors**. Another 34 resolved actors name cues whose payload is not materialized by
+this slice export, so they are reported rather than assigned a fabricated fallback. Two shipped
+ambience MP3s are exactly one 208-byte MPEG frame; UE5.7 diagnoses these as one-frame streams and
+cannot import them. The importer detects and reports that proven case before asking UE to import it.
+
+### Runtime event wiring
+
+**CONFIRMED_BYTES mappings consumed by `UShockWeaponDef`:**
+
+| Runtime | `SourceClassName + Event` | cue |
+|---|---|---|
+| Pistol fire | `Pistol + FiredSound` | `pistol_fire` |
+| Tommy gun fire | `MachineGun + IsFiring` | `weapons_tommy_fire` |
+| Shotgun fire | `Shotgun + FiredSound` | `weapons_shotgun_launch` |
+| Grenade launcher fire | `GrenadeLauncher + FiredSound` | `weapons_GL_launch` |
+| Wrench swing | `Hands + SwingWrench` | `weapons_wrench_swipe` |
+| Wrench impact | `Actor + WeaponImpacted` | `weapons_wrench_hit` |
+| Reloads | `Hands + ReloadPistolOne/ReloadTommy/ReloadShotgun` | corresponding weapon cue |
+
+Accepted fire/reload paths call `SpawnSoundAttached` on the weapon component and log
+`BIOSHOCK_AUDIO`. Wrench impact is separate from swing. `-bioshockverifyaudio` asserts a Pistol shot
+changes the weapon from no spawned audio component to a component carrying `pistol_fire`; Null-RHI
+is not asked to prove audible output.
+
+`AShockPawn` supplies a movement-distance step driver for player and AI because imported locomotion
+notifies are not available. It traces the floor and selects an `MVT_Default`, `MVT_ThickMetal`,
+`MVT_Stone` (tile/marble) or `MVT_Water` derivative. **APPROXIMATION:** imported level materials do
+not yet carry BioShock physical-surface metadata into UE physical materials, so this first slice
+uses material-name evidence and defaults to concrete. Timing is distance-driven, not authored
+notify timing.
+
+Player `Damaged`/`Died` and AI `BeganAttackingSpeech`/`DamagedSpeech`/`DiedSpeech` use the exact
+event aliases. `ShockActionAISpeech::ApplyInWorld` resolves its labelled pawn, spawns that event
+alias, and retains the component so a later stop request can stop it. **APPROXIMATION:** where several
+response objects share one event and differ by `FilteredState`/`LevelContext`, the importer chooses
+the first payload-backed response and reports the alias as approximated; runtime condition selection
+is still undecoded.
+
+`MusicBox` remains **UNKNOWN**: neither shipped instance resolves through the two proven placed-actor
+routes. Assigning an arbitrary `music_*` sample would fabricate a relationship, so Phase 1 leaves
+those two actors unchanged.
+
+### Headless verification
+
+`tools/ue5/verify_audio.py` derives `N` from payloads actually present beside the manifest, requires
+all `N` `USoundWave` assets, checks the five core weapon definitions and cues, requires every
+payload-backed placed ambient actor to carry a sound, then launches the `-game
+-bioshockverifyaudio` component-wiring check after the player/audio listener has settled. The
+measured result is `N=2040`, ambient `258/258`, all five weapon cues loaded, and a Pistol transition
+from zero to one audio component carrying `pistol_fire`. Reports and game logs go to `%TEMP%`.
+
+### Deferred Phase 2
+
+- Music explore/combat state, after its controlling events are located.
+- Reverb volumes, `SoundMarker` one-shots, `ShockActionPlayMovie` audio, occlusion and
+  `SoundPropagation`.
+- Audio diaries: locate the diary actor/transcript relationship, play its VO, and append the
+  transcript to the status menu Messages tab. This remains its own task; neither relationship was
+  derived here.

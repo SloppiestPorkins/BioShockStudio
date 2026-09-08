@@ -2386,6 +2386,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 	if (!Pawn && NewPlayer
 		&& (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifymovement"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyaudio"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))))
@@ -2406,6 +2407,55 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				EnsureHudForPlayer(NewPlayer);
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyaudio")))
+				{
+					TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+					FTimerHandle AudioVerifyTimer;
+					GetWorldTimerManager().SetTimer(
+						AudioVerifyTimer,
+						FTimerDelegate::CreateLambda([WeakPlayer]()
+					{
+							AShockPlayer* VerifyPlayer = WeakPlayer.Get();
+							if (!VerifyPlayer)
+							{
+								UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_AUDIO_VERIFY_FAIL player=0"));
+								FGenericPlatformMisc::RequestExit(false);
+								return;
+							}
+							VerifyPlayer->SelectWeaponSlot(1);
+							AShockWeapon* Weapon = VerifyPlayer->GetEquippedWeapon();
+							const bool bBefore = Weapon && Weapon->HasSpawnedAudioComponentForVerify();
+							if (Weapon)
+							{
+								Weapon->ClearFireCooldownForVerify();
+							}
+							VerifyPlayer->TryFireEquippedWeapon();
+							const bool bAfter = Weapon && Weapon->HasSpawnedAudioComponentForVerify();
+							const bool bCue = Weapon && !Weapon->GetFireSoundCueForVerify().IsNone();
+							if (!bBefore && bAfter && bCue)
+							{
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("BIOSHOCK_AUDIO_VERIFY_OK weapon=Pistol before=0 after=1 sound=%s"),
+									*Weapon->GetFireSoundCueForVerify().ToString());
+							}
+							else
+							{
+								UE_LOG(
+									LogTemp,
+									Error,
+									TEXT("BIOSHOCK_AUDIO_VERIFY_FAIL before=%d after=%d cue=%d"),
+									bBefore ? 1 : 0,
+									bAfter ? 1 : 0,
+									bCue ? 1 : 0);
+							}
+							FGenericPlatformMisc::RequestExit(false);
+						}),
+						0.25f,
+						false);
+					return;
+				}
 				const bool bVerifySliceEncounter =
 					FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
 					|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))

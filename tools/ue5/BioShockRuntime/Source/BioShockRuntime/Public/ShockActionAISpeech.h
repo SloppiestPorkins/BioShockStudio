@@ -3,6 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionAISpeech.generated.h"
 
+class UAudioComponent;
+
 /**
  * UnrealScript `ActionAISpeech`: PlaySpeech / StopSpeech on AI by label.
  * First slice records the speech request; no speech system yet.
@@ -46,4 +48,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSpeech();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
+	bool HasSpawnedSpeechComponentForVerify() const { return ActiveSpeechComponent != nullptr; }
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> ActiveSpeechComponent;
 };

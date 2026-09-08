@@ -7,6 +7,7 @@
 class AShockPawn;
 class AShockProjectile;
 class UAnimSequence;
+class UAudioComponent;
 class UPointLightComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
@@ -254,6 +255,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	int32 GetMuzzleFlashCountForVerify() const { return MuzzleFlashCount; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
+	FName GetFireSoundCueForVerify() const { return FireSoundCue; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
+	FName GetReloadSoundCueForVerify() const { return ReloadSoundCue; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
+	bool HasSpawnedAudioComponentForVerify() const { return LastAudioComponent != nullptr; }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	bool HasMuzzleFlashLightForVerify() const { return MuzzleFlashLight != nullptr; }
 
@@ -305,6 +315,9 @@ private:
 	void HideMuzzleFlash();
 	void FlashMuzzleLight(const FVector& WorldLocation, const FLinearColor& Color, float Intensity, float Duration);
 	void PlayDryFireFeedback(const FVector& TraceStart);
+	void PlayFireAudio();
+	void PlayReloadAudio();
+	void PlayMeleeImpactAudio();
 	void PlayFireFeedback(
 		AActor* InstigatorActor,
 		const FVector& MuzzleLocation,
@@ -320,6 +333,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> LastMeshAnim;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> LastAudioComponent;
+
 	FTimerHandle ReloadTimerHandle;
 	FTimerHandle MuzzleFlashTimerHandle;
 	float MuzzleFlashRemaining = 0.0f;
@@ -331,6 +347,9 @@ private:
 	float DefProjectileImpactRadius = 0.0f;
 	float DefProjectileLifeSeconds = 10.0f;
 	FName DefWeaponName;
+	FName FireSoundCue;
+	FName ReloadSoundCue;
+	FName ImpactSoundCue;
 	bool bBeamActive = false;
 	int32 BeamAmmoTickCounter = 0;
 	int32 ChamberedAmmoTypeIndex = 0;

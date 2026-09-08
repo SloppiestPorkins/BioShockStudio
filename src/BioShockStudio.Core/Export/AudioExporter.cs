@@ -130,6 +130,22 @@ public sealed record AudioActorDocument
     public required IReadOnlyList<string> Cues { get; init; }
 }
 
+/// <summary>
+/// One exact runtime event binding decoded by <see cref="SoundEventReader"/>.
+/// </summary>
+/// <remarks>
+/// The pair <see cref="SourceClassName"/> + <see cref="Event"/> is the key; event names alone are
+/// not unique. Chances remain parallel to the response's cue alternatives and are carried without
+/// interpreting them as percentages.
+/// </remarks>
+public sealed record AudioEventDocument
+{
+    public required string SourceClassName { get; init; }
+    public required string Event { get; init; }
+    public required IReadOnlyList<string> Cues { get; init; }
+    public required IReadOnlyList<int> Chances { get; init; }
+}
+
 /// <summary>The audio half of a package's UE5 import set.</summary>
 public sealed record AudioManifest
 {
@@ -141,6 +157,12 @@ public sealed record AudioManifest
     public required IReadOnlyList<AudioWaveDocument> Waves { get; init; }
     public required IReadOnlyList<AudioCueDocument> Cues { get; init; }
     public required IReadOnlyList<AudioActorDocument> Actors { get; init; }
+
+    /// <summary>
+    /// Exact <c>SourceClassName</c> + event to cue bindings for runtime weapon, movement and speech
+    /// dispatch. Additive to manifest version 1.
+    /// </summary>
+    public IReadOnlyList<AudioEventDocument> Events { get; init; } = [];
 
     /// <summary>
     /// Sample names a cue references that no shipped store holds.
@@ -270,12 +292,26 @@ public static class AudioExporter
             });
         }
 
+        var events = SoundEventReader.Read(package)
+            .Where(response => response.IsResolved && !string.IsNullOrEmpty(response.SourceClassName))
+            .Select(response => new AudioEventDocument
+            {
+                SourceClassName = response.SourceClassName,
+                Event = response.Event,
+                Cues = response.SoundNames,
+                Chances = response.Chances,
+            })
+            .OrderBy(response => response.SourceClassName, StringComparer.Ordinal)
+            .ThenBy(response => response.Event, StringComparer.Ordinal)
+            .ToList();
+
         return new AudioManifest
         {
             SourcePackage = packageName,
             Waves = waves,
             Cues = cues,
             Actors = actors,
+            Events = events,
             UnresolvedSamples = unresolved,
         };
     }

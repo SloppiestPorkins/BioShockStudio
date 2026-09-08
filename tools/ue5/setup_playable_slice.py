@@ -14,6 +14,7 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   9. repair_level_lighting  - corrected falloff, practical intensity, ambient, fixed exposure
  10. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
  11. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
+ 12. import_audio           - SoundWaves/Cues + placed AmbientSound actors
 
 Each step is idempotent and its own failure does not stop the others; a summary
 prints at the end and a JSON report is written to
@@ -462,6 +463,9 @@ STEPS = [
     # Scripted events: doors + MessageTrigger relays, then AShockScript actors on the slice map.
     ("import_slice_doors", "import_slice_doors", "main", ()),
     ("import_slice_scripts", "import_slice_scripts", "main", ()),
+    # Run export_slice_audio.ps1 first (dotnet, editor closed). This imports only payloads that
+    # export-audio actually wrote; located streamed/native samples with no file remain reported.
+    ("import_audio", "import_audio", "main", ()),
 ]
 
 

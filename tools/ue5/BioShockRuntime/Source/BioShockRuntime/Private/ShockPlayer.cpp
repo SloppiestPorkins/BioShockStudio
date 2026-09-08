@@ -1,5 +1,6 @@
 #include "ShockPlayer.h"
 
+#include "ShockAudioLibrary.h"
 #include "ShockGameMode.h"
 #include "ShockHackingMinigame.h"
 #include "ShockPlasmid.h"
@@ -224,6 +225,8 @@ void AShockPlayer::OnDied()
 	}
 	bDeathHandled = true;
 	++DeathNotifyCount;
+	UShockAudioLibrary::SpawnEventAttached(TEXT("ShockPlayer"), TEXT("Died"), RootComponent);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal pawn=Player event=Died"));
 
 	EnablePlayableInput(false);
 	SetMovementDisabled(true);
@@ -2458,6 +2461,8 @@ void AShockPlayer::TryAutoFirstAidAfterDamage()
 
 void AShockPlayer::NoteDamageHit(AActor* DamageInstigator)
 {
+	UShockAudioLibrary::SpawnEventAttached(TEXT("ShockPlayer"), TEXT("Damaged"), RootComponent);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal pawn=Player event=Damaged"));
 	if (DamageInstigator)
 	{
 		LastDamageSourceWorld = DamageInstigator->GetActorLocation();

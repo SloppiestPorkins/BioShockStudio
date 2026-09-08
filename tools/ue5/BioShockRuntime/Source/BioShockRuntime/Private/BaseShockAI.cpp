@@ -1,5 +1,6 @@
 #include "BaseShockAI.h"
 
+#include "ShockAudioLibrary.h"
 #include "ShockDamageLibrary.h"
 
 #include "ShockAiArchetype.h"
@@ -328,6 +329,8 @@ void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
 
 	HitReactRemaining = FMath::Max(HitReactRemaining, StaggerDuration);
 	HitReactRateLimitRemaining = HitReactRateLimitSeconds;
+	UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), TEXT("DamagedSpeech"), RootComponent);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal ai=%s event=DamagedSpeech"), *GetName());
 
 	const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
 	UE_LOG(
@@ -702,6 +705,8 @@ void ABaseShockAI::OnDeathFromDamage()
 	}
 	bDeathReactionHandled = true;
 	++DeathNotifyCount;
+	UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), TEXT("DiedSpeech"), RootComponent);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal ai=%s event=DiedSpeech"), *GetName());
 	bCombatLoopStopped = true;
 	HitReactRemaining = 0.0f;
 	HitReactRateLimitRemaining = 0.0f;
@@ -891,8 +896,19 @@ bool ABaseShockAI::IsAliveTarget(const AShockPawn* Target) const
 
 void ABaseShockAI::SetCombatTarget(AShockPawn* Target)
 {
+	const bool bNewTarget = Target && CombatTarget != Target;
 	CombatTarget = Target;
 	OutOfSightTimer = 0.0f;
+	if (bNewTarget)
+	{
+		UShockAudioLibrary::SpawnEventAttached(
+			TEXT("ShockAI"), TEXT("BeganAttackingSpeech"), RootComponent);
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_AUDIO vocal ai=%s event=BeganAttackingSpeech"),
+			*GetName());
+	}
 }
 
 void ABaseShockAI::ClearCombatTarget()
