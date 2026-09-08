@@ -745,6 +745,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void ResetForRespawn(float Health);
 
+	/** UC resurrection: health is set from zero; EVE is raised to (not added beyond) its floor. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void RestoreVitaChamberVitals(float HealthFraction, float EveFloorFraction);
+
 	virtual void OnDeathFromDamage() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;

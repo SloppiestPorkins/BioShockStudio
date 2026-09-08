@@ -322,6 +322,53 @@ _PLACED_ACTOR_CLASSES = {
     "PlayerStart": unreal.PlayerStart,
 }
 
+
+def _import_vita_chambers(manifest, meshes, existing, report, handled):
+    """Import BaseResurrectionStation records as active runtime chambers.
+
+    The actor directly names the shipped Resurrection static mesh. ResStationAnim is the original
+    door/player-start skeleton, but the level exporter currently supplies it only as a reference,
+    not an animation asset; AShockVitaChamber therefore owns the machine mesh and explicit start
+    offset documented in docs/research/vita-chamber.md.
+    """
+    chamber_cls = unreal.load_class(
+        None, "/Script/BioShockRuntime.ShockVitaChamber")
+    chamber_type = getattr(unreal, "ShockVitaChamber", None)
+    if chamber_cls is None or chamber_type is None:
+        return
+
+    for entry in manifest.get("actors") or []:
+        if entry.get("className") != "ResurrectionStation":
+            continue
+        key = entry["key"]
+        handled.add(key)
+        actor = existing.get(key)
+        if actor is not None and not isinstance(actor, chamber_type):
+            _actor_subsystem().destroy_actor(actor)
+            actor = None
+        if actor is None:
+            actor = _actor_subsystem().spawn_actor_from_class(
+                chamber_cls, unreal.Vector(*(entry.get("location") or [0, 0, 0])))
+            if actor is None:
+                report["skipped"] += 1
+                continue
+            report["created"] += 1
+        else:
+            report["updated"] += 1
+
+        existing[key] = actor
+        _place(actor, entry, key)
+        actor.configure_identity(
+            unreal.Name(entry.get("label") or entry.get("name") or key), key)
+        mesh_ref = entry.get("staticMeshReference") or {}
+        mesh = meshes.get(mesh_ref.get("sourceKey"))
+        if mesh is not None:
+            actor.set_station_mesh(mesh)
+        actor.set_available(True)
+        actor.set_active(True)
+        report["vitaChambersPlaced"] = report.get("vitaChambersPlaced", 0) + 1
+
+
 def _import_actors(manifest, existing, report, handled):
     """Everything that is not a light: positioned, identified, and honestly reported."""
     for entry in manifest.get("actors") or []:
@@ -1683,6 +1730,7 @@ def main(manifest_path, import_actors=True, content_root="/Game/BioShockLevel",
 
     # Geometry first, so an actor that gets a real mesh is not also counted as a placeholder.
     meshes = _import_asset_meshes(manifest, manifest_dir, content_root, report, materials_by_key)
+    _import_vita_chambers(manifest, meshes, existing, report, handled)
     _import_door_attachments(
         manifest, meshes, existing, report, handled, skeletal_meshes=skeletal_meshes)
     _import_instances(manifest, meshes, skeletal_meshes, existing, report, handled)

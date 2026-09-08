@@ -70,6 +70,8 @@ def main(out):
     else:
         player.ensure_health_initialized()
         max_health = float(player.get_current_health())
+        player.set_current_eve_for_verify(0.0)
+        max_eve = float(player.get_max_eve())
         world = unreal.EditorLevelLibrary.get_editor_world()
         handler = unreal.new_object(handler_cls, outer=player)
         if not handler:
@@ -108,8 +110,14 @@ def main(out):
                 failures.append("respawn still pending after delay")
             if not player.is_playable_input_enabled():
                 failures.append("input not re-enabled after respawn")
-            if float(player.get_current_health()) != max_health:
-                failures.append("health not restored %.1f != %.1f" % (player.get_current_health(), max_health))
+            if float(player.get_current_health()) != max_health * 0.5:
+                failures.append(
+                    "health not restored %.1f != %.1f"
+                    % (player.get_current_health(), max_health * 0.5))
+            if float(player.get_current_eve()) != max_eve * 0.75:
+                failures.append(
+                    "EVE not restored %.1f != %.1f"
+                    % (player.get_current_eve(), max_eve * 0.75))
             if _dist3d(loc_after, start_loc) > 5.0:
                 failures.append("not teleported to start dist=%.1f" % _dist3d(loc_after, start_loc))
             if _dist3d(loc_after, moved_loc) < 50.0:

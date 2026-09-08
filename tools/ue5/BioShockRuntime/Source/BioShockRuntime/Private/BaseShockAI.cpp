@@ -1629,6 +1629,25 @@ void ABaseShockAI::ClearCombatTargetPawn()
 	ClearCombatTarget();
 }
 
+void ABaseShockAI::HandlePlayerRespawned()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+	const bool bWasAlerted = CombatTarget != nullptr
+		|| CurrentScriptedAttackTarget != nullptr
+		|| BehaviourState == EShockAIBehaviourState::Combat;
+	CurrentScriptedAttackTarget = nullptr;
+	ClearCombatTarget();
+	StopNavChase();
+	CombatState = EShockAICombatState::Idle;
+	MeleeCooldownRemaining = 0.0f;
+	RangedCooldownRemaining = 0.0f;
+	EnterBehaviourState(
+		bWasAlerted ? EShockAIBehaviourState::Search : EShockAIBehaviourState::Idle);
+}
+
 bool ABaseShockAI::IsAliveCombatTarget(const AShockPawn* Target) const
 {
 	return IsAliveTarget(Target);

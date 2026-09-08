@@ -41,7 +41,7 @@ public:
 
 	/** Vita-Chamber-style in-place reset after death (default). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Death")
-	float RespawnDelaySeconds = 3.0f;
+	float RespawnDelaySeconds = 4.8f;
 
 	/** When true, reload the current map instead of in-place reset. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Death")

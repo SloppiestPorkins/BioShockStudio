@@ -1,11 +1,15 @@
 #include "ShockDeathRespawnHandler.h"
 
+#include "BaseShockAI.h"
 #include "ShockDeathOverlayWidget.h"
 #include "ShockPlayer.h"
+#include "ShockVitaChamber.h"
 
+#include "Camera/PlayerCameraManager.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -117,11 +121,21 @@ void UShockDeathRespawnHandler::HandlePlayerDied(AShockPlayer* Player)
 	}
 
 	PendingRespawnPlayer = Player;
+	LastSelectedChamber = AShockVitaChamber::FindNearestActive(
+		Player->GetWorld(), Player->GetActorLocation());
 	bRespawnPending = true;
 	RespawnCountdown = RespawnDelaySeconds;
 	ShowDeathOverlay(Player);
+	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+	{
+		if (PC->PlayerCameraManager)
+		{
+			PC->PlayerCameraManager->StartCameraFade(
+				0.0f, 1.0f, 0.35f, FLinearColor::Black, false, true);
+		}
+	}
 
-	if (bReloadLevelOnDeath)
+	if (!LastSelectedChamber.IsValid() && bReloadLevelOnDeath)
 	{
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(Player, true);
 		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_DEATH_RELOAD map=%s"), *MapName);
@@ -177,25 +191,71 @@ void UShockDeathRespawnHandler::PerformRespawn()
 		return;
 	}
 
-	const float MaxHealth = Player->AuthoredMaxHealth > 0.0f
-		? Player->AuthoredMaxHealth
-		: (Player->AuthoredHealth > 0.0f ? Player->AuthoredHealth : 100.0f);
-	Player->ResetForRespawn(MaxHealth);
-
-	AActor* Start = RespawnStartSpot.Get();
-	if (Start)
+	const FVector DeathLocation = Player->GetActorLocation();
+	AShockVitaChamber* Chamber = LastSelectedChamber.Get();
+	AActor* Start = Chamber ? static_cast<AActor*>(Chamber) : RespawnStartSpot.Get();
+	Player->RestoreVitaChamberVitals(RestoredHealthFraction, RestoredEveFloorFraction);
+	if (Chamber)
 	{
-		SnapPawnToStart(Player, Start);
+		const FTransform PlayerStart = Chamber->GetPlayerStartTransform();
+		Player->SetActorLocationAndRotation(
+			PlayerStart.GetLocation(),
+			PlayerStart.Rotator(),
+			false,
+			nullptr,
+			ETeleportType::TeleportPhysics);
 		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
 		{
-			PC->SetControlRotation(PlayableStartRotation(Start));
+			PC->SetControlRotation(PlayerStart.Rotator());
+		}
+		Chamber->PlayMaterialiseEffects();
+	}
+	else if (Start)
+	{
+		// Shipped no-station handling opens the entry/death screen. The playable slice keeps the
+		// persistent world and uses its authored PlayerStart unless bReloadLevelOnDeath is enabled.
+		SnapPawnToStart(Player, Start);
+	}
+
+	Player->SetInvincible(true);
+	if (UWorld* UseWorld = Player->GetWorld())
+	{
+		for (TActorIterator<ABaseShockAI> It(UseWorld); It; ++It)
+		{
+			It->HandlePlayerRespawned();
+		}
+		UseWorld->GetTimerManager().SetTimer(
+			InvulnerabilityTimerHandle,
+			this,
+			&UShockDeathRespawnHandler::EndRespawnInvulnerability,
+			InvulnerabilitySeconds,
+			false);
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+	{
+		if (PC->PlayerCameraManager)
+		{
+			PC->PlayerCameraManager->StopCameraFade();
+			PC->PlayerCameraManager->StartCameraFade(
+				1.0f, 0.0f, 1.0f, FLinearColor::Black, false, false);
 		}
 	}
 
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_RESPAWN_OK health=%.1f loc=%s"),
+		TEXT("BIOSHOCK_RESPAWN chamber=%s dist=%.1f healthRestored=%.1f eveRestored=%.1f"),
+		Chamber ? *Chamber->GetActorLabel() : TEXT("PlayerStartFallback"),
+		FVector::Dist(DeathLocation, Player->GetActorLocation()),
 		Player->GetCurrentHealth(),
-		*Player->GetActorLocation().ToString());
+		Player->GetCurrentEve());
+}
+
+void UShockDeathRespawnHandler::EndRespawnInvulnerability()
+{
+	if (AShockPlayer* Player = BoundPlayer.Get())
+	{
+		Player->SetInvincible(false);
+	}
 }

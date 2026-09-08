@@ -391,6 +391,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
 	void EnsureControllerForVerify();
 
+	/** UC PrepareToResurrect equivalent: forget the dead player, preserving this AI's health. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void HandlePlayerRespawned();
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	bool IsCombatLoopActive() const { return !bCombatLoopStopped; }
 

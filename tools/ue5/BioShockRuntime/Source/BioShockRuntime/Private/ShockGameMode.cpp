@@ -2410,6 +2410,29 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				ApplyArrivalLoadout(Player);
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshotdeathrespawn")))
+				{
+					TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+					FTimerHandle DeathCaptureTimer;
+					GetWorldTimerManager().SetTimer(
+						DeathCaptureTimer,
+						FTimerDelegate::CreateLambda([WeakPlayer]()
+						{
+							if (AShockPlayer* DeathPlayer = WeakPlayer.Get())
+							{
+								DeathPlayer->EnsureHealthInitialized();
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("BIOSHOCK_DEATH_TRIGGER health=%.1f"),
+									DeathPlayer->GetCurrentHealth());
+								DeathPlayer->ApplyAuthoredDamage(
+									DeathPlayer->GetCurrentHealth());
+							}
+						}),
+						0.25f,
+						false);
+				}
 				EnsureHudForPlayer(NewPlayer);
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyambient")))
 				{

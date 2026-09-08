@@ -1,6 +1,8 @@
 #include "ShockActionDisableOrEnableResurrectionStation.h"
 
 #include "ShockPlayer.h"
+#include "ShockVitaChamber.h"
+#include "EngineUtils.h"
 
 UShockActionDisableOrEnableResurrectionStation::UShockActionDisableOrEnableResurrectionStation()
 {
@@ -29,13 +31,22 @@ int32 UShockActionDisableOrEnableResurrectionStation::ApplyInWorld(UWorld* World
 	{
 		return 0;
 	}
-	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
-	if (!Player)
+	int32 Applied = 0;
+	for (TActorIterator<AShockVitaChamber> It(World); It; ++It)
 	{
-		return 0;
+		if (It->ScriptLabel == StationLabel
+			|| It->GetActorLabel().Equals(StationLabel.ToString(), ESearchCase::CaseSensitive))
+		{
+			It->SetAvailable(bEnable);
+			++Applied;
+		}
 	}
-	Player->SetResurrectionStationEnabled(StationLabel, bEnable);
-	return 1;
+	if (AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World))
+	{
+		Player->SetResurrectionStationEnabled(StationLabel, bEnable);
+		Applied = FMath::Max(Applied, 1);
+	}
+	return Applied;
 }
 
 bool UShockActionDisableOrEnableResurrectionStation::ApplyInWorld(const FShockActionContext& Ctx)

@@ -241,6 +241,12 @@ void AShockPlayer::OnDied()
 		Move->StopMovementImmediately();
 		Move->DisableMovement();
 	}
+	if (USkeletalMeshComponent* Body = GetMesh();
+		Body && Body->GetSkeletalMeshAsset() && Body->GetPhysicsAsset())
+	{
+		Body->SetCollisionProfileName(TEXT("Ragdoll"));
+		Body->SetSimulatePhysics(true);
+	}
 
 	if (ViewHands)
 	{
@@ -257,9 +263,15 @@ void AShockPlayer::OnDied()
 void AShockPlayer::ResetForRespawn(float Health)
 {
 	const float Seed = Health > 0.0f ? Health : (AuthoredMaxHealth > 0.0f ? AuthoredMaxHealth : 100.0f);
+	if (USkeletalMeshComponent* Body = GetMesh(); Body && Body->IsSimulatingPhysics())
+	{
+		Body->SetSimulatePhysics(false);
+		Body->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		Body->AttachToComponent(
+			GetCapsuleComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	}
 	CurrentHealth = Seed;
 	bIsDead = false;
-	bInvincible = false;
 	bDeathHandled = false;
 	SetMovementDisabled(false);
 	EnablePlayableInput(true);
@@ -277,6 +289,17 @@ void AShockPlayer::ResetForRespawn(float Health)
 	{
 		EquippedWeapon->SetActorHiddenInGame(false);
 	}
+}
+
+void AShockPlayer::RestoreVitaChamberVitals(float HealthFraction, float EveFloorFraction)
+{
+	const float MaxHealth = AuthoredMaxHealth > 0.0f
+		? AuthoredMaxHealth
+		: (AuthoredHealth > 0.0f ? AuthoredHealth : 100.0f);
+	ResetForRespawn(MaxHealth * FMath::Clamp(HealthFraction, 0.0f, 1.0f));
+	CurrentEve = FMath::Max(
+		CurrentEve,
+		MaxEve * FMath::Clamp(EveFloorFraction, 0.0f, 1.0f));
 }
 
 void AShockPlayer::PossessedBy(AController* NewController)

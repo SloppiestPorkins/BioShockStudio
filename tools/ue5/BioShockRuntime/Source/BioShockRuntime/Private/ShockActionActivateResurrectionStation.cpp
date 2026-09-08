@@ -1,6 +1,8 @@
 #include "ShockActionActivateResurrectionStation.h"
 
 #include "ShockPlayer.h"
+#include "ShockVitaChamber.h"
+#include "EngineUtils.h"
 
 UShockActionActivateResurrectionStation::UShockActionActivateResurrectionStation()
 {
@@ -30,13 +32,24 @@ int32 UShockActionActivateResurrectionStation::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
-	if (!Player)
+	int32 Applied = 0;
+	for (TActorIterator<AShockVitaChamber> It(World); It; ++It)
 	{
-		return 0;
+		if (It->ScriptLabel == ResurrectionStationLabel
+			|| It->GetActorLabel().Equals(
+				ResurrectionStationLabel.ToString(), ESearchCase::CaseSensitive))
+		{
+			It->SetActive(bActivateStation);
+			++Applied;
+		}
 	}
-	Player->SetResurrectionStationActivated(ResurrectionStationLabel, bActivateStation);
-	return 1;
+	if (AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World))
+	{
+		// Keep the travel-state mirror consumed by existing script-world-state callers.
+		Player->SetResurrectionStationActivated(ResurrectionStationLabel, bActivateStation);
+		Applied = FMath::Max(Applied, 1);
+	}
+	return Applied;
 }
 
 bool UShockActionActivateResurrectionStation::ApplyInWorld(const FShockActionContext& Ctx)
