@@ -450,6 +450,9 @@ STEPS = [
      (SLICE_MANIFEST,)),
     ("fix_clobbered_diffuse_textures", "fix_clobbered_diffuse_textures", "main",
      (SLICE_MANIFEST,)),
+    # Full-res rig textures. Run tools/ue5/reexport_rig_textures.ps1 first (dotnet, outside the
+    # editor) to regenerate Rigs/<name>/Textures/*.png; this step re-imports whatever is on disk.
+    ("import_rig_textures", "import_rig_textures", "main", ()),
     ("fix_exterior_collision", "fix_exterior_collision", "main", ()),
     ("repair_ragdoll_physics", "repair_ragdoll_physics", "main", ()),
     ("fix_prop_collision", "fix_prop_collision", "main", ()),
