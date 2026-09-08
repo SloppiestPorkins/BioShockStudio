@@ -1001,8 +1001,13 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponFire), false, InstigatorActor);
 	Params.AddIgnoredActor(this);
 
+	// Include world geometry so a wall between the shooter and the target stops the shot —
+	// LineTraceSingleByObjectType returns the FIRST hit, and the Cast<AShockPawn> guard below
+	// only applies damage when that first hit is a pawn. Without this, AI shoot through walls.
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	const bool bPawnTraceHit =
 		World->LineTraceSingleByObjectType(Hit, Start, End, ObjectParams, Params);
 
@@ -1228,6 +1233,8 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 	Params.AddIgnoredActor(this);
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	FCollisionObjectQueryParams VisualObjectParams;
 	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -1360,6 +1367,8 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 	Params.AddIgnoredActor(this);
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	const bool bPawnTraceHit =
 		World->LineTraceSingleByObjectType(Hit, MuzzleLoc, End, ObjectParams, Params);
 
