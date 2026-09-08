@@ -39,7 +39,8 @@ import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from fix_exterior_collision import is_exterior_name
-from fix_all_complex_collision import _KEEP_HULL, _KEEP_NO_COLLISION, _PROXY_TAG
+from fix_all_complex_collision import (
+    _KEEP_NO_COLLISION, _KEEP_NO_COLLISION_EXCLUDE, _PROXY_TAG)
 
 # Model12_34567 - the exporter's stem for a compiled-CSG world asset.
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
@@ -223,16 +224,8 @@ def _check_prop_policy(report):
         flag, _ = _mesh_collision(mesh)
         collision = str(comp.get_collision_enabled())
 
-        if _KEEP_HULL.search(name):
-            counts["stairHull"] = counts.get("stairHull", 0) + 1
-            _, primitives = _mesh_collision(mesh)
-            if primitives <= 0 or "COMPLEX_AS_SIMPLE" in flag:
-                failures.append(
-                    "%s: stair/ramp needs a walkable hull, got %d primitives / %s"
-                    % (name, primitives, flag))
-            if "NO_COLLISION" in collision:
-                failures.append("%s: stair/ramp render collision is disabled" % name)
-        elif is_exterior_name(name) or _KEEP_NO_COLLISION.search(name):
+        if is_exterior_name(name) or (_KEEP_NO_COLLISION.search(name)
+                and not _KEEP_NO_COLLISION_EXCLUDE.search(name)):
             counts["noCollision"] += 1
             if "NO_COLLISION" not in collision:
                 failures.append("%s: render-only mesh collision is %s" % (name, collision))
@@ -279,9 +272,10 @@ def _run_game_route(route, start, target, duration, min_z, delay):
 
 
 def _check_game_routes(report):
+    # NOTE: stairs are per-poly (CTF_USE_COMPLEX_AS_SIMPLE) by user decision — the character
+    # capsule can catch on individual risers. A dedicated stair-climb route is deliberately not
+    # asserted here; this route stays on the flat approach.
     routes = [
-        # Southern half of the curved stairs immediately in front of sign_medical_pavillion.
-        ("pavilion_stairs", "-19040,1840,7792", "-19040,2070,7792", 2.5, 60.0, 0.5),
         # Beyond scripted load-room doors, authored PathNodes cover the Pavilion approach.
         ("bathysphere_pavilion", "-18096,2480,7794", "-19120,2224,7808",
          8.0, -20.0, 0.5),

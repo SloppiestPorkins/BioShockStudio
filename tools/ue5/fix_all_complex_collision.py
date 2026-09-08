@@ -7,12 +7,12 @@ every architectural piece, every decorative mesh traces against its own triangle
 Kept as-is:
   * exterior / backdrop geometry (fix_exterior_collision's set) stays NO_COLLISION — "outside
     geo shouldn't have collision" still stands;
-  * pickups / flat surface FX (puddles, splats, carpets, decals) stay NO_COLLISION;
-  * the compiled-world shell already traces complex-as-simple;
-  * stairs / ramps keep their walkable convex hull — per-poly on a staircase mesh catches the
-    character-movement capsule on every riser and the player cannot climb (verified: the
-    Medical Pavilion sign stairs go un-climbable under per-poly). restore_stair_hulls.py
-    regenerates the hull; this script leaves those meshes alone.
+  * pickups / flat surface FX (puddles, splats, carpets, decals), god-ray light beams and
+    liquid-FX surfaces stay NO_COLLISION;
+  * the compiled-world shell already traces complex-as-simple.
+
+Stairs are included in the pass (per user, 8 Sept 2026) — per-poly like everything else, no
+special hull path.
 
 Everything else: mesh asset trace flag -> COMPLEX_AS_SIMPLE, simple hull primitives cleared,
 render component -> QUERY_AND_PHYSICS / BlockAll. Mobility is left alone (Movable is fine for
@@ -41,13 +41,22 @@ DRY = os.environ.get("BIOSHOCK_COMPLEX_DRY", "0") == "1"
 OUT = os.path.join(os.environ.get("TEMP", "."), "fix_all_complex_collision.json")
 
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
+# Cosmetic overlays / effects that must never block the player, weapons or AI.
 _KEEP_NO_COLLISION = re.compile(
-    r"(?:^|_)(?:ammo|pickup|hypo|firstaid|medkit)(?:_|$)|"
-    r"(puddle|bloodsplat|carpet|decal|drip)",
+    r"(?:^|_)(?:ammo|pickup|hypo|firstaid|medkit)(?:_|$)"
+    r"|puddle|bloodsplat|bloodsmear|carpet|decal|drip"
+    r"|wall_leak|damdec|scorchmark|scorch_mark|(?:^|_)gore|_stain"
+    # god rays / light shafts — additive translucent meshes
+    r"|light_?beams?|godray|god_ray|sunbeam|light_?shaft|walltechanim_shaftb|_corona|lensflare"
+    # water / liquid FX surfaces
+    r"|cascade_?\d|waterspew|stairwater|fx_stairwater|oil_?slick|glassdust|caustic"
+    # flat advertising billboards
+    r"|_ad(?:_|$)|_advert",
     re.IGNORECASE,
 )
-# Stairs / ramps must keep a convex hull — per-poly makes them un-climbable.
-_KEEP_HULL = re.compile(r"(stairs?|ramp|broken_stairs)", re.IGNORECASE)
+# ...but these carry a beam/shaft substring and ARE solid props — keep their collision.
+_KEEP_NO_COLLISION_EXCLUDE = re.compile(
+    r"ibeam|i_beam|chainpulley|blockibeam|steelbeam|beam512|beam_512", re.IGNORECASE)
 _PROXY_TAG = "BioShockPropCollisionProxy"
 
 
@@ -100,15 +109,9 @@ def main():
             if label == "compiled world" or _MODEL_ASSET.match(name):
                 entry["skippedShell"] += 1
                 continue
-            if _KEEP_HULL.search(name):
-                entry["keptHull"] = entry.get("keptHull", 0) + 1
-                if not DRY and "NO_COLLISION" in str(comp.get_collision_enabled()):
-                    actor.modify()
-                    comp.modify()
-                    comp.set_collision_profile_name("BlockAll")
-                    comp.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
-                continue
-            if is_exterior_name(name) or _KEEP_NO_COLLISION.search(name):
+            if is_exterior_name(name) or (
+                    _KEEP_NO_COLLISION.search(name)
+                    and not _KEEP_NO_COLLISION_EXCLUDE.search(name)):
                 entry["keptNoCollision"] += 1
                 if not DRY and "NO_COLLISION" not in str(comp.get_collision_enabled()):
                     actor.modify()
