@@ -478,6 +478,8 @@ STEPS = [
     # Run export_slice_audio.ps1 first (dotnet, editor closed). This imports only payloads that
     # export-audio actually wrote; located streamed/native samples with no file remain reported.
     ("import_audio", "import_audio", "main", ()),
+    # Visible stand-in decal materials for bullet impacts until the shipped FX are recovered.
+    ("author_impact_decal_standins", "author_impact_decal_standins", "main", ()),
 ]
 
 
