@@ -28,6 +28,11 @@ DEFAULT_LEVEL_MANIFEST = os.path.join(
 DEFAULT_MAP = "/Game/BioShockSlice/1-Medical"
 SUPPORTED_VERSION = 1
 KEY_TAG_PREFIX = "BioShockKey="
+AMBIENT_SOUND_CLASS_NAME = "Ambient"
+AMBIENT_MIN_OUTER_RADIUS = 1500.0
+AMBIENT_TARGET_OUTER_RADIUS = 4000.0
+AMBIENT_CLASS_VOLUME = 0.65
+AMBIENT_SOUND_CLASS_PATH = "/Game/BioShockAudio/Ambient.Ambient"
 
 
 def _safe_name(value):
@@ -129,7 +134,7 @@ def _import_waves(manifest, manifest_dir, wave_folder, report):
         task.set_editor_property("destination_name", _safe_name(wave["name"]))
         task.set_editor_property("automated", True)
         task.set_editor_property("replace_existing", True)
-        task.set_editor_property("save", False)
+        task.set_editor_property("save", True)
         tasks.append(task)
         names_by_task[id(task)] = wave["name"]
 
@@ -155,19 +160,97 @@ def _is_looping(cue):
     return False
 
 
-def _apply_cue_settings(asset, cue, looping):
-    volume = cue.get("volume", 100)
-    pitch = cue.get("pitch", 1.0)
+def _reachable_sound_nodes(asset):
+    root = asset.get_editor_property("first_node")
+    pending = [root] if root else []
+    visited = set()
+    while pending:
+        node = pending.pop()
+        path = node.get_path_name()
+        if path in visited:
+            continue
+        visited.add(path)
+        yield node
+        pending.extend(
+            child
+            for child in node.get_editor_property("child_nodes")
+            if child is not None
+        )
+
+
+def _fixed_range(cue, field, fallback):
+    value = cue.get(field)
+    if value and float(value.get("min", fallback)) == float(value.get("max", fallback)):
+        return float(value["min"])
+    return float(fallback)
+
+
+def _ensure_ambient_sound_class():
+    ambient = unreal.load_asset(AMBIENT_SOUND_CLASS_PATH)
+    if ambient is None:
+        factory = unreal.SoundClassFactory()
+        ambient = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            AMBIENT_SOUND_CLASS_NAME,
+            "/Game/BioShockAudio",
+            unreal.SoundClass,
+            factory,
+        )
+    if ambient is None:
+        raise RuntimeError("could not create Ambient SoundClass")
+
+    properties = ambient.get_editor_property("properties")
+    properties.set_editor_property("volume", AMBIENT_CLASS_VOLUME)
+    properties.set_editor_property("pitch", 1.0)
+    properties.set_editor_property("is_ui_sound", False)
+    properties.set_editor_property("is_music", False)
+    properties.set_editor_property("apply_ambient_volumes", True)
+    ambient.set_editor_property("properties", properties)
+
+    master = unreal.load_asset("/Engine/EngineSounds/Master.Master")
+    if master is None:
+        raise RuntimeError("UE Master SoundClass is missing")
+    # Store the relationship on the project asset; never dirty/save Engine content.
+    ambient.set_editor_property("parent_class", master)
+    ambient.modify()
+    unreal.EditorAssetLibrary.save_loaded_asset(ambient, False)
+    return ambient
+
+
+def _apply_cue_settings(asset, cue, looping, ambient_class=None):
+    volume = cue.get("volume")
+    if volume is None:
+        volume = (
+            _fixed_range(cue, "volumeRange", 100.0)
+            if ambient_class is not None
+            else 100.0
+        )
+    pitch = cue.get("pitch")
+    if pitch is None:
+        pitch = (
+            _fixed_range(cue, "pitchRange", 1.0)
+            if ambient_class is not None
+            else 1.0
+        )
     asset.set_editor_property("volume_multiplier", max(0.0, float(volume) / 100.0))
     asset.set_editor_property("pitch_multiplier", max(0.01, float(pitch)))
 
     is_2d = cue.get("is2DPositional") is True
     outer = float(cue.get("outerRadius", 3000.0))
     inner = float(cue.get("innerRadius", 0.0))
+    if ambient_class is not None:
+        # BioShock's authored radii are centimetres, but values as low as 100-700
+        # make dense placed ambience effectively absent at a UE player spawn. Keep
+        # larger authored room beds and raise local emitters to a 40 m outer radius.
+        outer = max(outer, AMBIENT_TARGET_OUTER_RADIUS)
+        inner = min(max(0.0, inner), outer - 1.0)
+        is_2d = False
     if not is_2d and outer > 0.0:
         asset.set_editor_property("override_attenuation", True)
         settings = asset.get_editor_property("attenuation_overrides")
         settings.set_editor_property("attenuation_shape", unreal.AttenuationShape.SPHERE)
+        settings.set_editor_property(
+            "distance_algorithm", unreal.AttenuationDistanceModel.LINEAR
+        )
         settings.set_editor_property(
             "attenuation_shape_extents", unreal.Vector(max(0.0, inner), 0.0, 0.0)
         )
@@ -182,19 +265,21 @@ def _apply_cue_settings(asset, cue, looping):
     asset.set_editor_property("concurrency_overrides", concurrency)
 
     if looping:
-        try:
-            for node in asset.get_editor_property("all_nodes"):
-                if isinstance(node, unreal.SoundNodeWavePlayer):
-                    node.set_editor_property("looping", True)
-        except Exception:
-            # The factory graph still imports and plays; verification reports this approximation.
-            pass
+        for node in _reachable_sound_nodes(asset):
+            if isinstance(node, unreal.SoundNodeWavePlayer):
+                node.modify()
+                node.set_editor_property("looping", True)
 
+    if ambient_class is not None:
+        asset.set_editor_property("sound_class_object", ambient_class)
+        asset.set_editor_property("virtualization_mode", unreal.VirtualizationMode.RESTART)
     asset.modify()
     unreal.EditorAssetLibrary.save_loaded_asset(asset, False)
 
 
-def _create_cue(cue_name, cue, waves, cue_folder, report, suffix=None):
+def _create_cue(
+    cue_name, cue, waves, cue_folder, report, suffix=None, ambient_class=None
+):
     generated_name = cue_name if suffix is None else "%s__%s" % (cue_name, suffix)
     alternatives = cue.get("alternatives") or []
     if suffix is not None:
@@ -232,17 +317,34 @@ def _create_cue(cue_name, cue, waves, cue_folder, report, suffix=None):
     if asset is None:
         report["cueFailures"].append(generated_name)
         return None
-    _apply_cue_settings(asset, cue, _is_looping(cue))
+    # A placed AmbientSound is a persistent environmental emitter. Its original
+    # actor retriggered/looped the specification; a bare UE wave player otherwise
+    # auto-activates once and falls silent after its sub-second sample ends.
+    looping = ambient_class is not None or _is_looping(cue)
+    _apply_cue_settings(asset, cue, looping, ambient_class)
     return asset
 
 
-def _import_cues(manifest, waves, cue_folder, event_folder, report):
+def _import_cues(manifest, waves, cue_folder, event_folder, report, ambient_class):
     cue_assets = {}
     cue_docs = {}
+    ambient_cues = {
+        name
+        for actor in manifest.get("actors") or []
+        if actor.get("className") in ("AmbientSound", "MusicBox")
+        for name in actor.get("cues") or []
+    }
     for cue in manifest.get("cues") or []:
         name = cue["name"]
         cue_docs[name] = cue
-        asset = _create_cue(name, cue, waves, cue_folder, report)
+        asset = _create_cue(
+            name,
+            cue,
+            waves,
+            cue_folder,
+            report,
+            ambient_class=ambient_class if name in ambient_cues else None,
+        )
         if asset:
             cue_assets[name] = asset
             report["cuesImported"] += 1
@@ -429,9 +531,11 @@ def main(
         "ambientSpawnFailures": [],
     }
     waves = _import_waves(manifest, audio_dir, wave_folder, report)
-    cues = _import_cues(manifest, waves, cue_folder, event_folder, report)
+    ambient_class = _ensure_ambient_sound_class()
+    cues = _import_cues(
+        manifest, waves, cue_folder, event_folder, report, ambient_class
+    )
     _replace_sound_actors(manifest, level_manifest, cues, map_path, report)
-    unreal.EditorAssetLibrary.save_directory(root, only_if_is_dirty=True, recursive=True)
     report_path = os.path.join(
         os.environ.get("TEMP", "."), "bioshock_audio_import_report.json"
     )

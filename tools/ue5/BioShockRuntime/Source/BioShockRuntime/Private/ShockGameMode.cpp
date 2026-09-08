@@ -33,6 +33,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "CollisionQueryParams.h"
+#include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -41,6 +42,8 @@
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/Engine.h"
+#include "Sound/AmbientSound.h"
+#include "Sound/SoundBase.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "GameFramework/WorldSettings.h"
@@ -2387,6 +2390,7 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 		&& (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifymovement"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweapontrack"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyaudio"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyambient"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))))
@@ -2407,6 +2411,75 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 				NewPlayer->SetViewTarget(Player);
 				BindPlayerDeathHandling(Player, Start);
 				EnsureHudForPlayer(NewPlayer);
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyambient")))
+				{
+					TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+					FTimerHandle AmbientVerifyTimer;
+					GetWorldTimerManager().SetTimer(
+						AmbientVerifyTimer,
+						FTimerDelegate::CreateLambda([WeakPlayer]()
+						{
+							AShockPlayer* VerifyPlayer = WeakPlayer.Get();
+							UWorld* World = VerifyPlayer ? VerifyPlayer->GetWorld() : nullptr;
+							int32 Wired = 0;
+							int32 Active = 0;
+							int32 Audible = 0;
+							if (World)
+							{
+								for (TActorIterator<AAmbientSound> It(World); It; ++It)
+								{
+									UAudioComponent* Component = It->GetAudioComponent();
+									USoundBase* Sound = Component ? Component->GetSound() : nullptr;
+									if (!Component || !Sound)
+									{
+										continue;
+									}
+									++Wired;
+									const bool bActive = Component->IsPlaying();
+									Active += bActive ? 1 : 0;
+									const float Distance = FVector::Distance(
+										VerifyPlayer->GetActorLocation(), It->GetActorLocation());
+									const float MaxDistance = Sound->GetMaxDistance();
+									const bool bAudible = bActive && Distance <= MaxDistance;
+									Audible += bAudible ? 1 : 0;
+									if (bAudible && Audible <= 8)
+									{
+										UE_LOG(
+											LogTemp,
+											Display,
+											TEXT("BIOSHOCK_AUDIO ambient actor=%s active=1 audible=1 distance=%.0f max=%.0f"),
+											*It->GetName(),
+											Distance,
+											MaxDistance);
+									}
+								}
+							}
+							if (Wired > 0 && Active > 0 && Audible > 1)
+							{
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("BIOSHOCK_AUDIO_AMBIENT_OK wired=%d active=%d audible=%d"),
+									Wired,
+									Active,
+									Audible);
+							}
+							else
+							{
+								UE_LOG(
+									LogTemp,
+									Error,
+									TEXT("BIOSHOCK_AUDIO_AMBIENT_FAIL wired=%d active=%d audible=%d"),
+									Wired,
+									Active,
+									Audible);
+							}
+							FGenericPlatformMisc::RequestExit(false);
+						}),
+						0.75f,
+						false);
+					return;
+				}
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyaudio")))
 				{
 					TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
