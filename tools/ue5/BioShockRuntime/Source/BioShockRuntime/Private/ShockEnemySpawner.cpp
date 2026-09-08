@@ -9,6 +9,7 @@
 #include "Components/SphereComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavigationSystem.h"
 #include "Misc/CommandLine.h"
@@ -259,7 +260,14 @@ ABaseShockAI* AShockAggressorSpawner::SpawnOne(
 		Player->SetActorLabel(TEXT("SlicePlayer"));
 #endif
 		AI->AddTargetToAttackOnSight(FName(TEXT("SlicePlayer")));
-		AI->ScriptedAttackTarget(Player);
+		// A proximity-spawned splicer must actually SEE the player before it engages — otherwise
+		// it attacks (and lunges) through the wall it just spawned behind, which is what the
+		// player experiences as "something is killing me and there is no enemy in sight". Only a
+		// genuinely scripted spawn (the doctor-killer, a zone-enable encounter) arrives engaged.
+		if (Trigger != FName(TEXT("proximity")))
+		{
+			AI->ScriptedAttackTarget(Player);
+		}
 		PlayerDistance = FVector::Dist(Player->GetActorLocation(), AI->GetActorLocation());
 	}
 #if WITH_EDITOR
@@ -311,9 +319,39 @@ void AShockAggressorSpawner::SpawnInitial()
 	}
 }
 
+bool AShockAggressorSpawner::PlayerInOpeningGrace() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return true;
+	}
+	// BioShock's opening beat (bathysphere -> the doctor scene) is entirely scripted; no free
+	// splicer belongs near the arrival. Hold proximity spawning for a short window and while the
+	// player is still within reach of a level start.
+	if (World->GetTimeSeconds() < ProximityArmDelaySeconds)
+	{
+		return true;
+	}
+	const AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return true;
+	}
+	for (TActorIterator<APlayerStart> It(World); It; ++It)
+	{
+		if (FVector::DistSquared(Player->GetActorLocation(), It->GetActorLocation())
+			< FMath::Square(2600.0f))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AShockAggressorSpawner::CheckPlayerProximity()
 {
-	if (!bRepopulationEnabled || HasLiving(LiveRepopulation))
+	if (!bRepopulationEnabled || HasLiving(LiveRepopulation) || PlayerInOpeningGrace())
 	{
 		return;
 	}
@@ -380,7 +418,7 @@ void AShockAggressorSpawner::OnProximityBeginOverlap(
 	(void)OtherBodyIndex;
 	(void)bFromSweep;
 	(void)SweepResult;
-	if (Cast<AShockPlayer>(OtherActor))
+	if (Cast<AShockPlayer>(OtherActor) && !PlayerInOpeningGrace())
 	{
 		SpawnRepopulation(FName(TEXT("proximity")));
 	}

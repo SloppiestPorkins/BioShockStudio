@@ -48,6 +48,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Spawning")
 	float ProximityRadius = 1200.0f;
 
+	/** Proximity spawning is held for this long after level start (the scripted opening beat). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Spawning")
+	float ProximityArmDelaySeconds = 8.0f;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Spawning")
 	void Configure(
 		FName InSourceKey,
@@ -103,6 +107,7 @@ private:
 
 	void SpawnInitial();
 	void CheckPlayerProximity();
+	bool PlayerInOpeningGrace() const;
 	int32 SpawnArchetypes(
 		const TArray<FName>& Archetypes,
 		TArray<TWeakObjectPtr<ABaseShockAI>>& Live,
