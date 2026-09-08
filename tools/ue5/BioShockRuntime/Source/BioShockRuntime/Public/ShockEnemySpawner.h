@@ -93,6 +93,7 @@ protected:
 
 private:
 	bool bRepopulationEnabled = true;
+	bool bInitialSpawned = false;
 	int32 SpawnSerial = 0;
 	TArray<TWeakObjectPtr<ABaseShockAI>> LiveInitial;
 	TArray<TWeakObjectPtr<ABaseShockAI>> LiveRepopulation;

@@ -110,12 +110,12 @@ void AShockAggressorSpawner::BeginPlay()
 	{
 		return;
 	}
-	if (!InitialArchetypes.IsEmpty())
-	{
-		GetWorldTimerManager().SetTimer(
-			InitialSpawnTimer, this, &AShockAggressorSpawner::SpawnInitial, 0.25f, false);
-	}
-	if (!RepopulationArchetypes.IsEmpty())
+	// No spawn on BeginPlay. BioShock's opening splicers are script-driven (the level-start
+	// sequence, the first scripted encounter) — spawning them immediately puts a hostile at the
+	// bathysphere the instant the player arrives, which killed the player through the airlock
+	// wall. Initial slots now fire only from a script (ShockActionSpawnAI / zone-enable);
+	// repopulation stays proximity- or script-driven.
+	if (!InitialArchetypes.IsEmpty() || !RepopulationArchetypes.IsEmpty())
 	{
 		GetWorldTimerManager().SetTimer(
 			ProximityPollTimer,
@@ -343,6 +343,13 @@ void AShockAggressorSpawner::SetRepopulationEnabled(bool bEnabled, bool bSpawnNo
 	bRepopulationEnabled = bEnabled;
 	if (bEnabled && bSpawnNow)
 	{
+		// A script enabling this spawner's zone is the "game event" that brings the level's
+		// authored population in — spawn the initial slot (once) as well as repopulation.
+		if (!bInitialSpawned && !InitialArchetypes.IsEmpty())
+		{
+			bInitialSpawned = true;
+			SpawnArchetypes(InitialArchetypes, LiveInitial, FName(TEXT("script-zone")));
+		}
 		SpawnRepopulation(FName(TEXT("script-zone")));
 	}
 }
@@ -412,13 +419,25 @@ void AShockTurretSpawner::BeginPlay()
 	}
 	if (!bScriptOnly)
 	{
+		// A few seconds in, not on the possess frame — and never while the player is standing
+		// inside the turret's own sight range (it would open fire through the airlock wall).
 		GetWorldTimerManager().SetTimer(
-			InitialSpawnTimer, this, &AShockTurretSpawner::SpawnInitialTurret, 0.25f, false);
+			InitialSpawnTimer, this, &AShockTurretSpawner::SpawnInitialTurret, 3.0f, false);
 	}
 }
 
 void AShockTurretSpawner::SpawnInitialTurret()
 {
+	if (const AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(GetWorld()))
+	{
+		if (FVector::DistSquared(Player->GetActorLocation(), GetActorLocation())
+			< FMath::Square(FMath::Max(SightDistance, 1500.0f)))
+		{
+			GetWorldTimerManager().SetTimer(
+				InitialRetryTimer, this, &AShockTurretSpawner::SpawnInitialTurret, 3.0f, false);
+			return;
+		}
+	}
 	if (!SpawnTurret(FName(TEXT("immediate"))))
 	{
 		GetWorldTimerManager().SetTimer(
