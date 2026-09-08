@@ -55,6 +55,15 @@ like an untinted UE5 scene with BioShock geometry.
 7. **`repair_placeholder_base_colours` ran with the wrong content root** in
    `setup_playable_slice` (it used `/Game/BioShockLevel`, not the slice) — pass
    `BIOSHOCK_PLACEHOLDER_CONTENT_ROOT=/Game/BioShockSlice/Content` and re-run.
+8. **Checkerboard meshes (`WorldGridMaterial`).** `repair_null_slot_materials.py` (`630f1f5`) put
+   a stopgap `alan_metal` / ammo master on the 18 meshes with a null slot 0
+   (SecurityCameraSmall, tommygun ammo, AI pistol / TommyGun pickup, Steinman banners) — their
+   real materials were never exported (rig / weapon-def import paths skip material export). Fix
+   properly: export + bind their actual materials. Also the user still reports checkerboard
+   panels in the incinerator / camera room (`~-26300,6100,8200`) after that stopgap — likely a
+   compiled-world BSP section on the intentionally-null zoning slot, or a mesh whose MI itself
+   is broken; run `audit_level_materials.py` there and either bind the real material or apply
+   the `fix_compiled_world_materials.py` mtllib treatment.
 
 ## Deliverable
 
