@@ -461,6 +461,10 @@ STEPS = [
     # User decision 8 Sept 2026: complex-as-simple on EVERYTHING (perf later). This supersedes
     # fix_prop_collision's per-class policy.
     ("fix_all_complex_collision", "fix_all_complex_collision", "main", ()),
+    # Floor-type props (catwalk/deck/platform/grate/stairs) get a walkable convex hull instead —
+    # per-poly on a Movable mesh doesn't register with CharacterMovement's FindFloor (Chaos),
+    # so AI and the player fall through it.
+    ("restore_floor_prop_hulls", "restore_floor_prop_hulls", "main", ()),
     # Thin cosmetic decals (Wall_Leak, damdec, smears, scorch, drips) — name + thinness gate,
     # a second safety net on top of fix_all_complex_collision's name list.
     ("fix_decal_collision", "fix_decal_collision", "main", ()),

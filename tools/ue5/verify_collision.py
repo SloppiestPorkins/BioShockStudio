@@ -41,6 +41,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from fix_exterior_collision import is_exterior_name
 from fix_all_complex_collision import (
     _KEEP_NO_COLLISION, _KEEP_NO_COLLISION_EXCLUDE, _PROXY_TAG)
+from restore_floor_prop_hulls import _FLOOR
 
 # Model12_34567 - the exporter's stem for a compiled-CSG world asset.
 _MODEL_ASSET = re.compile(r"^Model\d+_\d+$")
@@ -229,6 +230,12 @@ def _check_prop_policy(report):
             counts["noCollision"] += 1
             if "NO_COLLISION" not in collision:
                 failures.append("%s: render-only mesh collision is %s" % (name, collision))
+        elif _FLOOR.search(name):
+            # Floor-type props (catwalk/deck/grate/stairs) get a walkable hull, not per-poly —
+            # per-poly on a Movable mesh doesn't register with FindFloor (Chaos).
+            counts["floorHull"] = counts.get("floorHull", 0) + 1
+            if "NO_COLLISION" in collision:
+                failures.append("%s: floor-type prop render collision is disabled" % name)
         else:
             counts["complex"] += 1
             if "COMPLEX_AS_SIMPLE" not in flag:
