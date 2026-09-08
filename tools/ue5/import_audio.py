@@ -296,7 +296,7 @@ def _create_cue(
     if not wave_assets:
         return None
     # USoundNodeRandom::MAX_ALLOWED_CHILD_NODES is 32 in UE5.7. Surface-specific
-    # footstep derivatives stay below it; retain/report the engine limit for broader cues.
+    # footstep/impact derivatives stay below it; retain/report the engine limit for broader cues.
     if len(wave_assets) > 32:
         report["cueAlternativesTruncated"].append(
             {"cue": generated_name if suffix is not None else cue_name,
@@ -349,7 +349,9 @@ def _import_cues(manifest, waves, cue_folder, event_folder, report, ambient_clas
             cue_assets[name] = asset
             report["cuesImported"] += 1
 
-        if "footstep" in name.lower():
+        # Both families dispatch on the confirmed MaterialVisualType flag. bullet_hit's
+        # unsplit cue has 78 alternatives and would choose the wrong surface at runtime.
+        if "footstep" in name.lower() or name.lower() == "bullet_hit":
             surfaces = sorted(
                 {
                     alt.get("surfaceType")

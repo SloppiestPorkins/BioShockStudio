@@ -28,6 +28,9 @@ param(
   [int]$SettleTicks = 12,
   [double]$Interval = 0.5,
   [int]$TimeoutSeconds = 900,
+  # Fire once per capture tick over the final burst window. Pair with
+  # -Extra @('-bioshockstartslot=2', ...) for a Tommy-gun wall capture.
+  [switch]$FireAtWall,
   # Extra switches passed straight through to the game, e.g.
   #   -Extra '-bioshockvmrot=90,0,0','-bioshockvmoffset=28,10,-24'
   # Framing the viewmodel is a look-at-it judgement, and the only way to look at it headlessly is
@@ -48,6 +51,7 @@ if (Test-Path $Out) { Remove-Item $Out -Force }
 $ueCmd = Join-Path $Engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
 $log = Join-Path $outDir 'capture_shot.log'
 $url = "$Map`?game=/Script/BioShockRuntime.ShockGameMode"
+if ($FireAtWall) { $Extra += '-bioshockshotfireatwall' }
 
 Write-Output "map     : $Map"
 Write-Output "out     : $Out"

@@ -12,17 +12,119 @@
 #include "ShockWeaponDef.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
+#include "Components/DecalComponent.h"
+#include "Components/MeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInterface.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
+#include "Particles/ParticleSystem.h"
+#include "Particles/ParticleSystemComponent.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Engine/World.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
+
+namespace
+{
+struct FShockImpactProfile
+{
+	FName Surface;
+	const TCHAR* DecalPath;
+	const TCHAR* FxPath;
+	FName Sound;
+	FColor StandInColor;
+	float DecalSize;
+	float DecalLife;
+};
+
+FShockImpactProfile ImpactProfileFor(FName Surface, bool bBeam)
+{
+	if (bBeam)
+	{
+		const FShockImpactProfile SurfaceProfile = ImpactProfileFor(Surface, false);
+		return {
+			Surface,
+			TEXT("/Game/BioShockFX/Impacts/M_BeamScorch.M_BeamScorch"),
+			TEXT("/Game/BioShockFX/Impacts/P_BeamScorch.P_BeamScorch"),
+			SurfaceProfile.Sound,
+			FColor(255, 120, 35),
+			9.0f,
+			45.0f};
+	}
+	if (Surface == FName(TEXT("Metal")))
+	{
+		return {
+			Surface,
+			TEXT("/Game/BioShockFX/Impacts/M_BulletHole_Metal.M_BulletHole_Metal"),
+			TEXT("/Game/BioShockFX/Impacts/P_Impact_MetalSparks.P_Impact_MetalSparks"),
+			TEXT("bullet_hit__MVT_ThickMetal"),
+			FColor(255, 205, 80),
+			5.5f,
+			20.0f};
+	}
+	if (Surface == FName(TEXT("Wood")))
+	{
+		return {
+			Surface,
+			TEXT("/Game/BioShockFX/Impacts/M_BulletHole_Wood.M_BulletHole_Wood"),
+			TEXT("/Game/BioShockFX/Impacts/P_Impact_WoodSplinters.P_Impact_WoodSplinters"),
+			TEXT("bullet_hit__MVT_Wood"),
+			FColor(155, 105, 55),
+			6.0f,
+			20.0f};
+	}
+	if (Surface == FName(TEXT("Glass")))
+	{
+		return {
+			Surface,
+			TEXT("/Game/BioShockFX/Impacts/M_BulletHole_Glass.M_BulletHole_Glass"),
+			TEXT("/Game/BioShockFX/Impacts/P_Impact_GlassShatter.P_Impact_GlassShatter"),
+			TEXT("bullet_hit__MVT_ThinGlass"),
+			FColor(180, 235, 255),
+			7.0f,
+			15.0f};
+	}
+	if (Surface == FName(TEXT("Water")))
+	{
+		return {
+			Surface,
+			nullptr,
+			TEXT("/Game/BioShockFX/Impacts/P_Impact_WaterSplash.P_Impact_WaterSplash"),
+			TEXT("bullet_hit__MVT_Water"),
+			FColor(90, 190, 255),
+			0.0f,
+			0.0f};
+	}
+	if (Surface == FName(TEXT("Dirt")))
+	{
+		return {
+			Surface,
+			TEXT("/Game/BioShockFX/Impacts/M_BulletHole_Dirt.M_BulletHole_Dirt"),
+			TEXT("/Game/BioShockFX/Impacts/P_Impact_Dirt.P_Impact_Dirt"),
+			TEXT("bullet_hit__MVT_Dirt"),
+			FColor(125, 95, 65),
+			6.5f,
+			18.0f};
+	}
+	return {
+		FName(TEXT("Concrete")),
+		TEXT("/Game/BioShockFX/Impacts/M_BulletHole_Concrete.M_BulletHole_Concrete"),
+		TEXT("/Game/BioShockFX/Impacts/P_Impact_Concrete.P_Impact_Concrete"),
+		TEXT("bullet_hit__MVT_Concrete"),
+		FColor(170, 165, 155),
+		5.5f,
+		20.0f};
+}
+}
 
 AShockWeapon::AShockWeapon()
 {
@@ -161,6 +263,7 @@ FSoftObjectPath AShockWeapon::GetStaticMeshAssetPathForVerify() const
 void AShockWeapon::StopBeam()
 {
 	bBeamActive = false;
+	LastBeamImpactSoundSeconds = -1.0;
 }
 
 void AShockWeapon::ConfigureHitscan(float InDamage, float InRange)
@@ -815,6 +918,382 @@ void AShockWeapon::FlashMuzzleLight(
 		false);
 }
 
+FName AShockWeapon::ResolveImpactSurfaceName(const FString& EvidenceName)
+{
+	if (EvidenceName.Contains(TEXT("water"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("liquid"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Water");
+	}
+	if (EvidenceName.Contains(TEXT("glass"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("window"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Glass");
+	}
+	if (EvidenceName.Contains(TEXT("metal"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("steel"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("iron"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("grate"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("rail"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Metal");
+	}
+	if (EvidenceName.Contains(TEXT("wood"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("timber"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("plank"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Wood");
+	}
+	if (EvidenceName.Contains(TEXT("dirt"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("mud"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("soil"), ESearchCase::IgnoreCase)
+		|| EvidenceName.Contains(TEXT("earth"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Dirt");
+	}
+	// Concrete is the honest slice fallback. Imported materials currently do not carry the
+	// game's MVT byte into a UPhysicalMaterial (docs/research/audio.md).
+	return TEXT("Concrete");
+}
+
+FName AShockWeapon::ResolveImpactSurface(const FHitResult& Hit)
+{
+	if (const UPhysicalMaterial* PhysicalMaterial = Hit.PhysMaterial.Get())
+	{
+		const FName FromPhysical = ResolveImpactSurfaceName(PhysicalMaterial->GetName());
+		if (FromPhysical != FName(TEXT("Concrete"))
+			|| PhysicalMaterial->GetName().Contains(TEXT("concrete"), ESearchCase::IgnoreCase)
+			|| PhysicalMaterial->GetName().Contains(TEXT("stone"), ESearchCase::IgnoreCase))
+		{
+			return FromPhysical;
+		}
+	}
+
+	if (const UMeshComponent* MeshComponent = Cast<UMeshComponent>(Hit.GetComponent()))
+	{
+		int32 SectionIndex = INDEX_NONE;
+		UMaterialInterface* Material = Hit.FaceIndex != INDEX_NONE
+			? MeshComponent->GetMaterialFromCollisionFaceIndex(Hit.FaceIndex, SectionIndex)
+			: nullptr;
+		if (!Material)
+		{
+			Material = MeshComponent->GetMaterial(0);
+		}
+		if (Material)
+		{
+			return ResolveImpactSurfaceName(Material->GetName());
+		}
+	}
+
+	FString ComponentEvidence = Hit.GetComponent() ? Hit.GetComponent()->GetName() : FString();
+	if (const AActor* Actor = Hit.GetActor())
+	{
+		ComponentEvidence += TEXT(" ");
+		ComponentEvidence += Actor->GetName();
+	}
+	return ResolveImpactSurfaceName(ComponentEvidence);
+}
+
+void AShockWeapon::SpawnMuzzleParticle(const FVector& WorldLocation)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const TCHAR* Leaf = DefWeaponName == FName(TEXT("TommyGun"))
+		? TEXT("MachineGun_MuzzleFX")
+		: DefWeaponName == FName(TEXT("Pistol"))
+			? TEXT("Pistol_MuzzleFX")
+			: DefWeaponName == FName(TEXT("Shotgun"))
+				? TEXT("Shotgun_MuzzleFX")
+				: TEXT("Weapon_MuzzleFX");
+	const FString AssetPath = FString::Printf(
+		TEXT("/Game/BioShockFX/Weapons/%s.%s"), Leaf, Leaf);
+	UParticleSystem* Template = LoadObject<UParticleSystem>(nullptr, *AssetPath);
+
+	UParticleSystemComponent* Component =
+		NewObject<UParticleSystemComponent>(this, NAME_None, RF_Transient);
+	if (!Component)
+	{
+		return;
+	}
+	AddInstanceComponent(Component);
+	Component->bAutoDestroy = true;
+	Component->SetAutoActivate(false);
+	Component->RegisterComponent();
+	Component->SetWorldLocation(WorldLocation);
+	if (Template)
+	{
+		Component->SetTemplate(Template);
+		Component->ActivateSystem(true);
+	}
+	else
+	{
+		// The shipped Cascade templates are not recovered yet. This short bright stand-in keeps
+		// the muzzle visibly alive while preserving the final /Game asset contract above.
+		DrawDebugPoint(World, WorldLocation, 13.0f, FColor(255, 225, 145), false, 0.07f);
+	}
+	LastMuzzleParticleComponent = Component;
+	++MuzzleParticleCount;
+
+	if (bAutomatic && FireMode == EWeaponFireMode::Hitscan && FireCount > 0 && (FireCount % 6) == 0)
+	{
+		static const TCHAR* SmokePath =
+			TEXT("/Game/BioShockFX/Weapons/P_AutomaticSmoke.P_AutomaticSmoke");
+		UParticleSystem* SmokeTemplate = LoadObject<UParticleSystem>(nullptr, SmokePath);
+		UParticleSystemComponent* Smoke =
+			NewObject<UParticleSystemComponent>(this, NAME_None, RF_Transient);
+		if (Smoke)
+		{
+			AddInstanceComponent(Smoke);
+			Smoke->bAutoDestroy = true;
+			Smoke->SetAutoActivate(false);
+			Smoke->RegisterComponent();
+			Smoke->SetWorldLocation(WorldLocation);
+			if (SmokeTemplate)
+			{
+				Smoke->SetTemplate(SmokeTemplate);
+				Smoke->ActivateSystem(true);
+			}
+			else
+			{
+				DrawDebugSphere(
+					World, WorldLocation + FVector(0.0f, 0.0f, 3.0f),
+					5.0f, 6, FColor(105, 105, 105), false, 0.22f, 0, 0.8f);
+			}
+		}
+	}
+}
+
+void AShockWeapon::SpawnShellCasing(const FVector& MuzzleLocation)
+{
+	if (FireMode != EWeaponFireMode::Hitscan && FireMode != EWeaponFireMode::Shotgun)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FVector EjectLocation = MuzzleLocation;
+	if (Mesh)
+	{
+		static const FName EjectSockets[] = {
+			TEXT("shelleject"), TEXT("ShellEject"), TEXT("SG_Shell")};
+		for (const FName Socket : EjectSockets)
+		{
+			if (Mesh->DoesSocketExist(Socket))
+			{
+				EjectLocation = Mesh->GetSocketLocation(Socket);
+				break;
+			}
+		}
+	}
+
+	UStaticMesh* CasingMesh = LoadObject<UStaticMesh>(
+		nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	if (!CasingMesh)
+	{
+		return;
+	}
+	AStaticMeshActor* Casing = World->SpawnActor<AStaticMeshActor>(
+		EjectLocation, FRotator(90.0f, 0.0f, 0.0f));
+	if (!Casing || !Casing->GetStaticMeshComponent())
+	{
+		return;
+	}
+	UStaticMeshComponent* CasingComponent = Casing->GetStaticMeshComponent();
+	CasingComponent->SetMobility(EComponentMobility::Movable);
+	CasingComponent->SetStaticMesh(CasingMesh);
+	CasingComponent->SetWorldScale3D(FVector(0.015f, 0.015f, 0.04f));
+	CasingComponent->SetCollisionProfileName(TEXT("PhysicsActor"));
+	CasingComponent->SetSimulatePhysics(true);
+	const FVector EjectDirection =
+		Mesh ? Mesh->GetRightVector() + Mesh->GetUpVector() * 0.65f : FVector(0.0f, 1.0f, 0.65f);
+	CasingComponent->AddImpulse(EjectDirection.GetSafeNormal() * 115.0f, NAME_None, true);
+	CasingComponent->AddAngularImpulseInDegrees(FVector(0.0f, 260.0f, 480.0f), NAME_None, true);
+	Casing->SetLifeSpan(4.0f);
+	++ShellEjectCount;
+}
+
+void AShockWeapon::SpawnWorldImpact(const FHitResult& Hit, bool bBeamImpact)
+{
+	SpawnResolvedWorldImpact(
+		ResolveImpactSurface(Hit),
+		Hit.ImpactPoint,
+		Hit.ImpactNormal.GetSafeNormal(),
+		bBeamImpact);
+}
+
+void AShockWeapon::SimulateWorldImpactForVerify(
+	FName MaterialName,
+	FVector ImpactPoint,
+	FVector ImpactNormal)
+{
+	SpawnResolvedWorldImpact(
+		ResolveImpactSurfaceName(MaterialName.ToString()),
+		ImpactPoint,
+		ImpactNormal.GetSafeNormal(),
+		false);
+}
+
+void AShockWeapon::SpawnResolvedWorldImpact(
+	FName Surface,
+	const FVector& ImpactPoint,
+	const FVector& ImpactNormal,
+	bool bBeamImpact)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const FVector SafeNormal =
+		ImpactNormal.IsNearlyZero() ? FVector::UpVector : ImpactNormal.GetSafeNormal();
+	const FShockImpactProfile Profile = ImpactProfileFor(Surface, bBeamImpact);
+
+	const bool bReuseBeamScorch =
+		bBeamImpact
+		&& bLastImpactWasBeam
+		&& IsValid(LastImpactDecalComponent)
+		&& LastImpactSurface == Surface
+		&& FVector::DistSquared(
+			LastImpactDecalComponent->GetComponentLocation(), ImpactPoint) < FMath::Square(25.0f);
+	if (Profile.DecalPath && !bReuseBeamScorch)
+	{
+		UMaterialInterface* DecalMaterial =
+			LoadObject<UMaterialInterface>(nullptr, Profile.DecalPath);
+		if (!DecalMaterial)
+		{
+			DecalMaterial = UMaterial::GetDefaultMaterial(MD_DeferredDecal);
+		}
+		if (DecalMaterial)
+		{
+			const FVector DecalSize(2.0f, Profile.DecalSize, Profile.DecalSize);
+			LastImpactDecalComponent = UGameplayStatics::SpawnDecalAtLocation(
+				World,
+				DecalMaterial,
+				DecalSize,
+				ImpactPoint + SafeNormal * 0.2f,
+				SafeNormal.Rotation(),
+				Profile.DecalLife);
+			if (LastImpactDecalComponent)
+			{
+				++ImpactDecalCount;
+			}
+		}
+	}
+	else if (bReuseBeamScorch)
+	{
+		LastImpactDecalComponent->SetWorldLocationAndRotation(
+			ImpactPoint + SafeNormal * 0.2f, SafeNormal.Rotation());
+	}
+	else if (!Profile.DecalPath)
+	{
+		LastImpactDecalComponent = nullptr;
+	}
+
+	UParticleSystem* FxTemplate =
+		LoadObject<UParticleSystem>(nullptr, Profile.FxPath);
+	UParticleSystemComponent* FxComponent =
+		NewObject<UParticleSystemComponent>(this, NAME_None, RF_Transient);
+	if (FxComponent)
+	{
+		AddInstanceComponent(FxComponent);
+		FxComponent->bAutoDestroy = true;
+		FxComponent->SetAutoActivate(false);
+		FxComponent->RegisterComponent();
+		FxComponent->SetWorldLocationAndRotation(ImpactPoint, SafeNormal.Rotation());
+		if (FxTemplate)
+		{
+			FxComponent->SetTemplate(FxTemplate);
+			FxComponent->ActivateSystem(true);
+		}
+		LastImpactFxComponent = FxComponent;
+		++ImpactFxCount;
+	}
+
+	// Visible stand-ins for the not-yet-recovered Cascade systems. Metal reads as a spark fan,
+	// water as a splash cross, and solids as a compact debris puff.
+	if (!FxTemplate)
+	{
+		const FVector Tangent = FVector::CrossProduct(
+			SafeNormal,
+			FMath::Abs(SafeNormal.Z) > 0.8f ? FVector::ForwardVector : FVector::UpVector)
+			.GetSafeNormal();
+		const FVector Bitangent = FVector::CrossProduct(SafeNormal, Tangent).GetSafeNormal();
+		if (Surface == FName(TEXT("Metal")))
+		{
+			for (int32 Index = -2; Index <= 2; ++Index)
+			{
+				const FVector SparkDirection =
+					(SafeNormal * 0.8f + Tangent * (0.22f * Index) + Bitangent * (0.12f * (Index & 1))).GetSafeNormal();
+				DrawDebugLine(
+					World, ImpactPoint, ImpactPoint + SparkDirection * 28.0f,
+					Profile.StandInColor, false, 0.3f, 0, 1.6f);
+			}
+		}
+		else
+		{
+			DrawDebugSphere(
+				World,
+				ImpactPoint + SafeNormal * 2.0f,
+				Surface == FName(TEXT("Water")) ? 8.0f : 5.0f,
+				8,
+				Profile.StandInColor,
+				false,
+				0.3f,
+				0,
+				1.2f);
+		}
+	}
+
+	const double Now = World->GetTimeSeconds();
+	const bool bPlaySound =
+		!bBeamImpact
+		|| LastBeamImpactSoundSeconds < 0.0
+		|| Now - LastBeamImpactSoundSeconds >= 0.35;
+	if (bPlaySound)
+	{
+		LastImpactAudioComponent =
+			UShockAudioLibrary::SpawnCueAtLocation(World, Profile.Sound, ImpactPoint);
+		++ImpactSoundCount;
+		if (bBeamImpact)
+		{
+			LastBeamImpactSoundSeconds = Now;
+		}
+	}
+
+	LastImpactSurface = Surface;
+	LastImpactDecalAsset = Profile.DecalPath ? Profile.DecalPath : TEXT("None");
+	LastImpactFxAsset = Profile.FxPath;
+	LastImpactSound = Profile.Sound;
+	bLastImpactWasBeam = bBeamImpact;
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_IMPACT surface=%s decal=%s fx=%s sound=%s soundcomponent=%d"),
+		*Surface.ToString(),
+		*LastImpactDecalAsset,
+		*LastImpactFxAsset,
+		*LastImpactSound.ToString(),
+		IsValid(LastImpactAudioComponent) ? 1 : 0);
+}
+
+bool AShockWeapon::ShouldDrawTracer() const
+{
+	// CONFIRMED_BYTES: MachineGun declares three MG_Tracer entries; Pistol declares none.
+	// The source does not expose a cadence field. Every third Tommy round is the documented
+	// runtime approximation and avoids turning its ten-round-per-second stream into a solid beam.
+	return bDrawTracers
+		&& (DefWeaponName.IsNone()
+			|| (DefWeaponName == FName(TEXT("TommyGun")) && (FireCount % 3) == 1));
+}
+
 void AShockWeapon::PlayDryFireFeedback(const FVector& TraceStart)
 {
 	const FVector MuzzleLoc = ResolveMuzzleLocation(TraceStart);
@@ -895,7 +1374,9 @@ void AShockWeapon::PlayFireFeedback(
 	const FVector& VisualEnd,
 	bool bPawnHit,
 	bool bWorldHit,
-	bool bApplyRecoil)
+	bool bApplyRecoil,
+	const FHitResult* WorldHit,
+	bool bBeamImpact)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -903,13 +1384,18 @@ void AShockWeapon::PlayFireFeedback(
 		return;
 	}
 
-	FlashMuzzleLight(
-		MuzzleLocation,
-		FLinearColor(1.0f, 0.82f, 0.45f),
-		12000.0f,
-		0.04f);
+	if (bApplyRecoil)
+	{
+		FlashMuzzleLight(
+			MuzzleLocation,
+			FLinearColor(1.0f, 0.82f, 0.45f),
+			12000.0f,
+			0.04f);
+		SpawnMuzzleParticle(MuzzleLocation);
+		SpawnShellCasing(MuzzleLocation);
+	}
 
-	if (bDrawTracers)
+	if (ShouldDrawTracer())
 	{
 		DrawDebugLine(
 			World,
@@ -930,6 +1416,10 @@ void AShockWeapon::PlayFireFeedback(
 	else if (bWorldHit)
 	{
 		DrawDebugSphere(World, VisualEnd, 3.0f, 6, FColor(255, 220, 50), false, 0.15f);
+		if (WorldHit)
+		{
+			SpawnWorldImpact(*WorldHit, bBeamImpact);
+		}
 	}
 
 	if (AShockPlayer* Player = Cast<AShockPlayer>(InstigatorActor))
@@ -1007,6 +1497,8 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponFire), false, InstigatorActor);
 	Params.AddIgnoredActor(this);
+	Params.bReturnFaceIndex = true;
+	Params.bReturnPhysicalMaterial = true;
 
 	// Include world geometry so a wall between the shooter and the target stops the shot —
 	// LineTraceSingleByObjectType returns the FIRST hit, and the Cast<AShockPawn> guard below
@@ -1042,6 +1534,7 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	FCollisionObjectQueryParams VisualObjectParams;
 	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	if (World->LineTraceSingleByObjectType(VisualHit, MuzzleLoc, End, VisualObjectParams, Params))
 	{
 		VisualEnd = VisualHit.ImpactPoint;
@@ -1055,7 +1548,15 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 		}
 	}
 
-	PlayFireFeedback(InstigatorActor, MuzzleLoc, VisualEnd, bVisualPawnHit, bVisualWorldHit);
+	PlayFireFeedback(
+		InstigatorActor,
+		MuzzleLoc,
+		VisualEnd,
+		bVisualPawnHit,
+		bVisualWorldHit,
+		true,
+		bVisualWorldHit ? &VisualHit : nullptr,
+		false);
 
 	if (bEnforceAmmo && RoundsInMagazine <= 0)
 	{
@@ -1238,6 +1739,8 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 	const FRotator BaseRot = NormDir.Rotation();
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponShotgun), false, InstigatorActor);
 	Params.AddIgnoredActor(this);
+	Params.bReturnFaceIndex = true;
+	Params.bReturnPhysicalMaterial = true;
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -1245,8 +1748,10 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 	FCollisionObjectQueryParams VisualObjectParams;
 	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 
 	int32 HitCount = 0;
+	int32 SpawnedWorldImpacts = 0;
 	bool bAnyDamaged = false;
 	for (int32 PelletIndex = 0; PelletIndex < TraceCount; ++PelletIndex)
 	{
@@ -1300,7 +1805,20 @@ bool AShockWeapon::FireAtShotgun(AActor* InstigatorActor, FVector Start, FVector
 		}
 
 		const bool bApplyRecoil = PelletIndex == 0;
-		PlayFireFeedback(InstigatorActor, MuzzleLoc, VisualEnd, bVisualPawnHit, bVisualWorldHit, bApplyRecoil);
+		const bool bSpawnWorldImpact = bVisualWorldHit && SpawnedWorldImpacts < 4;
+		PlayFireFeedback(
+			InstigatorActor,
+			MuzzleLoc,
+			VisualEnd,
+			bVisualPawnHit,
+			bVisualWorldHit,
+			bApplyRecoil,
+			bSpawnWorldImpact ? &VisualHit : nullptr,
+			false);
+		if (bSpawnWorldImpact)
+		{
+			++SpawnedWorldImpacts;
+		}
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOTGUN pellets=%d hits=%d"), TraceCount, HitCount);
@@ -1372,6 +1890,8 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockWeaponBeam), false, InstigatorActor);
 	Params.AddIgnoredActor(this);
+	Params.bReturnFaceIndex = true;
+	Params.bReturnPhysicalMaterial = true;
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -1442,6 +1962,7 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 	FCollisionObjectQueryParams VisualObjectParams;
 	VisualObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	VisualObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	if (World->LineTraceSingleByObjectType(VisualHit, MuzzleLoc, End, VisualObjectParams, Params))
 	{
 		VisualEnd = VisualHit.ImpactPoint;
@@ -1455,7 +1976,15 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 		}
 	}
 
-	PlayFireFeedback(InstigatorActor, MuzzleLoc, VisualEnd, bVisualPawnHit, bVisualWorldHit, false);
+	PlayFireFeedback(
+		InstigatorActor,
+		MuzzleLoc,
+		VisualEnd,
+		bVisualPawnHit,
+		bVisualWorldHit,
+		false,
+		bVisualWorldHit ? &VisualHit : nullptr,
+		true);
 
 	if (bEnforceAmmo && RoundsInMagazine <= 0)
 	{

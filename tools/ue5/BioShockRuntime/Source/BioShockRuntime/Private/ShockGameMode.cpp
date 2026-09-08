@@ -3066,7 +3066,8 @@ void AShockGameMode::TickScreenshotCapture()
 	SettleTicks = FMath::Max(1, SettleTicks);
 
 	// Fire / reload a few settle-ticks before the shot so the one-shot clips have time to pose.
-	// -bioshockshotfire / -bioshockshotreload (flags).
+	// -bioshockshotfire fires once. -bioshockshotfireatwall keeps firing through the last
+	// four ticks so a burst capture retains bullet holes and catches the final spark puff.
 	const int32 ActionTick = FMath::Max(1, SettleTicks - 4);
 	if (ScreenshotTicks == ActionTick)
 	{
@@ -3074,7 +3075,8 @@ void AShockGameMode::TickScreenshotCapture()
 		{
 			if (AShockPlayer* Player = PC ? Cast<AShockPlayer>(PC->GetPawn()) : nullptr)
 			{
-				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshotfire")))
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockshotfire"))
+					&& !FParse::Param(FCommandLine::Get(), TEXT("bioshockshotfireatwall")))
 				{
 					Player->TryFireEquippedWeapon();
 					UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_FIRE tick=%d"), ScreenshotTicks);
@@ -3087,6 +3089,23 @@ void AShockGameMode::TickScreenshotCapture()
 						UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SHOT_RELOAD tick=%d"), ScreenshotTicks);
 					}
 				}
+			}
+		}
+	}
+	if (ScreenshotTicks >= ActionTick
+		&& ScreenshotTicks <= SettleTicks
+		&& FParse::Param(FCommandLine::Get(), TEXT("bioshockshotfireatwall")))
+	{
+		if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+		{
+			if (AShockPlayer* Player = PC ? Cast<AShockPlayer>(PC->GetPawn()) : nullptr)
+			{
+				Player->TryFireEquippedWeapon();
+				UE_LOG(
+					LogTemp,
+					Display,
+					TEXT("BIOSHOCK_SHOT_FIRE_AT_WALL tick=%d"),
+					ScreenshotTicks);
 			}
 		}
 	}

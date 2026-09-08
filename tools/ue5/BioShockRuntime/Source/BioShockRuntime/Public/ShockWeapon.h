@@ -8,9 +8,12 @@ class AShockPawn;
 class AShockProjectile;
 class UAnimSequence;
 class UAudioComponent;
+class UDecalComponent;
+class UParticleSystemComponent;
 class UPointLightComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
+struct FHitResult;
 
 /**
  * UnrealScript class `Weapon` (super `Holdable`).
@@ -255,6 +258,46 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Weapon")
 	int32 GetMuzzleFlashCountForVerify() const { return MuzzleFlashCount; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	int32 GetImpactDecalCountForVerify() const { return ImpactDecalCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	int32 GetImpactFxCountForVerify() const { return ImpactFxCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	int32 GetImpactSoundCountForVerify() const { return ImpactSoundCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	int32 GetShellEjectCountForVerify() const { return ShellEjectCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	int32 GetMuzzleParticleCountForVerify() const { return MuzzleParticleCount; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	FName GetLastImpactSurfaceForVerify() const { return LastImpactSurface; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	FString GetLastImpactDecalAssetForVerify() const { return LastImpactDecalAsset; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	FString GetLastImpactFxAssetForVerify() const { return LastImpactFxAsset; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	FName GetLastImpactSoundForVerify() const { return LastImpactSound; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	bool HasLastImpactDecalForVerify() const { return LastImpactDecalComponent != nullptr; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	bool HasLastImpactFxForVerify() const { return LastImpactFxComponent != nullptr; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Impact")
+	bool HasLastImpactAudioForVerify() const { return LastImpactAudioComponent != nullptr; }
+
+	/** Headless deterministic path: exercises the same profile/spawn code without collision setup. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Impact")
+	void SimulateWorldImpactForVerify(FName MaterialName, FVector ImpactPoint, FVector ImpactNormal);
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
 	FName GetFireSoundCueForVerify() const { return FireSoundCue; }
 
@@ -285,6 +328,7 @@ protected:
 	bool CanFireNow(UWorld* World) const;
 	float GetMinFireInterval() const;
 	double LastFireWorldSeconds = -1.0;
+	double LastBeamImpactSoundSeconds = -1.0;
 
 private:
 	bool FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector Direction);
@@ -314,6 +358,17 @@ private:
 	void EnsureMuzzleFlashLight();
 	void HideMuzzleFlash();
 	void FlashMuzzleLight(const FVector& WorldLocation, const FLinearColor& Color, float Intensity, float Duration);
+	void SpawnMuzzleParticle(const FVector& WorldLocation);
+	void SpawnShellCasing(const FVector& MuzzleLocation);
+	void SpawnWorldImpact(const FHitResult& Hit, bool bBeamImpact);
+	void SpawnResolvedWorldImpact(
+		FName Surface,
+		const FVector& ImpactPoint,
+		const FVector& ImpactNormal,
+		bool bBeamImpact);
+	static FName ResolveImpactSurface(const FHitResult& Hit);
+	static FName ResolveImpactSurfaceName(const FString& EvidenceName);
+	bool ShouldDrawTracer() const;
 	void PlayDryFireFeedback(const FVector& TraceStart);
 	void PlayFireAudio();
 	void PlayReloadAudio();
@@ -330,7 +385,9 @@ private:
 		const FVector& VisualEnd,
 		bool bPawnHit,
 		bool bWorldHit,
-		bool bApplyRecoil = true);
+		bool bApplyRecoil = true,
+		const FHitResult* WorldHit = nullptr,
+		bool bBeamImpact = false);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPointLightComponent> MuzzleFlashLight;
@@ -342,11 +399,34 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> LastAudioComponent;
 
+	/** Kept separate from LastAudioComponent: impact one-shots must never replace Tommy's fire loop. */
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> LastImpactAudioComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UDecalComponent> LastImpactDecalComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UParticleSystemComponent> LastImpactFxComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UParticleSystemComponent> LastMuzzleParticleComponent;
+
 	FTimerHandle ReloadTimerHandle;
 	FTimerHandle MuzzleFlashTimerHandle;
 	float MuzzleFlashRemaining = 0.0f;
 	int32 TracerDrawCount = 0;
 	int32 MuzzleFlashCount = 0;
+	int32 ImpactDecalCount = 0;
+	int32 ImpactFxCount = 0;
+	int32 ImpactSoundCount = 0;
+	int32 ShellEjectCount = 0;
+	int32 MuzzleParticleCount = 0;
+	FName LastImpactSurface;
+	FString LastImpactDecalAsset;
+	FString LastImpactFxAsset;
+	FName LastImpactSound;
+	bool bLastImpactWasBeam = false;
 	float ReloadCountdown = 0.0f;
 	double LastMeleeWorldSeconds = -1.0;
 	float DefProjectileInitialSpeed = 2500.0f;
