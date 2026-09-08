@@ -19,7 +19,12 @@ import json
 import os
 import re
 
+import sys
+
 import unreal
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from fix_all_complex_collision import _KEEP_NO_COLLISION
 
 MAPS = [v.strip() for v in os.environ.get(
     "BIOSHOCK_FLOORPROP_MAPS", "/Game/BioShockSlice/1-Medical").split(",") if v.strip()]
@@ -108,6 +113,10 @@ def main():
             comp = actor.static_mesh_component
             mesh = comp.get_editor_property("static_mesh") if comp else None
             if mesh is None or not _FLOOR.search(mesh.get_name()):
+                continue
+            # A liquid FX sheet (FX_StairWater) matches _FLOOR via "stair" but is a cosmetic
+            # overlay — leave it non-colliding.
+            if _KEEP_NO_COLLISION.search(mesh.get_name()):
                 continue
             stems.add(mesh.get_name())
             comp.set_collision_profile_name("BlockAll")
