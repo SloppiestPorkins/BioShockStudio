@@ -66,6 +66,26 @@ def _reimport(stem):
     agg = body.get_editor_property("agg_geom")
     hulls = len(agg.get_editor_property("convex_elems") or []) + \
         len(agg.get_editor_property("box_elems") or [])
+
+    # replace_existing keeps stale material slots the new OBJ geometry no longer fills — slot 1
+    # falls back to WorldGridMaterial (the green checkerboard on stair faces the player reports).
+    # A staircase is one material; force every slot to the first real (non-grid) one.
+    slots = list(mesh.get_editor_property("static_materials"))
+    real = next(
+        (s.get_editor_property("material_interface") for s in slots
+         if s.get_editor_property("material_interface")
+         and "WorldGrid" not in s.get_editor_property("material_interface").get_name()),
+        None)
+    if real is not None:
+        changed = False
+        for s in slots:
+            cur = s.get_editor_property("material_interface")
+            if cur is None or "WorldGrid" in cur.get_name():
+                s.set_editor_property("material_interface", real)
+                changed = True
+        if changed:
+            mesh.set_editor_property("static_materials", slots)
+
     unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     return "ok:%d" % hulls
 

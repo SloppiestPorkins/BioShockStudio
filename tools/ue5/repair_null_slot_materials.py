@@ -1,12 +1,15 @@
-"""Assign a resolved material to the ~19 slice meshes whose slot 0 is null.
+"""Kill every checkerboard (WorldGridMaterial) / null material slot in the slice.
 
-These render as UE's grey checkerboard (WorldGridMaterial) — the "missing floor grate / missing
-geometry" a player reports. Their real materials were never imported: SecurityCameraSmall,
-tommygun ammo pickups, AI pistol / TommyGun pickup meshes, and the Steinman banners all come
-from import paths (rigs / weapon defs) that skipped material export.
+Two causes:
+  * meshes whose real material was never imported (SecurityCameraSmall, tommygun ammo pickups,
+    AI pistol / TommyGun pickup, Steinman banners — rig / weapon-def paths skip material export);
+  * meshes with a stale extra render section the geometry no longer fills, so slot 1 falls back
+    to WorldGridMaterial (stair faces, seen as "green grates with missing squares").
 
-This is a stopgap so nothing renders as checkerboard. The proper fix — export and bind their
-real materials — is tracked under the fidelity pass (tasks/w12).
+For a mesh where at least one slot has a real material, the empty / grid slots are set to that
+material (a prop is effectively one material). Where every slot is empty, a name-based fallback
+(ammo master / alan_metal) applies. Proper fix — bind the real per-section materials — is
+tracked under the fidelity pass (tasks/w12).
 
 Env:
   BIOSHOCK_NULLSLOT_MAPS  comma-separated maps (default /Game/BioShockSlice/1-Medical)
@@ -58,6 +61,7 @@ def main():
             entry["error"] = "could not load"
             report["maps"].append(entry)
             continue
+        seen_meshes = set()
         for actor in actors.get_all_level_actors():
             if not isinstance(actor, unreal.StaticMeshActor):
                 continue
@@ -66,21 +70,46 @@ def main():
             if mesh is None:
                 continue
             name = mesh.get_name()
-            if _MODEL_ASSET.match(name):
+            if _MODEL_ASSET.match(name) or name in seen_meshes:
                 continue  # compiled-world shell slot 0 is the zoning face, intentionally null
-            slots = mesh.get_editor_property("static_materials")
+
+            slots = list(mesh.get_editor_property("static_materials"))
             count = max(1, len(slots))
-            if any(comp.get_material(i) is not None for i in range(count)):
+
+            def _bad(m):
+                return m is None or "WorldGrid" in m.get_name()
+
+            asset_mats = [s.get_editor_property("material_interface") for s in slots]
+            real = next((m for m in asset_mats if not _bad(m)), None)
+
+            if real is not None:
+                # At least one good slot: fill the empty / checkerboard slots on the asset.
+                if any(_bad(m) for m in asset_mats):
+                    for s in slots:
+                        if _bad(s.get_editor_property("material_interface")):
+                            s.set_editor_property("material_interface", real)
+                    mesh.set_editor_property("static_materials", slots)
+                    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+                    entry["fixed"].append({"mesh": name, "material": real.get_name(),
+                                           "how": "fill_from_sibling_slot"})
+                seen_meshes.add(name)
                 continue
-            mat = _material_for(name)
-            if mat is None:
-                entry["skipped"].append(name)
-                continue
-            actor.modify()
-            comp.modify()
-            for i in range(count):
-                comp.set_material(i, mat)
-            entry["fixed"].append({"mesh": name, "material": mat.get_name()})
+
+            # Every slot empty / grid: name-based fallback, applied as a component override.
+            if all(comp.get_material(i) is None
+                   or "WorldGrid" in comp.get_material(i).get_name() for i in range(count)):
+                mat = _material_for(name)
+                if mat is None:
+                    entry["skipped"].append(name)
+                    seen_meshes.add(name)
+                    continue
+                actor.modify()
+                comp.modify()
+                for i in range(count):
+                    comp.set_material(i, mat)
+                entry["fixed"].append({"mesh": name, "material": mat.get_name(),
+                                       "how": "name_fallback_override"})
+            seen_meshes.add(name)
         level.save_current_level()
         report["maps"].append(entry)
 
