@@ -994,6 +994,13 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 	++FireCount;
 	LastHitPawn = nullptr;
 	PlayFireAudio();
+	ABaseShockAI::BroadcastSuspiciousNoise(
+		World,
+		Start,
+		1.0f,
+		TEXT("WeaponFire"),
+		InstigatorActor,
+		2000.0f);
 
 	const FVector NormDir = Direction.GetSafeNormal();
 	const FVector End = Start + NormDir * HitscanRange;

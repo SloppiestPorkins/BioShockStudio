@@ -18,6 +18,19 @@ enum class EShockAICombatState : uint8
 	Attack
 };
 
+/** Player-readable high-level rhythm reconstructed from EcologyFighter/SearchAction. */
+UENUM(BlueprintType)
+enum class EShockAIBehaviourState : uint8
+{
+	Idle,
+	Patrol,
+	Alert,
+	Investigate,
+	Search,
+	Combat,
+	Flee
+};
+
 /**
  * UnrealScript `BaseShockAI`. Playable-slice home for a spawnable AI pawn.
  * ScriptLabel mirrors level actor labels for Action* lookups (not a full label system).
@@ -137,7 +150,7 @@ public:
 	FVector HeadTrackOffset = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
-	float SightRadius = 2500.0f;
+	float SightRadius = 2200.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float MeleeRange = 180.0f;
@@ -166,8 +179,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	bool bUseNavigation = true;
 
+	/** Aggressor.uc AttackingVisionDecayTime. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
-	float LoseTargetSeconds = 5.0f;
+	float LoseTargetSeconds = 4.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Combat")
 	float PerceptionScanInterval = 0.25f;
@@ -398,6 +412,35 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat|Brain")
 	UShockAIBrain* GetShockAIBrain() const { return Brain; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	EShockAIBehaviourState GetBehaviourState() const { return BehaviourState; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	FName GetBehaviourStateName() const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	FVector GetLastKnownTargetLocation() const { return LastKnownTargetLocation; }
+
+	/** Hearing entry point for footsteps, weapons, glass, script events, and headless verification. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void NotifySuspiciousNoise(FVector NoiseLocation, float Loudness, FName NoiseCategory);
+
+	/** BioShock SpawningManager propagation: every living splicer within Radius hears the event. */
+	static void BroadcastSuspiciousNoise(
+		UWorld* World,
+		FVector NoiseLocation,
+		float Loudness,
+		FName NoiseCategory,
+		AActor* Source,
+		float Radius);
+
+	/** Headless sight hook; follows the same state-entry path as a real perception acquisition. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SimulateSightEvent(AShockPawn* Target);
+
+	/** UC pistol profile: 5-7 shot bursts, then 2-4 seconds reposition/reload cover time. */
+	void TickRangedCombatCadence(float DeltaSeconds);
+
 	/** Headless verify: name of the AnimSequence currently installed via PlayAnimation. */
 	UFUNCTION(BlueprintPure, Category="BioShock|Combat")
 	FName GetPlayingAnimationNameForVerify() const;
@@ -470,6 +513,26 @@ private:
 
 	UPROPERTY()
 	EShockAICombatState CombatState = EShockAICombatState::Idle;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|AI", meta=(AllowPrivateAccess="true"))
+	EShockAIBehaviourState BehaviourState = EShockAIBehaviourState::Idle;
+
+	UPROPERTY()
+	FVector LastKnownTargetLocation = FVector::ZeroVector;
+
+	UPROPERTY()
+	FVector LastKnownTargetDirection = FVector::ZeroVector;
+
+	UPROPERTY()
+	FVector StateMoveDestination = FVector::ZeroVector;
+
+	float BehaviourStateSeconds = 0.0f;
+	float SearchDurationSeconds = 0.0f;
+	float SearchTurnAccumulator = 0.0f;
+	float RangedRepositionRemaining = 0.0f;
+	int32 RangedBurstShotsRemaining = 0;
+	bool bGroupAlertSent = false;
+	bool bFledAtCurrentLowHealth = false;
 
 	UPROPERTY()
 	float PerceptionScanAccumulator = 0.0f;
@@ -585,6 +648,11 @@ private:
 	bool CanPerceivePlayer(const AShockPlayer* Player) const;
 	bool TryAcquireTargetFromPerception();
 	FName GetPlayerPerceptionLabel(const AShockPlayer* Player) const;
+	void TickBehaviour(float DeltaSeconds);
+	void EnterBehaviourState(EShockAIBehaviourState NewState);
+	void TickMoveToLocation(FVector Destination, float DeltaSeconds, float AcceptanceRadius);
+	void AlertNearbySplicers();
+	bool IsBelowFleeThreshold() const;
 
 	void EnsureCombatMeshAndAnims();
 	void TickAnimationDriver(float DeltaSeconds);
@@ -618,4 +686,5 @@ private:
 	bool bPlayingOneShotAnim = false;
 	float OneShotAnimRemaining = 0.0f;
 	bool bDeathAnimStarted = false;
+	bool bPoseLogged = false;
 };

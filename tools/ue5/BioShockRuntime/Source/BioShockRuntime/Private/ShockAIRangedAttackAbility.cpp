@@ -66,11 +66,6 @@ void UShockAIRangedAttackAbility::Tick(const FShockAIContext& Context)
 		return;
 	}
 
-	AI->FaceCombatTarget(Target);
-	if (AI->GetRangedCooldownRemaining() <= 0.0f && AI->GetHitReactRemaining() <= 0.0f)
-	{
-		AI->TryCombatRangedFire();
-		AI->SetRangedCooldownRemaining(AI->RangedCooldown);
-	}
+	AI->TickRangedCombatCadence(Context.DeltaSeconds);
 	Status = EShockAIAbilityStatus::Running;
 }

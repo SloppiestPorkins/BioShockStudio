@@ -29,7 +29,12 @@ namespace
 {
 constexpr float WalkSpeed = 350.0f;
 constexpr float RunSpeed = 550.0f;
-constexpr float SightConeHalfAngleDegrees = 45.0f;
+// Aggressor.uc normal vision: 40-degree near cone and 20-degree long cone.
+constexpr float NearSightHalfAngleDegrees = 20.0f;
+constexpr float FarSightHalfAngleDegrees = 10.0f;
+constexpr float NearSightDistance = 700.0f;
+constexpr float GroupAlertRadius = 1000.0f;
+constexpr float FleeDistance = 1000.0f;
 constexpr float NavMoveRefreshInterval = 0.5f;
 constexpr float NavMoveRetargetThreshold = 150.0f;
 
@@ -161,6 +166,124 @@ void ABaseShockAI::ConfigureIdentity(FName InType, FName InLabel)
 	ScriptLabel = InLabel;
 }
 
+FName ABaseShockAI::GetBehaviourStateName() const
+{
+	switch (BehaviourState)
+	{
+	case EShockAIBehaviourState::Idle: return TEXT("Idle");
+	case EShockAIBehaviourState::Patrol: return TEXT("Patrol");
+	case EShockAIBehaviourState::Alert: return TEXT("Alert");
+	case EShockAIBehaviourState::Investigate: return TEXT("Investigate");
+	case EShockAIBehaviourState::Search: return TEXT("Search");
+	case EShockAIBehaviourState::Combat: return TEXT("Combat");
+	case EShockAIBehaviourState::Flee: return TEXT("Flee");
+	default: return TEXT("Unknown");
+	}
+}
+
+void ABaseShockAI::EnterBehaviourState(EShockAIBehaviourState NewState)
+{
+	if (BehaviourState == NewState)
+	{
+		return;
+	}
+	StopNavChase();
+	BehaviourState = NewState;
+	BehaviourStateSeconds = 0.0f;
+	SearchTurnAccumulator = 0.0f;
+	if (NewState == EShockAIBehaviourState::Search)
+	{
+		// EcologyFighter.uc MinSearchTime/MaxSearchTime.
+		SearchDurationSeconds = FMath::FRandRange(12.0f, 20.0f);
+	}
+	if (NewState == EShockAIBehaviourState::Combat)
+	{
+		AlertNearbySplicers();
+	}
+
+	const FName Event =
+		NewState == EShockAIBehaviourState::Investigate ? FName(TEXT("CurrentlyInvestigating")) :
+		NewState == EShockAIBehaviourState::Search ? FName(TEXT("TargetLost")) :
+		NewState == EShockAIBehaviourState::Flee ? FName(TEXT("Terrified")) :
+		NAME_None;
+	if (!Event.IsNone() && !bMuted)
+	{
+		UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), Event, RootComponent);
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AI state=%s archetype=%s hasPose=%d"),
+		*GetBehaviourStateName().ToString(),
+		*AITypeName.ToString(),
+		GetPlayingAnimationNameForVerify().IsNone() ? 0 : 1);
+}
+
+void ABaseShockAI::NotifySuspiciousNoise(FVector NoiseLocation, float Loudness, FName NoiseCategory)
+{
+	if (!bHearingOn || bIsDead || Loudness <= 0.0f || BehaviourState == EShockAIBehaviourState::Combat)
+	{
+		return;
+	}
+
+	LastKnownTargetDirection = (NoiseLocation - GetActorLocation()).GetSafeNormal2D();
+	LastKnownTargetLocation = NoiseLocation;
+	StateMoveDestination = NoiseLocation;
+	EnterBehaviourState(EShockAIBehaviourState::Alert);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_AI_HEARD ai=%s category=%s loudness=%.2f"),
+		*GetName(), *NoiseCategory.ToString(), Loudness);
+}
+
+void ABaseShockAI::BroadcastSuspiciousNoise(
+	UWorld* World,
+	FVector NoiseLocation,
+	float Loudness,
+	FName NoiseCategory,
+	AActor* Source,
+	float Radius)
+{
+	if (!World || Loudness <= 0.0f || Radius <= 0.0f)
+	{
+		return;
+	}
+	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
+	{
+		ABaseShockAI* AI = *It;
+		if (AI && AI != Source && !AI->IsDead()
+			&& FVector::DistSquared(AI->GetActorLocation(), NoiseLocation) <= FMath::Square(Radius))
+		{
+			AI->NotifySuspiciousNoise(NoiseLocation, Loudness, NoiseCategory);
+		}
+	}
+}
+
+void ABaseShockAI::SimulateSightEvent(AShockPawn* Target)
+{
+	if (!IsAliveTarget(Target))
+	{
+		return;
+	}
+	SetCombatTarget(Target);
+	LastKnownTargetLocation = Target->GetActorLocation();
+	LastKnownTargetDirection = Target->GetVelocity().GetSafeNormal2D();
+	EnterBehaviourState(EShockAIBehaviourState::Combat);
+}
+
+void ABaseShockAI::AlertNearbySplicers()
+{
+	if (bGroupAlertSent || !GetWorld())
+	{
+		return;
+	}
+	bGroupAlertSent = true;
+	const FVector AlertLocation = CombatTarget ? CombatTarget->GetActorLocation() : GetActorLocation();
+	BroadcastSuspiciousNoise(
+		GetWorld(), AlertLocation, 1.0f, TEXT("Combat"), this, GroupAlertRadius);
+}
+
 void ABaseShockAI::ApplyArchetypeLookup(FName LookupKey)
 {
 	if (UShockAiArchetype* Archetype = UShockAiArchetypeLibrary::FindByKey(LookupKey))
@@ -221,6 +344,8 @@ void ABaseShockAI::ScriptedAttackTarget(AShockPawn* Target)
 	if (IsAliveTarget(Target))
 	{
 		SetCombatTarget(Target);
+		LastKnownTargetLocation = Target->GetActorLocation();
+		EnterBehaviourState(EShockAIBehaviourState::Combat);
 		if (bUseBrain && Brain)
 		{
 			Brain->NotifyPendingKillTarget(Target);
@@ -295,6 +420,8 @@ void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 	if (IsAliveTarget(DamageInstigator))
 	{
 		SetCombatTarget(DamageInstigator);
+		LastKnownTargetLocation = DamageInstigator->GetActorLocation();
+		EnterBehaviourState(EShockAIBehaviourState::Combat);
 		if (bUseBrain && Brain)
 		{
 			Brain->NotifyAggro(DamageInstigator);
@@ -889,6 +1016,7 @@ void ABaseShockAI::Tick(float DeltaSeconds)
 		TickRagdollBlend(DeltaSeconds);
 		return;
 	}
+	TickBehaviour(DeltaSeconds);
 	TickCombat(DeltaSeconds);
 	TickAnimationDriver(DeltaSeconds);
 }
@@ -903,13 +1031,180 @@ bool ABaseShockAI::IsAliveTarget(const AShockPawn* Target) const
 	return Target && !Target->IsDead() && Target->GetCurrentHealth() > 0.0f;
 }
 
+bool ABaseShockAI::IsBelowFleeThreshold() const
+{
+	const float MaxHealth = AuthoredMaxHealth > 0.0f
+		? AuthoredMaxHealth
+		: FMath::Max(CurrentHealth, 100.0f);
+	return MaxHealth > 0.0f && CurrentHealth / MaxHealth <= 0.25f;
+}
+
+void ABaseShockAI::TickMoveToLocation(FVector Destination, float DeltaSeconds, float AcceptanceRadius)
+{
+	FVector Offset = Destination - GetActorLocation();
+	Offset.Z = 0.0f;
+	if (Offset.SizeSquared2D() <= FMath::Square(AcceptanceRadius))
+	{
+		return;
+	}
+	const FVector Direction = Offset.GetSafeNormal2D();
+	SetActorRotation(FRotationMatrix::MakeFromX(Direction).Rotator());
+	AddMovementInput(Direction, 1.0f);
+	if (GetVelocity().SizeSquared2D() < 1.0f)
+	{
+		SetActorLocation(
+			GetActorLocation() + Direction * (bMovementShouldRun ? RunSpeed : WalkSpeed) * DeltaSeconds,
+			true);
+	}
+}
+
+void ABaseShockAI::TickBehaviour(float DeltaSeconds)
+{
+	if (IsCombatLoopGated())
+	{
+		return;
+	}
+
+	BehaviourStateSeconds += DeltaSeconds;
+
+	if (!IsBelowFleeThreshold())
+	{
+		bFledAtCurrentLowHealth = false;
+	}
+	if (BehaviourState != EShockAIBehaviourState::Flee
+		&& IsBelowFleeThreshold()
+		&& !bFledAtCurrentLowHealth)
+	{
+		const FVector Threat = CombatTarget
+			? CombatTarget->GetActorLocation()
+			: (LastKnownTargetLocation.IsNearlyZero() ? GetActorLocation() - GetActorForwardVector() : LastKnownTargetLocation);
+		FVector Away = (GetActorLocation() - Threat).GetSafeNormal2D();
+		if (Away.IsNearlyZero())
+		{
+			Away = -GetActorForwardVector();
+		}
+		StateMoveDestination = GetActorLocation() + Away * FleeDistance;
+		ClearCombatTarget();
+		EnterBehaviourState(EShockAIBehaviourState::Flee);
+	}
+
+	switch (BehaviourState)
+	{
+	case EShockAIBehaviourState::Idle:
+	case EShockAIBehaviourState::Patrol:
+		PerceptionScanAccumulator += DeltaSeconds;
+		if (PerceptionScanAccumulator >= PerceptionScanInterval)
+		{
+			PerceptionScanAccumulator = 0.0f;
+			if (TryAcquireTargetFromPerception())
+			{
+				EnterBehaviourState(EShockAIBehaviourState::Combat);
+			}
+		}
+		if (BehaviourState == EShockAIBehaviourState::Idle && !PatrolName.IsNone())
+		{
+			// The named PatrolList is retained by the importer. Until its points are imported,
+			// remain at the authored spawn rather than inventing a random destination.
+			EnterBehaviourState(EShockAIBehaviourState::Patrol);
+		}
+		break;
+
+	case EShockAIBehaviourState::Alert:
+	{
+		const FVector Direction = (LastKnownTargetLocation - GetActorLocation()).GetSafeNormal2D();
+		if (!Direction.IsNearlyZero())
+		{
+			SetActorRotation(FRotationMatrix::MakeFromX(Direction).Rotator());
+		}
+		// ShockAI.uc SpotEnemyTurnDelay.
+		if (BehaviourStateSeconds >= 0.25f)
+		{
+			EnterBehaviourState(EShockAIBehaviourState::Investigate);
+		}
+		break;
+	}
+
+	case EShockAIBehaviourState::Investigate:
+		bMovementShouldRun = false;
+		TickMoveToLocation(StateMoveDestination, DeltaSeconds, 200.0f);
+		if (FVector::Dist2D(GetActorLocation(), StateMoveDestination) <= 200.0f
+			|| BehaviourStateSeconds >= LoseTargetSeconds + 4.0f)
+		{
+			EnterBehaviourState(EShockAIBehaviourState::Search);
+		}
+		break;
+
+	case EShockAIBehaviourState::Search:
+		bMovementShouldRun = false;
+		SearchTurnAccumulator += DeltaSeconds;
+		if (SearchTurnAccumulator >= 1.0f)
+		{
+			SearchTurnAccumulator = 0.0f;
+			AddActorWorldRotation(FRotator(0.0f, 55.0f, 0.0f));
+		}
+		if (TryAcquireTargetFromPerception())
+		{
+			EnterBehaviourState(EShockAIBehaviourState::Combat);
+		}
+		else if (BehaviourStateSeconds >= SearchDurationSeconds)
+		{
+			UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), TEXT("FinishedSearching"), RootComponent);
+			EnterBehaviourState(PatrolName.IsNone()
+				? EShockAIBehaviourState::Idle
+				: EShockAIBehaviourState::Patrol);
+		}
+		break;
+
+	case EShockAIBehaviourState::Combat:
+		if (!IsAliveTarget(CombatTarget))
+		{
+			ClearCombatTarget();
+			EnterBehaviourState(PatrolName.IsNone()
+				? EShockAIBehaviourState::Idle
+				: EShockAIBehaviourState::Patrol);
+			break;
+		}
+		if (HasClearLineOfSightTo(CombatTarget))
+		{
+			LastKnownTargetDirection = CombatTarget->GetVelocity().GetSafeNormal2D();
+			LastKnownTargetLocation = CombatTarget->GetActorLocation();
+			OutOfSightTimer = 0.0f;
+		}
+		else
+		{
+			OutOfSightTimer += DeltaSeconds;
+			if (OutOfSightTimer >= LoseTargetSeconds)
+			{
+				StateMoveDestination = LastKnownTargetLocation;
+				ClearCombatTarget();
+				EnterBehaviourState(EShockAIBehaviourState::Investigate);
+			}
+		}
+		break;
+
+	case EShockAIBehaviourState::Flee:
+		bMovementShouldRun = true;
+		TickMoveToLocation(StateMoveDestination, DeltaSeconds, 75.0f);
+		if (FVector::Dist2D(GetActorLocation(), StateMoveDestination) <= 75.0f)
+		{
+			bFledAtCurrentLowHealth = true;
+			EnterBehaviourState(PatrolName.IsNone()
+				? EShockAIBehaviourState::Idle
+				: EShockAIBehaviourState::Patrol);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
 void ABaseShockAI::SetCombatTarget(AShockPawn* Target)
 {
 	const bool bNewTarget = Target && CombatTarget != Target;
 	CombatTarget = Target;
-	OutOfSightTimer = 0.0f;
 	if (bNewTarget)
 	{
+		OutOfSightTimer = 0.0f;
 		UShockAudioLibrary::SpawnEventAttached(
 			TEXT("ShockAI"), TEXT("BeganAttackingSpeech"), RootComponent);
 		UE_LOG(
@@ -1054,7 +1349,10 @@ bool ABaseShockAI::CanPerceivePlayer(const AShockPlayer* Player) const
 	{
 		const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
 		const FVector ToPlayer = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
-		const float MinDot = FMath::Cos(FMath::DegreesToRadians(SightConeHalfAngleDegrees));
+		const float HalfAngle = Dist <= NearSightDistance
+			? NearSightHalfAngleDegrees
+			: FarSightHalfAngleDegrees;
+		const float MinDot = FMath::Cos(FMath::DegreesToRadians(HalfAngle));
 		if (FVector::DotProduct(Forward, ToPlayer) < MinDot)
 		{
 			return false;
@@ -1249,6 +1547,11 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		return;
 	}
 
+	if (BehaviourState != EShockAIBehaviourState::Combat)
+	{
+		return;
+	}
+
 	if (bUseBrain && Brain)
 	{
 		if (!Brain->GetAbilityCount())
@@ -1364,6 +1667,54 @@ void ABaseShockAI::TickCombatChaseDirectMovement(AShockPawn* Target, float Delta
 void ABaseShockAI::TryCombatRangedFire()
 {
 	TryRangedFire();
+}
+
+void ABaseShockAI::TickRangedCombatCadence(float DeltaSeconds)
+{
+	AShockPawn* Target = CombatTarget;
+	if (!AIWeapon || !IsAliveTarget(Target))
+	{
+		return;
+	}
+
+	if (RangedRepositionRemaining > 0.0f)
+	{
+		RangedRepositionRemaining = FMath::Max(0.0f, RangedRepositionRemaining - DeltaSeconds);
+		const FVector ToTarget = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+		const FVector Side(-ToTarget.Y, ToTarget.X, 0.0f);
+		StateMoveDestination = GetActorLocation() + Side * 400.0f;
+		bMovementShouldRun = true;
+		TickMoveToLocation(StateMoveDestination, DeltaSeconds, 75.0f);
+		return;
+	}
+
+	bMovementShouldRun = false;
+	FaceTargetYaw(Target);
+	if (RangedCooldownRemaining > 0.0f || HitReactRemaining > 0.0f)
+	{
+		return;
+	}
+
+	if (RangedBurstShotsRemaining <= 0)
+	{
+		// RangedAggressorPistolWeaponAmmo.uc RandomRangeBurstShots=(5,7).
+		RangedBurstShotsRemaining = FMath::RandRange(5, 7);
+	}
+
+	TryRangedFire();
+	--RangedBurstShotsRemaining;
+	if (RangedBurstShotsRemaining > 0)
+	{
+		// UC permits 0..0.75 seconds between pistol burst shots.
+		RangedCooldownRemaining = FMath::FRandRange(0.05f, 0.75f);
+	}
+	else
+	{
+		// Pistol TimeToStartMovingAgainRange=(2,4); this is a tactical strafe when no
+		// imported cover-node graph is available.
+		RangedRepositionRemaining = FMath::FRandRange(2.0f, 4.0f);
+		RangedCooldownRemaining = RangedRepositionRemaining;
+	}
 }
 
 void ABaseShockAI::TickBrainIdlePerception(float DeltaSeconds)
@@ -1585,7 +1936,6 @@ void ABaseShockAI::EnsureCombatMeshAndAnims()
 	{
 		return;
 	}
-	bAnimAssetsLoaded = true;
 
 	auto LoadAnim = [](const TCHAR* Path) -> UAnimSequence*
 	{
@@ -1609,6 +1959,7 @@ void ABaseShockAI::EnsureCombatMeshAndAnims()
 		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/ME_hitFWD_A.ME_hitFWD_A"));
 	AnimDeath = LoadAnim(
 		TEXT("/Game/BioShockCharacters/AggressorBabyJane/Animations/Death_StumbleFWD.Death_StumbleFWD"));
+	bAnimAssetsLoaded = AnimIdle != nullptr || AnimWalk != nullptr || AnimRun != nullptr;
 }
 
 bool ABaseShockAI::IsOneShotAbilityName(FName AbilityName)
@@ -1649,7 +2000,11 @@ void ABaseShockAI::PlayCombatAnimation(UAnimSequence* Sequence, bool bLoop)
 	{
 		return;
 	}
-	if (Sequence == LastPlayedAnim && bLoop == !bPlayingOneShotAnim)
+	const UAnimSingleNodeInstance* ExistingNode =
+		Cast<UAnimSingleNodeInstance>(Body->GetAnimInstance());
+	const bool bSequenceActuallyInstalled =
+		ExistingNode && ExistingNode->GetAnimationAsset() == Sequence;
+	if (Sequence == LastPlayedAnim && bLoop == !bPlayingOneShotAnim && bSequenceActuallyInstalled)
 	{
 		return;
 	}
@@ -1679,6 +2034,31 @@ void ABaseShockAI::TickAnimationDriver(float DeltaSeconds)
 	if (!Body || !Body->GetSkeletalMeshAsset())
 	{
 		return;
+	}
+
+	// SetSkeletalMesh and runtime anim-instance recreation both clear the single-node player.
+	// LastPlayedAnim alone is therefore not proof that the mesh is being posed.
+	const UAnimSingleNodeInstance* SingleNode =
+		Cast<UAnimSingleNodeInstance>(Body->GetAnimInstance());
+	if (!SingleNode || !SingleNode->GetAnimationAsset())
+	{
+		LastPlayedAnim = nullptr;
+		LastAnimAbilityName = NAME_None;
+		UAnimSequence* SafeLoop = AnimIdle ? AnimIdle : (AnimWalk ? AnimWalk : AnimRun);
+		if (SafeLoop)
+		{
+			PlayCombatAnimation(SafeLoop, true);
+			if (!bPoseLogged && GetPlayingAnimationNameForVerify() != NAME_None)
+			{
+				bPoseLogged = true;
+				UE_LOG(
+					LogTemp,
+					Display,
+					TEXT("BIOSHOCK_AI state=%s archetype=%s hasPose=1"),
+					*GetBehaviourStateName().ToString(),
+					*AITypeName.ToString());
+			}
+		}
 	}
 
 	if (bIsDead || bDeathAnimStarted)
@@ -1713,15 +2093,40 @@ void ABaseShockAI::TickAnimationDriver(float DeltaSeconds)
 		AbilityName = Brain->GetActiveAbilityName();
 	}
 
-	if (AbilityName == LastAnimAbilityName && LastPlayedAnim != nullptr)
+	SingleNode = Cast<UAnimSingleNodeInstance>(Body->GetAnimInstance());
+	if (AbilityName == LastAnimAbilityName && LastPlayedAnim != nullptr
+		&& SingleNode && SingleNode->GetAnimationAsset() == LastPlayedAnim)
 	{
 		return;
 	}
 
 	LastAnimAbilityName = AbilityName;
-	UAnimSequence* Sequence = ResolveAnimationForAbility(AbilityName);
+	UAnimSequence* Sequence = nullptr;
+	if (BehaviourState == EShockAIBehaviourState::Investigate
+		|| BehaviourState == EShockAIBehaviourState::Flee)
+	{
+		Sequence = bMovementShouldRun && AnimRun ? AnimRun : (AnimWalk ? AnimWalk : AnimRun);
+	}
+	else
+	{
+		Sequence = ResolveAnimationForAbility(AbilityName);
+	}
+	if (!Sequence)
+	{
+		Sequence = AnimIdle ? AnimIdle : (AnimWalk ? AnimWalk : AnimRun);
+	}
 	const bool bLoop = !IsOneShotAbilityName(AbilityName);
 	PlayCombatAnimation(Sequence, bLoop);
+	if (!bPoseLogged && GetPlayingAnimationNameForVerify() != NAME_None)
+	{
+		bPoseLogged = true;
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_AI state=%s archetype=%s hasPose=1"),
+			*GetBehaviourStateName().ToString(),
+			*AITypeName.ToString());
+	}
 }
 
 FName ABaseShockAI::GetPlayingAnimationNameForVerify() const

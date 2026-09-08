@@ -75,23 +75,8 @@ void UShockAIMoveToAbility::Tick(const FShockAIContext& Context)
 		AI->SetCombatTargetPawn(Target);
 
 		const float Dist = AI->GetDistanceToCombatTarget(Target);
-		const float LoseRadius = AI->SightRadius * 1.5f;
-		if (Dist > LoseRadius)
-		{
-			float OutOfSight = AI->GetOutOfSightTimer() + Context.DeltaSeconds;
-			AI->SetOutOfSightTimer(OutOfSight);
-			if (OutOfSight >= AI->LoseTargetSeconds)
-			{
-				AI->StopCombatNavChase();
-				AI->ClearCombatTargetPawn();
-				Status = EShockAIAbilityStatus::Succeeded;
-				return;
-			}
-		}
-		else
-		{
-			AI->SetOutOfSightTimer(0.0f);
-		}
+		// Last-known-position memory is owned by ABaseShockAI's high-level state machine.
+		// Do not reset its hidden-target timer merely because the target remains nearby.
 
 		if (Dist <= AI->MeleeRange)
 		{

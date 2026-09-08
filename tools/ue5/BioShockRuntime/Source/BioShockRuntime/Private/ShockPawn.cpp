@@ -98,6 +98,16 @@ void AShockPawn::TickFootstepAudio(float DeltaSeconds)
 		TEXT("%s__%s"),
 		*BaseCue.ToString(),
 		*Surface.ToString()));
+	if (IsPlayerControlled())
+	{
+		ABaseShockAI::BroadcastSuspiciousNoise(
+			GetWorld(),
+			GetActorLocation(),
+			FMath::Clamp(HorizontalSpeed / 550.0f, 0.25f, 1.0f),
+			TEXT("Footstep"),
+			this,
+			HorizontalSpeed > 450.0f ? 1000.0f : 700.0f);
+	}
 	FName PlayedCue = SurfaceCue;
 	UAudioComponent* Component =
 		UShockAudioLibrary::SpawnCueAtLocation(GetWorld(), SurfaceCue, GetActorLocation());
