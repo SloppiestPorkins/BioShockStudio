@@ -9,7 +9,7 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   4. repair_null_master_textures - fill NULL master-material params (wall-texture fix)
   5. fix_exterior_collision - make window-view/backdrop geometry render-only
   6. repair_ragdoll_physics - physics assets for combat rigs + reactive placed corpses
-  7. fix_prop_collision     - visible collision, walkable hulls, lightweight physics
+  7. fix_all_complex_collision - complex-as-simple on every static mesh (perf later)
   8. repair_light_beams     - shipped falloff+dust additive god-ray material
   9. repair_level_lighting  - corrected falloff, practical intensity, ambient, fixed exposure
  10. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
@@ -457,7 +457,9 @@ STEPS = [
     ("import_rig_textures", "import_rig_textures", "main", ()),
     ("fix_exterior_collision", "fix_exterior_collision", "main", ()),
     ("repair_ragdoll_physics", "repair_ragdoll_physics", "main", ()),
-    ("fix_prop_collision", "fix_prop_collision", "main", ()),
+    # User decision 8 Sept 2026: complex-as-simple on EVERYTHING (perf later). This supersedes
+    # fix_prop_collision's per-class policy.
+    ("fix_all_complex_collision", "fix_all_complex_collision", "main", ()),
     ("repair_light_beams", "repair_light_beams", "main", ()),
     ("repair_level_lighting", "repair_level_lighting", "main",
      ("/Game/BioShockSlice/1-Medical",)),

@@ -1037,6 +1037,7 @@ void AShockPlayer::TickHeldFire()
 	// only clicks once on the initial press; automatic should match that once drained.
 	if (EquippedWeapon->bEnforceAmmo && EquippedWeapon->GetRoundsInMagazine() <= 0)
 	{
+		EquippedWeapon->StopFireAudio();
 		return;
 	}
 	TryFireEquippedWeapon();
@@ -1510,6 +1511,7 @@ void AShockPlayer::HandleFireReleasedInput()
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->StopBeam();
+		EquippedWeapon->StopFireAudio();
 	}
 }
 

@@ -318,6 +318,12 @@ private:
 	void PlayFireAudio();
 	void PlayReloadAudio();
 	void PlayMeleeImpactAudio();
+
+public:
+	/** Stop the automatic-weapon fire loop (release / reload / empty mag / unequip). */
+	void StopFireAudio();
+
+private:
 	void PlayFireFeedback(
 		AActor* InstigatorActor,
 		const FVector& MuzzleLocation,

@@ -2,6 +2,7 @@
 
 #include "BaseShockAI.h"
 #include "ShockAudioLibrary.h"
+#include "Components/AudioComponent.h"
 #include "ShockDamageLibrary.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockPawn.h"
@@ -822,6 +823,26 @@ void AShockWeapon::PlayDryFireFeedback(const FVector& TraceStart)
 
 void AShockWeapon::PlayFireAudio()
 {
+	// BioShock ships the automatic weapons a multi-second fire loop (weapons_tommy_fire is
+	// ~2.9s). Playing it per round stacks whole bursts on top of each other — one click sounds
+	// like five shots. Keep a single attached instance alive while the trigger is held and
+	// re-trigger it only when it has actually finished; StopFireAudio() ends it on release /
+	// reload / empty. Semi-auto weapons keep one one-shot per round.
+	if (bAutomatic)
+	{
+		if (!IsValid(LastAudioComponent) || !LastAudioComponent->IsPlaying())
+		{
+			LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(FireSoundCue, Mesh);
+		}
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_AUDIO fire weapon=%s sound=%s loop=1 component=%d"),
+			*DefWeaponName.ToString(),
+			*FireSoundCue.ToString(),
+			IsValid(LastAudioComponent) ? 1 : 0);
+		return;
+	}
 	LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(FireSoundCue, Mesh);
 	UE_LOG(
 		LogTemp,
@@ -832,8 +853,20 @@ void AShockWeapon::PlayFireAudio()
 		LastAudioComponent ? 1 : 0);
 }
 
+void AShockWeapon::StopFireAudio()
+{
+	if (bAutomatic && IsValid(LastAudioComponent) && LastAudioComponent->IsPlaying())
+	{
+		LastAudioComponent->FadeOut(0.12f, 0.0f);
+		UE_LOG(
+			LogTemp, Display, TEXT("BIOSHOCK_AUDIO fire_stop weapon=%s"),
+			*DefWeaponName.ToString());
+	}
+}
+
 void AShockWeapon::PlayReloadAudio()
 {
+	StopFireAudio();
 	LastAudioComponent = UShockAudioLibrary::SpawnCueAttached(ReloadSoundCue, Mesh);
 	UE_LOG(
 		LogTemp,
