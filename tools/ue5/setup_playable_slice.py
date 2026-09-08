@@ -448,6 +448,7 @@ STEPS = [
     ("navigation_config", None, _ensure_navigation_config, ()),
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
+    ("repair_null_slot_materials", "repair_null_slot_materials", "main", ()),
     ("repair_placeholder_base_colours", "repair_placeholder_base_colours", "main",
      (SLICE_MANIFEST,)),
     ("fix_clobbered_diffuse_textures", "fix_clobbered_diffuse_textures", "main",
