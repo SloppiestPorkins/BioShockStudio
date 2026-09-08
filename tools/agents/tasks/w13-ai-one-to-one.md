@@ -7,6 +7,14 @@ lane: tools/ue5/**, src/**, docs/research/**, tmp/**
 
 # Make the splicer AI 1:1 with BioShock 1
 
+> **Run mode:** non-interactive, no human to approve anything. Do NOT enter plan mode / call
+> CreatePlan / AskQuestion. Research from the UC + `docs/research/`, take the sensible default
+> for every open choice, then implement directly and stop. A partial but working implementation
+> that lands as a diff beats a perfect plan that lands nothing.
+> Suggested order if you run low on time: (1) T-pose fix, (2) perception + Idle/Patrol/Alert/
+> Investigate/Search/Combat/Flee state machine on `ShockAIController`, (3) per-archetype combat
+> profile (melee lunge / ranged cover), (4) vocal hooks, (5) group alert. Ship what you finish.
+
 The spawners are placed (w2) and collision is solid — the player no longer dies on spawn and
 AI no longer falls through the world. What's missing is **behaviour and animation fidelity**.
 Right now a splicer reads as a generic UE enemy: it acquires the player and walks at them.

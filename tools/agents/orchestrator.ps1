@@ -248,7 +248,13 @@ $jobBody = {
         }
 
         try {
-            $prompt = "You are working in an isolated git worktree for the BioShock->UE5 project. " +
+            $prompt = "You are running NON-INTERACTIVELY with no human on the other end. " +
+                      "Do NOT enter plan mode. Do NOT call CreatePlan, AskQuestion, or any tool that waits " +
+                      "for user approval -- there is nobody to approve it and the run will end with zero changes. " +
+                      "Do your research, pick the sensible default wherever the task says 'ask' or leaves a choice, " +
+                      "then IMPLEMENT the change directly with file edits. Leave your reasoning in the code / a " +
+                      "docs/research note, not in a plan.`n`n" +
+                      "You are working in an isolated git worktree for the BioShock->UE5 project. " +
                       "Follow docs/ENGINEERING_RULES.md and CLAUDE.md. Make ONLY the change described below. " +
                       "Do not commit, do not push, do not touch files outside the stated lane. When done, stop.`n" +
                       "Write any scratch / build / export output to `$env:TEMP, NOT into the worktree -- " +
