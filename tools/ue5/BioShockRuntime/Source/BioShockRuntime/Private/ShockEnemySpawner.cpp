@@ -150,7 +150,10 @@ bool AShockAggressorSpawner::FindGroundedSpawnLocation(
 				ECC_Visibility,
 				Query)
 			|| !FloorHit.bBlockingHit
-			|| FloorHit.ImpactNormal.Z < 0.70f)
+			|| FloorHit.ImpactNormal.Z < 0.70f
+			// A floor found more than 5 m below the authored marker is a pit / the abyss, not
+			// the room this spawner belongs to — never drop a splicer into the void.
+			|| FloorHit.ImpactPoint.Z < Requested.Z - 500.0f)
 		{
 			continue;
 		}

@@ -875,6 +875,15 @@ void ABaseShockAI::AdvanceAutonomousCombat(float DeltaSeconds)
 void ABaseShockAI::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// Safety net: an AI that has fallen far below the playable level (bad spawn point, ran off
+	// an edge with no collision) is gone — remove it rather than let it fall forever.
+	if (GetActorLocation().Z < -30000.0f)
+	{
+		Destroy();
+		return;
+	}
+
 	if (bIsDead)
 	{
 		TickRagdollBlend(DeltaSeconds);
