@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "ShockEnemySpawner.h"
 #include "ShockSecurityDevice.h"
 #include "ShockTurret.h"
 
@@ -41,11 +42,19 @@ AActor* UShockActionSpawnTurret::SpawnAtLocation(UObject* WorldContextObject, FV
 		return nullptr;
 	}
 
+	FVector GroundedLocation;
+	if (!AShockAggressorSpawner::FindGroundedSpawnLocation(
+			World, Location, 40.0f, nullptr, GroundedLocation))
+	{
+		return nullptr;
+	}
+
 	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 	AShockTurret* Spawned = World->SpawnActor<AShockTurret>(
 		AShockTurret::StaticClass(),
-		Location,
+		GroundedLocation,
 		FRotator::ZeroRotator,
 		Params);
 	if (!Spawned)
@@ -68,6 +77,17 @@ AActor* UShockActionSpawnTurret::SpawnInWorld(UWorld* World)
 	if (!World || SpawnerLabel.IsNone())
 	{
 		return nullptr;
+	}
+	for (TActorIterator<AShockTurretSpawner> It(World); It; ++It)
+	{
+		if (*It && (*It)->MatchesLabel(SpawnerLabel))
+		{
+			if (AActor* Spawned = (*It)->SpawnTurret(FName(TEXT("script"))))
+			{
+				LastSpawnedActor = Spawned;
+				return Spawned;
+			}
+		}
 	}
 	const FString Want = SpawnerLabel.ToString();
 	for (TActorIterator<AActor> It(World); It; ++It)

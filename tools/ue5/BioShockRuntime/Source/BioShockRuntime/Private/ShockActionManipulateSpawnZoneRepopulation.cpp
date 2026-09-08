@@ -1,5 +1,7 @@
 #include "ShockActionManipulateSpawnZoneRepopulation.h"
 
+#include "EngineUtils.h"
+#include "ShockEnemySpawner.h"
 #include "ShockPlayer.h"
 
 UShockActionManipulateSpawnZoneRepopulation::UShockActionManipulateSpawnZoneRepopulation()
@@ -42,7 +44,20 @@ int32 UShockActionManipulateSpawnZoneRepopulation::ApplyInWorld(UWorld* World)
 		SpawnZoneName,
 		static_cast<uint8>(AggressorState),
 		static_cast<uint8>(ProtectorState));
-	return 1;
+	int32 Applied = 1;
+	if (AggressorState != EShockSpawnZoneRepopulationState::NoChange)
+	{
+		const bool bEnable = AggressorState == EShockSpawnZoneRepopulationState::Enable;
+		for (TActorIterator<AShockAggressorSpawner> It(World); It; ++It)
+		{
+			if (*It && (*It)->HasZone(SpawnZoneName))
+			{
+				(*It)->SetRepopulationEnabled(bEnable, bEnable);
+				++Applied;
+			}
+		}
+	}
+	return Applied;
 }
 
 bool UShockActionManipulateSpawnZoneRepopulation::ApplyInWorld(const FShockActionContext& Ctx)

@@ -1,0 +1,25 @@
+"""Headless driver for verify_enemies.py."""
+
+import json
+import os
+import sys
+import traceback
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+out = os.environ.get(
+    "BIOSHOCK_ENEMIES_OUT",
+    os.path.join(os.environ.get("TEMP", "."), "enemies_report.json"),
+)
+result = {"error": None}
+try:
+    import verify_enemies
+
+    result = verify_enemies.main(out)
+except Exception as exc:  # noqa: BLE001
+    result["error"] = str(exc)
+    result["traceback"] = traceback.format_exc()
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump(result, handle, indent=2)
+    raise

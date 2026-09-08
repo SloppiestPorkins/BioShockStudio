@@ -1,6 +1,9 @@
 #include "ShockActionSpawnAI.h"
 
 #include "BaseShockAI.h"
+#include "ShockEnemySpawner.h"
+#include "ShockPlayer.h"
+#include "Components/CapsuleComponent.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -53,9 +56,20 @@ AActor* UShockActionSpawnAI::SpawnAtLocation(UObject* WorldContextObject, FVecto
 		return nullptr;
 	}
 
+	const float HalfHeight =
+		GetDefault<ABaseShockAI>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight() + 2.0f;
+	FVector GroundedLocation;
+	if (!AShockAggressorSpawner::FindGroundedSpawnLocation(
+			World, Location, HalfHeight, nullptr, GroundedLocation))
+	{
+		return nullptr;
+	}
+
 	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(ABaseShockAI::StaticClass(), Location, FRotator::ZeroRotator, Params);
+	Params.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+	ABaseShockAI* AI = World->SpawnActor<ABaseShockAI>(
+		ABaseShockAI::StaticClass(), GroundedLocation, FRotator::ZeroRotator, Params);
 	if (!AI)
 	{
 		return nullptr;
@@ -64,6 +78,14 @@ AActor* UShockActionSpawnAI::SpawnAtLocation(UObject* WorldContextObject, FVecto
 	AI->ConfigureIdentity(AITypeToSpawn, SpawnedAILabel.IsNone() ? AITypeToSpawn : SpawnedAILabel);
 	AI->ApplyArchetypeLookup(AITypeToSpawn);
 	AI->EnsureHealthInitialized();
+	if (AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World))
+	{
+#if WITH_EDITOR
+		Player->SetActorLabel(TEXT("SlicePlayer"));
+#endif
+		AI->AddTargetToAttackOnSight(FName(TEXT("SlicePlayer")));
+		AI->ScriptedAttackTarget(Player);
+	}
 #if WITH_EDITOR
 	if (!SpawnedAILabel.IsNone())
 	{
@@ -79,6 +101,17 @@ AActor* UShockActionSpawnAI::SpawnInWorld(UWorld* World)
 	if (!World || SpawnLocationLabel.IsNone())
 	{
 		return nullptr;
+	}
+	for (TActorIterator<AShockAggressorSpawner> It(World); It; ++It)
+	{
+		if (*It && (*It)->MatchesLabel(SpawnLocationLabel))
+		{
+			if (AActor* Spawned = (*It)->SpawnForScript(AITypeToSpawn, SpawnedAILabel))
+			{
+				LastSpawnedActor = Spawned;
+				return Spawned;
+			}
+		}
 	}
 	const FString Want = SpawnLocationLabel.ToString();
 	for (TActorIterator<AActor> It(World); It; ++It)

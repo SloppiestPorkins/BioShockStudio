@@ -12,6 +12,8 @@ class BIOSHOCKRUNTIME_API UShockActionSetSpawnerRepopulationState : public UShoc
 public:
 	UShockActionSetSpawnerRepopulationState();
 
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName SpawnerLabel;
 
