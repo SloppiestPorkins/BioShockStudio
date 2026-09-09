@@ -1,5 +1,5 @@
 ---
-worker: cursor
+worker: chatgpt
 base: main
 verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
 lane: tools/ue5/**, src/**, docs/research/**, tmp/**

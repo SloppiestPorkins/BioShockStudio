@@ -1,11 +1,19 @@
 ---
-worker: cursor
+worker: chatgpt
 base: main
 verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
 lane: tools/ue5/**, docs/research/**, tmp/**
 ---
 
 # World pickups and lootable containers — none are placed in the slice
+
+> **Run mode:** non-interactive, no human to approve anything, shell sandboxed to this worktree
+> — you CANNOT launch UnrealEditor, build, or run headless UE. Do the research from the
+> manifest + decompiled `.uc` + `docs/research/`, then WRITE the C++ / Python / docs changes
+> directly and stop. Pick the sensible default for every open choice. Every new `UFUNCTION()`
+> needs named parameters; verify each engine/base-class member you call against the headers in
+> this worktree before using it (grep, don't assume). A compiling, coherent, complete
+> implementation is the bar — budget for a thorough pass, not a sketch.
 
 The slice manifest (`1-Medical.ue5-level.json`) places a full economy of items, and **none of it
 is in the playable slice** — you can't pick up a health kit, loot a corpse, or grab ammo. Only
