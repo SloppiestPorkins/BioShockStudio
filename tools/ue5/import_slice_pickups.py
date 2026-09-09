@@ -92,6 +92,17 @@ CONTAINERS = {
 }
 
 
+# className -> mesh name, for records whose manifest staticMesh is empty (class-default meshes
+# BioShock resolves at runtime that the level export didn't capture).
+_MESH_FALLBACK = {
+    "MedHypoPickup": "Med",
+}
+
+
+def _mesh_name(entry):
+    return entry.get("staticMesh") or _MESH_FALLBACK.get(entry.get("className"))
+
+
 def _load_mesh(name):
     """The real pickup mesh if it has been imported into slice content, else None.
 
@@ -178,7 +189,7 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
                 unreal.Name(cfg["plasmid"]) if cfg["plasmid"] else unreal.Name(),
                 unreal.Name(diary_id) if diary_id else unreal.Name(),
                 cfg["interact"])
-            actor.set_pickup_mesh(_load_mesh(entry.get("staticMesh")))
+            actor.set_pickup_mesh(_load_mesh(_mesh_name(entry)))
             report["pickups"] += 1
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
         elif cn in CONTAINERS:

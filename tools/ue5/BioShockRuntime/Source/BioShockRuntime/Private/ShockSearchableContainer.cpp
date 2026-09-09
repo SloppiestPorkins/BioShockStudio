@@ -64,13 +64,14 @@ void AShockSearchableContainer::SetContainerMesh(UStaticMesh* InMesh)
 	{
 		Mesh->SetStaticMesh(InMesh);
 		Mesh->SetRelativeScale3D(FVector(1.0f));
+		Mesh->SetVisibility(true);
 		return;
 	}
-	if (UStaticMesh* Marker = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")))
-	{
-		Mesh->SetStaticMesh(Marker);
-	}
-	Mesh->SetRelativeScale3D(FVector(0.12f));
+	// A corpse / booty stash has no mesh of its own — the ragdoll body (or the world prop) is a
+	// separate actor. Hide the marker; the w10 interaction trace + "Press F to search" prompt is
+	// how the player finds it.
+	Mesh->SetStaticMesh(nullptr);
+	Mesh->SetVisibility(false);
 }
 
 bool AShockSearchableContainer::Search(AShockPlayer* Player)

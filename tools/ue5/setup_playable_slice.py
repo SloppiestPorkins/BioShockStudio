@@ -475,6 +475,10 @@ STEPS = [
     ("import_slice_doors", "import_slice_doors", "main", ()),
     ("import_slice_enemies", "import_slice_enemies", "main", ()),
     ("import_slice_scripts", "import_slice_scripts", "main", ()),
+    # Real prop meshes for the pickup/container/mover/station actors (run
+    # export_slice_prop_meshes.ps1 first, dotnet, editor closed) — must precede the placement
+    # steps so they resolve the mesh instead of a marker sphere.
+    ("import_slice_prop_meshes", "import_slice_prop_meshes", "main", ()),
     # World pickup + lootable-container economy (health/ammo/ADAM/weapons/plasmids/diaries).
     ("import_slice_pickups", "import_slice_pickups", "main", ()),
     # Vendors / wall health stations / Gatherer's Garden at their manifest positions.
