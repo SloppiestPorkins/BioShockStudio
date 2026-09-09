@@ -803,6 +803,7 @@ private:
 	void UpdateWeaponSlotVisibility(int32 VisibleSlot);
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();
+	void HandleInteractInput();
 	void HandleUseFirstAidInput();
 	void HandleUseEveHypoInput();
 	bool PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const;

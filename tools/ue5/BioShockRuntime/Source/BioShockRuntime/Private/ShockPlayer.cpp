@@ -3,8 +3,10 @@
 #include "ShockAudioLibrary.h"
 #include "ShockGameMode.h"
 #include "ShockHackingMinigame.h"
+#include "ShockConsumablePickup.h"
 #include "ShockPlasmid.h"
 #include "ShockPlasmidFx.h"
+#include "ShockSearchableContainer.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
 #include "ShockStationActor.h"
@@ -2396,6 +2398,40 @@ void AShockPlayer::HandleHackToolInput()
 	TryHackDevice(Device, 0.5f);
 }
 
+void AShockPlayer::HandleInteractInput()
+{
+	UWorld* World = GetWorld();
+	if (!World || !FirstPersonCamera)
+	{
+		return;
+	}
+
+	const FVector Start = FirstPersonCamera->GetComponentLocation();
+	const FVector End = Start + FirstPersonCamera->GetForwardVector() * 220.0f;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockInteract), false, this);
+	FHitResult Hit;
+	if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		AActor* HitActor = Hit.GetActor();
+		if (AShockConsumablePickup* Pickup = Cast<AShockConsumablePickup>(HitActor))
+		{
+			if (Pickup->TryCollect(this))
+			{
+				return;
+			}
+		}
+		if (AShockSearchableContainer* Container = Cast<AShockSearchableContainer>(HitActor))
+		{
+			if (Container->Search(this))
+			{
+				return;
+			}
+		}
+	}
+
+	TryInteractNearbyStation();
+}
+
 bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty01)
 {
 	if (!Device || Device->GetAllegiance() == EShockDeviceAllegiance::Disabled)
@@ -3328,6 +3364,7 @@ void AShockPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("WeaponRadial"), IE_Released, this, &AShockPlayer::HandleWeaponRadialReleased);
 	PlayerInputComponent->BindAction(TEXT("WeaponSelect"), IE_Pressed, this, &AShockPlayer::HandleWeaponSelectToggle);
 	PlayerInputComponent->BindAction(TEXT("HackTool"), IE_Pressed, this, &AShockPlayer::HandleHackToolInput);
+	PlayerInputComponent->BindAction(TEXT("Interact"), IE_Pressed, this, &AShockPlayer::HandleInteractInput);
 	PlayerInputComponent->BindAction(TEXT("UseFirstAid"), IE_Pressed, this, &AShockPlayer::HandleUseFirstAidInput);
 	PlayerInputComponent->BindAction(TEXT("UseEveHypo"), IE_Pressed, this, &AShockPlayer::HandleUseEveHypoInput);
 	PlayerInputComponent->BindAction(TEXT("WeaponNext"), IE_Pressed, this, &AShockPlayer::HandleWeaponNextInput);

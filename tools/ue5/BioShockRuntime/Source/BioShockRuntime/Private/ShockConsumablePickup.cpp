@@ -1,8 +1,11 @@
 #include "ShockConsumablePickup.h"
 
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "ShockPlasmid.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
-#include "Components/SphereComponent.h"
 
 namespace
 {
@@ -10,16 +13,16 @@ FName PickupKindTag(EShockPickupKind Kind)
 {
 	switch (Kind)
 	{
-	case EShockPickupKind::FirstAidKit:
-		return FName(TEXT("FirstAidKit"));
-	case EShockPickupKind::EveHypo:
-		return FName(TEXT("EveHypo"));
-	case EShockPickupKind::Money:
-		return FName(TEXT("Money"));
-	case EShockPickupKind::Ammo:
-		return FName(TEXT("Ammo"));
-	default:
-		return NAME_None;
+	case EShockPickupKind::FirstAidKit: return FName(TEXT("FirstAidKit"));
+	case EShockPickupKind::EveHypo: return FName(TEXT("EveHypo"));
+	case EShockPickupKind::Money: return FName(TEXT("Money"));
+	case EShockPickupKind::Ammo: return FName(TEXT("Ammo"));
+	case EShockPickupKind::Adam: return FName(TEXT("Adam"));
+	case EShockPickupKind::Item: return FName(TEXT("Item"));
+	case EShockPickupKind::Weapon: return FName(TEXT("Weapon"));
+	case EShockPickupKind::Plasmid: return FName(TEXT("Plasmid"));
+	case EShockPickupKind::Diary: return FName(TEXT("Diary"));
+	default: return NAME_None;
 	}
 }
 }
@@ -37,15 +40,31 @@ AShockConsumablePickup::AShockConsumablePickup()
 	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &AShockConsumablePickup::OnOverlap);
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Collision);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetCastShadow(false);
 }
 
-bool AShockConsumablePickup::PickupForVerify(AShockPlayer* Player)
+void AShockConsumablePickup::SetPickupMesh(UStaticMesh* InMesh)
 {
-	if (!Player || Amount <= 0)
+	if (Mesh && InMesh)
+	{
+		Mesh->SetStaticMesh(InMesh);
+	}
+}
+
+bool AShockConsumablePickup::TryCollect(AShockPlayer* Player)
+{
+	if (!Player)
 	{
 		return false;
 	}
-	ApplyPickup(Player);
+	if (!ApplyPickup(Player))
+	{
+		return false;
+	}
 	if (IsValid(this))
 	{
 		DestroyAfterPickup();
@@ -53,33 +72,60 @@ bool AShockConsumablePickup::PickupForVerify(AShockPlayer* Player)
 	return true;
 }
 
-void AShockConsumablePickup::ConfigureForVerify(
-	uint8 Kind,
-	int32 InAmount,
-	FName InWeaponDefName)
+bool AShockConsumablePickup::PickupForVerify(AShockPlayer* Player)
+{
+	return TryCollect(Player);
+}
+
+void AShockConsumablePickup::ConfigureForVerify(uint8 Kind, int32 InAmount, FName InWeaponDefName)
 {
 	PickupKind = static_cast<EShockPickupKind>(Kind);
 	Amount = InAmount;
 	WeaponDefName = InWeaponDefName;
 }
 
-void AShockConsumablePickup::ApplyPickup(AShockPlayer* Player)
+void AShockConsumablePickup::ConfigurePickup(
+	uint8 Kind,
+	int32 InAmount,
+	FName InWeaponDefName,
+	FName InItemClass,
+	FName InPlasmidName,
+	FName InDiaryId,
+	bool bInRequiresInteract)
 {
-	if (!Player || Amount <= 0)
+	PickupKind = static_cast<EShockPickupKind>(Kind);
+	Amount = InAmount;
+	WeaponDefName = InWeaponDefName;
+	ItemClass = InItemClass;
+	PlasmidName = InPlasmidName;
+	DiaryId = InDiaryId;
+	bRequiresInteract = bInRequiresInteract;
+}
+
+bool AShockConsumablePickup::ApplyPickup(AShockPlayer* Player)
+{
+	if (!Player)
 	{
-		return;
+		return false;
 	}
+	const int32 Qty = FMath::Max(1, Amount);
 
 	switch (PickupKind)
 	{
 	case EShockPickupKind::FirstAidKit:
-		Player->AddStackToInventory(FName(TEXT("FirstAidKit")), Amount);
+		Player->AddStackToInventory(FName(TEXT("FirstAidKit")), Qty);
 		break;
 	case EShockPickupKind::EveHypo:
-		Player->AddStackToInventory(FName(TEXT("EveHypo")), Amount);
+		Player->AddStackToInventory(FName(TEXT("EveHypo")), Qty);
 		break;
 	case EShockPickupKind::Money:
-		Player->AddMoney(Amount);
+		Player->AddMoney(Qty);
+		break;
+	case EShockPickupKind::Adam:
+		Player->AddAdam(Qty);
+		break;
+	case EShockPickupKind::Item:
+		Player->AddStackToInventory(ItemClass.IsNone() ? FName(TEXT("Item")) : ItemClass, Qty);
 		break;
 	case EShockPickupKind::Ammo:
 	{
@@ -100,20 +146,59 @@ void AShockConsumablePickup::ApplyPickup(AShockPlayer* Player)
 		}
 		if (Weapon)
 		{
-			Weapon->AddReserveAmmo(Amount);
+			Weapon->AddReserveAmmo(Qty);
 		}
 		break;
 	}
-	default:
+	case EShockPickupKind::Weapon:
+	{
+		if (WeaponDefName.IsNone())
+		{
+			return false;
+		}
+		// First free slot, else slot 1.
+		int32 Slot = 1;
+		for (int32 S = 0; S < 8; ++S)
+		{
+			if (!Player->GetWeaponInSlot(S))
+			{
+				Slot = S;
+				break;
+			}
+		}
+		if (AShockWeapon* Given = Player->GiveWeaponByDef(WeaponDefName, Slot))
+		{
+			Given->AddReserveAmmo(Qty > 1 ? Qty : 40);
+		}
 		break;
+	}
+	case EShockPickupKind::Plasmid:
+	{
+		const TSubclassOf<UShockPlasmid> Cls = UShockPlasmid::ResolvePlasmidClass(PlasmidName);
+		if (!Cls)
+		{
+			return false;
+		}
+		Player->GrantOwnedPlasmid(Cls);
+		break;
+	}
+	case EShockPickupKind::Diary:
+		Player->AddStackToInventory(
+			FName(*FString::Printf(TEXT("AudioDiary_%s"), *DiaryId.ToString())), 1);
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_DIARY id=%s"), *DiaryId.ToString());
+		break;
+	default:
+		return false;
 	}
 
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_PICKUP kind=%s amount=%d"),
+		TEXT("BIOSHOCK_PICKUP kind=%s amount=%d item=%s"),
 		*PickupKindTag(PickupKind).ToString(),
-		Amount);
+		Qty,
+		WeaponDefName.IsNone() ? *ItemClass.ToString() : *WeaponDefName.ToString());
+	return true;
 }
 
 void AShockConsumablePickup::DestroyAfterPickup()
@@ -122,25 +207,19 @@ void AShockConsumablePickup::DestroyAfterPickup()
 }
 
 void AShockConsumablePickup::OnOverlap(
-	UPrimitiveComponent* OverlappedComponent,
+	UPrimitiveComponent* /*OverlappedComponent*/,
 	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	int32 OtherBodyIndex,
-	bool bFromSweep,
-	const FHitResult& SweepResult)
+	UPrimitiveComponent* /*OtherComp*/,
+	int32 /*OtherBodyIndex*/,
+	bool /*bFromSweep*/,
+	const FHitResult& /*SweepResult*/)
 {
-	(void)OverlappedComponent;
-	(void)OtherComp;
-	(void)OtherBodyIndex;
-	(void)bFromSweep;
-	(void)SweepResult;
-
+	if (bRequiresInteract)
+	{
+		return;
+	}
 	if (AShockPlayer* Player = Cast<AShockPlayer>(OtherActor))
 	{
-		ApplyPickup(Player);
-		if (IsValid(this))
-		{
-			DestroyAfterPickup();
-		}
+		TryCollect(Player);
 	}
 }
