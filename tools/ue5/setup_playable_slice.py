@@ -477,6 +477,8 @@ STEPS = [
     ("import_slice_scripts", "import_slice_scripts", "main", ()),
     # World pickup + lootable-container economy (health/ammo/ADAM/weapons/plasmids/diaries).
     ("import_slice_pickups", "import_slice_pickups", "main", ()),
+    # Vendors / wall health stations / Gatherer's Garden at their manifest positions.
+    ("import_slice_stations", "import_slice_stations", "main", ()),
     # Run export_slice_audio.ps1 first (dotnet, editor closed). This imports only payloads that
     # export-audio actually wrote; located streamed/native samples with no file remain reported.
     ("import_audio", "import_audio", "main", ()),

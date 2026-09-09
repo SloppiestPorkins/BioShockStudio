@@ -63,6 +63,38 @@ def main(out):
     if not ok:
         failures.append("RunHeadlessStationsVerify: %s" % (err or "failed"))
 
+    # Health Station (w11): heal-for-money, no menu.
+    sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")
+    hs = sub.spawn_actor_from_class(
+        classes["ShockStationBase"], unreal.Vector(0, 6000, 100), unreal.Rotator(0, 0, 0))
+    hp = sub.spawn_actor_from_class(player_cls, unreal.Vector(80, 6000, 100), unreal.Rotator(0, 0, 0))
+    if hs and hp:
+        hs.set_editor_property("station_kind", unreal.ShockStationKind.HEALTH_STATION)
+        hp.ensure_health_initialized()
+        hp.set_current_health_for_verify(20.0)
+        hp.add_money(50)
+        m0 = hp.get_money()
+        healed = hs.try_interact(hp)
+        report["healthStation"] = {
+            "healed": bool(healed),
+            "health": float(hp.get_current_health()),
+            "spent": m0 - hp.get_money(),
+        }
+        if not (healed and hp.get_current_health() >= hp.get_max_health() - 0.5 and hp.get_money() < m0):
+            failures.append("health_station heal-for-money failed: %s" % report["healthStation"])
+        # already-full -> no charge
+        m1 = hp.get_money()
+        hs.try_interact(hp)
+        if hp.get_money() != m1:
+            failures.append("health_station charged at full health")
+    for a in (hs, hp):
+        if a:
+            try:
+                sub.destroy_actor(a)
+            except Exception:
+                pass
+
     report["stations"] = "ok" if not failures else "fail"
     report["visual"] = (
         "headless cannot judge BioShock likeness — confirm via "

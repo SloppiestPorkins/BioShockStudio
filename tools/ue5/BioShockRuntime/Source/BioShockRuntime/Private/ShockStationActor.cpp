@@ -151,6 +151,30 @@ bool AShockStationBase::TryInteract(AShockPlayer* Player)
 	{
 		return false;
 	}
+
+	if (StationKind == EShockStationKind::HealthStation)
+	{
+		const float MaxHealth = Player->GetMaxHealth();
+		const float Missing = MaxHealth - Player->GetCurrentHealth();
+		if (Missing < 1.0f)
+		{
+			return false;
+		}
+		// BioShock wall units: a few dollars scaling with how hurt you are, hacked = free-ish.
+		const int32 Cost = bHacked
+			? FMath::Clamp(FMath::CeilToInt(Missing / MaxHealth * 8.0f), 1, 10)
+			: FMath::Clamp(FMath::CeilToInt(Missing / MaxHealth * 30.0f), 1, 40);
+		if (!Player->SpendMoney(Cost))
+		{
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HEALTHSTATION label=%s denied cost=%d"),
+				*StationLabel.ToString(), Cost);
+			return false;
+		}
+		Player->Heal(Missing);
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HEALTHSTATION label=%s healed=%.0f cost=%d"),
+			*StationLabel.ToString(), Missing, Cost);
+		return true;
+	}
 	APlayerController* PC = Cast<APlayerController>(Player->GetController());
 	if (!PC)
 	{

@@ -60,6 +60,7 @@ enum class EShockStationKind : uint8
 	UInvent UMETA(DisplayName = "U-Invent"),
 	GathererGarden UMETA(DisplayName = "Gatherer's Garden"),
 	ComboLock UMETA(DisplayName = "Combo Lock"),
+	HealthStation UMETA(DisplayName = "Health Station"),
 };
 
 UENUM(BlueprintType)
