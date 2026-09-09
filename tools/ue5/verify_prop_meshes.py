@@ -35,10 +35,11 @@ def main(out=OUT):
         if m.get_path_name().startswith("/Engine/BasicShapes"):
             marker += 1
             continue
+        # Effective material = component override, falling back to the asset slot.
+        slot_count = max(1, len(m.get_editor_property("static_materials") or []))
         bad = any(
-            (s.get_editor_property("material_interface") is None
-             or "WorldGrid" in s.get_editor_property("material_interface").get_name())
-            for s in (m.get_editor_property("static_materials") or []))
+            (comp.get_material(i) is None or "WorldGrid" in comp.get_material(i).get_name())
+            for i in range(slot_count))
         if bad:
             nomat += 1
         else:

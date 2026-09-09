@@ -36,7 +36,7 @@ _RULES = [
     (re.compile(r"ammo|bullet|buckshot", re.IGNORECASE), _AMMO),
     (re.compile(r"seccamera|seccam|camera|pistol|tommygun|wp_ai|pu_|weapon",
                 re.IGNORECASE), _METAL),
-    (re.compile(r"banner", re.IGNORECASE), _METAL),
+    (re.compile(r"banner|resurrection|resstation|vita", re.IGNORECASE), _METAL),
 ]
 
 
@@ -63,9 +63,15 @@ def main():
             continue
         seen_meshes = set()
         for actor in actors.get_all_level_actors():
-            if not isinstance(actor, unreal.StaticMeshActor):
-                continue
-            comp = actor.static_mesh_component
+            # Plain StaticMeshActors AND non-StaticMeshActor actors that carry a mesh component
+            # (AShockSecurityCamera, AShockVitaChamber, banners, ...) — the null-slot fix has to
+            # reach those too (R0.2).
+            comp = None
+            if isinstance(actor, unreal.StaticMeshActor):
+                comp = actor.static_mesh_component
+            else:
+                comps = actor.get_components_by_class(unreal.StaticMeshComponent)
+                comp = comps[0] if comps else None
             mesh = comp.get_editor_property("static_mesh") if comp else None
             if mesh is None:
                 continue
