@@ -163,6 +163,23 @@ def main(out):
             check("turret_has_barrel", barrel is not None and barrel_mesh is not None,
                   "barrel=%s mesh=%s" % (barrel, barrel_mesh))
 
+    # --- slice placement (w3): the ScriptableMovers exist and respond to a scripted play ---
+    if unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(
+            "/Game/BioShockSlice/1-Medical"):
+        placed = [a for a in subsystem.get_all_level_actors()
+                  if isinstance(a, unreal.ShockAnimatedProp)]
+        check("slice_movers_placed", len(placed) >= 8, "count=%d" % len(placed))
+        moved = 0
+        for prop in placed:
+            if int(prop.get_motion_mode_for_verify()) != 1:
+                continue
+            prop.play_scripted_motion(unreal.Name("Open"), 1.0, False)
+            for _ in range(40):
+                prop.advance_motion_for_verify(0.05)
+            if prop.get_keyframe_alpha() > 0.05 or prop.is_keyframe_moving():
+                moved += 1
+        check("slice_mover_moves", moved >= 1, "moved=%d of %d" % (moved, len(placed)))
+
     report["animated_props"] = "ok" if not failures else "fail"
     _destroy(subsystem, spawned)
     _write(out, report)

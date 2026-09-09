@@ -479,6 +479,8 @@ STEPS = [
     ("import_slice_pickups", "import_slice_pickups", "main", ()),
     # Vendors / wall health stations / Gatherer's Garden at their manifest positions.
     ("import_slice_stations", "import_slice_stations", "main", ()),
+    # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
+    ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
     # Rapture mood layer: a tagged PostProcessVolume + height fog with exposed knobs.
     ("repair_slice_look", "repair_slice_look", "main", ()),
     # Run export_slice_audio.ps1 first (dotnet, editor closed). This imports only payloads that
