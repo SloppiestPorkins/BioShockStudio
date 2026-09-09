@@ -1,10 +1,15 @@
 #include "ShockPlasmid.h"
 
+#include "ShockAirBlastPlasmid.h"
+#include "ShockCycloneTrapPlasmid.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockEnragePlasmid.h"
 #include "ShockIncineratePlasmid.h"
 #include "ShockInsectSwarmPlasmid.h"
 #include "ShockPlayer.h"
+#include "ShockPlasmidFx.h"
+#include "ShockSecurityBullseyePlasmid.h"
+#include "ShockTargetDummyPlasmid.h"
 #include "ShockTelekinesisPlasmid.h"
 #include "ShockWinterBlastPlasmid.h"
 
@@ -25,6 +30,54 @@ bool UShockPlasmid::EnforcesCastCooldown(const AShockPlayer* Caster) const
 {
 	(void)Caster;
 	return true;
+}
+
+void UShockPlasmid::RememberFx(AShockPlasmidFx* Fx)
+{
+	LastFxActor = Fx;
+}
+
+AShockPlasmidFx* UShockPlasmid::SpawnCastBurst(
+	AShockPlayer* Caster,
+	const FVector& WorldLocation,
+	const FRotator& WorldRotation,
+	float LifeSeconds,
+	float Radius)
+{
+	AShockPlasmidFx* Fx = AShockPlasmidFx::SpawnBurst(
+		Caster ? Caster->GetWorld() : nullptr,
+		CastFxAssetPath,
+		WorldLocation,
+		WorldRotation,
+		HandTint,
+		LifeSeconds,
+		Radius);
+	RememberFx(Fx);
+	return Fx;
+}
+
+AShockPlasmidFx* UShockPlasmid::SpawnCastBeam(
+	AShockPlayer* Caster,
+	const FVector& Start,
+	const FVector& End,
+	float LifeSeconds,
+	float Radius)
+{
+	AShockPlasmidFx* Fx = AShockPlasmidFx::SpawnBeam(
+		Caster ? Caster->GetWorld() : nullptr,
+		CastFxAssetPath,
+		Start,
+		End,
+		HandTint,
+		LifeSeconds,
+		Radius);
+	RememberFx(Fx);
+	return Fx;
+}
+
+UNiagaraComponent* UShockPlasmid::GetLastFxComponentForVerify() const
+{
+	return IsValid(LastFxActor) ? LastFxActor->GetNiagaraComponentForVerify() : nullptr;
 }
 
 TSubclassOf<UShockPlasmid> UShockPlasmid::ResolvePlasmidClass(FName Name)
@@ -57,6 +110,27 @@ TSubclassOf<UShockPlasmid> UShockPlasmid::ResolvePlasmidClass(FName Name)
 	if (Key.Equals(TEXT("Enrage"), ESearchCase::IgnoreCase))
 	{
 		return UShockEnragePlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("AirBlast"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("SonicBoom"), ESearchCase::IgnoreCase))
+	{
+		return UShockAirBlastPlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("SecurityBeacon"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("SecurityBullseye"), ESearchCase::IgnoreCase))
+	{
+		return UShockSecurityBullseyePlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("DecoyHuman"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("TargetDummy"), ESearchCase::IgnoreCase))
+	{
+		return UShockTargetDummyPlasmid::StaticClass();
+	}
+	if (Key.Equals(TEXT("SpringBoardTrap"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("SpringboardTrap"), ESearchCase::IgnoreCase)
+		|| Key.Equals(TEXT("CycloneTrap"), ESearchCase::IgnoreCase))
+	{
+		return UShockCycloneTrapPlasmid::StaticClass();
 	}
 	return nullptr;
 }

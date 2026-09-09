@@ -35,6 +35,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
 	TObjectPtr<USkeletalMeshComponent> ViewHands;
 
+	/** Separate left-arm/plasmid presentation rig. Never shares animation state with weapon hands. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Camera")
+	TObjectPtr<USkeletalMeshComponent> PlasmidHands;
+
 	/** Drives runtime nav-tile generation around the player (invokers-only mode) so imported
 	 *  BSP levels get a real navmesh without a placed NavMeshBoundsVolume. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|Navigation")
@@ -219,6 +223,23 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	bool CastActivePlasmid();
+
+	/** Switch presentation between the selected plasmid hand and the equipped weapon. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|PlasmidHands")
+	void SetPlasmidHandActive(bool bActive);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|PlasmidHands")
+	bool IsPlasmidHandActive() const { return bPlasmidHandActive; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|PlasmidHands")
+	bool IsPlasmidHandsVisibleForVerify() const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|PlasmidHands")
+	FName GetPlayingPlasmidHandsAnimationNameForVerify() const;
+
+	/** World-space left palm/socket used as the origin for plasmid presentation. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player|PlasmidHands")
+	FVector GetPlasmidMuzzleWorldLocation() const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void CycleActivePlasmid();
@@ -794,7 +815,9 @@ private:
 	void HandleCrouchPressed();
 	void HandleCrouchReleased();
 	void EnsureViewHands();
+	void EnsurePlasmidHands();
 	class UShockViewHandsAnimInstance* GetViewHandsAnimInstance() const;
+	class UShockViewHandsAnimInstance* GetPlasmidHandsAnimInstance() const;
 	/** Place ViewHands once at ViewmodelOffset/Rotation (BioShock PlayerViewOffset). No socket pin. */
 	void PlaceViewHandsFixed();
 	void AlignEquippedWeaponRootToGripSocket();
@@ -808,6 +831,7 @@ private:
 	void TickWeaponRecoil();
 	void TickUnderwaterPostProcess(float DeltaSeconds);
 	void TickViewHandsAnimation(float DeltaSeconds);
+	void TickPlasmidHandsAnimation(float DeltaSeconds);
 	void ResolveViewHandsAnimsForWeapon(FName WeaponDefName);
 	void PlayViewHandsAnimation(UAnimSequence* Sequence, bool bLoop);
 	/** Play Clips[0] now and queue the rest as one-shots before the return to fidget. */
@@ -816,6 +840,9 @@ private:
 	FName ResolveGripSocketForWeapon(FName WeaponDefName);
 	/** Drive the equipped weapon mesh clip that pairs with the current hands phase. */
 	void SyncEquippedWeaponMeshAnimation(bool bLoop);
+	void ResolvePlasmidHandsPresentation();
+	void PlayPlasmidHandsAnimation(UAnimSequence* Sequence, bool bLoop);
+	void PlayActivePlasmidCastAnimation();
 
 	/** Grip socket the equipped weapon is attached to (AttachBone). */
 	FName ActiveGripSocket;
@@ -872,6 +899,23 @@ private:
 	FName ViewHandsAnimWeapon = NAME_None;
 	bool bViewHandsPlayingOneShot = false;
 	float ViewHandsOneShotRemaining = 0.0f;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> PlasmidHandsIdleAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> PlasmidHandsCastAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> LastPlasmidHandsAnim;
+
+	UPROPERTY()
+	TObjectPtr<class UMaterialInstanceDynamic> PlasmidHandsMaterial;
+
+	FName PlasmidHandsAnimName = NAME_None;
+	bool bPlasmidHandActive = false;
+	bool bPlasmidHandsPlayingOneShot = false;
+	float PlasmidHandsOneShotRemaining = 0.0f;
 
 	UPROPERTY()
 	TMap<FName, int32> InventoryStacks;

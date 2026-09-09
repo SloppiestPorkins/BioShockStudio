@@ -16,6 +16,7 @@ public class BioShockRuntime : ModuleRules
             "SlateCore",
             "AIModule",
             "NavigationSystem",
+            "Niagara",
         });
         PrivateDependencyModuleNames.AddRange(new[]
         {

@@ -626,6 +626,58 @@ def main(out):
                 {"h2": player_h2, "h3": player_h3},
             )
 
+    # --- (h) the four added utility plasmids: resolve + cast + spawn presentation FX ---
+    fx_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlasmidFx")
+    util = [
+        ("AirBlast", "SonicBoom"),
+        ("SecurityBullseye", "SecurityBeacon"),
+        ("TargetDummy", "DecoyHuman"),
+        ("CycloneTrap", "SpringBoardTrap"),
+    ]
+    for name, alias in util:
+        resolved = unreal.ShockPlasmid.resolve_plasmid_class(unreal.Name(name))
+        alias_resolved = unreal.ShockPlasmid.resolve_plasmid_class(unreal.Name(alias))
+        check("resolve_%s" % name, resolved is not None)
+        check("resolve_alias_%s" % alias, alias_resolved is not None and alias_resolved == resolved)
+
+    ut = _spawn(subsystem, ai_cls, "UtilPlasmidAI", unreal.Vector(500.0, 4000.0, 120.0))
+    spawned.append(ut)
+    if ut:
+        ut.configure_identity("Agg_BabyJane", "UtilPlasmidAI")
+        ut.ensure_health_initialized()
+        ut.ensure_controller_for_verify()
+    casts_ok = 0
+    fx_spawned = False
+    hand_seen = False
+    for name, _alias in util:
+        cls = unreal.ShockPlasmid.resolve_plasmid_class(unreal.Name(name))
+        if not cls or not ut:
+            continue
+        # Fresh caster each time — plasmid cast cooldown can't be advanced headlessly.
+        up = _spawn(subsystem, player_cls, "UtilPlasmidPlayer_%s" % name, unreal.Vector(0.0, 4000.0, 120.0))
+        spawned.append(up)
+        if not up:
+            continue
+        up.ensure_health_initialized()
+        up.equip_plasmid(cls, 0)
+        up.set_current_eve_for_verify(100.0)
+        up.set_actor_rotation(
+            unreal.Rotator(0.0, _yaw_toward(up.get_actor_location(), ut.get_actor_location()), 0.0), False
+        )
+        fx_before = len(unreal.GameplayStatics.get_all_actors_of_class(world, fx_cls)) if fx_cls else 0
+        ok = bool(up.cast_active_plasmid())
+        casts_ok += 1 if ok else 0
+        report.setdefault("utility", {})[name] = ok
+        fx_after = len(unreal.GameplayStatics.get_all_actors_of_class(world, fx_cls)) if fx_cls else 0
+        if fx_after > fx_before:
+            fx_spawned = True
+        if up.is_plasmid_hands_visible_for_verify():
+            hand_seen = True
+    # CycloneTrap needs a world hit (no floor in this empty verify world); the other three don't.
+    check("util_casts", casts_ok >= 3, casts_ok)
+    check("util_hand_visible", hand_seen)
+    check("util_cast_spawns_fx", fx_spawned)
+
     _destroy_all(subsystem, spawned)
 
     report["checks"] = checks

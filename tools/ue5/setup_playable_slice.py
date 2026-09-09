@@ -480,6 +480,8 @@ STEPS = [
     ("import_audio", "import_audio", "main", ()),
     # Visible stand-in decal materials for bullet impacts until the shipped FX are recovered.
     ("author_impact_decal_standins", "author_impact_decal_standins", "main", ()),
+    # Emissive stand-in materials for the plasmid cast burst/beam + tinted first-person arm.
+    ("author_plasmid_fx_standins", "author_plasmid_fx_standins", "main", ()),
 ]
 
 

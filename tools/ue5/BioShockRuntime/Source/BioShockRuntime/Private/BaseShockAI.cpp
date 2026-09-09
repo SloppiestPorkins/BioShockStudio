@@ -576,6 +576,9 @@ void ABaseShockAI::ApplyEnrage(float Seconds, AActor* DamageInstigator)
 			Brain->NotifyPendingKillTarget(nullptr);
 		}
 	}
+	// An enraged splicer is still fighting — just against another splicer. Keep it in the Combat
+	// behaviour state so TickCombat/the brain run and pick the new victim (w13 gates both on it).
+	EnterBehaviourState(EShockAIBehaviourState::Combat);
 }
 
 AShockPawn* ABaseShockAI::FindNearestOtherAIForEnrage() const
@@ -1156,12 +1159,17 @@ void ABaseShockAI::TickBehaviour(float DeltaSeconds)
 		break;
 
 	case EShockAIBehaviourState::Combat:
-		if (!IsAliveTarget(CombatTarget))
+		if (!IsAliveTarget(CombatTarget) && !IsEnraged())
 		{
 			ClearCombatTarget();
 			EnterBehaviourState(PatrolName.IsNone()
 				? EShockAIBehaviourState::Idle
 				: EShockAIBehaviourState::Patrol);
+			break;
+		}
+		if (IsEnraged() && !IsAliveTarget(CombatTarget))
+		{
+			// The brain re-acquires the enrage victim in TickCombat; hold Combat until then.
 			break;
 		}
 		if (HasClearLineOfSightTo(CombatTarget))
@@ -1547,7 +1555,7 @@ void ABaseShockAI::TickCombat(float DeltaSeconds)
 		return;
 	}
 
-	if (BehaviourState != EShockAIBehaviourState::Combat)
+	if (BehaviourState != EShockAIBehaviourState::Combat && !IsEnraged())
 	{
 		return;
 	}

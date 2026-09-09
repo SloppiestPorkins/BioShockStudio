@@ -4,6 +4,7 @@
 #include "ShockGameMode.h"
 #include "ShockHackingMinigame.h"
 #include "ShockPlasmid.h"
+#include "ShockPlasmidFx.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
 #include "ShockStationActor.h"
@@ -29,6 +30,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
 
 namespace
@@ -200,6 +203,15 @@ AShockPlayer::AShockPlayer()
 		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	ViewHands->SetBoundsScale(4.0f);
 
+	PlasmidHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("PlasmidHands"));
+	PlasmidHands->SetupAttachment(FirstPersonCamera);
+	PlasmidHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlasmidHands->SetCastShadow(false);
+	PlasmidHands->SetHiddenInGame(true);
+	PlasmidHands->VisibilityBasedAnimTickOption =
+		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	PlasmidHands->SetBoundsScale(4.0f);
+
 	// The imported 1-Medical BSP has no placed NavMeshBoundsVolume, and a volume spawned at runtime
 	// has no brush geometry to scale (ConstructTiledNavMesh: navmesh of size 0). A NavigationInvoker
 	// on the player, with NavigationSystemV1 bGenerateNavigationOnlyAroundNavigationInvokers=True and
@@ -252,6 +264,10 @@ void AShockPlayer::OnDied()
 	{
 		ViewHands->SetHiddenInGame(true);
 	}
+	if (PlasmidHands)
+	{
+		PlasmidHands->SetHiddenInGame(true);
+	}
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->SetActorHiddenInGame(true);
@@ -281,10 +297,7 @@ void AShockPlayer::ResetForRespawn(float Health)
 		PC->EnableInput(PC);
 	}
 
-	if (ViewHands && ViewHands->GetSkeletalMeshAsset())
-	{
-		ViewHands->SetHiddenInGame(false);
-	}
+	SetPlasmidHandActive(bPlasmidHandActive);
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->SetActorHiddenInGame(false);
@@ -355,9 +368,200 @@ void AShockPlayer::EnsureViewHands()
 	// Do not hardcode FidgetTommygun here — that locked every weapon to the Tommy Gun pose.
 }
 
+void AShockPlayer::EnsurePlasmidHands()
+{
+	if (!PlasmidHands)
+	{
+		return;
+	}
+	if (!PlasmidHands->GetSkeletalMeshAsset())
+	{
+		USkeletalMesh* Hands = LoadObject<USkeletalMesh>(
+			nullptr,
+			TEXT("/Game/BioShockWeapons/NEWPlayerHands/NEWPlayerHands.NEWPlayerHands"));
+		if (!Hands)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_PLASMID_HAND mesh=0"));
+			return;
+		}
+		PlasmidHands->SetSkeletalMesh(Hands);
+		PlasmidHands->SetOnlyOwnerSee(false);
+		PlasmidHands->SetOwnerNoSee(false);
+		PlasmidHands->SetAnimInstanceClass(UShockViewHandsAnimInstance::StaticClass());
+	}
+
+	PlasmidHands->SetRelativeLocation(ViewmodelOffset);
+	PlasmidHands->SetRelativeRotation(ViewmodelRotation);
+}
+
 UShockViewHandsAnimInstance* AShockPlayer::GetViewHandsAnimInstance() const
 {
 	return ViewHands ? Cast<UShockViewHandsAnimInstance>(ViewHands->GetAnimInstance()) : nullptr;
+}
+
+UShockViewHandsAnimInstance* AShockPlayer::GetPlasmidHandsAnimInstance() const
+{
+	return PlasmidHands ? Cast<UShockViewHandsAnimInstance>(PlasmidHands->GetAnimInstance()) : nullptr;
+}
+
+void AShockPlayer::PlayPlasmidHandsAnimation(UAnimSequence* Sequence, bool bLoop)
+{
+	if (!PlasmidHands || !Sequence)
+	{
+		return;
+	}
+	if (bLoop && Sequence == LastPlasmidHandsAnim && !bPlasmidHandsPlayingOneShot)
+	{
+		return;
+	}
+
+	if (UShockViewHandsAnimInstance* Inst = GetPlasmidHandsAnimInstance())
+	{
+		Inst->PlayClip(Sequence, bLoop, bLoop ? 0.12f : 0.04f);
+	}
+	else
+	{
+		PlasmidHands->PlayAnimation(Sequence, bLoop);
+	}
+	PlasmidHands->TickAnimation(0.0f, false);
+	PlasmidHands->RefreshBoneTransforms();
+	LastPlasmidHandsAnim = Sequence;
+	bPlasmidHandsPlayingOneShot = !bLoop;
+	PlasmidHandsOneShotRemaining = bLoop ? 0.0f : Sequence->GetPlayLength();
+}
+
+void AShockPlayer::ResolvePlasmidHandsPresentation()
+{
+	UShockPlasmid* Plasmid = GetActivePlasmid();
+	if (!Plasmid || !PlasmidHands)
+	{
+		return;
+	}
+	if (PlasmidHandsAnimName != Plasmid->PlasmidName)
+	{
+		PlasmidHandsAnimName = Plasmid->PlasmidName;
+		PlasmidHandsIdleAnim = LoadViewHandsAnim(*Plasmid->HandIdleAnimation.ToString());
+		PlasmidHandsCastAnim = LoadViewHandsAnim(*Plasmid->HandCastAnimation.ToString());
+		LastPlasmidHandsAnim = nullptr;
+	}
+
+	UMaterialInterface* HandMaterial = LoadObject<UMaterialInterface>(
+		nullptr,
+		TEXT("/Game/BioShockFX/Plasmids/M_PlasmidHand_Base.M_PlasmidHand_Base"));
+	if (HandMaterial)
+	{
+		PlasmidHandsMaterial = UMaterialInstanceDynamic::Create(HandMaterial, this);
+		if (PlasmidHandsMaterial)
+		{
+			PlasmidHandsMaterial->SetVectorParameterValue(TEXT("Tint"), Plasmid->HandTint);
+			const int32 Slots = FMath::Max(1, PlasmidHands->GetNumMaterials());
+			for (int32 Slot = 0; Slot < Slots; ++Slot)
+			{
+				PlasmidHands->SetMaterial(Slot, PlasmidHandsMaterial);
+			}
+		}
+	}
+
+	if (PlasmidHandsIdleAnim)
+	{
+		PlayPlasmidHandsAnimation(PlasmidHandsIdleAnim, true);
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_PLASMID_HAND plasmid=%s idle=%s cast=%s tint=%s"),
+		*Plasmid->PlasmidName.ToString(),
+		PlasmidHandsIdleAnim ? *PlasmidHandsIdleAnim->GetName() : TEXT("missing"),
+		PlasmidHandsCastAnim ? *PlasmidHandsCastAnim->GetName() : TEXT("missing"),
+		*Plasmid->HandTint.ToString());
+}
+
+void AShockPlayer::PlayActivePlasmidCastAnimation()
+{
+	if (PlasmidHandsCastAnim)
+	{
+		PlayPlasmidHandsAnimation(PlasmidHandsCastAnim, false);
+	}
+}
+
+void AShockPlayer::TickPlasmidHandsAnimation(float DeltaSeconds)
+{
+	if (!bPlasmidHandsPlayingOneShot)
+	{
+		return;
+	}
+	PlasmidHandsOneShotRemaining = FMath::Max(0.0f, PlasmidHandsOneShotRemaining - DeltaSeconds);
+	if (PlasmidHandsOneShotRemaining <= 0.0f)
+	{
+		bPlasmidHandsPlayingOneShot = false;
+		if (PlasmidHandsIdleAnim)
+		{
+			PlayPlasmidHandsAnimation(PlasmidHandsIdleAnim, true);
+		}
+	}
+}
+
+void AShockPlayer::SetPlasmidHandActive(bool bActive)
+{
+	bPlasmidHandActive = bActive && GetActivePlasmid() != nullptr;
+	if (bPlasmidHandActive)
+	{
+		EnsurePlasmidHands();
+		if (ViewHands)
+		{
+			ViewHands->SetHiddenInGame(true);
+		}
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->SetActorHiddenInGame(true);
+		}
+		if (PlasmidHands && PlasmidHands->GetSkeletalMeshAsset())
+		{
+			PlasmidHands->SetHiddenInGame(false);
+			ResolvePlasmidHandsPresentation();
+		}
+		return;
+	}
+
+	if (PlasmidHands)
+	{
+		PlasmidHands->SetHiddenInGame(true);
+	}
+	if (ViewHands && ViewHands->GetSkeletalMeshAsset() && !bIsDead)
+	{
+		ViewHands->SetHiddenInGame(false);
+	}
+	if (ActiveWeaponSlot >= 0 && !bIsDead)
+	{
+		UpdateWeaponSlotVisibility(ActiveWeaponSlot);
+	}
+}
+
+bool AShockPlayer::IsPlasmidHandsVisibleForVerify() const
+{
+	return PlasmidHands && PlasmidHands->GetSkeletalMeshAsset() && !PlasmidHands->bHiddenInGame;
+}
+
+FName AShockPlayer::GetPlayingPlasmidHandsAnimationNameForVerify() const
+{
+	return LastPlasmidHandsAnim ? LastPlasmidHandsAnim->GetFName() : NAME_None;
+}
+
+FVector AShockPlayer::GetPlasmidMuzzleWorldLocation() const
+{
+	static const FName LeftHand(TEXT("Bip01_L_Hand"));
+	if (PlasmidHands && PlasmidHands->DoesSocketExist(LeftHand))
+	{
+		return PlasmidHands->GetSocketLocation(LeftHand);
+	}
+	if (FirstPersonCamera)
+	{
+		return FirstPersonCamera->GetComponentLocation()
+			+ FirstPersonCamera->GetForwardVector() * 35.0f
+			- FirstPersonCamera->GetRightVector() * 18.0f
+			- FirstPersonCamera->GetUpVector() * 14.0f;
+	}
+	return GetActorLocation() + FVector(0.0f, 0.0f, BaseEyeHeight);
 }
 
 FName AShockPlayer::ResolveGripSocketForWeapon(FName WeaponDefName)
@@ -1071,6 +1275,7 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	TickViewHandsAnimation(DeltaSeconds);
+	TickPlasmidHandsAnimation(DeltaSeconds);
 	TickHeldFire();
 	TickUnderwaterPostProcess(DeltaSeconds);
 	TickViewEffects(DeltaSeconds);
@@ -1226,6 +1431,8 @@ void AShockPlayer::EquipWeapon(AShockWeapon* Weapon)
 	{
 		return;
 	}
+	// Raising a weapon puts the plasmid arm away (BioShock switches between them).
+	SetPlasmidHandActive(false);
 
 	Weapon->SetOwner(this);
 	EnsureViewHands();
@@ -1440,6 +1647,7 @@ bool AShockPlayer::SelectPlasmidSlot(int32 Slot)
 		return false;
 	}
 	ActivePlasmidSlot = Slot;
+	SetPlasmidHandActive(true);
 	return true;
 }
 
@@ -1865,6 +2073,7 @@ bool AShockPlayer::EquipPlasmid(TSubclassOf<UShockPlasmid> PlasmidClass, int32 S
 	}
 	EquippedPlasmids[Slot] = Instance;
 	ActivePlasmidSlot = Slot;
+	SetPlasmidHandActive(true);
 	return true;
 }
 
@@ -2024,6 +2233,20 @@ bool AShockPlayer::CastActivePlasmid()
 		return false;
 	}
 
+	// Presentation: plasmid arm up, cast gesture, and a burst at the hand (plus one at the hit
+	// point for a targeted cast). Plasmids that shape their own FX still spawn theirs on top.
+	SetPlasmidHandActive(true);
+	PlayActivePlasmidCastAnimation();
+	AShockPlasmidFx::SpawnBurst(
+		World, Plasmid->CastFxAssetPath, GetPlasmidMuzzleWorldLocation(),
+		GetControlRotation(), Plasmid->HandTint, 0.35f, 12.0f);
+	if (Hit.bBlockingHit)
+	{
+		AShockPlasmidFx::SpawnBurst(
+			World, Plasmid->CastFxAssetPath, Hit.ImpactPoint,
+			Hit.ImpactNormal.Rotation(), Plasmid->HandTint, 0.45f, 16.0f);
+	}
+
 	if (!bInfiniteEve && EveNeeded > KINDA_SMALL_NUMBER)
 	{
 		ConsumeEve(EveNeeded);
@@ -2046,6 +2269,7 @@ void AShockPlayer::CycleActivePlasmid()
 		if (EquippedPlasmids[NextSlot])
 		{
 			ActivePlasmidSlot = NextSlot;
+			SetPlasmidHandActive(true);
 			return;
 		}
 	}
