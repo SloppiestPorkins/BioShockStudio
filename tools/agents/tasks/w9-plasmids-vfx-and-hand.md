@@ -12,8 +12,14 @@ lane: tools/ue5/**, src/**, docs/research/**, tmp/**
 > Do NOT try to run headless UE, capture screenshots, or `rebuild_runtime_fast.ps1`; the
 > orchestrator builds and a human verifies in-editor afterwards. Your job: research from the
 > decompiled `.uc` + `docs/research/`, then WRITE the C++ / Python / docs changes directly as
-> file edits and stop. Pick the sensible default for every open choice. A partial but coherent
-> implementation that lands as a diff beats a plan.
+> file edits and stop. Pick the sensible default for every open choice.
+>
+> This is a whole runtime feature — budget for a THOROUGH pass, not a sketch. Every new
+> `UFUNCTION()` needs named parameters. Verify each engine/base-class member you call actually
+> exists in the headers in this worktree (`AShockPlayer`, `UShockPlasmid`, `AShockPawn`,
+> `AShockSecurityBot`, `ABaseShockAI`) before you use it — grep the header, don't assume. When
+> you hide the weapon/ViewHands for a plasmid, make sure switching back to a weapon restores
+> them. A coherent, compiling, complete implementation is the bar.
 
 The plasmid **logic** is done: `UShockPlasmid` base + `CastActivePlasmid` (EVE check, trace,
 cooldown), and 6 subclasses — `ElectroBolt`, `Incinerate`, `WinterBlast`, `Telekinesis`,

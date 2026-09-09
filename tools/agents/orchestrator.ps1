@@ -140,7 +140,10 @@ function Get-WorkerSpec {
 
     switch ($Worker) {
         'chatgpt' {
-            @{ Exe = 'codex'; Args = ($codexCommon + $gate + '-'); Local = $false }
+            # gpt-5.6-sol defaults to reasoning effort "none" under `codex exec`, which is far too
+            # shallow for a whole runtime feature. Force high. (Cursor is the primary worker; this
+            # path is the fallback while Cursor's quota is exhausted.)
+            @{ Exe = 'codex'; Args = ($codexCommon + @('-c', 'model_reasoning_effort="high"') + $gate + '-'); Local = $false }
         }
         'qwen' {
             # qwen2.5-coder:14b: ~9 GB (fits the 12 GB card) AND exposes tool-calling, which codex
