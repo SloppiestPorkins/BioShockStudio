@@ -1213,6 +1213,10 @@ void ABaseShockAI::SetCombatTarget(AShockPawn* Target)
 	if (bNewTarget)
 	{
 		OutOfSightTimer = 0.0f;
+		// w13 gates TickCombat and the brain on BehaviourState==Combat. Anything that hands this
+		// AI a target — perception, a script, a security-bot command, the brain — means it is
+		// fighting; enter the state here so no call site can forget (Enrage did).
+		EnterBehaviourState(EShockAIBehaviourState::Combat);
 		UShockAudioLibrary::SpawnEventAttached(
 			TEXT("ShockAI"), TEXT("BeganAttackingSpeech"), RootComponent);
 		UE_LOG(
