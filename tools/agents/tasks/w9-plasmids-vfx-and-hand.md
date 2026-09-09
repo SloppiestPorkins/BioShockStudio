@@ -1,11 +1,19 @@
 ---
-worker: cursor
+worker: chatgpt
 base: main
 verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ue5/rebuild_runtime_fast.ps1
 lane: tools/ue5/**, src/**, docs/research/**, tmp/**
 ---
 
 # Make plasmids actually work — first-person hand, cast animation, real VFX, the missing plasmids
+
+> **Run mode:** non-interactive, no human to approve anything, and your shell is sandboxed to
+> this worktree — you CANNOT launch UnrealEditor or build the plugin yourself, and that's fine.
+> Do NOT try to run headless UE, capture screenshots, or `rebuild_runtime_fast.ps1`; the
+> orchestrator builds and a human verifies in-editor afterwards. Your job: research from the
+> decompiled `.uc` + `docs/research/`, then WRITE the C++ / Python / docs changes directly as
+> file edits and stop. Pick the sensible default for every open choice. A partial but coherent
+> implementation that lands as a diff beats a plan.
 
 The plasmid **logic** is done: `UShockPlasmid` base + `CastActivePlasmid` (EVE check, trace,
 cooldown), and 6 subclasses — `ElectroBolt`, `Incinerate`, `WinterBlast`, `Telekinesis`,
