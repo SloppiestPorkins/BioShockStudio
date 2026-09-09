@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "ShockPlayer.h"
 
 AShockSearchableContainer::AShockSearchableContainer()
@@ -22,6 +23,15 @@ AShockSearchableContainer::AShockSearchableContainer()
 	Mesh->SetupAttachment(Reach);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
+
+	// Small marker until the real container/corpse meshes are imported.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MarkerMesh(
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (MarkerMesh.Succeeded())
+	{
+		Mesh->SetStaticMesh(MarkerMesh.Object);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.12f));
 }
 
 void AShockSearchableContainer::ConfigureContainer(
@@ -46,10 +56,21 @@ void AShockSearchableContainer::ConfigureContainer(
 
 void AShockSearchableContainer::SetContainerMesh(UStaticMesh* InMesh)
 {
-	if (Mesh && InMesh)
+	if (!Mesh)
+	{
+		return;
+	}
+	if (InMesh)
 	{
 		Mesh->SetStaticMesh(InMesh);
+		Mesh->SetRelativeScale3D(FVector(1.0f));
+		return;
 	}
+	if (UStaticMesh* Marker = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")))
+	{
+		Mesh->SetStaticMesh(Marker);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.12f));
 }
 
 bool AShockSearchableContainer::Search(AShockPlayer* Player)

@@ -135,6 +135,9 @@ private:
 	TObjectPtr<UTextBlock> ToastText = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> InteractPromptText = nullptr;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImage> CrosshairImage = nullptr;
 
 	UPROPERTY(Transient)

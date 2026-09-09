@@ -69,6 +69,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pickup")
 	bool TryCollect(AShockPlayer* Player);
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Pickup")
+	bool RequiresInteract() const { return bRequiresInteract; }
+
+	/** "pick up the shotgun", "take the plasmid", "read the audio diary" — for the HUD prompt. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Pickup")
+	FString GetInteractPrompt() const;
+
 	/** Headless verify: apply pickup effect without overlap geometry. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Pickup")
 	bool PickupForVerify(AShockPlayer* Player);
@@ -92,6 +99,9 @@ public:
 private:
 	bool ApplyPickup(AShockPlayer* Player);
 	void DestroyAfterPickup();
+
+	/** True while showing the small stand-in marker (no real mesh imported yet). */
+	bool bUsingMarkerMesh = false;
 
 	UFUNCTION()
 	void OnOverlap(

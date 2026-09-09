@@ -520,6 +520,15 @@ void UShockHudWidget::EnsureWidgetTree()
 	ToastText->SetVisibility(ESlateVisibility::Collapsed);
 	AnchorCorner(Canvas, ToastText, 0.5f, 0.0f, 0.5f, 0.0f, FVector2D(0.0f, 36.0f));
 
+	InteractPromptText = WidgetTree->ConstructWidget<UTextBlock>(
+		UTextBlock::StaticClass(), TEXT("InteractPromptText"));
+	InteractPromptText->SetText(FText::GetEmpty());
+	InteractPromptText->SetFont(MakeHudFont(18, true));
+	InteractPromptText->SetColorAndOpacity(FSlateColor(HudGold()));
+	InteractPromptText->SetJustification(ETextJustify::Center);
+	InteractPromptText->SetVisibility(ESlateVisibility::Collapsed);
+	AnchorCorner(Canvas, InteractPromptText, 0.5f, 1.0f, 0.5f, 1.0f, FVector2D(0.0f, 132.0f));
+
 	CrosshairImage = MakeImage(WidgetTree, TEXT("CrosshairImage"), FVector2D(6.0f, 6.0f));
 	CrosshairImage->SetColorAndOpacity(HudGold());
 	{
@@ -874,6 +883,20 @@ void UShockHudWidget::RefreshDisplay()
 	if (Player)
 	{
 		Player->EnsureHealthInitialized();
+	}
+
+	if (InteractPromptText)
+	{
+		const FString Prompt = Player ? Player->GetInteractionPrompt() : FString();
+		if (Prompt.IsEmpty())
+		{
+			InteractPromptText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		else
+		{
+			InteractPromptText->SetText(FText::FromString(Prompt));
+			InteractPromptText->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
 	}
 	const float Health = Player ? Player->GetCurrentHealth() : 0.0f;
 	const float MaxHealth = Player ? FMath::Max(Player->GetMaxHealth(), 1.0f) : 1.0f;

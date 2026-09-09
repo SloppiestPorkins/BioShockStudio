@@ -1278,6 +1278,7 @@ void AShockPlayer::Tick(float DeltaSeconds)
 
 	TickViewHandsAnimation(DeltaSeconds);
 	TickPlasmidHandsAnimation(DeltaSeconds);
+	TickInteractionTrace();
 	TickHeldFire();
 	TickUnderwaterPostProcess(DeltaSeconds);
 	TickViewEffects(DeltaSeconds);
@@ -2398,29 +2399,64 @@ void AShockPlayer::HandleHackToolInput()
 	TryHackDevice(Device, 0.5f);
 }
 
-void AShockPlayer::HandleInteractInput()
+void AShockPlayer::TickInteractionTrace()
 {
+	CachedInteractPrompt.Reset();
+	CachedInteractActor = nullptr;
+
 	UWorld* World = GetWorld();
 	if (!World || !FirstPersonCamera)
 	{
 		return;
 	}
-
 	const FVector Start = FirstPersonCamera->GetComponentLocation();
-	const FVector End = Start + FirstPersonCamera->GetForwardVector() * 220.0f;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockInteract), false, this);
+	const FVector End = Start + FirstPersonCamera->GetForwardVector() * 260.0f;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockInteractTrace), false, this);
 	FHitResult Hit;
-	if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	if (!World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
 	{
-		AActor* HitActor = Hit.GetActor();
-		if (AShockConsumablePickup* Pickup = Cast<AShockConsumablePickup>(HitActor))
+		return;
+	}
+
+	AActor* HitActor = Hit.GetActor();
+	if (const AShockConsumablePickup* Pickup = Cast<AShockConsumablePickup>(HitActor))
+	{
+		// Auto-collect pickups (ammo/health/money) grab on touch — no prompt.
+		if (Pickup->RequiresInteract())
+		{
+			CachedInteractActor = HitActor;
+			CachedInteractPrompt = FString::Printf(TEXT("Press F to %s"), *Pickup->GetInteractPrompt());
+		}
+	}
+	else if (const AShockSearchableContainer* Container = Cast<AShockSearchableContainer>(HitActor))
+	{
+		if (!Container->WasSearchedForVerify())
+		{
+			CachedInteractActor = HitActor;
+			CachedInteractPrompt = TEXT("Press F to search");
+		}
+	}
+	else if (const AShockStationBase* Station = Cast<AShockStationBase>(HitActor))
+	{
+		CachedInteractActor = HitActor;
+		CachedInteractPrompt = Station->StationKind == EShockStationKind::HealthStation
+			? TEXT("Press F to use the Health Station")
+			: TEXT("Press F to use");
+	}
+}
+
+void AShockPlayer::HandleInteractInput()
+{
+	if (AActor* Target = CachedInteractActor.Get())
+	{
+		if (AShockConsumablePickup* Pickup = Cast<AShockConsumablePickup>(Target))
 		{
 			if (Pickup->TryCollect(this))
 			{
 				return;
 			}
 		}
-		if (AShockSearchableContainer* Container = Cast<AShockSearchableContainer>(HitActor))
+		else if (AShockSearchableContainer* Container = Cast<AShockSearchableContainer>(Target))
 		{
 			if (Container->Search(this))
 			{

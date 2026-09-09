@@ -225,6 +225,11 @@ public:
 	bool CastActivePlasmid();
 
 	/** Switch presentation between the selected plasmid hand and the equipped weapon. */
+	/** HUD interaction prompt for what the player is currently looking at, e.g. "Press F to
+	 *  pick up the Shotgun" / "Press F to search". Empty when nothing is in reach. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	FString GetInteractionPrompt() const { return CachedInteractPrompt; }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|PlasmidHands")
 	void SetPlasmidHandActive(bool bActive);
 
@@ -804,6 +809,7 @@ private:
 	bool PerformPlasmidAimTrace(FHitResult& OutHit) const;
 	void HandleHackToolInput();
 	void HandleInteractInput();
+	void TickInteractionTrace();
 	void HandleUseFirstAidInput();
 	void HandleUseEveHypoInput();
 	bool PerformHackToolTrace(AShockSecurityDevice*& OutDevice) const;
@@ -914,6 +920,8 @@ private:
 	TObjectPtr<class UMaterialInstanceDynamic> PlasmidHandsMaterial;
 
 	FName PlasmidHandsAnimName = NAME_None;
+	FString CachedInteractPrompt;
+	TWeakObjectPtr<AActor> CachedInteractActor;
 	bool bPlasmidHandActive = false;
 	bool bPlasmidHandsPlayingOneShot = false;
 	float PlasmidHandsOneShotRemaining = 0.0f;

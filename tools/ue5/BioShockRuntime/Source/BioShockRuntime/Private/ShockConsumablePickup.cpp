@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "ShockPlasmid.h"
 #include "ShockPlayer.h"
 #include "ShockWeapon.h"
@@ -45,13 +46,59 @@ AShockConsumablePickup::AShockConsumablePickup()
 	Mesh->SetupAttachment(Collision);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
+
+	// Until the real pickup meshes are imported, a small tinted marker (~9 cm) so the pickup is
+	// visible without dropping a 1 m engine sphere on the scene.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MarkerMesh(
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (MarkerMesh.Succeeded())
+	{
+		Mesh->SetStaticMesh(MarkerMesh.Object);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.09f));
+	bUsingMarkerMesh = true;
 }
 
 void AShockConsumablePickup::SetPickupMesh(UStaticMesh* InMesh)
 {
-	if (Mesh && InMesh)
+	if (!Mesh)
+	{
+		return;
+	}
+	if (InMesh)
 	{
 		Mesh->SetStaticMesh(InMesh);
+		Mesh->SetRelativeScale3D(FVector(1.0f));
+		bUsingMarkerMesh = false;
+		return;
+	}
+	// No real mesh — (re)apply the small marker. Clears a giant engine sphere left by an
+	// earlier import pass.
+	if (UStaticMesh* Marker = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")))
+	{
+		Mesh->SetStaticMesh(Marker);
+	}
+	Mesh->SetRelativeScale3D(FVector(0.09f));
+	bUsingMarkerMesh = true;
+}
+
+FString AShockConsumablePickup::GetInteractPrompt() const
+{
+	switch (PickupKind)
+	{
+	case EShockPickupKind::Weapon:
+		return FString::Printf(TEXT("pick up the %s"),
+			WeaponDefName.IsNone() ? TEXT("weapon") : *WeaponDefName.ToString());
+	case EShockPickupKind::Plasmid:
+		return FString::Printf(TEXT("take the %s plasmid"),
+			PlasmidName.IsNone() ? TEXT("") : *PlasmidName.ToString());
+	case EShockPickupKind::Diary:
+		return TEXT("play the audio diary");
+	case EShockPickupKind::Item:
+		return FString::Printf(TEXT("take the %s"),
+			ItemClass.IsNone() ? TEXT("item") : *ItemClass.ToString());
+	default:
+		return TEXT("pick up");
 	}
 }
 

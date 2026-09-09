@@ -93,13 +93,29 @@ CONTAINERS = {
 
 
 def _load_mesh(name):
+    """The real pickup mesh if it has been imported into slice content, else None.
+
+    Returning None keeps the pickup invisible-but-functional rather than dropping a 1 m grey
+    engine sphere over it — the meshes (bio_bandages, Ammo_Pickup_*, …) were never imported.
+    `_place` gives a missing-mesh pickup a small marker so it can still be spotted.
+    """
     if not name:
         return None
     for base in MESH_DIRS:
         asset = unreal.load_asset("%s/%s" % (base, name))
         if asset:
             return asset
-    return unreal.load_asset("/Engine/BasicShapes/Sphere.Sphere")
+    return None
+
+
+_MARKER = None
+
+
+def _marker_mesh():
+    global _MARKER
+    if _MARKER is None:
+        _MARKER = unreal.load_asset("/Engine/BasicShapes/Sphere.Sphere")
+    return _MARKER
 
 
 def _place(actor_cls, entry, existing):
@@ -162,9 +178,7 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
                 unreal.Name(cfg["plasmid"]) if cfg["plasmid"] else unreal.Name(),
                 unreal.Name(diary_id) if diary_id else unreal.Name(),
                 cfg["interact"])
-            mesh = _load_mesh(entry.get("staticMesh"))
-            if mesh:
-                actor.set_pickup_mesh(mesh)
+            actor.set_pickup_mesh(_load_mesh(entry.get("staticMesh")))
             report["pickups"] += 1
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
         elif cn in CONTAINERS:
@@ -176,9 +190,7 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
                 unreal.Name(str(entry.get("label") or entry.get("name") or entry["key"])),
                 money_min, money_max,
                 unreal.Name(item) if item else unreal.Name(), 1)
-            mesh = _load_mesh(entry.get("staticMesh"))
-            if mesh:
-                actor.set_container_mesh(mesh)
+            actor.set_container_mesh(_load_mesh(entry.get("staticMesh")))
             report["containers"] += 1
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
         elif cn and ("Pickup" in cn or "Container" in cn or "Booty" in cn):
