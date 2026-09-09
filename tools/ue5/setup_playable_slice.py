@@ -485,6 +485,10 @@ STEPS = [
     ("import_slice_stations", "import_slice_stations", "main", ()),
     # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
     ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
+    # Loose props (trash cans, ashtrays, steamer trunks, fridge doors, debris) back to rigid-body
+    # physics — Physical*/Havok classes ship Physics=1 and fix_all_complex_collision stripped their
+    # simple collision, so nothing but corpses simulated. Must run AFTER the collision passes.
+    ("restore_dynamic_physics_props", "restore_dynamic_physics_props", "main", ()),
     # Rapture mood layer: a tagged PostProcessVolume + height fog with exposed knobs.
     ("repair_slice_look", "repair_slice_look", "main", ()),
     # Run export_slice_audio.ps1 first (dotnet, editor closed). This imports only payloads that
