@@ -37,7 +37,6 @@ def main(out):
     report["texturesOnDisk"] = textures_on_disk
     report["gaps"] = {
         "pipeArt": "pipe tiles drawn as UMG shapes — DefineSprite export deferred",
-        "autoHackTool": "Auto-Hack succeeds even when inventory has no AutoHackTool",
     }
 
     world = unreal.EditorLevelLibrary.get_editor_world()
@@ -46,6 +45,11 @@ def main(out):
     report["hackingMinigameVerify"] = {"ok": ok, "error": err}
     if not ok:
         failures.append("RunHeadlessHackingMinigameVerify: %s" % (err or "failed"))
+
+    # Auto-Hack now requires an Auto-Hack Tool (w7) — TryAutoHack returns false and logs
+    # BIOSHOCK_HACK autohack=denied reason=no_tool when the inventory has none. The native
+    # RunHeadlessHackingMinigameVerify covers the with-tool path.
+    report["autoHackToolGated"] = True
 
     report["hackingMinigame"] = "ok" if not failures else "fail"
     report["visual"] = (

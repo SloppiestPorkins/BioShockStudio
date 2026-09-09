@@ -927,11 +927,18 @@ bool UShockHackingMinigame::TryAutoHack()
 	{
 		return false;
 	}
-	if (Player->GetInventoryStack(AutoHackItemClass) > 0)
+	// Auto-Hack needs an Auto-Hack Tool in the inventory — no free wins.
+	if (Player->GetInventoryStack(AutoHackItemClass) <= 0)
 	{
-		Player->RemoveStackFromInventory(AutoHackItemClass, 1);
+		if (StatusText)
+		{
+			StatusText->SetText(FText::FromString(TEXT("NO AUTO-HACK TOOL")));
+		}
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK autohack=denied reason=no_tool"));
+		return false;
 	}
-	// Gap: Auto-Hack Tool always available when inventory has none.
+	Player->RemoveStackFromInventory(AutoHackItemClass, 1);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK autohack=used tool=%s"), *AutoHackItemClass.ToString());
 	FinishWin();
 	return true;
 }

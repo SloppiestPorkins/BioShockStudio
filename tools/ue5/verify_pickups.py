@@ -69,9 +69,9 @@ def main(out):
     # item (auto-hack)
     p = _spawn(sub, pickup_cls, "P_Hack", unreal.Vector(80, 0, 100))
     spawned.append(p)
-    p.configure_pickup(K_ITEM, 1, unreal.Name(), unreal.Name("AutoHackDevice"), unreal.Name(), unreal.Name(), False)
+    p.configure_pickup(K_ITEM, 1, unreal.Name(), unreal.Name("AutoHackTool"), unreal.Name(), unreal.Name(), False)
     check("item_grant",
-          p.try_collect(player) and player.get_inventory_stack(unreal.Name("AutoHackDevice")) >= 1, None)
+          p.try_collect(player) and player.get_inventory_stack(unreal.Name("AutoHackTool")) >= 1, None)
 
     # weapon (keypress — try_collect still works when called directly)
     p = _spawn(sub, pickup_cls, "P_Pistol", unreal.Vector(90, 0, 100))
