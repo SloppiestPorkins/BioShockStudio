@@ -1,5 +1,5 @@
 ---
-worker: cursor
+worker: chatgpt
 base: main
 verify: dotnet test tests/BioShockStudio.Tests/BioShockStudio.Tests.csproj --filter Tier=Fast
 lane: src/**, tests/**, tools/ue5/**, docs/research/**, tmp/**
