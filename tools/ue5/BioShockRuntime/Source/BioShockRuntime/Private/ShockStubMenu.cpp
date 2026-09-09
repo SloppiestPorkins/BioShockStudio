@@ -88,6 +88,24 @@ void UShockStubMenu::OpenStub(const FString& Title)
 	{
 		TitleText->SetText(FText::FromString(Title));
 	}
+	if (BodyText)
+	{
+		FString Body = TEXT("Not yet available in this build.");
+		if (Title.Equals(TEXT("Options"), ESearchCase::IgnoreCase))
+		{
+			Body = TEXT("Controls are bound in Config/DefaultInput.ini.\n"
+				"Field of view, view-bob and mouse settings are project defaults for this build.\n"
+				"In-menu options are not yet wired.");
+		}
+		else if (Title.Equals(TEXT("Credits"), ESearchCase::IgnoreCase)
+			|| Title.Equals(TEXT("Extras"), ESearchCase::IgnoreCase))
+		{
+			Body = TEXT("BioShock  -  2K Boston / 2K Australia / Irrational Games, 2007.\n"
+				"UE5.7 conversion: a fan reconstruction from the shipped assets.\n"
+				"Not affiliated with or endorsed by 2K or Take-Two.");
+		}
+		BodyText->SetText(FText::FromString(Body));
+	}
 	bOpen = true;
 	SetVisibility(ESlateVisibility::Visible);
 	SetKeyboardFocus();

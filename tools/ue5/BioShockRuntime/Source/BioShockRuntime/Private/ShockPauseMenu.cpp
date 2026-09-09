@@ -3,6 +3,8 @@
 #include "ShockDecoStyle.h"
 #include "ShockPlayer.h"
 #include "ShockSaveLoadMenu.h"
+#include "ShockStubMenu.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -362,17 +364,14 @@ void UShockPauseMenu::RefreshStats()
 	}
 	if (StatsText)
 	{
-		FString Note;
-		if (CachedLittleSisters == 0)
+		// BioShock's pause strip shows money + ADAM; the Little Sister count only appears once
+		// you are actually rescuing/harvesting them (none in Medical yet).
+		FString Stats = FString::Printf(TEXT("Money %d    ADAM %d"), CachedMoney, CachedAdam);
+		if (CachedLittleSisters > 0)
 		{
-			Note = TEXT("  (no Little Sister / Gatherer actors on level)");
+			Stats += FString::Printf(TEXT("    Little Sisters remaining %d"), CachedLittleSisters);
 		}
-		StatsText->SetText(FText::FromString(FString::Printf(
-			TEXT("Money %d    ADAM %d    Little Sisters remaining %d%s"),
-			CachedMoney,
-			CachedAdam,
-			CachedLittleSisters,
-			*Note)));
+		StatsText->SetText(FText::FromString(Stats));
 	}
 }
 
@@ -468,11 +467,27 @@ void UShockPauseMenu::ActivateAction(EPauseAction Action)
 		break;
 	}
 	case EPauseAction::Options:
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE stub=Options (not wired)"));
+	{
+		if (UShockStubMenu* Options = CreateWidget<UShockStubMenu>(this, UShockStubMenu::StaticClass()))
+		{
+			Options->AddToViewport(50);
+			Options->OpenStub(TEXT("Options"));
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE open=Options"));
+		}
 		break;
+	}
 	case EPauseAction::MainMenu:
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE stub=MainMenu (not wired)"));
+	{
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_PAUSE open=MainMenu"));
+		ClosePauseMenu();
+		APlayerController* PC = GetOwningPlayer();
+		if (!PC && GetWorld())
+		{
+			PC = GetWorld()->GetFirstPlayerController();
+		}
+		UGameplayStatics::OpenLevel(this, FName(TEXT("/Game/BioShockUI/MainMenu")));
 		break;
+	}
 	case EPauseAction::Quit:
 		if (APlayerController* PC = GetOwningPlayer())
 		{
