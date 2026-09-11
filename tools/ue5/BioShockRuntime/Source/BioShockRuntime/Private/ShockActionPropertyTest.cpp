@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockScriptReflection.h"
 
 UShockActionPropertyTest::UShockActionPropertyTest()
 {
@@ -44,9 +45,14 @@ static bool ComparePropertyStrings(int32 OpTest, const FString& Left, const FStr
 	case 1: // LessEqual
 		return bBothNumeric ? (LeftNum <= RightNum) : (Left <= Right);
 	case 2: // Equals
-		return Left.Equals(Right, ESearchCase::CaseSensitive);
+		// Numeric compare when both sides parse as numbers — a reflected float property exports
+		// as "12.500000" (ExportTextItem_Direct's default precision) and a script value of "12.5"
+		// must still compare equal; a bare string compare false-negatives every such case.
+		return bBothNumeric ? FMath::IsNearlyEqual(LeftNum, RightNum, KINDA_SMALL_NUMBER)
+			: Left.Equals(Right, ESearchCase::CaseSensitive);
 	case 3: // NotEqual
-		return !Left.Equals(Right, ESearchCase::CaseSensitive);
+		return bBothNumeric ? !FMath::IsNearlyEqual(LeftNum, RightNum, KINDA_SMALL_NUMBER)
+			: !Left.Equals(Right, ESearchCase::CaseSensitive);
 	case 4: // GreaterEqual
 		return bBothNumeric ? (LeftNum >= RightNum) : (Left >= Right);
 	case 5: // Greater
@@ -63,39 +69,42 @@ bool UShockActionPropertyTest::EvaluateInWorld(UWorld* World) const
 		return false;
 	}
 
+	AActor* Target = ShockScriptReflection::ResolveTargetActor(World, Label);
+	if (!Target)
+	{
+		return false;
+	}
+
 	const FString Path = PropertyPath.IsEmpty() ? TEXT("Label") : PropertyPath;
 	const bool bIsLabelPath = Path.Equals(TEXT("Label"), ESearchCase::IgnoreCase)
 		|| Path.Equals(TEXT("ActorLabel"), ESearchCase::IgnoreCase);
 	const bool bIsHiddenPath = Path.Equals(TEXT("bHidden"), ESearchCase::IgnoreCase)
 		|| Path.Equals(TEXT("Hidden"), ESearchCase::IgnoreCase);
-	if (!bIsLabelPath && !bIsHiddenPath)
+
+	FString LeftText;
+	if (bIsHiddenPath)
 	{
-		return false;
+		LeftText = Target->IsHidden() ? TEXT("True") : TEXT("False");
+	}
+#if WITH_EDITOR
+	else if (bIsLabelPath)
+	{
+		LeftText = Target->GetActorLabel();
+	}
+#endif
+	else
+	{
+		// Everything else: generic FProperty reflection (R2.1), same dotted-component path as
+		// ActionSetProperty/ActionGetProperty.
+		if (!ShockScriptReflection::GetPropertyAsText(Target, Path, LeftText))
+		{
+			return false;
+		}
 	}
 
-	const FString WantLabel = Label.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(WantLabel, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
-		if (bIsHiddenPath)
-		{
-			const FString HiddenText = Actor->IsHidden() ? TEXT("True") : TEXT("False");
-			return ComparePropertyStrings(OpTest, HiddenText, Value);
-		}
-		return ComparePropertyStrings(OpTest, Actor->GetActorLabel(), Value);
-#else
-		(void)Actor;
-		return false;
-#endif
-	}
-	return false;
+	const bool bResult = ComparePropertyStrings(OpTest, LeftText, Value);
+	// Cache for a sibling action's resolveInfoList (R1.1) — a PropertyTest's boolean drives the
+	// next action's param, same as ActionGetProperty's return.
+	const_cast<UShockActionPropertyTest*>(this)->SetReturnValueText(bResult ? TEXT("True") : TEXT("False"));
+	return bResult;
 }

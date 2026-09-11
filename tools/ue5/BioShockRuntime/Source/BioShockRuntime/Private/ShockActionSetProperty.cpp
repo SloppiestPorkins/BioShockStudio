@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockScriptReflection.h"
 
 UShockActionSetProperty::UShockActionSetProperty()
 {
@@ -44,8 +45,22 @@ bool UShockActionSetProperty::ApplyToActor(AActor* Target)
 		return Target->IsHidden() == bHide;
 	}
 
-	// Full SetPropertyText coverage is deferred — native UE2 path, many property types.
-	return false;
+	// Everything else: generic FProperty reflection (R2.1) — supports a dotted component step
+	// ("StaticMeshComponent.Mobility") our component-based port needs beyond BioShock's flat
+	// Object.Property, plus bool/numeric/name/string/struct/enum coercion via ImportText_Direct.
+	FString Error;
+	const bool bOk = ShockScriptReflection::SetPropertyFromText(Target, Prop, NewValue, &Error);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_SETPROP target=%s prop=%s value=%s ok=%d%s%s"),
+		*ObjectLabel.ToString(),
+		*Prop,
+		*NewValue,
+		bOk ? 1 : 0,
+		bOk ? TEXT("") : TEXT(" reason="),
+		bOk ? TEXT("") : *Error);
+	return bOk;
 }
 
 int32 UShockActionSetProperty::ApplyInWorld(UWorld* World)

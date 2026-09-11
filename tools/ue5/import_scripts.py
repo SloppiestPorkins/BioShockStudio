@@ -221,6 +221,13 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 action.configure(obj, prop, str(value))
                 stats["instance_applied"] += 1
                 return True
+        if action_class == "ActionGetProperty":
+            obj = _prop(bag, "Object")
+            prop = _prop(bag, "Property")
+            if obj is not None and prop is not None and hasattr(action, "configure"):
+                action.configure(obj, str(prop))
+                stats["instance_applied"] += 1
+                return True
         if action_class in ("ActionNonBlockingExecuteScript", "ActionBlockingExecuteScript"):
             target = _prop(bag, "targetScript", "TargetScript")
             if target is not None and hasattr(action, "configure"):
