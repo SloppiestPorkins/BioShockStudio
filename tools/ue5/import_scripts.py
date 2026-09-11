@@ -109,6 +109,10 @@ def _child_keys(bag, *names):
     return []
 
 
+def _resolve_infos(bag):
+    return list((bag or {}).get("resolveInfo") or (bag or {}).get("resolve_info") or [])
+
+
 def schema_paths(schema_dir=None):
     root = schema_dir or os.environ.get("BIOSHOCK_SCHEMA_DIR", DEFAULT_SCHEMA_DIR)
     return [os.path.join(root, name) for name in SCHEMA_FILES if os.path.isfile(os.path.join(root, name))]
@@ -226,6 +230,59 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
             prop = _prop(bag, "Property")
             if obj is not None and prop is not None and hasattr(action, "configure"):
                 action.configure(obj, str(prop))
+                stats["instance_applied"] += 1
+                return True
+        if action_class in (
+            "ActionVariableAdd",
+            "ActionVariableSubtract",
+            "ActionVariableMultiply",
+            "ActionVariableDivide",
+        ):
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if lhs is not None and rhs is not None and hasattr(action, "configure"):
+                action.configure(lhs, str(rhs))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionCalcDistance":
+            actor_one = _prop(bag, "actorOne", "ActorOne")
+            actor_two = _prop(bag, "actorTwo", "ActorTwo")
+            if actor_one is not None and actor_two is not None and hasattr(action, "configure"):
+                action.configure(actor_one, actor_two)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionRandomNumber":
+            minimum = _prop(bag, "minimum", "Minimum")
+            maximum = _prop(bag, "maximum", "Maximum")
+            if (minimum is not None or maximum is not None) and hasattr(action, "configure"):
+                action.configure(
+                    float(minimum) if minimum is not None else 0.0,
+                    float(maximum) if maximum is not None else 1.0,
+                )
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionGetMessageValue":
+            prop = _prop(bag, "Property")
+            if prop is not None and hasattr(action, "configure"):
+                action.configure(prop)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "BooleanStatement":
+            op = _prop(bag, "logicOp", "LogicOp")
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if (lhs is not None or rhs is not None) and hasattr(action, "configure"):
+                action.configure(
+                    int(op) if op is not None else 2,
+                    str(lhs or ""),
+                    str(rhs or ""),
+                )
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "TruthStatement":
+            value = _prop(bag, "Value")
+            if value is not None and hasattr(action, "configure"):
+                action.configure(value)
                 stats["instance_applied"] += 1
                 return True
         if action_class in ("ActionNonBlockingExecuteScript", "ActionBlockingExecuteScript"):
@@ -347,6 +404,88 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
     return False
 
 
+def _source_keys_by_export_index(props_by_key):
+    result = {}
+    for source_key, bag in (props_by_key or {}).items():
+        index = (bag or {}).get("exportIndex")
+        if index is None:
+            index = (bag or {}).get("export_index")
+        if index is not None:
+            result[int(index)] = source_key
+    return result
+
+
+def apply_resolve_info(
+    action,
+    source_key,
+    props_by_key,
+    source_keys_by_index,
+    paths,
+    stats,
+    depth,
+    visiting,
+    outer,
+    action_cache,
+):
+    """Thread sidecar v3 ParameterResolveInfo records onto one runtime action."""
+    bag = props_by_key.get(source_key) if source_key else None
+    for info in _resolve_infos(bag):
+        property_name = info.get("propertyName") or info.get("property_name")
+        source_kind = info.get("sourceKind") or info.get("source_kind")
+        source_property = (
+            info.get("sourcePropertyName") or info.get("source_property_name") or "Value"
+        )
+        if not property_name:
+            stats["resolve_invalid"] += 1
+            continue
+        try:
+            if source_kind == "variable":
+                variable_name = info.get("variableName") or info.get("variable_name")
+                if not variable_name:
+                    stats["resolve_invalid"] += 1
+                    continue
+                action.add_variable_resolver(property_name, variable_name, source_property)
+                stats["resolve_variable"] += 1
+                continue
+
+            if source_kind == "actionProp":
+                source_index = info.get("sourceActionIndex")
+                if source_index is None:
+                    source_index = info.get("source_action_index")
+                producer_key = source_keys_by_index.get(int(source_index)) if source_index is not None else None
+                producer_bag = props_by_key.get(producer_key) if producer_key else None
+                if not producer_bag:
+                    stats["resolve_action_missing"] += 1
+                    continue
+                producer_class = producer_bag.get("className") or producer_bag.get("class_name") or ""
+                producer_name = producer_bag.get("objectName") or producer_bag.get("object_name") or producer_key
+                producer, _status = try_create_action(
+                    producer_class,
+                    producer_name,
+                    paths,
+                    stats,
+                    source_key=producer_key,
+                    props_by_key=props_by_key,
+                    source_keys_by_index=source_keys_by_index,
+                    depth=depth + 1,
+                    visiting=visiting,
+                    outer=outer,
+                    action_cache=action_cache,
+                )
+                if producer is None:
+                    stats["resolve_action_missing"] += 1
+                    continue
+                action.add_action_property_resolver(
+                    property_name, producer, source_property, int(source_index)
+                )
+                stats["resolve_action_prop"] += 1
+                continue
+
+            stats["resolve_invalid"] += 1
+        except Exception:
+            stats["resolve_invalid"] += 1
+
+
 def try_create_action(
     action_class,
     object_name,
@@ -354,10 +493,15 @@ def try_create_action(
     stats,
     source_key=None,
     props_by_key=None,
+    source_keys_by_index=None,
     depth=0,
     visiting=None,
     outer=None,
+    action_cache=None,
 ):
+    action_cache = action_cache if action_cache is not None else {}
+    if source_key and source_key in action_cache:
+        return action_cache[source_key], "ok-cached"
     shock_name = shock_action_class_name(action_class)
     if not shock_name:
         return None, "bad-name"
@@ -373,6 +517,10 @@ def try_create_action(
     except Exception:
         return None, "abstract-or-fail"
 
+    # Cache before following resolveInfo/child edges so malformed cycles terminate on identity.
+    if source_key:
+        action_cache[source_key] = action
+
     ok, _path, applied = apply_schema_defaults(action, action_class, paths)
     if ok:
         stats["schema_applied"] += 1
@@ -381,6 +529,19 @@ def try_create_action(
         stats["schema_miss"] += 1
 
     apply_instance_props(action, action_class, source_key, props_by_key or {}, stats)
+
+    apply_resolve_info(
+        action,
+        source_key,
+        props_by_key or {},
+        source_keys_by_index or {},
+        paths,
+        stats,
+        depth,
+        visiting,
+        outer,
+        action_cache,
+    )
 
     if action_class == "ActionScriptNote" and hasattr(action, "configure"):
         try:
@@ -400,16 +561,29 @@ def try_create_action(
         action_class,
         source_key,
         props_by_key or {},
+        source_keys_by_index or {},
         paths,
         stats,
         depth=depth,
         visiting=visiting,
         outer=outer,
+        action_cache=action_cache,
     )
     return action, "ok"
 
 
-def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiting, nest_bucket, outer=None):
+def _create_from_source_key(
+    child_key,
+    props_by_key,
+    source_keys_by_index,
+    paths,
+    stats,
+    depth,
+    visiting,
+    nest_bucket,
+    outer=None,
+    action_cache=None,
+):
     bag = props_by_key.get(child_key) or {}
     child_class = bag.get("className") or bag.get("class_name") or ""
     child_name = bag.get("objectName") or bag.get("object_name") or child_key
@@ -426,9 +600,11 @@ def _create_from_source_key(child_key, props_by_key, paths, stats, depth, visiti
         stats,
         source_key=child_key,
         props_by_key=props_by_key,
+        source_keys_by_index=source_keys_by_index,
         depth=depth + 1,
         visiting=visiting,
         outer=outer,
+        action_cache=action_cache,
     )
     if child is None:
         stats["nested_unmapped"] += 1
@@ -445,11 +621,13 @@ def expand_nested_actions(
     action_class,
     source_key,
     props_by_key,
+    source_keys_by_index,
     paths,
     stats,
     depth=0,
     visiting=None,
     outer=None,
+    action_cache=None,
 ):
     """Wire true/else/loop/tests childGraphs from the package dump."""
     if not source_key or source_key not in props_by_key:
@@ -468,17 +646,20 @@ def expand_nested_actions(
         if action_class == "ActionIf":
             for child_key in _child_keys(bag, "trueActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_true", outer=outer)
+                    child_key, props_by_key, source_keys_by_index, paths, stats, depth, visiting,
+                    "nested_true", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_true_action"):
                     action.add_true_action(child)
             for child_key in _child_keys(bag, "elseActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_else", outer=outer)
+                    child_key, props_by_key, source_keys_by_index, paths, stats, depth, visiting,
+                    "nested_else", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_else_action"):
                     action.add_else_action(child)
             for child_key in _child_keys(bag, "testsOr"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_tests", outer=outer)
+                    child_key, props_by_key, source_keys_by_index, paths, stats, depth, visiting,
+                    "nested_tests", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_test"):
                     try:
                         action.add_test(child)
@@ -487,13 +668,15 @@ def expand_nested_actions(
         elif action_class == "ActionLoop":
             for child_key in _child_keys(bag, "loopActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_loop", outer=outer)
+                    child_key, props_by_key, source_keys_by_index, paths, stats, depth, visiting,
+                    "nested_loop", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_loop_action"):
                     action.add_loop_action(child)
         elif action_class == "ActionFor":
             for child_key in _child_keys(bag, "forActions"):
                 child = _create_from_source_key(
-                    child_key, props_by_key, paths, stats, depth, visiting, "nested_for", outer=outer)
+                    child_key, props_by_key, source_keys_by_index, paths, stats, depth, visiting,
+                    "nested_for", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_for_action"):
                     action.add_for_action(child)
     finally:
@@ -524,6 +707,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
             ]
             props_path = next((p for p in candidates if os.path.isfile(p)), None)
     props_by_key = load_action_props(props_path)
+    source_keys_by_index = _source_keys_by_export_index(props_by_key)
 
     for _key, actor in list(_existing_by_key().items()):
         _actor_subsystem().destroy_actor(actor)
@@ -545,6 +729,10 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         "schema_props": 0,
         "instance_applied": 0,
         "instance_fail": 0,
+        "resolve_variable": 0,
+        "resolve_action_prop": 0,
+        "resolve_action_missing": 0,
+        "resolve_invalid": 0,
         "nested_true": 0,
         "nested_else": 0,
         "nested_loop": 0,
@@ -601,6 +789,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
             actor.set_registry(registry)
 
         runner = actor.get_runner()
+        action_cache = {}
         sa = actor_doc.get("scriptActions") or {}
         action_count = 0
         for ref in sa.get("actions") or []:
@@ -616,7 +805,9 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
                 stats,
                 source_key=source_key,
                 props_by_key=props_by_key,
+                source_keys_by_index=source_keys_by_index,
                 outer=runner,
+                action_cache=action_cache,
             )
             if action is None:
                 report["actions_unmapped"] += 1

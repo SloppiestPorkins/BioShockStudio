@@ -28,6 +28,12 @@ public:
 	int32 GetLogicOp() const { return LogicOp; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	FString GetLhs() const { return Lhs; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	FString GetRhs() const { return Rhs; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool TestEvaluate() const { return EvaluateBool(); }
 
 	virtual bool EvaluateBool() const override;

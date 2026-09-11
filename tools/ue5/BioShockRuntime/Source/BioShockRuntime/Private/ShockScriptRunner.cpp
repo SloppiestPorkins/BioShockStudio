@@ -1,6 +1,7 @@
 #include "ShockScriptRunner.h"
 
 #include "ShockAction.h"
+#include "ShockActionBool.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitLoop.h"
 #include "ShockActionExitScript.h"
@@ -18,6 +19,37 @@
 
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+
+namespace
+{
+	void ResetActionRuntimeState(UShockAction* Action, TSet<UShockAction*>& Visited)
+	{
+		if (!Action || Visited.Contains(Action))
+		{
+			return;
+		}
+		Visited.Add(Action);
+		Action->ClearReturnValue();
+		for (const FShockParameterResolveInfo& Info : Action->ResolveInfoList)
+		{
+			ResetActionRuntimeState(Info.SourceAction, Visited);
+		}
+		if (UShockActionIf* IfAction = Cast<UShockActionIf>(Action))
+		{
+			for (UShockActionBool* Test : IfAction->TestsOr) ResetActionRuntimeState(Test, Visited);
+			for (UShockAction* Child : IfAction->TrueActions) ResetActionRuntimeState(Child, Visited);
+			for (UShockAction* Child : IfAction->ElseActions) ResetActionRuntimeState(Child, Visited);
+		}
+		else if (UShockActionLoop* Loop = Cast<UShockActionLoop>(Action))
+		{
+			for (UShockAction* Child : Loop->LoopActions) ResetActionRuntimeState(Child, Visited);
+		}
+		else if (UShockActionFor* ForAction = Cast<UShockActionFor>(Action))
+		{
+			for (UShockAction* Child : ForAction->ForActions) ResetActionRuntimeState(Child, Visited);
+		}
+	}
+}
 
 UShockScriptRunner::UShockScriptRunner()
 {
@@ -108,10 +140,12 @@ bool UShockScriptRunner::StartExecution()
 		return false;
 	}
 	RunQueue.Reset();
+	TSet<UShockAction*> ResetVisited;
 	for (const TObjectPtr<UShockAction>& Action : Actions)
 	{
 		if (Action)
 		{
+			ResetActionRuntimeState(Action, ResetVisited);
 			RunQueue.Add(Action);
 		}
 	}
@@ -386,6 +420,26 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		return true;
 	}
 
+	FShockActionContext Ctx;
+	Ctx.World = GetOuterWorld();
+	Ctx.OwnerActor = Cast<AActor>(GetOuter());
+	Ctx.Variables = EnsureVariables();
+	Ctx.Instigator = nullptr;
+	Ctx.SourceLabel = ScriptLabel;
+	Ctx.MessageClass = LastMessageClass;
+	Ctx.MessageSource = LastMessageSource;
+
+	// ActionWait remains on this index across ticks. Its parameters are resolved at entry, like
+	// UnrealScript latentExecute(), rather than being rebound every frame while it is pending.
+	if (!(Cast<UShockActionWait>(Action) && bWaitPrepared))
+	{
+		const bool bResolved = Action->ResolveParameters(Ctx);
+		if (!bResolved && !Action->ResolveInfoList.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_RESOLVE %s incomplete"), *Action->ActionClassName);
+		}
+	}
+
 	if (UShockActionWait* Wait = Cast<UShockActionWait>(Action))
 	{
 		if (!bWaitPrepared)
@@ -407,11 +461,6 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionPlayAnimation* Animation = Cast<UShockActionPlayAnimation>(Action))
 	{
-		FShockActionContext Ctx;
-		Ctx.World = GetOuterWorld();
-		Ctx.OwnerActor = Cast<AActor>(GetOuter());
-		Ctx.Variables = EnsureVariables();
-		Ctx.SourceLabel = ScriptLabel;
 		const bool bApplied = Animation->ApplyInWorld(Ctx);
 		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_ACTION %s applied=%d"), *Animation->ActionClassName, bApplied ? 1 : 0);
 		if (bApplied
@@ -559,15 +608,16 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	if (UShockActionIf* IfAction = Cast<UShockActionIf>(Action))
 	{
-		UWorld* World = nullptr;
-		if (const UObject* OuterObj = GetOuter())
+		// testsOr entries are expression actions owned by ActionIf, not queue entries, so they
+		// need the same pre-execute binding pass as ordinary actions.
+		for (const TObjectPtr<UShockActionBool>& Test : IfAction->TestsOr)
 		{
-			if (const AActor* OuterActor = Cast<AActor>(OuterObj))
+			if (Test)
 			{
-				World = OuterActor->GetWorld();
+				Test->ResolveParameters(Ctx);
 			}
 		}
-		const FString Branch = IfAction->ChooseBranch(World);
+		const FString Branch = IfAction->ChooseBranch(Ctx.World);
 		const TArray<TObjectPtr<UShockAction>>& BranchActions =
 			Branch == TEXT("true") ? IfAction->TrueActions : IfAction->ElseActions;
 		InsertActionsAt(CurrentlyExecutingActionIndex + 1, BranchActions);
@@ -575,13 +625,6 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		++ActionsCompleted;
 		return true;
 	}
-
-	FShockActionContext Ctx;
-	Ctx.World = GetOuterWorld();
-	Ctx.OwnerActor = Cast<AActor>(GetOuter());
-	Ctx.Variables = EnsureVariables();
-	Ctx.Instigator = nullptr;
-	Ctx.SourceLabel = ScriptLabel;
 
 	const bool bApplied = Action->ApplyInWorld(Ctx);
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_ACTION %s applied=%d"), *Action->ActionClassName, bApplied ? 1 : 0);

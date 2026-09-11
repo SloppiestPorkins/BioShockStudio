@@ -136,10 +136,12 @@ decodes the serialized `Script` actors + the `.script-actions.json` sidecar into
 `AShockScript` + `UShockAction` objects (`new_object(cls, runner)` — outered correctly since
 `14b2157`).
 
+**Parameter resolution (R1.1):** `resolveInfoList` is carried by script-actions sidecar v3 and
+applied before runtime actions execute. Scope `Variable.Value` and an action expression's returned
+`Variable.Value` both type-coerce into the destination action property; see
+`docs/research/script-vm.md` for shipped-byte evidence and the implemented producer set.
+
 **Gaps**:
-- **No parameter resolution** (`resolveInfoList`). Actions get literal config only; a Variable
-  or a sibling-action Property can't feed a param. This blocks any script that computes a value
-  and uses it (distance checks, spawn-then-reference, counters driving `ActionIf`).
 - **No `Watcher`** — condition-becomes-true scripts never fire.
 - **No script `Timer`** (`StartTimer` → `MessageTimerExpired`).
 - **No critical/immediate mode** on level travel (all-or-nothing runs, no `bIsGameCritical`

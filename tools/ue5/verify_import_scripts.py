@@ -15,6 +15,88 @@ def _log(m):
     unreal.log("[bioshock-import-scripts] %s" % m)
 
 
+def _runtime_object(class_name, outer):
+    cls = unreal.load_class(None, "/Script/BioShockRuntime.%s" % class_name)
+    if cls is None:
+        raise RuntimeError("missing runtime class %s" % class_name)
+    return unreal.new_object(cls, outer)
+
+
+def _verify_parameter_resolution(report):
+    """Synthetic execution proof for both ParameterResolveInfo source kinds."""
+    actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    script_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockScript")
+    actor_cls = unreal.load_class(None, "/Script/Engine.TargetPoint")
+    script = actor_subsystem.spawn_actor_from_class(script_cls, unreal.Vector(0, 0, 0))
+    point_a = actor_subsystem.spawn_actor_from_class(actor_cls, unreal.Vector(0, 0, 0))
+    point_b = actor_subsystem.spawn_actor_from_class(actor_cls, unreal.Vector(300, 0, 0))
+    if script is None or point_a is None or point_b is None:
+        raise RuntimeError("could not spawn parameter-resolution fixtures")
+    try:
+        point_a.set_actor_label("VMResolvePointA")
+        point_b.set_actor_label("VMResolvePointB")
+        point_a.tags = ["VMResolvePointA"]
+        point_b.tags = ["VMResolvePointB"]
+        script.configure("VMResolveVerify", "")
+        runner = script.get_runner()
+
+        assign_input = _runtime_object("ShockActionVariableAssignOverwrite", runner)
+        assign_input.configure("MinimumInput", "9")
+
+        random_number = _runtime_object("ShockActionRandomNumber", runner)
+        random_number.configure(0.0, 9.0)
+        random_number.add_variable_resolver("Minimum", "MinimumInput", "Value")
+
+        assign_random = _runtime_object("ShockActionVariableAssignOverwrite", runner)
+        assign_random.configure("Rolled", "unresolved")
+        assign_random.add_action_property_resolver("Rhs", random_number, "Value", 101)
+
+        calc_distance = _runtime_object("ShockActionCalcDistance", runner)
+        calc_distance.configure("VMResolvePointA", "VMResolvePointB")
+
+        comparison = _runtime_object("ShockBooleanStatement", runner)
+        comparison.configure(1, "unresolved", "350")  # distance <= 350
+        comparison.add_action_property_resolver("Lhs", calc_distance, "Value", 102)
+
+        branch_assign = _runtime_object("ShockActionVariableAssignOverwrite", runner)
+        branch_assign.configure("DistanceBranch", "true")
+        if_action = _runtime_object("ShockActionIf", runner)
+        if_action.add_test(comparison)
+        if_action.add_true_action(branch_assign)
+
+        for action in (assign_input, random_number, assign_random, calc_distance, if_action):
+            runner.add_action(action)
+        if not runner.start_execution():
+            raise RuntimeError("parameter-resolution runner did not start")
+        runner.tick_execution(0.0)
+
+        variables = runner.ensure_variables()
+        rolled = str(variables.get_value_or_empty("Rolled"))
+        branch = str(variables.get_value_or_empty("DistanceBranch"))
+        random_value = random_number.get_return_value()
+        distance_value = calc_distance.get_return_value()
+        checks = {
+            "variable_to_parameter": abs(float(random_number.get_minimum()) - 9.0) < 0.0001,
+            "random_to_assign": abs(float(rolled) - 9.0) < 0.0001,
+            "distance_to_if": branch == "true" and comparison.get_lhs() not in ("", "unresolved"),
+            "random_return": random_value is not None,
+            "distance_return": distance_value is not None,
+        }
+        report["parameter_resolution"] = {
+            "checks": checks,
+            "rolled": rolled,
+            "distance": str(distance_value.get_value()) if distance_value else None,
+            "branch": branch,
+        }
+        for name, passed in checks.items():
+            if not passed:
+                report["failures"].append("parameter resolution %s" % name)
+    finally:
+        actor_subsystem.destroy_actor(point_b)
+        actor_subsystem.destroy_actor(point_a)
+        actor_subsystem.destroy_actor(script)
+
+
 def main(out, manifest=None):
     report = {"failures": []}
     f = report["failures"]
@@ -102,6 +184,8 @@ def main(out, manifest=None):
     else:
         if int(imported.get("with_triggered_by", 0)) < 1:
             f.append("no TriggeredBy in imported set")
+
+    _verify_parameter_resolution(report)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:

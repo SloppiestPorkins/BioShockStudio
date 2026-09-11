@@ -81,27 +81,26 @@ def main(out=OUT):
         sp2b.configure(label, unreal.Name("StaticMeshComponent.bVisible"), "True")
         sp2b.apply_in_world(world)
 
-        # (c) GetProperty round-trip onto ReturnValueText. Read the return value as the plain
-        # UPROPERTY (get_editor_property) rather than the GetReturnValueText UFUNCTION — its
-        # bool-return + FString-out signature does not round-trip through the Python binding as
-        # a clean 2-tuple.
+        # (c) GetProperty round-trip onto the typed UShockVariable return value (R1.1's carrier —
+        # get_return_value() rather than a GetReturnValueText-style bool+out-param UFUNCTION,
+        # which does not round-trip through the Python binding as a clean tuple).
         get_cls = _cls("ShockActionGetProperty")
         gp = unreal.new_object(get_cls)
         gp.configure(label, "InitialLifeSpan")
         got_ok = gp.apply_in_world(world)
-        has_ret = gp.get_editor_property("has_return_value")
-        ret_text = gp.get_editor_property("return_value_text")
+        got_return = gp.get_return_value()
+        ret_text = got_return.get_value() if got_return else None
         got_val = float(ret_text) if ret_text else -1.0
-        check("getproperty_roundtrip", got_ok and has_ret and abs(got_val - 12.5) < 0.01, ret_text)
+        check("getproperty_roundtrip", got_ok and got_return is not None and abs(got_val - 12.5) < 0.01, ret_text)
 
         # (d) PropertyTest -> ActionIf branch + its own return value.
         test_cls = _cls("ShockActionPropertyTest")
         pt = unreal.new_object(test_cls)
         pt.configure(label, "InitialLifeSpan", "12.5", 2, -1)  # OPTEST_EQUALS
         eval_ok = pt.evaluate_in_world(world)
-        has_pt_ret = pt.get_editor_property("has_return_value")
-        pt_ret_text = pt.get_editor_property("return_value_text")
-        check("propertytest_equals", eval_ok is True and has_pt_ret and pt_ret_text == "True",
+        pt_return = pt.get_return_value()
+        pt_ret_text = pt_return.get_value() if pt_return else None
+        check("propertytest_equals", eval_ok is True and pt_ret_text == "True",
               (eval_ok, pt_ret_text))
 
         if_cls = _cls("ShockActionIf")

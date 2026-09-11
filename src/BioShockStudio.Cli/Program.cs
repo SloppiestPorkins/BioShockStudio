@@ -1621,12 +1621,10 @@ static int EffectClassCommand(string root, string[] args)
 }
 
 /// <summary>
-/// Writes one JSON object per resolved Script action export: scalar Name/Str/Float/Int/Bool
-/// properties only. Used by tools/ue5/import_scripts.py to apply per-instance overrides after
-/// schema class defaults. Does not expand nested ActionIf/ActionLoop action arrays.
-/// </summary>
-/// <summary>
-/// Dumps Script action instance properties plus nested ActionIf/Loop/For child sourceKeys.
+/// Writes one JSON object per resolved Script action export. In addition to scalar instance
+/// properties and nested control-flow arrays, this preserves Action.resolveInfoList. Resolver
+/// source actions are enqueued into the same bySourceKey table even when they are not members of a
+/// control-flow array, so the UE5 importer can construct the complete expression graph.
 /// </summary>
 static int ExportScriptActions(string root, string[] args)
 {
@@ -1676,12 +1674,14 @@ static int ExportScriptActions(string root, string[] args)
 
         Dictionary<string, object?> properties;
         Dictionary<string, object> childArrays;
+        List<Dictionary<string, object?>> resolveInfo;
         try
         {
             var raw = package.ReadExportData(package.Exports[source.ExportIndex]);
             var list = UnrealPropertyReader.Read(raw, package.Names, out _, out _);
             properties = new Dictionary<string, object?>(StringComparer.Ordinal);
             childArrays = new Dictionary<string, object>(StringComparer.Ordinal);
+            resolveInfo = [];
             foreach (var property in list)
             {
                 if (property.Type == UnrealPropertyType.Array
@@ -1710,6 +1710,72 @@ static int ExportScriptActions(string root, string[] args)
                     }
 
                     childArrays[property.Name] = keys;
+                    continue;
+                }
+
+                if (property is { Name: "resolveInfoList", Type: UnrealPropertyType.Array }
+                    && PropertyValues.TryAsStructArrayExact(property, package, out var resolvers))
+                {
+                    foreach (var resolver in resolvers)
+                    {
+                        UnrealProperty? Field(string name) => resolver.FirstOrDefault(
+                            field => field.Name.Equals(name, StringComparison.Ordinal));
+
+                        string? propertyName = Field("PropertyName") is { Type: UnrealPropertyType.Name } propertyField
+                            ? PropertyValues.AsName(propertyField, package)
+                            : null;
+                        string? variableName = Field("Variable") is { Type: UnrealPropertyType.Name } variableField
+                            ? PropertyValues.AsName(variableField, package)
+                            : null;
+                        PackageIndex actionIndex = default;
+                        bool hasAction = Field("Action") is { } actionField
+                                         && actionField.TryAsObjectReference(out actionIndex)
+                                         && actionIndex.IsExport
+                                         && actionIndex.ExportIndex >= 0
+                                         && actionIndex.ExportIndex < package.Exports.Count;
+
+                        if (string.IsNullOrWhiteSpace(propertyName)
+                            || propertyName.Equals("None", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        if (hasAction)
+                        {
+                            var target = package.Exports[actionIndex.ExportIndex];
+                            var producer = new SourceId(
+                                Path.GetFileNameWithoutExtension(package.FilePath),
+                                target.Index,
+                                package.GetClassName(target),
+                                target.ObjectName);
+                            if (!byKey.ContainsKey(producer.Key))
+                            {
+                                queue.Enqueue(producer);
+                                nestedEnqueued++;
+                            }
+                            resolveInfo.Add(new Dictionary<string, object?>
+                            {
+                                ["propertyName"] = propertyName,
+                                ["sourceKind"] = "actionProp",
+                                ["variableName"] = null,
+                                // SourceId.ExportIndex is the package's zero-based export index.
+                                ["sourceActionIndex"] = producer.ExportIndex,
+                                // ParameterResolveInfo stores only the destination property; an
+                                // Action source contributes its returned Variable.Value.
+                                ["sourcePropertyName"] = "Value",
+                            });
+                        }
+                        else if (!string.IsNullOrWhiteSpace(variableName)
+                                 && !variableName.Equals("None", StringComparison.OrdinalIgnoreCase))
+                        {
+                            resolveInfo.Add(new Dictionary<string, object?>
+                            {
+                                ["propertyName"] = propertyName,
+                                ["sourceKind"] = "variable",
+                                ["variableName"] = variableName,
+                                ["sourceActionIndex"] = null,
+                                ["sourcePropertyName"] = "Value",
+                            });
+                        }
+                    }
                     continue;
                 }
 
@@ -1744,12 +1810,14 @@ static int ExportScriptActions(string root, string[] args)
         };
         if (childArrays.Count > 0)
             entry["childArrays"] = childArrays;
+        if (resolveInfo.Count > 0)
+            entry["resolveInfo"] = resolveInfo;
         byKey[key] = entry;
     }
 
     var document = new Dictionary<string, object>
     {
-        ["formatVersion"] = 2,
+        ["formatVersion"] = 3,
         ["package"] = context.PackageName,
         ["scripts"] = scripts,
         ["actions"] = actions,

@@ -3,6 +3,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "ShockScriptReflection.h"
+#include "ShockVariable.h"
 
 UShockActionPropertyTest::UShockActionPropertyTest()
 {
@@ -104,7 +105,9 @@ bool UShockActionPropertyTest::EvaluateInWorld(UWorld* World) const
 
 	const bool bResult = ComparePropertyStrings(OpTest, LeftText, Value);
 	// Cache for a sibling action's resolveInfoList (R1.1) — a PropertyTest's boolean drives the
-	// next action's param, same as ActionGetProperty's return.
-	const_cast<UShockActionPropertyTest*>(this)->SetReturnValueText(bResult ? TEXT("True") : TEXT("False"));
+	// next action's param, same as ActionGetProperty's return. ActionPropertyTest returns a
+	// VariableBool in the decompiled source (Scripting.U).
+	const_cast<UShockActionPropertyTest*>(this)->SetReturnValueText(
+		bResult ? TEXT("True") : TEXT("False"), TEXT("VariableBool"));
 	return bResult;
 }

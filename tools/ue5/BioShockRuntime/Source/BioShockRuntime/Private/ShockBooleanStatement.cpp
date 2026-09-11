@@ -15,6 +15,21 @@ void UShockBooleanStatement::Configure(int32 InLogicOp, const FString& InLhs, co
 
 bool UShockBooleanStatement::EvaluateBool() const
 {
+	if (Lhs.IsNumeric() && Rhs.IsNumeric())
+	{
+		const double Left = FCString::Atod(*Lhs);
+		const double Right = FCString::Atod(*Rhs);
+		switch (LogicOp)
+		{
+		case 0: return Left < Right;
+		case 1: return Left <= Right;
+		case 2: return FMath::IsNearlyEqual(Left, Right);
+		case 3: return !FMath::IsNearlyEqual(Left, Right);
+		case 4: return Left >= Right;
+		case 5: return Left > Right;
+		default: return false;
+		}
+	}
 	switch (LogicOp)
 	{
 	case 0: return Lhs < Rhs;
