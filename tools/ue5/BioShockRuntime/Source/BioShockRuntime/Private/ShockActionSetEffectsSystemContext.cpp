@@ -1,5 +1,7 @@
 #include "ShockActionSetEffectsSystemContext.h"
 
+#include "ShockEffectsSubsystem.h"
+
 UShockActionSetEffectsSystemContext::UShockActionSetEffectsSystemContext()
 {
 	ActionClassName = TEXT("ActionSetEffectsSystemContext");
@@ -26,4 +28,31 @@ bool UShockActionSetEffectsSystemContext::RequestSet()
 	}
 	LastContext = Context;
 	return true;
+}
+
+bool UShockActionSetEffectsSystemContext::ApplyInWorld(UWorld* World)
+{
+	if (!RequestSet())
+	{
+		return false;
+	}
+	UShockEffectsSubsystem* Fx = UShockEffectsSubsystem::Get(World);
+	if (!Fx)
+	{
+		return false;
+	}
+	if (bRemoveInsteadOfAdd)
+	{
+		Fx->RemoveContext(Context);
+	}
+	else
+	{
+		Fx->PushContext(Context);
+	}
+	return true;
+}
+
+bool UShockActionSetEffectsSystemContext::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World);
 }

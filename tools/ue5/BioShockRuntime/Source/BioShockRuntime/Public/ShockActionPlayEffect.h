@@ -8,8 +8,10 @@ class UWorld;
 
 /**
  * UnrealScript `ActionPlayEffect` (Scripting.U). Finds actors by `ActorLabel` and calls
- * `TriggerEffectEvent(EffectEvent,,,,,,,, EffectTag)`. This slice holds the params and records
- * the intended fire; the BioShock effect configurator is not ported yet.
+ * `TriggerEffectEvent(EffectEvent,,,,,,,, EffectTag)` — R3.1/3.2: routes through
+ * `UShockEffectsSubsystem::PlayEffect` (event/tag → particle+sound+decal bundle, keyword-matched
+ * since the real per-event authoring tables were not recovered; see
+ * `docs/research/effects-system.md`).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPlayEffect : public UShockAction
@@ -48,7 +50,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InEffectEvent, FName InEffectTag, FName InActorLabel);
 
-	/** Records the TriggerEffectEvent call that script would make. Does not spawn FX. */
+	/** Records the TriggerEffectEvent call and spawns the resolved presentation bundle. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool FireOnActor(AActor* Target);
 

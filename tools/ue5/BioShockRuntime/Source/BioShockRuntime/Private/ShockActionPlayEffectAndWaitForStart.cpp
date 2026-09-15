@@ -1,5 +1,8 @@
 #include "ShockActionPlayEffectAndWaitForStart.h"
 
+#include "ShockEffectsSubsystem.h"
+#include "ShockScriptReflection.h"
+
 UShockActionPlayEffectAndWaitForStart::UShockActionPlayEffectAndWaitForStart()
 {
 	ActionClassName = TEXT("ActionPlayEffectAndWaitForStart");
@@ -29,4 +32,27 @@ bool UShockActionPlayEffectAndWaitForStart::RequestPlay()
 	}
 	LastEffectEventToPlay = EffectEventToPlay;
 	return true;
+}
+
+bool UShockActionPlayEffectAndWaitForStart::ApplyInWorld(UWorld* World)
+{
+	if (!RequestPlay())
+	{
+		return false;
+	}
+	AActor* Target = ShockScriptReflection::ResolveTargetActor(World, ActorLabel);
+	if (!Target)
+	{
+		return false;
+	}
+	if (UShockEffectsSubsystem* Fx = UShockEffectsSubsystem::Get(World))
+	{
+		Fx->PlayEffect(Target, EffectEventToPlay, EffectTag);
+	}
+	return true;
+}
+
+bool UShockActionPlayEffectAndWaitForStart::ApplyInWorld(const FShockActionContext& Ctx)
+{
+	return ApplyInWorld(Ctx.World);
 }

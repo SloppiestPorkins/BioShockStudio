@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockEffectsSubsystem.h"
 
 UShockActionStopEffect::UShockActionStopEffect()
 {
@@ -25,6 +26,11 @@ bool UShockActionStopEffect::StopOnActor(AActor* Target)
 	LastStoppedEvent = EffectEvent;
 	LastStoppedTag = EffectTag;
 	LastStoppedActorName = Target->GetName();
+
+	if (UShockEffectsSubsystem* Fx = UShockEffectsSubsystem::Get(Target->GetWorld()))
+	{
+		Fx->StopEffect(Target, EffectEvent);
+	}
 	return true;
 }
 

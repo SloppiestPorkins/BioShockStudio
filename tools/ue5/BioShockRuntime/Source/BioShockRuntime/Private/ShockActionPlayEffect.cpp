@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockEffectsSubsystem.h"
 
 UShockActionPlayEffect::UShockActionPlayEffect()
 {
@@ -26,6 +27,11 @@ bool UShockActionPlayEffect::FireOnActor(AActor* Target)
 	LastFiredEvent = EffectEvent;
 	LastFiredTag = EffectTag;
 	LastFiredActorName = Target->GetName();
+
+	if (UShockEffectsSubsystem* Fx = UShockEffectsSubsystem::Get(Target->GetWorld()))
+	{
+		Fx->PlayEffect(Target, EffectEvent, EffectTag);
+	}
 	return true;
 }
 
