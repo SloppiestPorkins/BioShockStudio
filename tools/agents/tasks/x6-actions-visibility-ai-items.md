@@ -99,4 +99,4 @@ unreviewed. Reconciled by hand, same workflow as the earlier x3 cap-out:
   (5/5), `verify_import_scripts.py` (R1.1, 5/5), `run_weapon_feedback.py`, `run_verify_audio.py`,
   `run_plasmid.py`.
 
-Landed `<commit-hash-filled-in-below>`.
+Landed `19ad4f6`.
