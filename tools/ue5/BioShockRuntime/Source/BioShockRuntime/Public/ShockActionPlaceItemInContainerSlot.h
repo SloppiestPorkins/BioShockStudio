@@ -3,6 +3,8 @@
 #include "ShockActionShockInventory.h"
 #include "ShockActionPlaceItemInContainerSlot.generated.h"
 
+class UWorld;
+
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionPlaceItemInContainerSlot : public UShockActionShockInventory
 {
@@ -19,4 +21,9 @@ public:
 	void ConfigureSlot(FName InContainer, int32 InSlot, bool bInOverwrite);
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestPlace();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(UWorld* World);
 };

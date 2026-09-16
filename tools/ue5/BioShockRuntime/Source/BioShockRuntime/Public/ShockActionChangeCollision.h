@@ -62,6 +62,17 @@ public:
 	void Configure(FName InTargetLabel, EShockCollisionChange InCollideActors);
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void ConfigureAll(
+		FName InTargetLabel,
+		EShockCollisionChange InCollideActors,
+		EShockCollisionChange InCollideWorld,
+		EShockCollisionChange InBlockActors,
+		EShockCollisionChange InBlockPlayers,
+		EShockCollisionChange InBlockNonZeroExtentTraces,
+		EShockCollisionChange InWorldGeometry,
+		EShockCollisionChange InBlockHavok);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	EShockCollisionChange GetCollideActors() const { return CollideActors; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
@@ -70,9 +81,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool GetLastAppliedEnableCollision() const { return bLastAppliedEnableCollision; }
 
-	/** Applies CollideActors to SetActorEnableCollision when not DoNotChange. */
+	/** Applies every field that is not DoNotChange. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool ApplyToActor(AActor* Target);
+
+	/** First primitive response, exposed so the headless verifier reads component state directly. */
+	UFUNCTION(BlueprintPure, Category="BioShock|Action")
+	int32 GetResponseToChannelForVerify(AActor* Target, int32 Channel) const;
 
 	/** Find actors by TargetLabel and ApplyToActor each. */
 	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;

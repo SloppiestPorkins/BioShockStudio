@@ -5,7 +5,10 @@
 
 class UWorld;
 
-/** UnrealScript `ActionChangeStaticMesh`. StaticMesh object stored as FName. */
+/**
+ * UnrealScript `ActionChangeStaticMesh`. The serialized mesh reference is stored as FName, then
+ * resolved from the same two content roots used by import_slice_pickups.py before SetStaticMesh.
+ */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionChangeStaticMesh : public UShockAction
 {

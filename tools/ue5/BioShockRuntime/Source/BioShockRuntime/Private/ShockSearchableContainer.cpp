@@ -74,6 +74,52 @@ void AShockSearchableContainer::SetContainerMesh(UStaticMesh* InMesh)
 	Mesh->SetVisibility(false);
 }
 
+bool AShockSearchableContainer::PlaceItemInSlot(
+	int32 Slot,
+	FName ItemClass,
+	int32 StackSize,
+	bool bOverwrite)
+{
+	if (Slot < 0 || ItemClass.IsNone() || StackSize <= 0 || bSearched)
+	{
+		return false;
+	}
+	if (FShockContainerSlot* Existing = ScriptedSlots.Find(Slot))
+	{
+		if (!bOverwrite && Existing->ItemClass != ItemClass)
+		{
+			return false;
+		}
+		if (!bOverwrite)
+		{
+			Existing->StackSize += StackSize;
+			return true;
+		}
+	}
+	FShockContainerSlot& Entry = ScriptedSlots.FindOrAdd(Slot);
+	Entry.ItemClass = ItemClass;
+	Entry.StackSize = StackSize;
+	return true;
+}
+
+FName AShockSearchableContainer::GetSlotItemClass(int32 Slot) const
+{
+	if (const FShockContainerSlot* Entry = ScriptedSlots.Find(Slot))
+	{
+		return Entry->ItemClass;
+	}
+	return NAME_None;
+}
+
+int32 AShockSearchableContainer::GetSlotStackSize(int32 Slot) const
+{
+	if (const FShockContainerSlot* Entry = ScriptedSlots.Find(Slot))
+	{
+		return Entry->StackSize;
+	}
+	return 0;
+}
+
 bool AShockSearchableContainer::Search(AShockPlayer* Player)
 {
 	if (!Player || bSearched)
@@ -91,13 +137,25 @@ bool AShockSearchableContainer::Search(AShockPlayer* Player)
 	{
 		Player->AddStackToInventory(LootItemClass, LootItemAmount);
 	}
+	TArray<int32> SlotNumbers;
+	ScriptedSlots.GetKeys(SlotNumbers);
+	SlotNumbers.Sort();
+	for (int32 Slot : SlotNumbers)
+	{
+		const FShockContainerSlot* Entry = ScriptedSlots.Find(Slot);
+		if (Entry && !Entry->ItemClass.IsNone() && Entry->StackSize > 0)
+		{
+			Player->AddStackToInventory(Entry->ItemClass, Entry->StackSize);
+		}
+	}
 
 	UE_LOG(
 		LogTemp,
 		Display,
-		TEXT("BIOSHOCK_CONTAINER_SEARCH label=%s money=%d item=%s"),
+		TEXT("BIOSHOCK_CONTAINER_SEARCH label=%s money=%d item=%s scriptedSlots=%d"),
 		*ScriptLabel.ToString(),
 		Money,
-		*LootItemClass.ToString());
+		*LootItemClass.ToString(),
+		ScriptedSlots.Num());
 	return true;
 }

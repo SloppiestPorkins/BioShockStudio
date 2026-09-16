@@ -2924,12 +2924,18 @@ void AShockPlayer::SetInputContext(FName Context, bool bUnset)
 	LastInputContext = Context;
 	if (bUnset)
 	{
-		if (CurrentInputContext == Context)
+		for (int32 Index = InputContextStack.Num() - 1; Index >= 0; --Index)
 		{
-			CurrentInputContext = NAME_None;
+			if (InputContextStack[Index] == Context)
+			{
+				InputContextStack.RemoveAt(Index);
+				break;
+			}
 		}
+		CurrentInputContext = InputContextStack.IsEmpty() ? NAME_None : InputContextStack.Last();
 		return;
 	}
+	InputContextStack.Add(Context);
 	CurrentInputContext = Context;
 }
 
@@ -3276,6 +3282,27 @@ bool AShockPlayer::IsSpotlightOn(FName Spotlight) const
 void AShockPlayer::SetQuestLogWait(FName QuestLogClass)
 {
 	LastQuestLogWait = QuestLogClass;
+}
+
+void AShockPlayer::SetQuestLogPlaying(FName QuestLogClass, bool bPlaying)
+{
+	if (QuestLogClass.IsNone())
+	{
+		return;
+	}
+	if (bPlaying)
+	{
+		PlayingQuestLogs.Add(QuestLogClass);
+	}
+	else
+	{
+		PlayingQuestLogs.Remove(QuestLogClass);
+	}
+}
+
+bool AShockPlayer::IsQuestLogPlaying(FName QuestLogClass) const
+{
+	return !QuestLogClass.IsNone() && PlayingQuestLogs.Contains(QuestLogClass);
 }
 
 void AShockPlayer::SetMaterialSwitchIndex(FName MaterialSwitch, float Index)

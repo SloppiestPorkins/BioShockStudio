@@ -7,7 +7,7 @@ class UWorld;
 
 /**
  * UnrealScript `ActionSetOrUnsetInputContext`: PUSH/POPINPUTCONTEXT console commands.
- * ApplyInWorld writes CurrentInputContext on the local ShockPlayer.
+ * ApplyInWorld pushes/pops the local ShockPlayer input-context stack.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSetOrUnsetInputContext : public UShockAction

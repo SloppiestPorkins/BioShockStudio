@@ -14,6 +14,8 @@
 #include "ShockActionVariableDecrement.h"
 #include "ShockActionVariableIncrement.h"
 #include "ShockActionWait.h"
+#include "ShockActionWaitForGoal.h"
+#include "ShockActionWaitForQuestLogToFinish.h"
 #include "ShockScriptRegistry.h"
 #include "ShockVariableScope.h"
 
@@ -158,7 +160,11 @@ bool UShockScriptRunner::StartExecution()
 	ActionsCompleted = 0;
 	bExitRequested = false;
 	bWaitPrepared = false;
+	bGoalWaitPrepared = false;
+	bQuestLogWaitPrepared = false;
 	PendingWait = nullptr;
+	PendingGoalWait = nullptr;
+	PendingQuestLogWait = nullptr;
 	PendingAnimation = nullptr;
 	PendingChild = nullptr;
 	SpawnedChildren.Reset();
@@ -172,9 +178,13 @@ void UShockScriptRunner::FinishExecution()
 {
 	bIsExecuting = false;
 	PendingWait = nullptr;
+	PendingGoalWait = nullptr;
+	PendingQuestLogWait = nullptr;
 	PendingAnimation = nullptr;
 	PendingChild = nullptr;
 	bWaitPrepared = false;
+	bGoalWaitPrepared = false;
+	bQuestLogWaitPrepared = false;
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
 	LoopStack.Reset();
@@ -376,7 +386,7 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 				continue;
 			}
 			// Blocked on Wait — leave until a later Tick with later WorldTime.
-			if (PendingWait || PendingAnimation)
+			if (PendingWait || PendingGoalWait || PendingQuestLogWait || PendingAnimation)
 			{
 				break;
 			}
@@ -431,7 +441,9 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 
 	// ActionWait remains on this index across ticks. Its parameters are resolved at entry, like
 	// UnrealScript latentExecute(), rather than being rebound every frame while it is pending.
-	if (!(Cast<UShockActionWait>(Action) && bWaitPrepared))
+	if (!(Cast<UShockActionWait>(Action) && bWaitPrepared)
+		&& !(Cast<UShockActionWaitForGoal>(Action) && bGoalWaitPrepared)
+		&& !(Cast<UShockActionWaitForQuestLogToFinish>(Action) && bQuestLogWaitPrepared))
 	{
 		const bool bResolved = Action->ResolveParameters(Ctx);
 		if (!bResolved && !Action->ResolveInfoList.IsEmpty())
@@ -454,6 +466,55 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		}
 		PendingWait = nullptr;
 		bWaitPrepared = false;
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionWaitForQuestLogToFinish* QuestWait =
+		Cast<UShockActionWaitForQuestLogToFinish>(Action))
+	{
+		if (!bQuestLogWaitPrepared)
+		{
+			if (!QuestWait->PrepareWait(Ctx.World, WorldTimeSeconds))
+			{
+				++CurrentlyExecutingActionIndex;
+				++ActionsCompleted;
+				return true;
+			}
+			PendingQuestLogWait = QuestWait;
+			bQuestLogWaitPrepared = true;
+		}
+		if (!QuestWait->IsReady(Ctx.World, WorldTimeSeconds))
+		{
+			return false;
+		}
+		PendingQuestLogWait = nullptr;
+		bQuestLogWaitPrepared = false;
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionWaitForGoal* GoalWait = Cast<UShockActionWaitForGoal>(Action))
+	{
+		if (!bGoalWaitPrepared)
+		{
+			if (!GoalWait->PrepareWait(Ctx.World, WorldTimeSeconds))
+			{
+				++CurrentlyExecutingActionIndex;
+				++ActionsCompleted;
+				return true;
+			}
+			PendingGoalWait = GoalWait;
+			bGoalWaitPrepared = true;
+		}
+		if (!GoalWait->IsReady(Ctx.World, WorldTimeSeconds))
+		{
+			return false;
+		}
+		PendingGoalWait = nullptr;
+		bGoalWaitPrepared = false;
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;

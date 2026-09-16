@@ -6,8 +6,9 @@
 class UWorld;
 
 /**
- * UnrealScript `ActionWaitForQuestLogToFinish` (ActionWaitForCriticalMessage).
- * First slice records QuestLog class name + TimeoutSeconds; no audio wait yet.
+ * UnrealScript `ActionWaitForQuestLogToFinish` (ActionWaitForCriticalMessage). Playback code marks
+ * the corresponding class on AShockPlayer; UShockScriptRunner keeps this action pending until the
+ * mark clears or TimeoutSeconds expires.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionWaitForQuestLogToFinish : public UShockAction
@@ -26,6 +27,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName LastQuestLogClassName;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float WaitStartedAt = -1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bLastTimedOut = false;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InQuestLogClass, float InTimeout);
 
@@ -37,6 +44,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestWait();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool PrepareWait(UWorld* World, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool IsReady(UWorld* World, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Action")
+	bool DidLastWaitTimeOut() const { return bLastTimedOut; }
 
 	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")

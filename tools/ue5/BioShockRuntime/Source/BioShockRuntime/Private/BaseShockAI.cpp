@@ -435,7 +435,8 @@ void ABaseShockAI::NotifyAggroFromPlayer(AShockPawn* DamageInstigator)
 
 void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
 {
-	if (bIsDead || bCombatLoopStopped || Amount <= 0.0f)
+	if (bIsDead || bCombatLoopStopped || Amount <= 0.0f
+		|| (!bUseQuickHitReactions && !bUseFullBodyHitReactions))
 	{
 		return;
 	}
@@ -448,27 +449,29 @@ void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
 		HitStaggerSeconds * (0.85f + 0.15f * DamageFraction),
 		HitStaggerSeconds * 1.25f);
 
-	if (HitReactRateLimitRemaining > 0.0f)
+	const bool bQuickRateLimited = bUseQuickHitReactions && HitReactRateLimitRemaining > 0.0f;
+	if (bQuickRateLimited)
 	{
 		HitReactRemaining = FMath::Min(HitReactRemaining + 0.06f, HitStaggerSeconds * 1.5f);
-		return;
+	}
+	else if (bUseQuickHitReactions)
+	{
+		HitReactRemaining = FMath::Max(HitReactRemaining, StaggerDuration);
+		HitReactRateLimitRemaining = HitReactRateLimitSeconds;
+		UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), TEXT("DamagedSpeech"), RootComponent);
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal ai=%s event=DamagedSpeech"), *GetName());
+
+		const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_HIT_REACT ai=%s amount=%.0f stagger=%.2f"),
+			*AiName,
+			Amount,
+			HitReactRemaining);
 	}
 
-	HitReactRemaining = FMath::Max(HitReactRemaining, StaggerDuration);
-	HitReactRateLimitRemaining = HitReactRateLimitSeconds;
-	UShockAudioLibrary::SpawnEventAttached(TEXT("ShockAI"), TEXT("DamagedSpeech"), RootComponent);
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_AUDIO vocal ai=%s event=DamagedSpeech"), *GetName());
-
-	const FString AiName = ScriptLabel.IsNone() ? GetName() : ScriptLabel.ToString();
-	UE_LOG(
-		LogTemp,
-		Display,
-		TEXT("BIOSHOCK_HIT_REACT ai=%s amount=%.0f stagger=%.2f"),
-		*AiName,
-		Amount,
-		HitReactRemaining);
-
-	if (!bCannotBecomeUnconscious && DamageInstigator)
+	if (bUseFullBodyHitReactions && !bCannotBecomeUnconscious && DamageInstigator)
 	{
 		FVector AwayDir = GetActorLocation() - DamageInstigator->GetActorLocation();
 		AwayDir.Z = 0.0f;
@@ -483,7 +486,27 @@ void ABaseShockAI::ReactToHit(float Amount, AActor* DamageInstigator)
 		}
 	}
 
-	ApplyHitFlash();
+	if (!bQuickRateLimited)
+	{
+		ApplyHitFlash();
+	}
+}
+
+void ABaseShockAI::SetScriptedUseFullBodyHitReactions(bool bUse)
+{
+	bUseFullBodyHitReactions = bUse;
+	FullBodyHitReactions = bUse ? 1 : 2;
+}
+
+void ABaseShockAI::SetScriptedUseQuickHitReactions(bool bUse)
+{
+	bUseQuickHitReactions = bUse;
+	QuickHitReactions = bUse ? 1 : 2;
+	if (!bUse)
+	{
+		HitReactRemaining = 0.0f;
+		HitReactRateLimitRemaining = 0.0f;
+	}
 }
 
 void ABaseShockAI::ReactToPlasmidStun(float Duration, AActor* DamageInstigator)
@@ -1019,9 +1042,97 @@ void ABaseShockAI::Tick(float DeltaSeconds)
 		TickRagdollBlend(DeltaSeconds);
 		return;
 	}
+	if (TickScriptedMovementGoal(DeltaSeconds))
+	{
+		TickAnimationDriver(DeltaSeconds);
+		return;
+	}
 	TickBehaviour(DeltaSeconds);
 	TickCombat(DeltaSeconds);
 	TickAnimationDriver(DeltaSeconds);
+}
+
+void ABaseShockAI::PostScriptedMovementGoal(
+	FName DestinationLabel,
+	const FString& GoalName,
+	int32 Priority,
+	bool bShouldRun,
+	FVector Destination)
+{
+	MovementDestinationLabel = DestinationLabel;
+	MovementGoalName = GoalName;
+	MovementGoalPriority = Priority;
+	bMovementShouldRun = bShouldRun;
+	MovementGoalLocation = Destination;
+	bWaitForGoalSatisfied = false;
+	if (LastCompletedMovementGoalName == GoalName)
+	{
+		LastCompletedMovementGoalName.Empty();
+	}
+	if (LastFailedMovementGoalName == GoalName)
+	{
+		LastFailedMovementGoalName.Empty();
+	}
+}
+
+bool ABaseShockAI::RemoveScriptedMovementGoal(const FString& GoalName)
+{
+	if (!MovementGoalName.Equals(GoalName, ESearchCase::CaseSensitive))
+	{
+		return false;
+	}
+	LastFailedMovementGoalName = MovementGoalName;
+	MovementGoalName.Empty();
+	MovementDestinationLabel = NAME_None;
+	bWaitForGoalSatisfied = false;
+	return true;
+}
+
+void ABaseShockAI::CompleteScriptedMovementGoal(bool bAchieved)
+{
+	if (MovementGoalName.IsEmpty())
+	{
+		return;
+	}
+	if (bAchieved)
+	{
+		LastCompletedMovementGoalName = MovementGoalName;
+		bWaitForGoalSatisfied = true;
+	}
+	else
+	{
+		LastFailedMovementGoalName = MovementGoalName;
+		bWaitForGoalSatisfied = false;
+	}
+	MovementGoalName.Empty();
+	MovementDestinationLabel = NAME_None;
+}
+
+bool ABaseShockAI::HasCompletedMovementGoal(const FString& GoalName) const
+{
+	return !GoalName.IsEmpty()
+		&& LastCompletedMovementGoalName.Equals(GoalName, ESearchCase::CaseSensitive);
+}
+
+bool ABaseShockAI::HasFailedMovementGoal(const FString& GoalName) const
+{
+	return !GoalName.IsEmpty()
+		&& LastFailedMovementGoalName.Equals(GoalName, ESearchCase::CaseSensitive);
+}
+
+bool ABaseShockAI::TickScriptedMovementGoal(float DeltaSeconds)
+{
+	if (MovementGoalName.IsEmpty())
+	{
+		return false;
+	}
+	if (FVector::DistSquared2D(GetActorLocation(), MovementGoalLocation) <= FMath::Square(75.0f))
+	{
+		CompleteScriptedMovementGoal(true);
+		return false;
+	}
+	TickMoveToLocation(MovementGoalLocation, DeltaSeconds, 75.0f);
+	return true;
 }
 
 bool ABaseShockAI::IsCombatLoopGated() const

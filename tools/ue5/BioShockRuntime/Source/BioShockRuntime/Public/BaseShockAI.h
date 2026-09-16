@@ -119,6 +119,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	uint8 QuickHitReactions = 0;
 
+	/** Runtime gates behind ActionToggleAIReactions; unlike the serialized enum bytes these are
+	 * consumed by ReactToHit. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bUseFullBodyHitReactions = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bUseQuickHitReactions = true;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float LODOverrideTime = 0.0f;
 
@@ -127,6 +135,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bWaitForGoalSatisfied = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString LastCompletedMovementGoalName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FString LastFailedMovementGoalName;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bWeaponVisible = true;
@@ -293,6 +307,18 @@ public:
 	uint8 GetQuickHitReactions() const { return QuickHitReactions; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SetScriptedUseFullBodyHitReactions(bool bUse);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void SetScriptedUseQuickHitReactions(bool bUse);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	bool UsesFullBodyHitReactions() const { return bUseFullBodyHitReactions; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	bool UsesQuickHitReactions() const { return bUseQuickHitReactions; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	float GetLODOverrideTime() const { return LODOverrideTime; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
@@ -303,6 +329,27 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	FString GetMovementGoalName() const { return MovementGoalName; }
+
+	/** Minimal Tyrion-compatible lifecycle used by Post/Remove/WaitForGoal. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void PostScriptedMovementGoal(
+		FName DestinationLabel,
+		const FString& GoalName,
+		int32 Priority,
+		bool bShouldRun,
+		FVector Destination);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	bool RemoveScriptedMovementGoal(const FString& GoalName);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
+	void CompleteScriptedMovementGoal(bool bAchieved);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	bool HasCompletedMovementGoal(const FString& GoalName) const;
+
+	UFUNCTION(BlueprintPure, Category="BioShock|AI")
+	bool HasFailedMovementGoal(const FString& GoalName) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|AI")
 	void SetAttachmentCategoryHidden(FName Category, bool bHideAttachments);
@@ -632,6 +679,7 @@ private:
 	void ApplyFrozenFlash();
 	void ClearFrozenState();
 	void TickStatusEffects(float DeltaSeconds);
+	bool TickScriptedMovementGoal(float DeltaSeconds);
 	void TickCombat(float DeltaSeconds);
 	void TickCombatFsm(float DeltaSeconds);
 	void TickCombatCooldowns(float DeltaSeconds);

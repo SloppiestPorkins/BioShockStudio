@@ -108,6 +108,13 @@ def main(out):
     if not runner.start_execution():
         f.append("StartExecution")
     runner.tick_execution(0.0)
+    # WaitForGoal is now genuinely latent. Drive the scripted movement goal to its destination,
+    # then tick the runner so the remaining actions execute.
+    for step in range(40):
+        if not bool(runner.is_executing):
+            break
+        ai.advance_autonomous_combat(0.1)
+        runner.tick_execution((step + 1) * 0.1)
 
     if str(post.get_last_target_label()) != "SplicerA":
         f.append("post target %s" % post.get_last_target_label())
@@ -166,7 +173,7 @@ def main(out):
     if ai is None:
         f.append("no BaseShockAI")
     else:
-        if str(ai.get_movement_goal_name()) != "MoveToPoint":
+        if not bool(ai.has_completed_movement_goal("MoveToPoint")):
             f.append("in-world goal name %s" % ai.get_movement_goal_name())
         if not _flag(ai.is_wait_for_goal_satisfied):
             f.append("in-world wait not satisfied")

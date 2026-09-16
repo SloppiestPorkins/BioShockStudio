@@ -8,6 +8,8 @@ class UShockActionLoop;
 class UShockActionFor;
 class UShockActionPlayAnimation;
 class UShockActionWait;
+class UShockActionWaitForGoal;
+class UShockActionWaitForQuestLogToFinish;
 class UShockScriptRegistry;
 class UShockScriptRunner;
 class UShockVariableScope;
@@ -169,6 +171,12 @@ private:
 	TObjectPtr<UShockActionWait> PendingWait;
 
 	UPROPERTY()
+	TObjectPtr<UShockActionWaitForGoal> PendingGoalWait;
+
+	UPROPERTY()
+	TObjectPtr<UShockActionWaitForQuestLogToFinish> PendingQuestLogWait;
+
+	UPROPERTY()
 	TObjectPtr<UShockActionPlayAnimation> PendingAnimation;
 
 	UPROPERTY()
@@ -183,6 +191,8 @@ private:
 
 	bool bExitRequested = false;
 	bool bWaitPrepared = false;
+	bool bGoalWaitPrepared = false;
+	bool bQuestLogWaitPrepared = false;
 
 	static constexpr int32 MaxLoopIterations = 1000;
 

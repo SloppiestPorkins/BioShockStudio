@@ -379,6 +379,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	FName GetLastInputContext() const { return LastInputContext; }
 
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	int32 GetInputContextDepth() const { return InputContextStack.Num(); }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetRegionPressure(FName RegionName, uint8 Pressure);
 
@@ -553,6 +556,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	FName GetLastQuestLogWait() const { return LastQuestLogWait; }
+
+	/** Audio/quest-log playback reports its lifetime here so script waits can be truly latent. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetQuestLogPlaying(FName QuestLogClass, bool bPlaying);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	bool IsQuestLogPlaying(FName QuestLogClass) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetMaterialSwitchIndex(FName MaterialSwitch, float Index);
@@ -964,6 +974,9 @@ private:
 	FName LastInputContext;
 
 	UPROPERTY()
+	TArray<FName> InputContextStack;
+
+	UPROPERTY()
 	TMap<FName, uint8> RegionPressure;
 
 	UPROPERTY()
@@ -1041,6 +1054,9 @@ private:
 
 	UPROPERTY()
 	FName LastQuestLogWait;
+
+	UPROPERTY()
+	TSet<FName> PlayingQuestLogs;
 
 	UPROPERTY()
 	TMap<FName, float> MaterialSwitchIndex;

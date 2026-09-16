@@ -14,8 +14,8 @@ enum class EShockToggleHitReactions : uint8
 };
 
 /**
- * UnrealScript `ActionToggleAIReactions`. ApplyInWorld stores full-body/quick reaction
- * bytes on labeled BaseShockAI. No montage playback.
+ * UnrealScript `ActionToggleAIReactions`. ApplyInWorld changes the full-body knockback and quick
+ * stagger/flash gates consumed by ABaseShockAI::ReactToHit.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionToggleAIReactions : public UShockAction

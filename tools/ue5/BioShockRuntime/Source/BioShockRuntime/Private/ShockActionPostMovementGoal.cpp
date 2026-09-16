@@ -61,11 +61,7 @@ int32 UShockActionPostMovementGoal::ApplyInWorld(UWorld* World)
 	int32 Applied = 0;
 	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, TargetLabel))
 	{
-		AI->MovementDestinationLabel = DestinationLabel;
-		AI->MovementGoalName = GoalName;
-		AI->MovementGoalPriority = Priority;
-		AI->bMovementShouldRun = bShouldRun;
-		AI->MovementGoalLocation = Dest;
+		AI->PostScriptedMovementGoal(DestinationLabel, GoalName, Priority, bShouldRun, Dest);
 		++Applied;
 	}
 	return Applied;

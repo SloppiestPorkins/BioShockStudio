@@ -1,6 +1,7 @@
 #include "ShockActionWaitForGoal.h"
 
 #include "BaseShockAI.h"
+#include "Engine/World.h"
 
 UShockActionWaitForGoal::UShockActionWaitForGoal()
 {
@@ -25,24 +26,64 @@ bool UShockActionWaitForGoal::RequestWait()
 	return true;
 }
 
+bool UShockActionWaitForGoal::PrepareWait(UWorld* World, float WorldTimeSeconds)
+{
+	if (!RequestWait() || !World)
+	{
+		return false;
+	}
+	WaitStartedAt = WorldTimeSeconds;
+	Result = -1;
+	bLastSatisfied = false;
+	return true;
+}
+
+bool UShockActionWaitForGoal::IsReady(UWorld* World, float WorldTimeSeconds)
+{
+	bool bFoundAI = false;
+	bool bFoundActiveGoal = false;
+	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, TargetLabel))
+	{
+		bFoundAI = true;
+		if (AI->HasCompletedMovementGoal(GoalName))
+		{
+			Result = 0;
+			bLastSatisfied = true;
+			SetReturnValueText(TEXT("0"), TEXT("VariableFloat"));
+			return true;
+		}
+		if (AI->HasFailedMovementGoal(GoalName))
+		{
+			Result = 1;
+			SetReturnValueText(TEXT("1"), TEXT("VariableFloat"));
+			return true;
+		}
+		bFoundActiveGoal |= AI->MovementGoalName.Equals(GoalName, ESearchCase::CaseSensitive);
+	}
+	if (!bFoundAI || !bFoundActiveGoal)
+	{
+		Result = 1;
+		SetReturnValueText(TEXT("1"), TEXT("VariableFloat"));
+		return true;
+	}
+	if (TimeOut > 0.0f && WaitStartedAt >= 0.0f
+		&& WorldTimeSeconds - WaitStartedAt >= TimeOut)
+	{
+		Result = 2;
+		SetReturnValueText(TEXT("2"), TEXT("VariableFloat"));
+		return true;
+	}
+	return false;
+}
+
 int32 UShockActionWaitForGoal::ApplyInWorld(UWorld* World)
 {
-	bLastSatisfied = false;
-	if (!RequestWait())
+	if (!World)
 	{
 		return 0;
 	}
-	int32 Applied = 0;
-	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, TargetLabel))
-	{
-		if (AI->MovementGoalName == GoalName)
-		{
-			AI->bWaitForGoalSatisfied = true;
-			bLastSatisfied = true;
-			++Applied;
-		}
-	}
-	return Applied;
+	const float Now = World->GetTimeSeconds();
+	return PrepareWait(World, Now) && IsReady(World, Now) && Result == 0 ? 1 : 0;
 }
 
 bool UShockActionWaitForGoal::ApplyInWorld(const FShockActionContext& Ctx)

@@ -6,9 +6,8 @@
 class UWorld;
 
 /**
- * UnrealScript `ActionWaitForGoal`: wait for named AI goal (optional TimeOut).
- * ApplyInWorld completes immediately when the labeled AI already has that MovementGoalName
- * posted (no pathing / Tyrion arrival).
+ * UnrealScript `ActionWaitForGoal`: wait for the labeled AI's named scripted movement goal to
+ * complete/fail, or for the optional TimeOut. UShockScriptRunner treats this as a latent action.
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionWaitForGoal : public UShockAction
@@ -36,6 +35,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bLastSatisfied = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float WaitStartedAt = -1.0f;
+
+	/** UC return: 0 success, 1 failure/missing goal, 2 timeout, -1 pending. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	int32 Result = -1;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(FName InTarget, const FString& InGoalName, float InTimeOut);
 
@@ -53,6 +59,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestWait();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool PrepareWait(UWorld* World, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool IsReady(UWorld* World, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Action")
+	int32 GetResult() const { return Result; }
 
 	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")

@@ -68,3 +68,35 @@ hearing radius setters, a reaction-mute flag, a goal queue), add the minimal rea
   resolution, 5/5), and any per-action verify already covering something on the "already real"
   list.
 - Do NOT commit. Diff + RESULT.json.
+
+## Landing note (Claude, 16 Sept)
+
+Codex hit its usage cap ~12 minutes in and never ran a build (sandbox mode, no UE launch) —
+`tools/agents/runs/x6-actions-visibility-ai-items/changes.patch` (26 files, 1045 lines) sat
+unreviewed. Reconciled by hand, same workflow as the earlier x3 cap-out:
+
+- Patch applied cleanly against `876b70c` with `git apply` (no conflicts — no file overlap with
+  the R3 EffectsSystem work landed the same session).
+- One real compile error: `ApplyResponse` in `ShockActionChangeCollision.cpp` took
+  `const TArray<UPrimitiveComponent*>&`, but the caller passed a `TInlineComponentArray` (a
+  different allocator, not implicitly convertible). Fixed by copying into a plain `TArray` before
+  the six `ApplyResponse` calls.
+- `verify_action_batch_r22.py` called `EditorActorSubsystem::get_editor_world()`, which doesn't
+  exist — fixed to `unreal.EditorLevelLibrary.get_editor_world()` (the convention every other
+  verify script here already uses).
+- `verify_script_movement.py`'s pre-existing final assertion (`ai.get_movement_goal_name() ==
+  "MoveToPoint"`) went stale under the patch's own new completion lifecycle: `MovementGoalName`
+  now clears to empty on completion (moving into `LastCompletedMovementGoalName`), which is the
+  *more correct* behaviour the patch introduces, not a bug. Updated the assertion to
+  `ai.has_completed_movement_goal("MoveToPoint")`.
+- Chased an apparent `verify_effects_system.py` regression (`stop_effect_tears_down` stuck at
+  count 2) that reproduced 3/3 including on a stashed pre-x6 baseline rebuild — bisection by
+  rebuild, not code, meaning it was stale-binary flake from rapid back-to-back rebuild+launch
+  cycles, not a real defect in either x6 or the R3 EffectsSystem code. Confirmed clean 3/3 after
+  one more full rebuild; not a regression.
+- Full pass after reconciliation, all green: `verify_action_batch_r22.py` (8/8),
+  `verify_script_movement.py`, `verify_reflection_actions.py` (7/7), `verify_effects_system.py`
+  (5/5), `verify_import_scripts.py` (R1.1, 5/5), `run_weapon_feedback.py`, `run_verify_audio.py`,
+  `run_plasmid.py`.
+
+Landed `<commit-hash-filled-in-below>`.

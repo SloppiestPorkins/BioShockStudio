@@ -33,13 +33,7 @@ int32 UShockActionRemoveGoal::ApplyInWorld(UWorld* World)
 	int32 Applied = 0;
 	for (ABaseShockAI* AI : ABaseShockAI::CollectLabeled(World, TargetLabel))
 	{
-		if (!AI->MovementGoalName.Equals(GoalName, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
-		AI->MovementGoalName.Empty();
-		AI->MovementDestinationLabel = NAME_None;
-		++Applied;
+		Applied += AI->RemoveScriptedMovementGoal(GoalName) ? 1 : 0;
 	}
 	return Applied;
 }

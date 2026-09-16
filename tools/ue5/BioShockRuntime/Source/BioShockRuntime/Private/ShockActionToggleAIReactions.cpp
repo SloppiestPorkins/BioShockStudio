@@ -38,11 +38,13 @@ int32 UShockActionToggleAIReactions::ApplyInWorld(UWorld* World)
 	{
 		if (FullBodyHitReactions != EShockToggleHitReactions::DoNotChange)
 		{
-			AI->FullBodyHitReactions = static_cast<uint8>(FullBodyHitReactions);
+			AI->SetScriptedUseFullBodyHitReactions(
+				FullBodyHitReactions == EShockToggleHitReactions::Use);
 		}
 		if (QuickHitReactions != EShockToggleHitReactions::DoNotChange)
 		{
-			AI->QuickHitReactions = static_cast<uint8>(QuickHitReactions);
+			AI->SetScriptedUseQuickHitReactions(
+				QuickHitReactions == EShockToggleHitReactions::Use);
 		}
 		++Applied;
 	}
