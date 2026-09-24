@@ -153,6 +153,36 @@ def main(out):
     _destroy_all(subsystem, spawned)
     spawned = []
 
+    # --- (b2) a hack failure is never lethal -- confirmed against the shipped UnrealEd guide
+    # ("The damage of a failure is never lethal: it is capped one point below the player's
+    # health."), previously unclamped (a flat HackFailSelfDamage could kill a low-health player).
+    lowhp_player = _spawn(subsystem, player_cls, "LowHpHackPlayer", unreal.Vector(0.0, 300.0, 100.0))
+    lowhp_turret = _spawn(
+        subsystem, turret_cls, "LowHpHackTurret", unreal.Vector(0.0, -300.0, 100.0)
+    )
+    spawned.extend([lowhp_player, lowhp_turret])
+    if lowhp_player and lowhp_turret:
+        lowhp_player.ensure_health_initialized()
+        lowhp_turret.configure_for_verify(unreal.Name("LowHpHackTurret"), ALLEGIANCE_HOSTILE, 40.0)
+        yaw = _yaw_toward(lowhp_turret.get_actor_location(), lowhp_player.get_actor_location())
+        lowhp_turret.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
+        # Bring health down to just above the flat self-damage amount would-be-lethal range.
+        full_health = float(lowhp_player.get_current_health())
+        lowhp_player.apply_authored_damage(full_health - 2.0)
+        pre_hack_health = float(lowhp_player.get_current_health())
+        lowhp_player.set_hack_skill_for_verify(0.7)
+        lowhp_player.set_instant_hack_for_verify(True)
+        ok = bool(lowhp_player.try_hack_device(lowhp_turret, 0.95))
+        post_hack_health = float(lowhp_player.get_current_health())
+        check(
+            "hack_fail_never_lethal",
+            not ok and pre_hack_health <= 2.5 and post_hack_health >= 1.0,
+            {"pre": pre_hack_health, "post": post_hack_health},
+        )
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
     # --- (c) security shutdown disables turret ---
     sec_player = _spawn(subsystem, player_cls, "SecPlayer", unreal.Vector(0.0, 400.0, 100.0))
     sec_ai = _spawn(subsystem, ai_cls, "SecAI", unreal.Vector(800.0, 400.0, 100.0))

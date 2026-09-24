@@ -2529,7 +2529,12 @@ bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty0
 	else
 	{
 		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK label=%s result=fail"), *Label.ToString());
-		ApplyAuthoredDamage(HackFailSelfDamage);
+		// Confirmed against the shipped UnrealEd guide: "The damage of a failure is never
+		// lethal: it is capped one point below the player's health." A flat HackFailSelfDamage
+		// with no cap could kill a low-health player on a minigame failure, which never happens
+		// in the real game.
+		const float MaxSafeDamage = FMath::Max(0.0f, GetCurrentHealth() - 1.0f);
+		ApplyAuthoredDamage(FMath::Min(HackFailSelfDamage, MaxSafeDamage));
 	}
 	return bSuccess;
 }

@@ -768,7 +768,11 @@ void UShockHackingMinigame::FinishFail(bool bFromOverload)
 	Result = EShockHackResult::Failed;
 	if (AShockPlayer* Player = ResolvePlayer())
 	{
-		Player->ApplyAuthoredDamage(bFromOverload ? OverloadDamage : 5.0f);
+		// Confirmed against the shipped UnrealEd guide: "The damage of a failure is never
+		// lethal: it is capped one point below the player's health."
+		const float RawDamage = bFromOverload ? OverloadDamage : 5.0f;
+		const float MaxSafeDamage = FMath::Max(0.0f, Player->GetCurrentHealth() - 1.0f);
+		Player->ApplyAuthoredDamage(FMath::Min(RawDamage, MaxSafeDamage));
 	}
 	RefreshStatusText();
 	RebuildBoardVisual();
