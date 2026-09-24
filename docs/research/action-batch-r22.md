@@ -97,3 +97,14 @@ maximums and the player's stack-size modifier are not imported.
 Per the task's sandbox mode, Unreal was not launched and the plugin was not built in this worktree.
 The verifier is supplied for the next compiled headless run; this patch therefore makes no claim of
 UE runtime execution evidence.
+
+## Correction, 24 Sept — `ActionWaitForGoal`'s "no such goal" case
+
+The shipped UnrealEd guide (`bio4554/Unofficial-BioShock-Editor`,
+`22-Scripting-Action-Reference.md`) documents `ActionWaitForGoal`'s real return contract: "0
+completed, 1 failed, 2 timed out; **0 at once when there is no such goal**." This session's
+reconciled implementation treated "no AI found" and "goal never posted" the same as "goal
+failed" (`Result = 1`) — confirmed wrong against the source. Fixed: that branch now returns `0`
+(and sets `bLastSatisfied`), distinct from `HasFailedMovementGoal` (an explicitly failed goal,
+still `1`, unaffected). `verify_action_batch_r22.py` gained a case asserting a never-posted goal
+name resolves to `0` at once rather than blocking or failing.

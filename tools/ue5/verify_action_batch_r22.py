@@ -188,6 +188,15 @@ def main(out_path):
         _check(int(goal_wait.get_result()) == 0, failures, "completed goal result")
         report["goalWait"] = "blocked_then_completed"
 
+        # UE2 `ActionWaitForGoal` returns 0 (completed) at once when there is no such goal --
+        # confirmed against the shipped UnrealEd guide, distinct from an explicit failure.
+        no_goal_wait = unreal.new_object(_runtime_class("ShockActionWaitForGoal"))
+        no_goal_wait.configure("R22_ReactionAI", "R22_NeverPosted", 2.0)
+        _check(no_goal_wait.prepare_wait(world, 1.0), failures, "WaitForGoal prepare (no such goal)")
+        _check(no_goal_wait.is_ready(world, 1.0), failures, "missing goal did not resolve at once")
+        _check(int(no_goal_wait.get_result()) == 0, failures, "missing goal result should be 0, not a failure")
+        report["goalWaitMissing"] = "resolved_zero"
+
         # WaitForQuestLogToFinish: the runner must stop before the following action while the
         # named log is active, then continue as soon as playback clears.
         script = spawn(

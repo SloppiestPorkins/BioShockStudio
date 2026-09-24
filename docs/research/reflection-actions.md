@@ -85,28 +85,41 @@ is entirely `ActionSetProperty`. Property-name frequency across those 134:
 | `HasBeenSavedOrPacified` | 2 | — |
 | `LifeSpan`, `bCanBeUsed`, `MinimumDistance`, `bEnabled`, `OpenAnimationRate`, `Tag`, `ActorSpecificTextureWeight`, `bCanBeHacked` | 1 each | — |
 
-**The mechanism built here is real and generic — but 110 of 134 (82%) target a property named
-`enabled`/`Disabled`/`bEnabled` on whatever class the labeled actor is, and none of our current
-`ShockTriggerRelayComponent`/`AShockDoor`/etc. classes expose a literal `FProperty` by that
-exact name** (`FindPropertyByName` is an exact match, case-folded only — `"enabled"` will not
-resolve to `bDisabled` or any differently-named field). So today, most of Medical's 134
-`ActionSetProperty` calls will now run cleanly (no crash, a clean `BIOSHOCK_SETPROP ... ok=0`
-log line) rather than silently doing nothing — that is real, verifiable progress over the
-previous "always returns false with no trace" stub — but they will not yet *change gameplay
-state* until a follow-up pass adds a matching literal property (or an aliased one) to the
-specific target classes each label resolves to. **That per-class exposure pass is scoped
-separately, deliberately not folded into this task** — it requires cross-referencing each of
-the ~15 distinct target labels against the level manifest to find out which actor class each
-one actually is, which is real research, not "small but exact" plumbing. Tracked as a R2.1
-follow-up, not claimed done here.
+**Update, 24 Sept — resolved.** The `enabled`/`Disabled` gap (110 of 134, 82%) is closed, not a
+guess: the shipped UnrealEd guide (`bio4554/Unofficial-BioShock-Editor`, `22-Scripting-Action-
+Reference.md` / `21-Scripting-Logic-and-Variables.md`) documents `ActionSetProperty` as "the
+general switch of BioShock scripting," with its own worked examples — `Object=StepLightsTV,
+Property=Disabled, NewValue="true"` disarms a trigger; `Object=LaMerScript, Property=enabled,
+NewValue="true"` arms a script (the "run once" idiom sets a script's own `enabled=False` as its
+last row so a later message can't restart it). Neither `enabled` nor `Disabled` is a property on
+UE2's base `Actor` — `enabled` lives on the `Script` class, `Disabled` on `Trigger` — which is
+exactly why `FindPropertyByName` never found either as a literal `AActor` field.
+
+Both were already real, already-consumed fields on our side, just unreachable from script text:
+`UShockScriptRunner::bEnabled` already gated `TryStartFromMessage` (message-triggered
+(re)start), and `UShockTriggerRelayComponent::bDisabled` already gated trigger dispatch — this
+was a routing gap in `ShockScriptReflection`, not missing functionality. Fixed in
+`ResolvePropertyContainer`: a bare (no-dot) `enabled` on an `AShockScript` target now resolves to
+its `Runner` subobject's `bEnabled`; a bare `Disabled` now resolves to the target's
+`UShockTriggerRelayComponent::bDisabled` (via `FindComponentByClass`, so it works regardless of
+the outer actor's class). All three reflection actions inherit it for free since `SetProperty`/
+`GetProperty`/`PropertyTest` all route through `ResolvePropertyContainer`. A target with neither
+an `AShockScript` runner nor a trigger relay component still degrades cleanly to the old
+behavior (property-not-found, no crash) rather than silently mis-routing.
+
+`verify_reflection_actions.py` gained 3 checks: `SetProperty(enabled=False)` on a spawned
+`ShockScript` actually flips its runner's `bEnabled`, `GetProperty(enabled)` reads it back,
+`SetProperty(Disabled=true)` on an actor with an installed trigger relay actually flips
+`bDisabled`. 10/10 green.
 
 ## Verify
 
-`tools/ue5/verify_reflection_actions.py` (spawns one throwaway `StaticMeshActor`, no script
-graph needed — same pattern as `verify_action_property_test.py`): plain actor-level float write
-+ read-back, one dotted component write (`StaticMeshComponent.bVisible`), `PropertyTest` →
-`ActionIf` branch selection, the CDO guard, a missing-property clean failure. 7/7 green. Did not
-regress `run_action_property_test.py` (the pre-existing `Label`/`bHidden` suite) or
+`tools/ue5/verify_reflection_actions.py` (spawns throwaway actors, no script graph needed — same
+pattern as `verify_action_property_test.py`): plain actor-level float write + read-back, one
+dotted component write (`StaticMeshComponent.bVisible`), `PropertyTest` → `ActionIf` branch
+selection, the CDO guard, a missing-property clean failure, plus the `enabled` (Script) and
+`Disabled` (Trigger) routing above. 10/10 green. Did not regress `run_action_property_test.py`
+(the pre-existing `Label`/`bHidden` suite) or
 `run_script_runner.py`/`run_script_doors.py`/`run_script_movement.py`.
 
 ## Gotchas hit this session (adding to `docs/ENGINEERING_RULES.md`-style notes)

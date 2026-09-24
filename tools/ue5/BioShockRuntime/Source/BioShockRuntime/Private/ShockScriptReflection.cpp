@@ -2,6 +2,9 @@
 
 #include "GameFramework/Actor.h"
 #include "ShockPhysicsLibrary.h"
+#include "ShockScript.h"
+#include "ShockScriptRunner.h"
+#include "ShockTriggerRelayComponent.h"
 #include "UObject/UnrealType.h"
 
 namespace ShockScriptReflection
@@ -26,6 +29,36 @@ UObject* ResolvePropertyContainer(AActor* Target, const FString& PropertyPath, F
 	int32 DotIndex = INDEX_NONE;
 	if (!PropertyPath.FindChar(TEXT('.'), DotIndex))
 	{
+		// Two UE2 flat-property idioms confirmed against the shipped UnrealEd guide (not a
+		// guess): `Property=enabled` arms/disarms a Script actor itself ("run once": the script
+		// sets its own enabled=False as its last row so a later message can't restart it) --
+		// UE2's `enabled` has no `b` prefix and lives on the level's Script class, not AActor, so
+		// it routes to the runner subobject that already gates TryStartFromMessage on bEnabled.
+		// `Property=Disabled` arms/disarms a Trigger actor -- routes to the trigger relay
+		// component that already gates dispatch on bDisabled. Neither is a generic AActor
+		// property, so both need a container swap the same way a dotted path swaps to a
+		// component; unlike a dotted path, these are recognised on the bare name because that is
+		// exactly how the original scripts write them (`Object=LaMerScript, Property=enabled`).
+		if (PropertyPath.Equals(TEXT("enabled"), ESearchCase::IgnoreCase))
+		{
+			if (AShockScript* Script = Cast<AShockScript>(Target))
+			{
+				if (UShockScriptRunner* Runner = Script->GetRunner())
+				{
+					OutPropertyName = TEXT("bEnabled");
+					return Runner;
+				}
+			}
+		}
+		if (PropertyPath.Equals(TEXT("Disabled"), ESearchCase::IgnoreCase))
+		{
+			if (UShockTriggerRelayComponent* Relay = Target->FindComponentByClass<UShockTriggerRelayComponent>())
+			{
+				OutPropertyName = TEXT("bDisabled");
+				return Relay;
+			}
+		}
+
 		OutPropertyName = PropertyPath;
 		return Target;
 	}

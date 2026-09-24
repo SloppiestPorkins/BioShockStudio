@@ -124,6 +124,47 @@ def main(out=OUT):
     finally:
         actors.destroy_actor(actor)
 
+    # (g)/(h) `Property=enabled` / `Property=Disabled`: confirmed against the shipped UnrealEd
+    # guide as the two flat-property idioms behind ~82% of Medical's real ActionSetProperty uses
+    # (arm/disarm a Script actor, arm/disarm a Trigger) -- neither is a literal AActor FProperty,
+    # both route through ShockScriptReflection to an existing-but-previously-unreachable field.
+    script = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        _cls("ShockScript"), TEST_LOCATION + unreal.Vector(200.0, 0.0, 0.0))
+    trigger_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.StaticMeshActor.static_class(), TEST_LOCATION + unreal.Vector(400.0, 0.0, 0.0))
+    try:
+        script.set_actor_label("ReflectionTestScript")
+        script.configure(unreal.Name("ReflectionTestScript"), "")
+        script_label = unreal.Name("ReflectionTestScript")
+
+        sp_enable = unreal.new_object(set_cls)
+        sp_enable.configure(script_label, unreal.Name("enabled"), "False")
+        enable_applied = sp_enable.apply_in_world(world)
+        runner_enabled = script.get_runner().get_editor_property("enabled")
+        check("setproperty_script_enabled", enable_applied == 1 and runner_enabled is False, runner_enabled)
+
+        gp_enable = unreal.new_object(get_cls)
+        gp_enable.configure(script_label, "enabled")
+        got_enable_ok = gp_enable.apply_in_world(world)
+        enable_return = gp_enable.get_return_value()
+        check("getproperty_script_enabled",
+              got_enable_ok and enable_return is not None and enable_return.get_value() == "False",
+              enable_return.get_value() if enable_return else None)
+
+        trigger_actor.set_actor_label("ReflectionTestTrigger")
+        relay = unreal.ShockTriggerRelayComponent.install_on_actor(
+            trigger_actor, "ReflectionTestTrigger", True, False)
+        trigger_label = unreal.Name("ReflectionTestTrigger")
+
+        sp_disable = unreal.new_object(set_cls)
+        sp_disable.configure(trigger_label, unreal.Name("Disabled"), "True")
+        disable_applied = sp_disable.apply_in_world(world)
+        relay_disabled = relay.get_editor_property("disabled")
+        check("setproperty_trigger_disabled", disable_applied == 1 and relay_disabled is True, relay_disabled)
+    finally:
+        actors.destroy_actor(script)
+        actors.destroy_actor(trigger_actor)
+
     report["reflection_actions"] = "ok" if not failures else "fail"
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:

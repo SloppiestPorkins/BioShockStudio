@@ -62,8 +62,11 @@ bool UShockActionWaitForGoal::IsReady(UWorld* World, float WorldTimeSeconds)
 	}
 	if (!bFoundAI || !bFoundActiveGoal)
 	{
-		Result = 1;
-		SetReturnValueText(TEXT("1"), TEXT("VariableFloat"));
+		// UE2 `ActionWaitForGoal`: returns 0 (completed) at once when there is no such goal --
+		// distinct from a goal that was posted and then explicitly failed (handled above).
+		Result = 0;
+		bLastSatisfied = true;
+		SetReturnValueText(TEXT("0"), TEXT("VariableFloat"));
 		return true;
 	}
 	if (TimeOut > 0.0f && WaitStartedAt >= 0.0f

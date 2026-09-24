@@ -38,7 +38,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float WaitStartedAt = -1.0f;
 
-	/** UC return: 0 success, 1 failure/missing goal, 2 timeout, -1 pending. */
+	/** UC return: 0 completed (including when the named goal doesn't exist -- confirmed against
+	 * the shipped UnrealEd guide, not a guess), 1 explicit failure, 2 timeout, -1 pending. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	int32 Result = -1;
 
