@@ -9,7 +9,7 @@ class UPrimitiveComponent;
 /**
  * Bridges an imported TriggerBox (UE2 TriggerVolume) into UShockScriptRegistry::DispatchMessage.
  *
- * On player overlap → MessageTrigger with SourceLabel = the volume's actor label so scripts whose
+ * On player overlap → MessageTriggerVolumeEnter with SourceLabel = the volume's actor label so scripts whose
  * TriggeredBy lists that label start. One-shot by default (matches triggerOnlyOnce when present).
  */
 UCLASS(ClassGroup = (BioShock), meta = (BlueprintSpawnableComponent))

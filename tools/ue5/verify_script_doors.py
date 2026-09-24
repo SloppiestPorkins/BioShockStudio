@@ -1,4 +1,4 @@
-"""Runner Open/Close/Lock/UnlockDoor Request* records + MessageTrigger → AShockDoor."""
+"""Runner Open/Close/Lock/UnlockDoor Request* records + message dispatch -> AShockDoor."""
 
 import json
 import os
@@ -59,7 +59,7 @@ def main(out):
 
     subsystem.destroy_actor(script)
 
-    # MessageTrigger → shared registry → ActionOpenDoor resolves placed AShockDoor.
+    # Message -> shared registry -> ActionOpenDoor resolves placed AShockDoor.
     # Proximity open disabled so success can only come from the script path.
     spawned = []
     try:
@@ -84,13 +84,14 @@ def main(out):
             open_msg.configure(unreal.Name("MsgDoor"), True)
             listener.get_runner().add_action(open_msg)
 
-            # Simulate TriggerBox relay: DispatchMessage(MessageTrigger, VolA)
-            accepted = int(registry.dispatch_message("MessageTrigger", "VolA"))
+            # Generic message dispatch (receivers don't yet filter by class -- see
+            # docs/research/message-class-gap.md -- so any class name proves this path).
+            accepted = int(registry.dispatch_message("Message", "VolA"))
             if accepted < 1:
                 f.append("dispatch accepted=%s" % accepted)
             listener.tick_script(0.0)
             if not bool(door.is_open()):
-                f.append("MsgDoor not open after MessageTrigger")
+                f.append("MsgDoor not open after message dispatch")
             if str(open_msg.get_last_opened_door_label()) != "MsgDoor":
                 f.append("open label %s" % open_msg.get_last_opened_door_label())
 
@@ -121,8 +122,8 @@ def main(out):
             listener2.get_runner().add_action(open2)
             fired = int(relay.fire_for_verify()) if relay else 0
             if fired < 1:
-                # Fallback: prove the same MessageTrigger path the relay would take.
-                fired = int(shared.dispatch_message("MessageTrigger", "VolB")) if shared else 0
+                # Fallback: prove the same MessageTriggerVolumeEnter path the real relay takes.
+                fired = int(shared.dispatch_message("MessageTriggerVolumeEnter", "VolB")) if shared else 0
                 report["relay_fallback_dispatch"] = fired
             if fired < 1:
                 f.append("relay fire accepted=%s" % fired)

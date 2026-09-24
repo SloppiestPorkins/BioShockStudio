@@ -844,7 +844,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         report["registry_num"] = int(registry.num())
 
     if registry is not None and sample_actor is not None and sample_tb:
-        accepted = int(registry.dispatch_message("MessageTrigger", sample_tb))
+        accepted = int(registry.dispatch_message("Message", sample_tb))
         report["sample"]["dispatch_accepted"] = accepted
         sample_actor.tick_script(0.0)
         report["sample"]["actions_completed"] = int(sample_actor.get_runner().get_actions_completed())

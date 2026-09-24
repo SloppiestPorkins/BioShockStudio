@@ -7,8 +7,8 @@ class UShockScriptRegistry;
 
 /**
  * UnrealScript `ActionSendTriggerMessage`.
- * Dispatches MessageTrigger via UShockScriptRegistry (Instigator as TriggeredBy source;
- * if Instigator is None, uses parent Script label).
+ * Dispatches the base "Message" class via UShockScriptRegistry (Instigator as TriggeredBy
+ * source; if Instigator is None, uses parent Script label).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionSendTriggerMessage : public UShockAction
@@ -41,7 +41,7 @@ public:
 	bool RequestSend();
 
 	/**
-	 * Record + DispatchMessage(MessageTrigger, source).
+	 * Record + DispatchMessage("Message", source).
 	 * Source is Instigator, or ParentScriptLabel when Instigator is None (UC fallback).
 	 * Returns how many scripts accepted (started or queued).
 	 */

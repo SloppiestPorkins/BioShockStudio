@@ -113,7 +113,10 @@ int32 UShockTriggerRelayComponent::DispatchNow()
 		return 0;
 	}
 
-	const int32 Accepted = Sub->DispatchMessage(FName(TEXT("MessageTrigger")), VolumeLabel);
+	// UE2's real class for a TriggerVolume enter, confirmed against the shipped UnrealEd guide.
+	// Not yet checked receiver-side (see docs/research/message-class-gap.md) but the dispatched
+	// name should be the real one.
+	const int32 Accepted = Sub->DispatchMessage(FName(TEXT("MessageTriggerVolumeEnter")), VolumeLabel);
 	bHasFired = true;
 	return Accepted;
 }

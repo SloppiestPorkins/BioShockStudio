@@ -12,7 +12,7 @@ It composes the existing prep steps so you do not have to run five scripts by ha
   7. fix_all_complex_collision - complex-as-simple on every static mesh (perf later)
   8. repair_light_beams     - shipped falloff+dust additive god-ray material
   9. repair_level_lighting  - corrected falloff, practical intensity, ambient, fixed exposure
- 10. import_slice_doors     - AShockDoor placements + TriggerBox MessageTrigger relays
+ 10. import_slice_doors     - AShockDoor placements + TriggerBox trigger-volume relays
  11. import_slice_enemies   - authored aggressor/turret runtime spawners
  12. import_slice_scripts   - AShockScript actors from level JSON + script-actions sidecar
  13. import_audio           - SoundWaves/Cues + placed AmbientSound actors
@@ -471,7 +471,7 @@ STEPS = [
     ("repair_light_beams", "repair_light_beams", "main", ()),
     ("repair_level_lighting", "repair_level_lighting", "main",
      ("/Game/BioShockSlice/1-Medical",)),
-    # Scripted events: doors + MessageTrigger relays, then AShockScript actors on the slice map.
+    # Scripted events: doors + trigger-volume relays, then AShockScript actors on the slice map.
     ("import_slice_doors", "import_slice_doors", "main", ()),
     ("import_slice_enemies", "import_slice_enemies", "main", ()),
     ("import_slice_scripts", "import_slice_scripts", "main", ()),

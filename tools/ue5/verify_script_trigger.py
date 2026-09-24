@@ -1,4 +1,4 @@
-"""ActionSendTriggerMessage dispatches MessageTrigger through the script registry."""
+"""ActionSendTriggerMessage dispatches the base "Message" class through the script registry."""
 
 import json
 import os
@@ -55,7 +55,11 @@ def main(out):
     listener.tick_execution(0.0)
     if str(listener.ensure_variables().get_value_or_empty("Opened")) != "yes":
         f.append("Opened=%s" % listener.ensure_variables().get_value_or_empty("Opened"))
-    if str(listener.get_last_message_class()) != "MessageTrigger":
+    # Confirmed against the shipped UnrealEd guide: ActionSendTriggerMessage dispatches the base
+    # "Message" class, not an invented "MessageTrigger" -- receivers with scriptMessageClass=Message
+    # (or, currently, any receiver, since class filtering isn't implemented yet -- see
+    # docs/research/message-class-gap.md) accept it.
+    if str(listener.get_last_message_class()) != "Message":
         f.append("msg class %s" % listener.get_last_message_class())
     report["door_a"] = "ok"
 

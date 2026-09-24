@@ -1049,7 +1049,7 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
 
 
 def _ensure_trigger_relay(actor, entry):
-    """Attach UShockTriggerRelayComponent so player overlap → MessageTrigger(volume label)."""
+    """Attach UShockTriggerRelayComponent so player overlap -> MessageTriggerVolumeEnter(volume label)."""
     relay_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTriggerRelayComponent")
     if relay_cls is None or actor is None:
         return None

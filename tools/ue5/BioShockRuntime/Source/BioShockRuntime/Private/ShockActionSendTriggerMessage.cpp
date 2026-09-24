@@ -27,6 +27,10 @@ int32 UShockActionSendTriggerMessage::DispatchVia(UShockScriptRegistry* InRegist
 	{
 		return 0;
 	}
-	LastDispatchAccepted = InRegistry->DispatchMessage(FName(TEXT("MessageTrigger")), Source.ToString());
+	// UE2's base "Message" class -- confirmed against the shipped UnrealEd guide: a script with
+	// scriptMessageClass=Message "accepts every message from the listed labels", the pattern
+	// movers and generic trigger relays are built on. Not yet checked receiver-side (see
+	// docs/research/message-class-gap.md) but the dispatched name should be the real one.
+	LastDispatchAccepted = InRegistry->DispatchMessage(FName(TEXT("Message")), Source.ToString());
 	return LastDispatchAccepted;
 }

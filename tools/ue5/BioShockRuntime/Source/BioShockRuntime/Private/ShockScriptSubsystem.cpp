@@ -76,15 +76,19 @@ void UShockScriptSubsystem::DispatchLevelEntryMessages()
 	bDidLevelEntryDispatch = true;
 
 	const FString LevelLabel = ResolveLevelEntryLabel();
-	const FName MessageTrigger(TEXT("MessageTrigger"));
+	// UE2's real class for level entry, confirmed against the shipped UnrealEd guide ("Level
+	// start" pattern: TriggeredBy="<map name>", scriptMessageClass=MessageLevelStarted). Not yet
+	// checked receiver-side (see docs/research/message-class-gap.md) but the dispatched name
+	// should be the real one.
+	const FName MessageLevelStarted(TEXT("MessageLevelStarted"));
 	int32 Started = 0;
 	if (!LevelLabel.IsEmpty())
 	{
-		Started += DispatchMessage(MessageTrigger, LevelLabel);
+		Started += DispatchMessage(MessageLevelStarted, LevelLabel);
 	}
 	// TipUnlock / Present_LevelStartedCheck / etc. author TriggeredBy as All/all.
-	Started += DispatchMessage(MessageTrigger, TEXT("All"));
-	Started += DispatchMessage(MessageTrigger, TEXT("all"));
+	Started += DispatchMessage(MessageLevelStarted, TEXT("All"));
+	Started += DispatchMessage(MessageLevelStarted, TEXT("all"));
 	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT levelEntry label=%s started=%d"),
 		*LevelLabel, Started);
 }
