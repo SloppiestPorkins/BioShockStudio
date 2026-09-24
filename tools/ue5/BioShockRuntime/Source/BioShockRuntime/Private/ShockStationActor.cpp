@@ -160,10 +160,11 @@ bool AShockStationBase::TryInteract(AShockPlayer* Player)
 		{
 			return false;
 		}
-		// BioShock wall units: a few dollars scaling with how hurt you are, hacked = free-ish.
-		const int32 Cost = bHacked
-			? FMath::Clamp(FMath::CeilToInt(Missing / MaxHealth * 8.0f), 1, 10)
-			: FMath::Clamp(FMath::CeilToInt(Missing / MaxHealth * 30.0f), 1, 40);
+		// Confirmed against the shipped UnrealEd guide -- a flat price regardless of how much
+		// health is missing, not a scaled formula: "PlaceableHealthStation heals the player to
+		// full health for 16 dollars" (25-Machines.md); "A hacked Health Station heals for 10
+		// dollars in place of 16" (32-Hacking.md).
+		const int32 Cost = bHacked ? 10 : 16;
 		if (!Player->SpendMoney(Cost))
 		{
 			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HEALTHSTATION label=%s denied cost=%d"),

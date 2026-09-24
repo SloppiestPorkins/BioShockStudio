@@ -83,11 +83,41 @@ def main(out):
         }
         if not (healed and hp.get_current_health() >= hp.get_max_health() - 0.5 and hp.get_money() < m0):
             failures.append("health_station heal-for-money failed: %s" % report["healthStation"])
+        # Confirmed against the shipped UnrealEd guide: a FLAT 16 dollars, not scaled by how
+        # much health is missing ("PlaceableHealthStation heals the player to full health for
+        # 16 dollars", 25-Machines.md).
+        spent_unhacked = m0 - hp.get_money()
+        if spent_unhacked != 16:
+            failures.append("health_station unhacked cost %s, expected flat 16" % spent_unhacked)
         # already-full -> no charge
         m1 = hp.get_money()
         hs.try_interact(hp)
         if hp.get_money() != m1:
             failures.append("health_station charged at full health")
+
+    # Hacked Health Station: guide-confirmed flat 10 dollars ("A hacked Health Station heals for
+    # 10 dollars in place of 16", 32-Hacking.md).
+    hs2 = sub.spawn_actor_from_class(
+        classes["ShockStationBase"], unreal.Vector(0, 6200, 100), unreal.Rotator(0, 0, 0))
+    hp2 = sub.spawn_actor_from_class(player_cls, unreal.Vector(80, 6200, 100), unreal.Rotator(0, 0, 0))
+    if hs2 and hp2:
+        hs2.set_editor_property("station_kind", unreal.ShockStationKind.HEALTH_STATION)
+        hs2.set_editor_property("hacked", True)
+        hp2.ensure_health_initialized()
+        hp2.set_current_health_for_verify(20.0)
+        hp2.add_money(50)
+        m2 = hp2.get_money()
+        healed2 = hs2.try_interact(hp2)
+        spent_hacked = m2 - hp2.get_money()
+        report["healthStationHacked"] = {"healed": bool(healed2), "spent": spent_hacked}
+        if not healed2 or spent_hacked != 10:
+            failures.append("health_station hacked cost %s, expected flat 10" % spent_hacked)
+    for a in (hs2, hp2):
+        if a:
+            try:
+                sub.destroy_actor(a)
+            except Exception:
+                pass
     for a in (hs, hp):
         if a:
             try:
