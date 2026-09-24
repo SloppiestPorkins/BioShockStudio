@@ -147,6 +147,9 @@ void UShockSecuritySubsystem::OnAlarmStateChanged(
 
 	if (bOn && !bWasOn)
 	{
+		AlarmRemainingSeconds = AlarmDurationSeconds;
+		AlarmPlayer = Player;
+
 		const int32 Want = PendingBotSpawnCount > 0 ? PendingBotSpawnCount : 1;
 		PendingBotSpawnCount = 0;
 		FVector Near = Player->GetActorLocation();
@@ -164,6 +167,8 @@ void UShockSecuritySubsystem::OnAlarmStateChanged(
 
 	if (!bOn && bWasOn)
 	{
+		AlarmRemainingSeconds = -1.0f;
+		AlarmPlayer = nullptr;
 		ScheduleBotDespawn(BotLifetimeAfterAlarmClearSeconds);
 	}
 }
@@ -335,7 +340,7 @@ int32 UShockSecuritySubsystem::GetActiveBotCountForVerify() const
 	return Count;
 }
 
-void UShockSecuritySubsystem::AdvanceSecurityForVerify(float DeltaSeconds)
+void UShockSecuritySubsystem::AdvanceSecurity(float DeltaSeconds)
 {
 	if (DeltaSeconds <= 0.0f)
 	{
@@ -343,6 +348,30 @@ void UShockSecuritySubsystem::AdvanceSecurityForVerify(float DeltaSeconds)
 	}
 
 	TickBotDespawn(DeltaSeconds);
+
+	if (AlarmRemainingSeconds >= 0.0f)
+	{
+		AlarmRemainingSeconds -= DeltaSeconds;
+		if (AlarmRemainingSeconds <= 0.0f)
+		{
+			AlarmRemainingSeconds = -1.0f;
+			if (AShockPlayer* Player = AlarmPlayer.Get())
+			{
+				Player->SetSecurityAlarmOn(false, NAME_None);
+			}
+			AlarmPlayer = nullptr;
+		}
+	}
+}
+
+void UShockSecuritySubsystem::AdvanceSecurityForVerify(float DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+
+	AdvanceSecurity(DeltaSeconds);
 
 	PurgeInvalidBots();
 	for (AShockSecurityBot* Bot : ActiveBots)
@@ -352,4 +381,9 @@ void UShockSecuritySubsystem::AdvanceSecurityForVerify(float DeltaSeconds)
 			Bot->AdvanceBotForVerify(DeltaSeconds);
 		}
 	}
+}
+
+void UShockSecuritySubsystem::TickSecurity(float DeltaSeconds)
+{
+	AdvanceSecurity(DeltaSeconds);
 }

@@ -205,6 +205,30 @@ def main(out):
     _destroy_all(subsystem, spawned)
     spawned = []
 
+    # --- (c2) alarm auto-expires after AlarmDurationSeconds (guide-confirmed 60s) even when
+    # nothing ever explicitly stops it -- previously untested because the whole security
+    # subsystem's time-based state was never ticked outside this verify harness.
+    expire_player = _spawn(subsystem, player_cls, "ExpirePlayer", unreal.Vector(0.0, 700.0, 100.0))
+    spawned.append(expire_player)
+    if expire_player and sec:
+        expire_player.ensure_health_initialized()
+        sec.set_editor_property("alarm_duration_seconds", 1.0)
+        expire_player.set_security_alarm_on(True, unreal.Name("ExpireAlarm"))
+        still_on_before = bool(expire_player.is_security_alarm_on())
+        _tick_security(world, 0.5)
+        still_on_mid = bool(expire_player.is_security_alarm_on())
+        _tick_security(world, 0.7)
+        off_after = bool(expire_player.is_security_alarm_on())
+        check(
+            "alarm_auto_expires",
+            still_on_before and still_on_mid and not off_after,
+            {"before": still_on_before, "mid": still_on_mid, "after": off_after},
+        )
+        sec.set_editor_property("alarm_duration_seconds", 60.0)
+
+    _destroy_all(subsystem, spawned)
+    spawned = []
+
     # --- (d) killed bot disabled ---
     kill_bot = _spawn(subsystem, bot_cls, "KillBot", unreal.Vector(0.0, 600.0, 100.0))
     spawned.append(kill_bot)

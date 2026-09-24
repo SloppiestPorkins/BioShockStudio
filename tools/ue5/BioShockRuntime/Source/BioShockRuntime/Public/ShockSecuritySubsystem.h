@@ -31,6 +31,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
 	float BotLifetimeAfterAlarmClearSeconds = 30.0f;
 
+	/** Confirmed against the shipped UnrealEd guide ("The alarm lasts 60 seconds") -- not a
+	 * guess. An alarm the player never reaches a Bot Shutdown Panel for still clears itself. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
+	float AlarmDurationSeconds = 60.0f;
+
 	void SetRequestedBotCount(int32 Count) { PendingBotSpawnCount = FMath::Max(0, Count); }
 
 	void SetNextSpawnLocationLabel(FName Label) { NextSpawnLocationLabel = Label; }
@@ -63,6 +68,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Security")
 	void AdvanceSecurityForVerify(float DeltaSeconds);
 
+	/**
+	 * Real-gameplay driver, called every frame from AShockPlayer::Tick. This subsystem is a
+	 * plain UWorldSubsystem (not UTickableWorldSubsystem), so nothing ticked it outside the
+	 * headless verify harness before this -- AdvanceSecurityForVerify was the ONLY caller of
+	 * the bot-despawn timer, meaning bots never auto-despawned and the alarm never
+	 * auto-expired during actual play, regardless of how correct the underlying timer logic
+	 * was. Shares AdvanceSecurity() with the verify path so both stay in sync.
+	 */
+	void TickSecurity(float DeltaSeconds);
+
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Security")
 	AShockSecurityBot* SpawnBotForVerify(FVector Location, AShockPlayer* Player);
 
@@ -79,6 +94,9 @@ private:
 
 	void TickBotDespawn(float DeltaSeconds);
 
+	/** Shared by AdvanceSecurityForVerify and TickSecurity: bot despawn + alarm auto-expiry. */
+	void AdvanceSecurity(float DeltaSeconds);
+
 	void PurgeInvalidBots();
 
 	UPROPERTY()
@@ -91,4 +109,9 @@ private:
 	float BotDespawnRemaining = -1.0f;
 
 	int32 NextBotIndex = 0;
+
+	/** -1 = no alarm running. Set to AlarmDurationSeconds when an alarm starts, counts down. */
+	float AlarmRemainingSeconds = -1.0f;
+
+	TWeakObjectPtr<AShockPlayer> AlarmPlayer;
 };

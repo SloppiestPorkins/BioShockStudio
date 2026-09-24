@@ -1283,6 +1283,17 @@ void AShockPlayer::Tick(float DeltaSeconds)
 	TickUnderwaterPostProcess(DeltaSeconds);
 	TickViewEffects(DeltaSeconds);
 
+	// UShockSecuritySubsystem is a plain UWorldSubsystem, not UTickableWorldSubsystem -- nothing
+	// else drives its alarm-auto-expiry/bot-despawn timers during real play (only the headless
+	// verify harness called AdvanceSecurityForVerify before this).
+	if (UWorld* World = GetWorld())
+	{
+		if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(World))
+		{
+			Security->TickSecurity(DeltaSeconds);
+		}
+	}
+
 	// ViewHands stays at the fixed eye-relative transform from PlaceViewHandsFixed. The looping
 	// fidget moves R_Grip (via the arm chain) and the weapon attached to that socket rides with it.
 }
