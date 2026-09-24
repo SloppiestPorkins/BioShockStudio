@@ -100,6 +100,50 @@ def main(out):
         f.append("LastBranch %s" % if_action.get_last_branch())
     report["if_true"] = "ok"
 
+    # ActionExitScript targeting a DIFFERENT script (the CohenDies -> CohenEntrance pattern from
+    # 23-Scripting-Examples.md: an AI-death script aborts an unrelated in-flight cinematic
+    # script). Previously this always exited the CALLER regardless of TargetScript.
+    reg_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockScriptRegistry")
+    shared_registry = unreal.new_object(reg_cls)
+
+    victim = unreal.new_object(runner_cls)
+    victim.configure("VictimScript")
+    victim.set_registry(shared_registry)
+    victim_wait = unreal.new_object(wait_cls)
+    victim_wait.configure(10.0)
+    victim_assign = unreal.new_object(assign_cls)
+    victim_assign.configure("VictimRan", "yes")
+    victim.add_action(victim_wait)
+    victim.add_action(victim_assign)
+    if not victim.start_execution():
+        f.append("victim StartExecution")
+    victim.tick_execution(0.0)
+    if not bool(victim.is_executing):
+        f.append("victim should still be waiting")
+
+    caller = unreal.new_object(runner_cls)
+    caller.configure("CallerScript")
+    caller.set_registry(shared_registry)
+    caller_note = unreal.new_object(note_cls)
+    caller_note.configure("caller continues")
+    exit_other = unreal.new_object(exit_cls)
+    exit_other.configure("VictimScript")
+    caller.add_action(exit_other)
+    caller.add_action(caller_note)
+    if not caller.start_execution():
+        f.append("caller StartExecution")
+    caller.tick_execution(0.0)
+
+    if bool(victim.is_executing):
+        f.append("cross-script exit did not stop the victim")
+    if str(victim.ensure_variables().get_value_or_empty("VictimRan")) == "yes":
+        f.append("victim ran actions past its abort point")
+    if bool(caller.is_executing):
+        f.append("caller should have finished (2 short actions)")
+    if int(caller.actions_completed) < 2:
+        f.append("caller actions_completed %s (expected exit + note)" % caller.actions_completed)
+    report["cross_script_exit"] = "ok"
+
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2)

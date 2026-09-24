@@ -3,7 +3,10 @@
 #include "ShockAction.h"
 #include "ShockActionExitScript.generated.h"
 
-/** UnrealScript `ActionExitScript`: end execution of targetScript (or current). */
+/**
+ * UnrealScript `ActionExitScript`: end execution of TargetScript (a different script, looked up
+ * by label via the registry), or the currently-executing script when TargetScript is empty.
+ */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionExitScript : public UShockAction
 {

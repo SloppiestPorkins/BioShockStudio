@@ -539,10 +539,33 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionExitScript* Exit = Cast<UShockActionExitScript>(Action))
 	{
 		Exit->RequestExit();
-		bExitRequested = true;
+		// Empty TargetScript means "current script" (confirmed against the shipped UnrealEd
+		// guide's own doc text on the action). A NAMED target is a different script -- e.g.
+		// 23-Scripting-Examples.md's CohenDies calls `ActionExitScript
+		// targetScript=CohenEntrance` to abort an unrelated in-flight cinematic script when the
+		// AI dies mid-sequence. This previously always exited `this`, ignoring TargetScript
+		// entirely, so a cross-script abort silently killed the wrong script (the caller) and
+		// left the real target running.
+		UShockScriptRunner* Target = this;
+		if (!Exit->TargetScript.IsNone() && Exit->TargetScript != ScriptLabel)
+		{
+			Target = Registry ? Registry->FindScript(Exit->TargetScript) : nullptr;
+		}
 		++ActionsCompleted;
-		FinishExecution();
-		return false;
+		if (!Target)
+		{
+			++CurrentlyExecutingActionIndex;
+			return true;
+		}
+		if (Target == this)
+		{
+			bExitRequested = true;
+			FinishExecution();
+			return false;
+		}
+		Target->FinishExecution();
+		++CurrentlyExecutingActionIndex;
+		return true;
 	}
 
 	if (UShockActionExitLoop* ExitLoop = Cast<UShockActionExitLoop>(Action))
