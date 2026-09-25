@@ -20,17 +20,23 @@ bool UShockActionSendTriggerMessage::RequestSend()
 
 int32 UShockActionSendTriggerMessage::DispatchVia(UShockScriptRegistry* InRegistry, FName ParentScriptLabel)
 {
-	const FName Source = InstigatorLabel.IsNone() ? ParentScriptLabel : InstigatorLabel;
-	LastInstigatorLabel = Source;
+	// The SDK guide (21-Scripting-Logic-and-Variables, ActionSendTriggerMessage; 20 message
+	// tables): MessageTrigger goes out under the RUNNING SCRIPT's own label -- that is what a
+	// mover or another script lists in TriggeredBy -- and Instigator is only a field carried in
+	// the message (empty = the script's own label, or Player). The previous code made the
+	// Instigator the dispatch source, so a mover listening for the script never heard it, and used
+	// class "Message" (found by the SDK cross-reference audit, docs/research/sdk-crossref-scripting.md
+	// SCR-B01/B02).
+	const FName Instigator = InstigatorLabel.IsNone() ? ParentScriptLabel : InstigatorLabel;
+	LastInstigatorLabel = Instigator;
 	LastDispatchAccepted = 0;
-	if (InRegistry == nullptr || Source.IsNone())
+	if (InRegistry == nullptr || ParentScriptLabel.IsNone())
 	{
 		return 0;
 	}
-	// UE2's base "Message" class -- confirmed against the shipped UnrealEd guide: a script with
-	// scriptMessageClass=Message "accepts every message from the listed labels", the pattern
-	// movers and generic trigger relays are built on. Not yet checked receiver-side (see
-	// docs/research/message-class-gap.md) but the dispatched name should be the real one.
-	LastDispatchAccepted = InRegistry->DispatchMessage(FName(TEXT("Message")), Source.ToString());
+	TMap<FString, FString> Fields;
+	Fields.Add(TEXT("Instigator"), Instigator.ToString());
+	LastDispatchAccepted = InRegistry->DispatchMessageWithFields(
+		FName(TEXT("MessageTrigger")), ParentScriptLabel.ToString(), Fields);
 	return LastDispatchAccepted;
 }

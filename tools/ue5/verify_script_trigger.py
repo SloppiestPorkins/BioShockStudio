@@ -35,7 +35,7 @@ def main(out):
 
     listener = unreal.new_object(runner_cls)
     listener.configure("Listener")
-    listener.set_triggered_by("DoorA")
+    listener.set_triggered_by("Sender")  # SendTriggerMessage goes out under the SENDING script's label
     listener.set_registry(registry)
     listener.add_action(_assign("Opened", "yes"))
 
@@ -55,11 +55,10 @@ def main(out):
     listener.tick_execution(0.0)
     if str(listener.ensure_variables().get_value_or_empty("Opened")) != "yes":
         f.append("Opened=%s" % listener.ensure_variables().get_value_or_empty("Opened"))
-    # Confirmed against the shipped UnrealEd guide: ActionSendTriggerMessage dispatches the base
-    # "Message" class, not an invented "MessageTrigger" -- receivers with scriptMessageClass=Message
-    # (or, currently, any receiver, since class filtering isn't implemented yet -- see
-    # docs/research/message-class-gap.md) accept it.
-    if str(listener.get_last_message_class()) != "Message":
+    # SDK guide: ActionSendTriggerMessage sends MessageTrigger under the running script's own
+    # label (Instigator is only a carried field). Earlier code used the Instigator as the source
+    # and class "Message" -- the SDK cross-reference audit caught it (SCR-B01/B02).
+    if str(listener.get_last_message_class()) != "MessageTrigger":
         f.append("msg class %s" % listener.get_last_message_class())
     report["door_a"] = "ok"
 
@@ -119,6 +118,37 @@ def main(out):
     if str(wildcard.ensure_variables().get_value_or_empty("SawAny")) != "yes":
         f.append("scriptMessageClass=Message wildcard did not fire")
     report["message_class_gate"] = "ok"
+
+    # Subclass acceptance (20-Scripting-Basics): a script accepts its class AND every subclass.
+    base_l = unreal.new_object(runner_cls)
+    base_l.configure("BaseTriggerListener")
+    base_l.set_triggered_by("Vol")
+    base_l.set_script_message_class("MessageTrigger")
+    base_l.set_registry(registry)
+    base_l.add_action(_assign("Got", "yes"))
+    vol_l = unreal.new_object(runner_cls)
+    vol_l.configure("VolBaseListener")
+    vol_l.set_triggered_by("Vol")
+    vol_l.set_script_message_class("MessageTriggerVolume")
+    vol_l.set_registry(registry)
+    vol_l.add_action(_assign("Got", "yes"))
+    mover_l = unreal.new_object(runner_cls)
+    mover_l.configure("MoverBaseListener")
+    mover_l.set_triggered_by("Vol")
+    mover_l.set_script_message_class("MessageMover")
+    mover_l.set_registry(registry)
+    mover_l.add_action(_assign("Got", "yes"))
+    registry.dispatch_message("MessageTriggerVolumeEnter", "Vol")
+    for r in (base_l, vol_l, mover_l):
+        r.tick_execution(0.0)
+    got = lambda r: str(r.ensure_variables().get_value_or_empty("Got")) == "yes"
+    if not got(base_l):
+        f.append("MessageTrigger listener rejected MessageTriggerVolumeEnter (subclass)")
+    if not got(vol_l):
+        f.append("MessageTriggerVolume listener rejected MessageTriggerVolumeEnter (subclass)")
+    if got(mover_l):
+        f.append("MessageMover listener accepted an unrelated trigger message")
+    report["message_class_subclass"] = "ok"
 
     # messageFilter (23-Scripting-Examples.md Examples 4/9/14): the script starts only when every
     # non-empty filter field equals the message's own field. Empty/None/0 fields are ignored, and

@@ -96,9 +96,35 @@ bool UShockScriptRunner::MatchesMessageClass(FName MessageClassName) const
 	// behaviour rather than silently stop a script that worked. "Message" is UE2's own base
 	// class and accepts every message from the listed labels (23-Scripting-Examples.md).
 	static const FName BaseMessage(TEXT("Message"));
-	return ScriptMessageClass.IsNone()
-		|| ScriptMessageClass == BaseMessage
-		|| ScriptMessageClass == MessageClassName;
+	if (ScriptMessageClass.IsNone() || ScriptMessageClass == BaseMessage)
+	{
+		return true;
+	}
+
+	// A Script accepts its class AND every subclass (20-Scripting-Basics, scriptMessageClass).
+	// Only the abstract/base classes the SDK names need a table: MessageTrigger (sent by
+	// ActionSendTriggerMessage; base of the enter/exit classes), MessageTriggerVolume, MessageMover.
+	static const TMap<FName, FName> Parent = {
+		{FName(TEXT("MessageTriggerEnter")), FName(TEXT("MessageTrigger"))},
+		{FName(TEXT("MessageTriggerExit")), FName(TEXT("MessageTrigger"))},
+		{FName(TEXT("MessageTriggerVolume")), FName(TEXT("MessageTrigger"))},
+		{FName(TEXT("MessageTriggerVolumeEnter")), FName(TEXT("MessageTriggerVolume"))},
+		{FName(TEXT("MessageTriggerVolumeExit")), FName(TEXT("MessageTriggerVolume"))},
+		{FName(TEXT("MessageMoverOpening")), FName(TEXT("MessageMover"))},
+		{FName(TEXT("MessageMoverOpened")), FName(TEXT("MessageMover"))},
+		{FName(TEXT("MessageMoverClosing")), FName(TEXT("MessageMover"))},
+		{FName(TEXT("MessageMoverClosed")), FName(TEXT("MessageMover"))},
+	};
+	for (FName Walk = MessageClassName; !Walk.IsNone();)
+	{
+		if (Walk == ScriptMessageClass)
+		{
+			return true;
+		}
+		const FName* Up = Parent.Find(Walk);
+		Walk = Up ? *Up : NAME_None;
+	}
+	return false;
 }
 
 void UShockScriptRunner::SetMessageFilterField(const FString& FieldName, const FString& Value)
