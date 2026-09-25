@@ -103,6 +103,39 @@ source is also present in a normal action array, then calls `add_variable_resolv
 its original string getters/setter. `UShockAction` retains a transient return variable and exposes
 `GetReturnValue()`.
 
+### Global_ variables
+
+Names that start with `Global_` (case-insensitive prefix) are not local to the runner that first
+writes them. `UShockVariableScope::{Contains,TryGet,GetValueOrEmpty,Set,Find}` detect the prefix and
+forward to a shared store:
+
+- Primary home: `UShockGameInstance::GlobalVariables` (same object that already keeps
+  `PendingCarryState` across `TravelToLevel` / `OpenLevel`).
+- Headless / bare runners (`unreal.new_object(ShockScriptRunner)` with no world game instance): a
+  process-level fallback scope rooted with `TStrongObjectPtr`, so assigns still land and never
+  crash or silently drop.
+
+Values remain text; `UShockVariable::InferVariableClass` is unchanged. Every name-based path
+(assign / assign-if-missing / increment / decrement / arithmetic / `resolveInfoList` variable
+bindings / boolean operands after resolution) goes through the scope APIs, so no script-side
+syntax change is required.
+
+`import_scripts.py` passes `lhs` / variable resolver names through as authored — it does not
+lowercase or namespace them. No importer change.
+
+**Save/load follow-up:** `UShockSaveGame` today persists carry/inventory/difficulty only. Globals
+are not written into slots yet; inventing a save format was deferred (document only).
+
+**Cross-script locals (SCR-G06):** a read of `ScriptLabel.varname` uses the scope's bound
+`UShockScriptRegistry::FindScript` and that runner's local map. Assigning a dotted name is refused
+(`Set` returns false). Requires `EnsureVariables` / `SetRegistry` so the registry is bound.
+
+**Temps (SCR-G18):** value-action return objects live on the action UObject. `StartExecution`
+already clears them via `ResetActionRuntimeState` before a new run, so they do not leak into the
+next execution. Wiping them in `FinishExecution` was skipped — headless verifies
+(`verify_import_scripts.py`) read `get_return_value()` after the run completes. No Global_/scope
+leak; no further change.
+
 Immediately before a queue action executes, `UShockScriptRunner` asks it to resolve parameters.
 Variable sources read the named scope object. Action sources read the source action's last return;
 when a resolver-only expression has not run, it is evaluated once on first use. The destination

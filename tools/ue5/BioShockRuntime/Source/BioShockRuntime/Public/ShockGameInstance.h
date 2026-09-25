@@ -7,6 +7,7 @@
 class AShockPlayer;
 class UShockCarryState;
 class UShockLoadingScreen;
+class UShockVariableScope;
 
 /** Persists carry state across OpenLevel. Set in DefaultEngine.ini via setup_playable_slice.py. */
 UCLASS()
@@ -20,6 +21,14 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UShockCarryState> PendingCarryState;
+
+	/**
+	 * Shared script variables whose names start with Global_ (SCR-B03). Lives on the game
+	 * instance so values survive TravelToLevel / OpenLevel the same way PendingCarryState does.
+	 * Not written into UShockSaveGame yet — saves only capture carry/inventory (follow-up).
+	 */
+	UPROPERTY()
+	TObjectPtr<UShockVariableScope> GlobalVariables;
 
 	UPROPERTY()
 	bool bHasPendingArrival = false;
@@ -78,6 +87,10 @@ public:
 	static UShockGameInstance* GetShockInstanceForVerify(UObject* WorldContextObject);
 
 	static UShockGameInstance* GetShockInstance(const UWorld* World);
+
+	/** Lazy-create the Global_ variable store (survives map travel with this game instance). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	UShockVariableScope* EnsureGlobalVariables();
 
 private:
 	void HandlePreLoadMap(const FString& MapName);

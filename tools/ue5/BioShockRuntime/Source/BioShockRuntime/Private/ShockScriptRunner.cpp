@@ -190,6 +190,10 @@ void UShockScriptRunner::SetRegistry(UShockScriptRegistry* InRegistry)
 	{
 		Registry->RegisterScript(this);
 	}
+	if (Variables)
+	{
+		Variables->BindRegistry(Registry);
+	}
 }
 
 void UShockScriptRunner::AddAction(UShockAction* Action)
@@ -206,6 +210,8 @@ UShockVariableScope* UShockScriptRunner::EnsureVariables()
 	{
 		Variables = NewObject<UShockVariableScope>(this);
 	}
+	// Keep SCR-G06 dotted reads (`ScriptLabel.varname`) wired even if SetRegistry ran first.
+	Variables->BindRegistry(Registry);
 	return Variables;
 }
 

@@ -24,6 +24,5 @@ bool UShockActionVariableIncrement::ApplyToScope(UShockVariableScope* Scope)
 	{
 		LexFromString(Value, *Current);
 	}
-	Scope->Set(Target, FString::FromInt(Value + 1));
-	return true;
+	return Scope->Set(Target, FString::FromInt(Value + 1));
 }

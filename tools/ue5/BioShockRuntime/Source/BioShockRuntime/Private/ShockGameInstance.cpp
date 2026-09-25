@@ -3,6 +3,7 @@
 #include "ShockCarryState.h"
 #include "ShockLoadingScreen.h"
 #include "ShockPlayer.h"
+#include "ShockVariableScope.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/Engine.h"
@@ -154,4 +155,13 @@ UShockGameInstance* UShockGameInstance::GetShockInstance(const UWorld* World)
 		return nullptr;
 	}
 	return Cast<UShockGameInstance>(World->GetGameInstance());
+}
+
+UShockVariableScope* UShockGameInstance::EnsureGlobalVariables()
+{
+	if (!GlobalVariables)
+	{
+		GlobalVariables = NewObject<UShockVariableScope>(this);
+	}
+	return GlobalVariables;
 }

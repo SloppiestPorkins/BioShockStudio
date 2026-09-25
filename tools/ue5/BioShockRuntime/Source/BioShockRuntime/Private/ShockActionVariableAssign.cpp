@@ -23,6 +23,5 @@ bool UShockActionVariableAssign::ApplyToScope(UShockVariableScope* Scope)
 	{
 		return false;
 	}
-	Scope->Set(Lhs, Rhs);
-	return true;
+	return Scope->Set(Lhs, Rhs);
 }
