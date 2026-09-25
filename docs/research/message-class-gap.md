@@ -1,4 +1,4 @@
-# The message-class gap — `scriptMessageClass` gating LANDED; dispatch sources and `messageFilter` remain
+# The message-class gap — `scriptMessageClass` gating LANDED; most Medical dispatch sources now exist
 
 > **Update, 25 Sept — receiver-side gating is done.** The earlier version of this doc scoped the
 > fix as "real engineering" needing new FCompactIndex resolution. It wasn't: the C# side already
@@ -19,18 +19,34 @@
 > - `verify_script_trigger.py`: the guide's elevator case — two scripts on `TriggeredBy="Lift"`,
 >   `MessageMoverOpened` vs `MessageMoverClosing` vs `Message` wildcard; only the right ones fire.
 >
-> **Behaviour change to know about:** scripts whose class we don't dispatch yet no longer start.
-> The runtime only dispatches `MessageLevelStarted`, `MessageTriggerVolumeEnter` and `Message`.
-> Previously a `TriggeredBy="all"` `MessagePawnDied` script wrongly fired at level entry (the
-> level-entry dispatch hits every `all` script); that's gone. The cost: `MessageTriggerEnter`
-> (TriggerRadius, 4 scripts) and `MessageTriggerVolumeExit`/`TriggerExit` (4) no longer fire via
-> the volume-enter relay. Those scripts' real events need real dispatch sources (below).
+> **Update, 25 Sept (R1.3 follow-up) — real senders for the Medical demand set.** Every new
+> sender logs `BIOSHOCK_MSG class=%s src=%s accepted=%d` (`LogTemp, Display`). Headless coverage
+> in `tools/ue5/verify_message_senders.py`.
 >
-> **Still open:** (1) real dispatch sources for `MessagePawnDied` (21), `MessageRAReacted` (19),
-> `MessageReceivedInventory` (8), `MessageAIWeaponFired` (5), `MessagePawnTookDamage` (5),
-> `MessageMoverOpened/Closing`, `MessagePlayerFinishedHacking` (3), etc.; (2) TriggerRadius/exit
-> relay classes; (3) `messageFilter` field decoding + a message payload to compare against.
-> The historical analysis below is kept for the reasoning.
+> | Class | Sender | Notes |
+> |---|---|---|
+> | `MessagePawnDied` | `UShockDamageLibrary::ApplyDamage` (once on `bIsDead` false→true) | Source = pawn label (`ABaseShockAI::ScriptLabel` / editor label / `"Player"`) **and** `"All"` / `"all"`. |
+> | `MessagePawnTookDamage` | same library, applied > 0 while living (incl. killing blow) | Same three sources; **order on kill: TookDamage then Died**. |
+> | `MessageReceivedInventory` | `AShockPlayer::AddStackToInventory` / `AddMoney` / `AddAdam` | Source `"Player"` (case-insensitive). Suppressed via `bSuppressInventoryMessages` around `EquipStarterWeapon`; travel restore already bypasses via `RestoreInventoryStacksForTravel`. |
+> | `MessageAIWeaponFired` | `ABaseShockAI::TryRangedFire` + `AShockTurret::TryFireAt` | Source = shooter ScriptLabel / DeviceLabel / editor label. |
+> | `MessageRAReacted` | `AShockPlayer::NotifyReactedWithActor` + oil `IgniteSlick` | See RAReacted audit below — most Medical switch/grate labels still have no interact path. |
+> | `MessageTriggerEnter` / `MessageTriggerExit` | `UShockTriggerRelayComponent` on imported `TriggerRadius` | Importer places TriggerSphere + relay with these classes. |
+> | `MessageTriggerVolumeEnter` / `MessageTriggerVolumeExit` | same relay on `TriggerVolume` | Exit added; enter was already wired. |
+>
+> **Still open:** (1) `messageFilter` (21% of scripts) — **not implemented; do not fake it.** A
+> script with `TriggeredBy="all"` and e.g. `PawnClass=SpawnedMeleeThug` will now over-fire for
+> every death (the `all`/`All` sources above make this worse than label-only scripts). (2)
+> `MessageMoverOpened`/`Closing`/`Closed`, `MessagePlayerFinishedHacking`, and the rest of the
+> taxonomy that still has no gameplay event. (3) Full Interact/wrench/plasmid paths for every
+> `MessageRAReacted` Medical label (audit below — unresolved stay unresolved).
+>
+> **Behaviour change to know about:** scripts whose class we don't dispatch yet still no longer
+> start. Previously a `TriggeredBy="all"` `MessagePawnDied` script wrongly fired at level entry;
+> that's still gone. `MessageTriggerEnter` / exit scripts now have real sources again.
+>
+> Re-verified Medical counts (UTF-16 `TriggeredBy` from `1-Medical.ue5-level.json`, 25 Sept):
+> PawnDied 21, RAReacted 19, ReceivedInventory 8, AIWeaponFired 5, PawnTookDamage 5,
+> TriggerEnter 4, TriggerVolumeExit 3, TriggerExit 1.
 
 ---
 # The message-class gap — `scriptMessageClass` and `messageFilter` are not implemented
@@ -62,6 +78,31 @@ Plus a third, per-script refinement:
    implemented at all** — and our message bus doesn't carry the payload fields most filters need
    in the first place (`docs/research/script-vm.md` already documents this boundary: "message
    bus only retains class+source label").
+
+## MessageRAReacted Medical audit (25 Sept)
+
+Labels named by the 19 Medical `MessageRAReacted` scripts, mapped to `className` in the level
+export. **Wired:** oil ignite (`AShockOilSlickVolume` / Incinerate) and the shared
+`NotifyReactedWithActor` hook (verify + future Interact). **Unresolved** = imported as mesh /
+no use-break path — do not invent a component.
+
+| Label | UE2 className | Status |
+|---|---|---|
+| `MedicalHallwaySwitch` | `DoorSwitch` | unresolved (static mesh; Interact does not cover DoorSwitch) |
+| `SupplyCloset1Switch` | `DoorSwitch` | unresolved |
+| `PainlessDentalSwitch` | `DoorSwitch` | unresolved |
+| `IncineratorSwitch` | `IncineratorSwitch` | unresolved |
+| `LaunchSwitch` | `Switch` | unresolved |
+| `ToNeptuneSwitch` | `BathysphereSwitch` | unresolved |
+| `quarswitch` | `Med_MedicalGateSwitch` | unresolved |
+| `ChompersSwitch` | `ChompersDentalButton` | unresolved |
+| `GatePadlock` | `Padlock` | unresolved |
+| `SupplyClosetGrate` / `KureAllGrate1` / `KureAllGrate2` / `PainlessDentalGrate1` | `dyn_grate64` | unresolved (no wrench-break path) |
+| `IceBlockage` | `NonPhysicalNonPathBlockingReactiveActor` | unresolved (no plasmid-hit→RA path yet) |
+| `ScriptedOilSlick1` / `ScriptedOilSlick2` | `OilSlick02_Reactive` / `OilSlick04_Reactive` | **wired** when slicks are placed as `AShockOilSlickVolume` and ignited |
+| `SteinmanGirlInChair` | `AggToastyBooty` + `dyn_med_wheelchair` | unresolved (AI + mesh; no RA react hook) |
+| `SteinmanTele` | *(missing from export)* | unresolved |
+| `TV_WallMountedWIthLight` | `TV_WallMounted` | unresolved |
 
 ## Why this matters — real numbers, not a hunch
 
@@ -146,9 +187,8 @@ this change altered no script's actual firing behavior — confirmed by a full r
 
 ## Verify
 
-No new verify script for the gap itself (nothing to verify yet — it's unfixed). The rename's
-zero-behavior-change claim is covered by the existing suite:
-`verify_script_trigger.py` (updated: asserts the real `"Message"` class landed, not the old
-invented `"MessageTrigger"`), `verify_script_doors.py` (updated: the relay-fallback path asserts
-`"MessageTriggerVolumeEnter"`), `verify_script_movement.py`, `verify_reflection_actions.py`,
-`verify_action_batch_r22.py` — all green.
+Receiver gating: `verify_script_trigger.py` (elevator class gate), `verify_script_doors.py`,
+`verify_script_movement.py`, `verify_reflection_actions.py`, `verify_action_batch_r22.py`.
+
+R1.3 senders: `tools/ue5/verify_message_senders.py` (headless). `messageFilter` remains untested
+because it remains unimplemented.

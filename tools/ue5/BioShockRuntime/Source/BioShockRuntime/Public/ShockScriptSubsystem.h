@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ShockScriptSubsystem.generated.h"
 
+class AActor;
 class UShockScriptRegistry;
 
 /**
@@ -31,6 +32,20 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
 	int32 DispatchMessage(FName MessageClassName, const FString& SourceLabel);
+
+	/**
+	 * DispatchMessage plus a greppable `BIOSHOCK_MSG class=%s src=%s accepted=%d` Display line.
+	 * Prefer this for gameplay senders so PIE logs stay searchable.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	int32 DispatchMessageLogged(FName MessageClassName, const FString& SourceLabel);
+
+	/**
+	 * Message source label for a world actor: AShockPlayer → "Player"; ABaseShockAI → ScriptLabel
+	 * (else editor label); otherwise editor actor label / GetName. Empty when Actor is null.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	static FString ResolveMessageSourceLabel(const AActor* Actor);
 
 	/**
 	 * Fire level-entry MessageTriggers: map short name (e.g. "1-Medical"), plus "All" / "all".

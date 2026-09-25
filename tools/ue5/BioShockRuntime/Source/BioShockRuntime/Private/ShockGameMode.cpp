@@ -457,8 +457,10 @@ void AShockGameMode::EquipStarterWeapon(AShockPlayer* Player)
 	Player->GrantOwnedPlasmid(UShockInsectSwarmPlasmid::StaticClass());
 	Player->GrantOwnedPlasmid(UShockEnragePlasmid::StaticClass());
 
+	Player->SetSuppressInventoryMessages(true);
 	Player->AddStackToInventory(FName(TEXT("FirstAidKit")), 1);
 	Player->AddStackToInventory(FName(TEXT("EveHypo")), 1);
+	Player->SetSuppressInventoryMessages(false);
 }
 
 void AShockGameMode::TravelToLevel(const FString& Map, FName StartLabel)

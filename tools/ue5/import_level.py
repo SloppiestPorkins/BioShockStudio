@@ -693,6 +693,7 @@ def _is_non_drawn_volume(class_name):
         return False
     return (class_name.endswith("Volume")
             or class_name.endswith("Trigger")
+            or class_name == "TriggerRadius"
             or class_name.endswith("ZoneInfo")
             or class_name.endswith("Zone"))
 
@@ -750,6 +751,8 @@ _WATER_VOLUME_CLASSES = frozenset({
 
 _VOLUME_SPAWN_CLASS = {
     "TriggerVolume": ("TriggerBox", "TriggerVolume"),
+    # TriggerRadius has no brush; TriggerSphere exposes a settable sphere radius from Python.
+    "TriggerRadius": ("TriggerSphere", "TriggerBox"),
     "BlockingVolume": ("BlockingVolume",),
     "PathBlockingVolume": ("BlockingVolume",),
     "FluidVolume": ("PhysicsVolume",),  # fallback if ShockWaterVolume missing
@@ -987,6 +990,11 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
             report["volumesUnsupported"] = report.get("volumesUnsupported", 0) + 1
             continue
 
+        # TriggerRadius has no brush OBJ — size from CollisionRadius at the actor location.
+        if class_name == "TriggerRadius":
+            _import_trigger_radius(entry, spawn_class, existing, report)
+            continue
+
         brush_instances = [
             inst for inst in instances.get(key, [])
             if assets.get(inst.get("asset"), {}).get("kind") == "Brush"]
@@ -1043,13 +1051,89 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
         actor.set_actor_label(entry.get("label") or entry.get("name") or key)
         actor.tags = _volume_tags(entry)
         _hide_volume_in_game(actor)
-        if class_name == "TriggerVolume":
-            _ensure_trigger_relay(actor, entry)
+        if class_name in ("TriggerVolume", "TriggerRadius"):
+            _ensure_trigger_relay(actor, entry, class_name)
         existing[key] = actor
 
 
-def _ensure_trigger_relay(actor, entry):
-    """Attach UShockTriggerRelayComponent so player overlap -> MessageTriggerVolumeEnter(volume label)."""
+def _property_float(entry, name, default=0.0):
+    """Decode a Float-typed tagged property from an actor entry (little-endian hex)."""
+    import struct
+    for prop in entry.get("properties") or []:
+        if prop.get("name") != name or prop.get("type") != "Float":
+            continue
+        hx = prop.get("valueHex") or ""
+        if len(hx) >= 8:
+            try:
+                return struct.unpack("<f", bytes.fromhex(hx[:8]))[0]
+            except Exception:  # noqa: BLE001
+                return default
+    return default
+
+
+def _import_trigger_radius(entry, spawn_class, existing, report):
+    """Place a TriggerRadius as TriggerSphere (or TriggerBox fallback) from CollisionRadius."""
+    key = entry["key"]
+    loc = entry.get("location") or [0, 0, 0]
+    center = unreal.Vector(float(loc[0]), float(loc[1]), float(loc[2]))
+    radius = max(1.0, float(_property_float(entry, "CollisionRadius", 100.0)))
+
+    actor = existing.get(key)
+    if actor is not None and not isinstance(actor, spawn_class):
+        _actor_subsystem().destroy_actor(actor)
+        actor = None
+
+    if actor is None:
+        actor = _actor_subsystem().spawn_actor_from_class(
+            spawn_class, center, unreal.Rotator(0, 0, 0))
+        if actor is None:
+            report["volumesSkipped"] = report.get("volumesSkipped", 0) + 1
+            return
+        report["created"] += 1
+        report["volumesPlaced"] = report.get("volumesPlaced", 0) + 1
+    else:
+        report["updated"] += 1
+        actor.set_actor_location(center, False, False)
+
+    sized = "unscaled"
+    for prop in ("collision_component", "root_component"):
+        comp = getattr(actor, prop, None)
+        if comp is None:
+            continue
+        setter = getattr(comp, "set_sphere_radius", None)
+        if callable(setter):
+            try:
+                setter(radius, False)
+                sized = "sphere_radius"
+                break
+            except Exception:  # noqa: BLE001
+                pass
+        setter = getattr(comp, "set_box_extent", None)
+        if callable(setter):
+            try:
+                setter(unreal.Vector(radius, radius, radius), False)
+                sized = "box_as_radius"
+                break
+            except Exception:  # noqa: BLE001
+                pass
+
+    report["volumeSizeMethod"] = report.get("volumeSizeMethod") or {}
+    report["volumeSizeMethod"][sized] = report["volumeSizeMethod"].get(sized, 0) + 1
+    report["triggerRadiiPlaced"] = report.get("triggerRadiiPlaced", 0) + 1
+
+    actor.set_actor_label(entry.get("label") or entry.get("name") or key)
+    actor.tags = _volume_tags(entry)
+    _hide_volume_in_game(actor)
+    _ensure_trigger_relay(actor, entry, "TriggerRadius")
+    existing[key] = actor
+
+
+def _ensure_trigger_relay(actor, entry, class_name="TriggerVolume"):
+    """Attach UShockTriggerRelayComponent so player overlap -> enter/exit message (volume label).
+
+    TriggerVolume → MessageTriggerVolumeEnter / MessageTriggerVolumeExit.
+    TriggerRadius → MessageTriggerEnter / MessageTriggerExit (Medical PSA* / ghostscreen scripts).
+    """
     relay_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTriggerRelayComponent")
     if relay_cls is None or actor is None:
         return None
@@ -1058,9 +1142,15 @@ def _ensure_trigger_relay(actor, entry):
     # One-shot is the safe default when the export omits triggerOnlyOnce.
     once = True if "triggerOnlyOnce" not in region else bool(region.get("triggerOnlyOnce"))
     disabled = bool(region.get("disabled") or False)
+    if class_name == "TriggerRadius":
+        enter_cls = "MessageTriggerEnter"
+        exit_cls = "MessageTriggerExit"
+    else:
+        enter_cls = "MessageTriggerVolumeEnter"
+        exit_cls = "MessageTriggerVolumeExit"
     try:
         return unreal.ShockTriggerRelayComponent.install_on_actor(
-            actor, str(label), once, disabled)
+            actor, str(label), once, disabled, enter_cls, exit_cls)
     except Exception:  # noqa: BLE001
         return None
 

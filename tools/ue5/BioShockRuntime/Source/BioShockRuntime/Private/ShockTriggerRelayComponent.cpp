@@ -18,11 +18,19 @@ void UShockTriggerRelayComponent::Configure(const FString& InLabel, bool bInTrig
 	bDisabled = bInDisabled;
 }
 
+void UShockTriggerRelayComponent::ConfigureMessages(FName InEnterMessageClass, FName InExitMessageClass)
+{
+	EnterMessageClass = InEnterMessageClass;
+	ExitMessageClass = InExitMessageClass;
+}
+
 UShockTriggerRelayComponent* UShockTriggerRelayComponent::InstallOnActor(
 	AActor* Owner,
 	const FString& InLabel,
 	bool bInTriggerOnlyOnce,
-	bool bInDisabled)
+	bool bInDisabled,
+	FName InEnterMessageClass,
+	FName InExitMessageClass)
 {
 	if (!Owner)
 	{
@@ -33,11 +41,13 @@ UShockTriggerRelayComponent* UShockTriggerRelayComponent::InstallOnActor(
 	if (Existing)
 	{
 		Existing->Configure(InLabel, bInTriggerOnlyOnce, bInDisabled);
+		Existing->ConfigureMessages(InEnterMessageClass, InExitMessageClass);
 		return Existing;
 	}
 
 	UShockTriggerRelayComponent* Comp = NewObject<UShockTriggerRelayComponent>(Owner, TEXT("ShockTriggerRelay"));
 	Comp->Configure(InLabel, bInTriggerOnlyOnce, bInDisabled);
+	Comp->ConfigureMessages(InEnterMessageClass, InExitMessageClass);
 	Owner->AddInstanceComponent(Comp);
 	Comp->RegisterComponent();
 	// Overlap binding is a play-time concern — done in BeginPlay, not here (editor time), so a
@@ -79,18 +89,16 @@ void UShockTriggerRelayComponent::BindOverlap()
 		// Remove-then-add so a re-bind (or a stray serialized binding) can't double up.
 		Prim->OnComponentBeginOverlap.RemoveDynamic(this, &UShockTriggerRelayComponent::OnBeginOverlap);
 		Prim->OnComponentBeginOverlap.AddDynamic(this, &UShockTriggerRelayComponent::OnBeginOverlap);
+		Prim->OnComponentEndOverlap.RemoveDynamic(this, &UShockTriggerRelayComponent::OnEndOverlap);
+		Prim->OnComponentEndOverlap.AddDynamic(this, &UShockTriggerRelayComponent::OnEndOverlap);
 		bBound = true;
 		break;
 	}
 }
 
-int32 UShockTriggerRelayComponent::DispatchNow()
+int32 UShockTriggerRelayComponent::DispatchNow(FName MessageClass)
 {
-	if (bDisabled)
-	{
-		return 0;
-	}
-	if (bTriggerOnlyOnce && bHasFired)
+	if (bDisabled || MessageClass.IsNone())
 	{
 		return 0;
 	}
@@ -113,17 +121,23 @@ int32 UShockTriggerRelayComponent::DispatchNow()
 		return 0;
 	}
 
-	// UE2's real class for a TriggerVolume enter, confirmed against the shipped UnrealEd guide.
-	// Not yet checked receiver-side (see docs/research/message-class-gap.md) but the dispatched
-	// name should be the real one.
-	const int32 Accepted = Sub->DispatchMessage(FName(TEXT("MessageTriggerVolumeEnter")), VolumeLabel);
-	bHasFired = true;
-	return Accepted;
+	return Sub->DispatchMessageLogged(MessageClass, VolumeLabel);
 }
 
 int32 UShockTriggerRelayComponent::FireForVerify()
 {
-	return DispatchNow();
+	if (bTriggerOnlyOnce && bHasFired)
+	{
+		return 0;
+	}
+	const int32 Accepted = DispatchNow(EnterMessageClass);
+	bHasFired = true;
+	return Accepted;
+}
+
+int32 UShockTriggerRelayComponent::FireExitForVerify()
+{
+	return DispatchNow(ExitMessageClass);
 }
 
 void UShockTriggerRelayComponent::OnBeginOverlap(
@@ -144,5 +158,27 @@ void UShockTriggerRelayComponent::OnBeginOverlap(
 	{
 		return;
 	}
-	DispatchNow();
+	if (bTriggerOnlyOnce && bHasFired)
+	{
+		return;
+	}
+	DispatchNow(EnterMessageClass);
+	bHasFired = true;
+}
+
+void UShockTriggerRelayComponent::OnEndOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	(void)OverlappedComponent;
+	(void)OtherComp;
+	(void)OtherBodyIndex;
+
+	if (bPlayerOnly && !Cast<AShockPlayer>(OtherActor))
+	{
+		return;
+	}
+	DispatchNow(ExitMessageClass);
 }

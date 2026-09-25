@@ -1,8 +1,12 @@
 #include "ShockScriptSubsystem.h"
 
+#include "BaseShockAI.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "ShockPlayer.h"
 #include "ShockScriptRegistry.h"
+#include "ShockSecurityDevice.h"
 #include "TimerManager.h"
 
 UShockScriptSubsystem* UShockScriptSubsystem::Get(const UWorld* World)
@@ -42,6 +46,49 @@ int32 UShockScriptSubsystem::DispatchMessage(FName MessageClassName, const FStri
 {
 	UShockScriptRegistry* Reg = GetOrCreateRegistry();
 	return Reg ? Reg->DispatchMessage(MessageClassName, SourceLabel) : 0;
+}
+
+int32 UShockScriptSubsystem::DispatchMessageLogged(FName MessageClassName, const FString& SourceLabel)
+{
+	const int32 Accepted = DispatchMessage(MessageClassName, SourceLabel);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_MSG class=%s src=%s accepted=%d"),
+		*MessageClassName.ToString(), *SourceLabel, Accepted);
+	return Accepted;
+}
+
+FString UShockScriptSubsystem::ResolveMessageSourceLabel(const AActor* Actor)
+{
+	if (!Actor)
+	{
+		return FString();
+	}
+	if (Cast<AShockPlayer>(Actor))
+	{
+		// MatchesTriggeredBy is case-insensitive; Medical scripts author both "Player" and "player".
+		return TEXT("Player");
+	}
+	if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Actor))
+	{
+		if (!AI->GetScriptLabel().IsNone())
+		{
+			return AI->GetScriptLabel().ToString();
+		}
+	}
+	if (const AShockSecurityDevice* Device = Cast<AShockSecurityDevice>(Actor))
+	{
+		if (!Device->DeviceLabel.IsNone())
+		{
+			return Device->DeviceLabel.ToString();
+		}
+	}
+#if WITH_EDITOR
+	const FString EditorLabel = Actor->GetActorLabel();
+	if (!EditorLabel.IsEmpty())
+	{
+		return EditorLabel;
+	}
+#endif
+	return Actor->GetName();
 }
 
 FString UShockScriptSubsystem::ResolveLevelEntryLabel() const

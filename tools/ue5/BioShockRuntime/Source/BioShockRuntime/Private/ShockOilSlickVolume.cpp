@@ -7,6 +7,7 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
+#include "ShockScriptSubsystem.h"
 
 AShockOilSlickVolume::AShockOilSlickVolume()
 {
@@ -115,6 +116,20 @@ void AShockOilSlickVolume::IgniteSlick(
 	if (!World)
 	{
 		return;
+	}
+
+	// Medical scripts listen for MessageRAReacted from ScriptedOilSlick* labels when oil ignites.
+	if (Caster)
+	{
+		Caster->NotifyReactedWithActor(this);
+	}
+	else if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World))
+	{
+		const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
+		if (!Src.IsEmpty())
+		{
+			Sub->DispatchMessageLogged(FName(TEXT("MessageRAReacted")), Src);
+		}
 	}
 
 	for (TActorIterator<AShockPawn> It(World); It; ++It)

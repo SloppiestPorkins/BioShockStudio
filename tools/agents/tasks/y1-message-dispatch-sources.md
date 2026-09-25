@@ -95,3 +95,13 @@ now exist, and note the over-fire risk for `all`-sourced dispatches.
   `spawn_actor_from_class(cls, loc, rot)` as the other verifies do. The runner API is
   `runner.ensure_variables().get_value_or_empty(name)`; `actor.tick_script(0.0)`.
 - Updated `docs/research/message-class-gap.md`.
+
+## Landing note (Claude, 25 Sept)
+
+Cursor delivered in 11 min (16 files, 814+/46-), applied clean against 461502d, built first try, its
+verify_message_senders.py passes with real positive AND negative (wrong-class) cases, no
+regressions across trigger/runner/doors/movement/security/hacking/r22/reflection. Slice trigger relays
+re-applied via run_import_slice_doors.py (exit classes). Not done, by design and documented:
+MessageRAReacted only fires for oil-slick ignite + NotifyReactedWithActor (most Medical switch/grate
+labels have no interact path); messageFilter still unimplemented (all-sourced scripts with filters
+over-fire); TriggerRadius scripts need a level re-import to get their relays.

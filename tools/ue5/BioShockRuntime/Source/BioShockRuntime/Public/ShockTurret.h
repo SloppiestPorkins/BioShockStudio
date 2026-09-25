@@ -37,6 +37,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "BioShock|Security|Turret")
 	int32 GetFireCountForVerify() const { return FireCount; }
 
+	/** Headless: fire once at Target (same path as TickDevice acquisition). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Security|Turret")
+	void FireAtForVerify(AShockPawn* Target) { TryFireAt(Target); }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickDevice(float DeltaSeconds) override;

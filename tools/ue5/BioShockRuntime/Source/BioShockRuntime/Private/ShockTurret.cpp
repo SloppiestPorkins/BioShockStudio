@@ -4,6 +4,7 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
+#include "ShockScriptSubsystem.h"
 #include "ShockWeapon.h"
 #include "Components/StaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
@@ -161,6 +162,14 @@ void AShockTurret::TryFireAt(AShockPawn* Target)
 		if (TurretWeapon->FireAt(this, Muzzle, Direction))
 		{
 			++FireCount;
+			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+			{
+				const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
+				if (!Src.IsEmpty())
+				{
+					Sub->DispatchMessageLogged(FName(TEXT("MessageAIWeaponFired")), Src);
+				}
+			}
 		}
 		return;
 	}
@@ -187,6 +196,14 @@ void AShockTurret::TryFireAt(AShockPawn* Target)
 			UShockDamageLibrary::ApplyDamage(Victim, HitscanDamage, this, NAME_None);
 			bPawnHit = true;
 			++FireCount;
+			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World))
+			{
+				const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
+				if (!Src.IsEmpty())
+				{
+					Sub->DispatchMessageLogged(FName(TEXT("MessageAIWeaponFired")), Src);
+				}
+			}
 		}
 	}
 	PlayTurretFireFeedback(Muzzle, bHit ? Hit.ImpactPoint : End, bPawnHit);

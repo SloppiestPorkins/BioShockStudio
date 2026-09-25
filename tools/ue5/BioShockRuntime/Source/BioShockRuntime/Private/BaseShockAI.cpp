@@ -8,6 +8,7 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockPhysicsLibrary.h"
+#include "ShockScriptSubsystem.h"
 #include "ShockWeapon.h"
 #include "AIController.h"
 #include "Animation/AnimSequence.h"
@@ -1438,7 +1439,17 @@ void ABaseShockAI::TryRangedFire()
 
 	FVector Direction = CombatTarget->GetActorLocation() - MuzzleLoc;
 	Direction = ApplyAimSpread(Direction);
-	AIWeapon->FireAt(this, MuzzleLoc, Direction);
+	if (AIWeapon->FireAt(this, MuzzleLoc, Direction))
+	{
+		if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+		{
+			const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
+			if (!Src.IsEmpty())
+			{
+				Sub->DispatchMessageLogged(FName(TEXT("MessageAIWeaponFired")), Src);
+			}
+		}
+	}
 }
 
 FName ABaseShockAI::GetPlayerPerceptionLabel(const AShockPlayer* Player) const

@@ -9,6 +9,7 @@
 #include "ShockSearchableContainer.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
+#include "ShockScriptSubsystem.h"
 #include "ShockStationActor.h"
 #include "ShockTurret.h"
 #include "ShockViewHandsAnimInstance.h"
@@ -2618,6 +2619,7 @@ int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 		return 0;
 	}
 	int32& Count = InventoryStacks.FindOrAdd(ItemClass);
+	const int32 Before = Count;
 	int32 MaxStack = MAX_int32;
 	if (ItemClass == FName(TEXT("FirstAidKit")))
 	{
@@ -2628,6 +2630,14 @@ int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 		MaxStack = FMath::Max(0, MaxEveHypos);
 	}
 	Count = FMath::Min(Count + StackSize, MaxStack);
+	if (!bSuppressInventoryMessages && Count > Before)
+	{
+		if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+		{
+			// Case-insensitive MatchesTriggeredBy — one "Player" covers Medical's "player" too.
+			Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+		}
+	}
 	return Count;
 }
 
@@ -2740,6 +2750,13 @@ void AShockPlayer::AddMoney(int32 Amount)
 	if (Amount > 0)
 	{
 		PlayerMoney += Amount;
+		if (!bSuppressInventoryMessages)
+		{
+			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+			{
+				Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+			}
+		}
 	}
 }
 
@@ -2762,7 +2779,33 @@ void AShockPlayer::AddAdam(int32 Amount)
 	if (Amount > 0)
 	{
 		PlayerAdam += Amount;
+		if (!bSuppressInventoryMessages)
+		{
+			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+			{
+				Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+			}
+		}
 	}
+}
+
+void AShockPlayer::NotifyReactedWithActor(AActor* Target)
+{
+	if (!Target)
+	{
+		return;
+	}
+	UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld());
+	if (!Sub)
+	{
+		return;
+	}
+	const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(Target);
+	if (Src.IsEmpty())
+	{
+		return;
+	}
+	Sub->DispatchMessageLogged(FName(TEXT("MessageRAReacted")), Src);
 }
 
 bool AShockPlayer::SpendAdam(int32 Amount)

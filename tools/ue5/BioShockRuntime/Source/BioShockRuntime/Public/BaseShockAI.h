@@ -524,6 +524,15 @@ public:
 	AShockPawn* GetCurrentScriptedAttackTargetPawn() const { return CurrentScriptedAttackTarget; }
 	void SetCombatTargetPawn(AShockPawn* Target);
 	void ClearCombatTargetPawn();
+
+	/** Headless: set CombatTarget then fire the equipped AI weapon once. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Combat")
+	void FireRangedAtForVerify(AShockPawn* Target)
+	{
+		SetCombatTargetPawn(Target);
+		TryRangedFire();
+	}
+
 	bool IsAliveCombatTarget(const AShockPawn* Target) const;
 	float GetDistanceToCombatTarget(const AShockPawn* Target) const;
 	void FaceCombatTarget(const AShockPawn* Target);

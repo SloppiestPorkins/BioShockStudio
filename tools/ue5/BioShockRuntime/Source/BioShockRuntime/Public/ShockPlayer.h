@@ -323,6 +323,26 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	int32 GetAdam() const { return PlayerAdam; }
 
+	/**
+	 * When true, AddStackToInventory / AddMoney / AddAdam skip MessageReceivedInventory.
+	 * EquipStarterWeapon sets this around the initial FirstAid/Eve grants; travel restore
+	 * already bypasses AddStack via RestoreInventoryStacksForTravel.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|Player|Consumables")
+	bool bSuppressInventoryMessages = false;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Consumables")
+	void SetSuppressInventoryMessages(bool bSuppress) { bSuppressInventoryMessages = bSuppress; }
+
+	/**
+	 * MessageRAReacted for the reacted-with actor's label (editor / ScriptLabel).
+	 * Call from Interact / wrench / plasmid react paths; headless verify calls this directly
+	 * for labels whose imported actors still lack a real use/break path (see
+	 * docs/research/message-class-gap.md).
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player|Messages")
+	void NotifyReactedWithActor(AActor* Target);
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Player|Consumables")
 	float GetMaxHealth() const;
 

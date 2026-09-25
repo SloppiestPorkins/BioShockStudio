@@ -5,6 +5,31 @@
 #include "GameFramework/Actor.h"
 #include "ShockPawn.h"
 #include "ShockPlayer.h"
+#include "ShockScriptSubsystem.h"
+
+namespace
+{
+void DispatchPawnMessageSources(UWorld* World, FName MessageClass, AShockPawn* Pawn)
+{
+	if (!World || !Pawn)
+	{
+		return;
+	}
+	UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World);
+	if (!Sub)
+	{
+		return;
+	}
+	const FString Label = UShockScriptSubsystem::ResolveMessageSourceLabel(Pawn);
+	if (!Label.IsEmpty())
+	{
+		Sub->DispatchMessageLogged(MessageClass, Label);
+	}
+	// TriggeredBy="all" / "All" means any pawn (DispatchLevelEntryMessages uses both casings).
+	Sub->DispatchMessageLogged(MessageClass, TEXT("All"));
+	Sub->DispatchMessageLogged(MessageClass, TEXT("all"));
+}
+} // namespace
 
 AActor* UShockDamageLibrary::FindActorByLabel(UWorld* World, FName Label)
 {
@@ -146,19 +171,27 @@ float UShockDamageLibrary::ApplyDamage(
 			if (Applied > 0.0f)
 			{
 				Cast<ABaseShockAI>(Pawn)->ReactToHit(Applied, Instigator);
+				DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn);
 			}
 			return Applied;
 		}
 	}
 
+	// Guard re-entry: only the first transition into dead fires death messages / OnDeathFromDamage.
 	const bool bWasDead = Pawn->bIsDead;
 	Pawn->CurrentHealth = FMath::Max(0.0f, Before - Applied);
 	if (Pawn->CurrentHealth <= 0.0f)
 	{
 		Pawn->bIsDead = true;
 	}
+	// TookDamage before Died on the killing blow (scripts listening for either must see a stable order).
+	if (Applied > 0.0f && !bWasDead)
+	{
+		DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn);
+	}
 	if (!bWasDead && Pawn->bIsDead)
 	{
+		DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnDied")), Pawn);
 		Pawn->OnDeathFromDamage();
 	}
 	else if (ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
