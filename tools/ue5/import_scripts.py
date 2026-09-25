@@ -35,6 +35,7 @@ ACTION_CLASS_OVERRIDES = {
     "AndStatement": "ShockAndStatement",
     "NotStatement": "ShockNotStatement",
     "OrStatement": "ShockOrStatement",
+    "ArithmeticStatement": "ShockArithmeticStatement",
     "HideNeedleElement": "ShockActionHideNeedleElement",
     "ShowNeedleElement": "ShockActionShowNeedleElement",
     "TrainingCondition": "ShockActionTrainingCondition",
@@ -379,6 +380,25 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
             rhs = _prop(bag, "rhs", "Rhs")
             if rhs is not None and hasattr(action, "configure"):
                 action.configure(bool(rhs))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ArithmeticStatement":
+            op = _prop(bag, "ArithmeticOp", "arithmeticOp")
+            lhs = _prop(bag, "lhs", "Lhs")
+            rhs = _prop(bag, "rhs", "Rhs")
+            if hasattr(action, "configure"):
+                op_i = 0
+                if op is not None:
+                    text = str(op)
+                    if "SUBTRACT" in text.upper() or text == "1":
+                        op_i = 1
+                    elif "MULTIPLY" in text.upper() or text == "2":
+                        op_i = 2
+                    elif "DIVIDE" in text.upper() or text == "3":
+                        op_i = 3
+                    elif text.isdigit():
+                        op_i = int(text)
+                action.configure(op_i, str(lhs or ""), str(rhs or ""))
                 stats["instance_applied"] += 1
                 return True
         if action_class == "ActionTestFact":
@@ -811,7 +831,8 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
             report["skipped"] += 1
             continue
         report["created"] += 1
-        actor.tags = [KEY_TAG_PREFIX + key]
+        # BioShockLabel= lets packaged (non-WITH_EDITOR) builds resolve the script by label.
+        actor.tags = [KEY_TAG_PREFIX + key, "BioShockLabel=" + str(label)]
         actor.set_actor_label(str(label))
         actor.configure(label, triggered_by)
         if registry is None:

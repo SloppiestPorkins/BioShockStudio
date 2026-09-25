@@ -3,7 +3,10 @@
 #include "ShockActionBool.h"
 #include "ShockAndStatement.generated.h"
 
-/** UnrealScript `AndStatement` (ActionBool). First slice: bool Lhs && Rhs (no Variable VM). */
+/**
+ * UnrealScript `AndStatement` (ActionBool). Bindings use PropertyName=lhs|rhs; the UPROPERTY
+ * names must match those tokens (FName is case-insensitive) so ResolveParameters can land.
+ */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockAndStatement : public UShockActionBool
 {
@@ -12,11 +15,13 @@ class BIOSHOCKRUNTIME_API UShockAndStatement : public UShockActionBool
 public:
 	UShockAndStatement();
 
+	/** Bound as `lhs` from resolveInfoList (nested ActionBool / literal). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bLhs = false;
+	bool Lhs = false;
 
+	/** Bound as `rhs` from resolveInfoList. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bRhs = false;
+	bool Rhs = false;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(bool bInLhs, bool bInRhs);

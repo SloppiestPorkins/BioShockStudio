@@ -11,6 +11,7 @@
 #include "ShockActionFreezeHavokActor.h"
 #include "ShockActionTriggerHavokForceActor.h"
 #include "ShockDamageLibrary.h"
+#include "ShockScriptReflection.h"
 
 namespace
 {
@@ -49,23 +50,8 @@ TArray<UPrimitiveComponent*> CollectSimulatingPrimitives(AActor* Actor)
 
 AActor* UShockPhysicsLibrary::FindActorByLabel(UWorld* World, FName Label)
 {
-	if (AActor* Found = UShockDamageLibrary::FindActorByLabel(World, Label))
-	{
-		return Found;
-	}
-	if (!World || Label.IsNone())
-	{
-		return nullptr;
-	}
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (Actor && Actor->Tags.Contains(Label))
-		{
-			return Actor;
-		}
-	}
-	return nullptr;
+	TArray<AActor*> Found = ShockScriptReflection::CollectActorsByLabel(World, Label);
+	return Found.Num() > 0 ? Found[0] : nullptr;
 }
 
 int32 UShockPhysicsLibrary::ApplyImpulse(AActor* Target, FVector Impulse, bool bVelChange, bool bWakeIfNeeded)

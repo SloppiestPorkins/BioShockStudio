@@ -1,7 +1,6 @@
 #include "ShockActionDestroyActor.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
+#include "ShockScriptReflection.h"
 
 UShockActionDestroyActor::UShockActionDestroyActor()
 {
@@ -31,22 +30,7 @@ int32 UShockActionDestroyActor::DestroyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = TargetLabel.ToString();
-	TArray<AActor*> Matches;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			Matches.Add(Actor);
-		}
-#endif
-	}
+	TArray<AActor*> Matches = ShockScriptReflection::CollectActorsByLabel(World, TargetLabel);
 	for (AActor* Actor : Matches)
 	{
 		if (DestroyTarget(Actor))

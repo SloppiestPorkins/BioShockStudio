@@ -1,7 +1,6 @@
 #include "ShockActionHideOrShowActor.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
+#include "ShockScriptReflection.h"
 
 UShockActionHideOrShowActor::UShockActionHideOrShowActor()
 {
@@ -38,24 +37,12 @@ int32 UShockActionHideOrShowActor::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = ActorLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* Actor : ShockScriptReflection::CollectActorsByLabel(World, ActorLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
 		if (ApplyToActor(Actor))
 		{
 			++Applied;
 		}
-#endif
 	}
 	return Applied;
 }

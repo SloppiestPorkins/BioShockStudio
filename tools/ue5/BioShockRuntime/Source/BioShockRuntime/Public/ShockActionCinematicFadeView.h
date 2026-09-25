@@ -3,7 +3,7 @@
 #include "ShockAction.h"
 #include "ShockActionCinematicFadeView.generated.h"
 
-/** UnrealScript `ActionCinematicFadeView`: latent fade. First slice holds params + RequestFade. */
+/** UnrealScript `ActionCinematicFadeView`: latent fade — waits Duration+Hold like ActionWait. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionCinematicFadeView : public UShockAction
 {
@@ -29,6 +29,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	float LastRequestedDuration = 0.0f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float WakeAtTime = -1.0f;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(float InAlphaStart, float InAlphaEnd, float InDuration, float InHold);
 
@@ -40,4 +43,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestFade();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	void PrepareWait(float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	bool IsReady(float WorldTimeSeconds) const;
 };

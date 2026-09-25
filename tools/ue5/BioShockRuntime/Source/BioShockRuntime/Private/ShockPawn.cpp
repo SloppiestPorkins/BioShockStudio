@@ -3,6 +3,7 @@
 #include "BaseShockAI.h"
 #include "ShockAudioLibrary.h"
 #include "ShockDamageLibrary.h"
+#include "ShockScriptReflection.h"
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -175,22 +176,7 @@ TArray<AShockPawn*> AShockPawn::CollectLabeled(UWorld* World, FName Label)
 	for (TActorIterator<AShockPawn> It(World); It; ++It)
 	{
 		AShockPawn* Pawn = *It;
-		if (!Pawn)
-		{
-			continue;
-		}
-		bool bMatch = false;
-#if WITH_EDITOR
-		bMatch = Pawn->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive);
-#endif
-		if (!bMatch)
-		{
-			if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
-			{
-				bMatch = AI->GetScriptLabel().ToString().Equals(Want, ESearchCase::CaseSensitive);
-			}
-		}
-		if (bMatch)
+		if (Pawn && ShockScriptReflection::ActorMatchesLabel(Pawn, Want))
 		{
 			Out.Add(Pawn);
 		}

@@ -3,7 +3,7 @@
 #include "ShockActionBool.h"
 #include "ShockNotStatement.generated.h"
 
-/** UnrealScript `NotStatement` (ActionBool). First slice: !Rhs (no Variable VM). */
+/** UnrealScript `NotStatement` (ActionBool). Binding PropertyName=rhs → UPROPERTY Rhs. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockNotStatement : public UShockActionBool
 {
@@ -13,7 +13,7 @@ public:
 	UShockNotStatement();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bRhs = false;
+	bool Rhs = false;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(bool bInRhs);

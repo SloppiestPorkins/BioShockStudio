@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
+#include "ShockScriptReflection.h"
 #include "UObject/ConstructorHelpers.h"
 
 AShockAnimatedProp::AShockAnimatedProp()
@@ -225,25 +226,14 @@ AShockAnimatedProp* AShockAnimatedProp::FindByLabel(UWorld* World, FName Label)
 	{
 		return nullptr;
 	}
-
 	const FString Want = Label.ToString();
 	for (TActorIterator<AShockAnimatedProp> It(World); It; ++It)
 	{
 		AShockAnimatedProp* Prop = *It;
-		if (!Prop)
-		{
-			continue;
-		}
-		if (Prop->PropLabel.ToString().Equals(Want, ESearchCase::CaseSensitive))
+		if (Prop && ShockScriptReflection::ActorMatchesLabel(Prop, Want))
 		{
 			return Prop;
 		}
-#if WITH_EDITOR
-		if (Prop->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			return Prop;
-		}
-#endif
 	}
 	return nullptr;
 }

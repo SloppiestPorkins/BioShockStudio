@@ -1,8 +1,7 @@
 #include "ShockActionStopEffect.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
 #include "ShockEffectsSubsystem.h"
+#include "ShockScriptReflection.h"
 
 UShockActionStopEffect::UShockActionStopEffect()
 {
@@ -41,24 +40,12 @@ int32 UShockActionStopEffect::StopInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = ActorLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* Actor : ShockScriptReflection::CollectActorsByLabel(World, ActorLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
 		if (StopOnActor(Actor))
 		{
 			++Stopped;
 		}
-#endif
 	}
 	return Stopped;
 }

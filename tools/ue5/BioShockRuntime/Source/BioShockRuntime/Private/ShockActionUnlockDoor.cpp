@@ -28,11 +28,16 @@ int32 UShockActionUnlockDoor::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	int32 Unlocked = 0;
+	for (AShockDoor* Door : AShockDoor::CollectByLabel(World, DoorLabel))
 	{
-		Door->SetLocked(false);
+		if (Door)
+		{
+			Door->SetLocked(false);
+			++Unlocked;
+		}
 	}
-	return 1;
+	return Unlocked;
 }
 
 bool UShockActionUnlockDoor::ApplyInWorld(const FShockActionContext& Ctx)

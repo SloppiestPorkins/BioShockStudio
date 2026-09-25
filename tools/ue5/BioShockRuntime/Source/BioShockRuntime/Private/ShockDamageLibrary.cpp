@@ -4,6 +4,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "ShockPawn.h"
+#include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockScriptSubsystem.h"
 
@@ -62,33 +63,7 @@ void DispatchPawnMessageSources(
 
 AActor* UShockDamageLibrary::FindActorByLabel(UWorld* World, FName Label)
 {
-	if (!World || Label.IsNone())
-	{
-		return nullptr;
-	}
-	const FString Want = Label.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			return Actor;
-		}
-#endif
-		if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Actor))
-		{
-			if (AI->GetScriptLabel().ToString().Equals(Want, ESearchCase::CaseSensitive))
-			{
-				return Actor;
-			}
-		}
-	}
-	return nullptr;
+	return UShockPhysicsLibrary::FindActorByLabel(World, Label);
 }
 
 AShockPlayer* UShockDamageLibrary::ResolvePlayerFrom(AActor* Source)

@@ -19,6 +19,16 @@ class UObject;
  */
 namespace ShockScriptReflection
 {
+	/**
+	 * True when Actor's BioShock label equals Want (IgnoreCase): DoorLabel / PropLabel /
+	 * AI ScriptLabel / runner ScriptLabel, editor GetActorLabel when available, or a
+	 * `BioShockLabel=` / plain tag written by the importer.
+	 */
+	BIOSHOCKRUNTIME_API bool ActorMatchesLabel(const AActor* Actor, const FString& Want);
+
+	/** Every actor in World matching Label (IgnoreCase). */
+	BIOSHOCKRUNTIME_API TArray<AActor*> CollectActorsByLabel(UWorld* World, FName Label);
+
 	/** Actor lookup shared with every reflection action: editor label, AI script label
 	 * (`UShockDamageLibrary::FindActorByLabel`), or a `BioShockKey=`/plain tag fallback
 	 * (`UShockPhysicsLibrary::FindActorByLabel`, reused here rather than duplicated). */

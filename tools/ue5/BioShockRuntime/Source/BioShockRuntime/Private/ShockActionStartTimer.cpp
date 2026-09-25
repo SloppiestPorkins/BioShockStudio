@@ -1,6 +1,7 @@
 #include "ShockActionStartTimer.h"
 
-#include "ShockPlayer.h"
+#include "ShockScript.h"
+#include "ShockScriptRunner.h"
 
 UShockActionStartTimer::UShockActionStartTimer()
 {
@@ -22,22 +23,37 @@ bool UShockActionStartTimer::RequestStart()
 	return true;
 }
 
+static UShockScriptRunner* ResolveOwningRunner(const FShockActionContext& Ctx, UShockAction* Self)
+{
+	if (UShockScriptRunner* OuterRunner = Self ? Self->GetTypedOuter<UShockScriptRunner>() : nullptr)
+	{
+		return OuterRunner;
+	}
+	if (AShockScript* Script = Ctx.OwnerActor ? Cast<AShockScript>(Ctx.OwnerActor) : nullptr)
+	{
+		return Script->GetRunner();
+	}
+	return nullptr;
+}
+
 int32 UShockActionStartTimer::ApplyInWorld(UWorld* World)
 {
-	if (!RequestStart() || !World)
-	{
-		return 0;
-	}
-	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
-	if (!Player)
-	{
-		return 0;
-	}
-	Player->SetPendingTimerSeconds(Seconds);
-	return 1;
+	(void)World;
+	// Prefer the context overload (needs WorldTimeSeconds on the running script).
+	return 0;
 }
 
 bool UShockActionStartTimer::ApplyInWorld(const FShockActionContext& Ctx)
 {
-	return ApplyInWorld(Ctx.World) > 0;
+	if (!RequestStart())
+	{
+		return false;
+	}
+	UShockScriptRunner* Runner = ResolveOwningRunner(Ctx, this);
+	if (!Runner)
+	{
+		return false;
+	}
+	Runner->StartScriptTimer(Seconds, Ctx.WorldTimeSeconds);
+	return true;
 }

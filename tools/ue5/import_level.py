@@ -130,7 +130,7 @@ def _place(actor, entry, key, convert_location=False):
     label = entry.get("label") or entry.get("name") or key
     actor.set_actor_label(label)
 
-    tags = [unreal.Name(KEY_TAG_PREFIX + key)]
+    tags = [unreal.Name(KEY_TAG_PREFIX + key), unreal.Name("BioShockLabel=" + str(label))]
     if entry.get("className"):
         tags.append(unreal.Name("BioShockClass=" + entry["className"]))
     if entry.get("tag"):
@@ -946,8 +946,11 @@ def _set_volume_half_extent(actor, half_extent):
 
 
 def _volume_tags(entry):
-    tags = [unreal.Name(KEY_TAG_PREFIX + entry["key"]),
-            unreal.Name("BioShockClass=" + entry.get("className", ""))]
+    tags = [
+        unreal.Name(KEY_TAG_PREFIX + entry["key"]),
+        unreal.Name("BioShockLabel=" + str(entry.get("label") or entry.get("name") or entry["key"])),
+        unreal.Name("BioShockClass=" + entry.get("className", "")),
+    ]
     if entry.get("tag"):
         tags.append(unreal.Name("BioShockTag=" + str(entry["tag"])))
     region = entry.get("regionActor") or {}
@@ -1650,7 +1653,10 @@ def _import_door_attachments(
             if actor is not None:
                 actor.set_actor_scale3d(scale)
                 actor.set_actor_label(door_label)
-                actor.tags = [unreal.Name(KEY_TAG_PREFIX + dkey)]
+                actor.tags = [
+                    unreal.Name(KEY_TAG_PREFIX + dkey),
+                    unreal.Name("BioShockLabel=" + str(door_label)),
+                ]
                 if hasattr(actor, "set_door_label"):
                     actor.set_door_label(unreal.Name(door_label))
                 locked = bool(door_data.get("locked") or False)

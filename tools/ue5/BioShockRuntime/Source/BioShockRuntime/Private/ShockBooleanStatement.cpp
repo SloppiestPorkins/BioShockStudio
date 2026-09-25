@@ -1,5 +1,62 @@
 #include "ShockBooleanStatement.h"
 
+namespace
+{
+	enum class EShockBoolCompareKind : uint8
+	{
+		Boolean,
+		Number,
+		NameOrString,
+	};
+
+	bool LooksLikeNameToken(const FString& Text)
+	{
+		if (Text.IsEmpty())
+		{
+			return false;
+		}
+		for (TCHAR Ch : Text)
+		{
+			const bool bOk = FChar::IsAlpha(Ch) || FChar::IsDigit(Ch) || Ch == TEXT('_') || Ch == TEXT('-');
+			if (!bOk)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	EShockBoolCompareKind InferCompareKind(const FString& LhsText)
+	{
+		if (LhsText.Equals(TEXT("True"), ESearchCase::IgnoreCase)
+			|| LhsText.Equals(TEXT("False"), ESearchCase::IgnoreCase))
+		{
+			return EShockBoolCompareKind::Boolean;
+		}
+		// Digits / '-' / '.' only, or empty — numeric (empty rhs/lhs coerces as 0).
+		if (LhsText.IsEmpty() || LhsText.IsNumeric())
+		{
+			return EShockBoolCompareKind::Number;
+		}
+		if (LooksLikeNameToken(LhsText))
+		{
+			return EShockBoolCompareKind::NameOrString;
+		}
+		return EShockBoolCompareKind::NameOrString;
+	}
+
+	bool AsBoolText(const FString& Text)
+	{
+		return Text.Equals(TEXT("True"), ESearchCase::IgnoreCase)
+			|| Text.Equals(TEXT("1"));
+	}
+
+	double AsNumberOrZero(const FString& Text)
+	{
+		return Text.IsNumeric() ? FCString::Atod(*Text) : 0.0;
+	}
+}
+
 UShockBooleanStatement::UShockBooleanStatement()
 {
 	ActionClassName = TEXT("BooleanStatement");
@@ -15,10 +72,24 @@ void UShockBooleanStatement::Configure(int32 InLogicOp, const FString& InLhs, co
 
 bool UShockBooleanStatement::EvaluateBool() const
 {
-	if (Lhs.IsNumeric() && Rhs.IsNumeric())
+	const EShockBoolCompareKind Kind = InferCompareKind(Lhs);
+	switch (Kind)
 	{
-		const double Left = FCString::Atod(*Lhs);
-		const double Right = FCString::Atod(*Rhs);
+	case EShockBoolCompareKind::Boolean:
+	{
+		const bool Left = AsBoolText(Lhs);
+		const bool Right = AsBoolText(Rhs);
+		switch (LogicOp)
+		{
+		case 2: return Left == Right;
+		case 3: return Left != Right;
+		default: return false; // ordered ops on bool are always false
+		}
+	}
+	case EShockBoolCompareKind::Number:
+	{
+		const double Left = AsNumberOrZero(Lhs);
+		const double Right = AsNumberOrZero(Rhs);
 		switch (LogicOp)
 		{
 		case 0: return Left < Right;
@@ -30,14 +101,15 @@ bool UShockBooleanStatement::EvaluateBool() const
 		default: return false;
 		}
 	}
-	switch (LogicOp)
+	case EShockBoolCompareKind::NameOrString:
+	default:
 	{
-	case 0: return Lhs < Rhs;
-	case 1: return Lhs <= Rhs;
-	case 2: return Lhs == Rhs;
-	case 3: return Lhs != Rhs;
-	case 4: return Lhs >= Rhs;
-	case 5: return Lhs > Rhs;
-	default: return false;
+		switch (LogicOp)
+		{
+		case 2: return Lhs.Equals(Rhs, ESearchCase::IgnoreCase);
+		case 3: return !Lhs.Equals(Rhs, ESearchCase::IgnoreCase);
+		default: return false; // ordered ops on name/string are always false
+		}
+	}
 	}
 }

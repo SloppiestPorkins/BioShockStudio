@@ -144,7 +144,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "BioShock|Door")
 	uint8 GetCollisionEnabledForVerify() const;
 
+	/** First door matching Label (IgnoreCase). Prefer CollectByLabel when every match matters. */
 	static AShockDoor* FindByLabel(UWorld* World, FName Label);
+
+	/** Every AShockDoor whose DoorLabel / editor label / BioShockLabel= tag matches. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Door")
+	static TArray<AShockDoor*> CollectByLabel(UWorld* World, FName Label);
 
 protected:
 	virtual void BeginPlay() override;

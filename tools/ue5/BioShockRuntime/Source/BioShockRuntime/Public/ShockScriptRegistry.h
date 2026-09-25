@@ -5,7 +5,21 @@
 
 class UShockScriptRunner;
 
-/** Label → script runner lookup for ExecuteScript + message dispatch. First-slice; not level actors. */
+/** UHT cannot nest a TArray as a TMap value, so the per-label runner list is a struct. */
+USTRUCT()
+struct FShockRunnerList
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<TObjectPtr<UShockScriptRunner>> Runners;
+};
+
+/**
+ * Label → script runner lookup for ExecuteScript + message dispatch.
+ * Medical ships at least one duplicate Script label (StandingOnCremationBody ×2), so the
+ * registry keeps every runner that registers under a label (TArray per FName), not a single slot.
+ */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockScriptRegistry : public UObject
 {
@@ -15,11 +29,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void RegisterScript(UShockScriptRunner* Script);
 
+	/** First runner registered under Label (ExecuteScript / StopTimer convenience). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	UShockScriptRunner* FindScript(FName Label) const;
 
+	/** Every runner whose ScriptLabel equals Label (FName compare is case-insensitive). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
-	int32 Num() const { return ByLabel.Num(); }
+	TArray<UShockScriptRunner*> FindAllScripts(FName Label) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 Num() const;
 
 	/**
 	 * Start or queue every registered script whose TriggeredBy matches SourceLabel.
@@ -40,5 +59,5 @@ public:
 
 private:
 	UPROPERTY()
-	TMap<FName, TObjectPtr<UShockScriptRunner>> ByLabel;
+	TMap<FName, FShockRunnerList> ByLabel;
 };

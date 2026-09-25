@@ -32,4 +32,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestUsed();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 };

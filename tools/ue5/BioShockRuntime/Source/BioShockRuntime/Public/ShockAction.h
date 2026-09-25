@@ -53,6 +53,9 @@ struct BIOSHOCKRUNTIME_API FShockActionContext
 	FName SourceLabel;
 	FName MessageClass;
 	FString MessageSource;
+	/** Starting message payload fields (Instigator, RA, Keycode, …); nullptr / empty when none. */
+	const TMap<FString, FString>* MessageFields = nullptr;
+	float WorldTimeSeconds = 0.0f;
 };
 
 /**

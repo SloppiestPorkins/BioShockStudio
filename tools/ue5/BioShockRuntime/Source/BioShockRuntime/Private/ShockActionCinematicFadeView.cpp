@@ -27,5 +27,17 @@ bool UShockActionCinematicFadeView::RequestFade()
 
 bool UShockActionCinematicFadeView::ApplyInWorld(const FShockActionContext& Ctx)
 {
+	(void)Ctx;
 	return RequestFade();
+}
+
+void UShockActionCinematicFadeView::PrepareWait(float WorldTimeSeconds)
+{
+	const float Total = FMath::Max(0.0f, Duration) + FMath::Max(0.0f, HoldDuration);
+	WakeAtTime = WorldTimeSeconds + Total;
+}
+
+bool UShockActionCinematicFadeView::IsReady(float WorldTimeSeconds) const
+{
+	return WakeAtTime >= 0.0f && WorldTimeSeconds >= WakeAtTime;
 }

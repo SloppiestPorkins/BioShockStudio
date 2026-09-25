@@ -3,6 +3,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockScriptReflection.h"
 
 namespace
 {
@@ -120,24 +121,12 @@ int32 UShockActionChangeCollision::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = TargetLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* Actor : ShockScriptReflection::CollectActorsByLabel(World, TargetLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
 		if (ApplyToActor(Actor))
 		{
 			++Applied;
 		}
-#endif
 	}
 	return Applied;
 }

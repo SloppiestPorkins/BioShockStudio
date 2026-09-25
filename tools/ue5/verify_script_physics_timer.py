@@ -100,20 +100,15 @@ def main(out):
         f.append("console %s" % console.get_last_command())
     if str(mesh.get_last_target_label()) != "ImpulseBox":
         f.append("mesh %s" % mesh.get_last_target_label())
-    if player is None:
-        f.append("no ShockPlayer")
-    else:
-        pending = float(player.get_pending_timer_seconds())
-        if pending != 0.0:
-            f.append("pending timer %s" % pending)
-        stopped = str(player.get_stopped_timer_label())
-        if stopped != "MyTimerScript":
-            f.append("stopped timer %s" % stopped)
-        report["pending_timer"] = pending
-        report["stopped_timer"] = stopped
+    # SCR-B10: StartTimer arms THIS runner; StopTimer scriptLabel=MyTimerScript is a different
+    # script so it must not clear PhysTimerScript's timer.
+    if not bool(runner.has_active_script_timer()):
+        f.append("StartTimer did not arm per-runner timer")
+    # ActionChangeStaticMesh really swaps the mesh now (x6); an unresolvable mesh name must fail
+    # cleanly and leave no success tag behind (it used to tag ShockMesh_<name> instead).
     tags = [str(t) for t in box.tags]
-    if "ShockMesh_SomeMesh" not in tags:
-        f.append("mesh tag %s" % tags)
+    if "ShockMesh_SomeMesh" in tags:
+        f.append("failed mesh swap left a success tag %s" % tags)
     report["physics_timer"] = "ok"
     report["near_damage"] = before_near - after_near
 

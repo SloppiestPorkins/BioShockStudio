@@ -85,6 +85,7 @@
 #include "ShockAndStatement.h"
 #include "ShockOrStatement.h"
 #include "ShockNotStatement.h"
+#include "ShockArithmeticStatement.h"
 #include "ShockActionTestFact.h"
 #include "ShockActionPropertyTest.h"
 #include "ShockActionDisplayMapHUDRegion.h"
@@ -3389,12 +3390,12 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				FString Text;
 				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
-					AndStmt->bLhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					AndStmt->Lhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("lhs"));
 				}
 				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
-					AndStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					AndStmt->Rhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("rhs"));
 				}
 			}
@@ -3403,12 +3404,12 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				FString Text;
 				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
-					OrStmt->bLhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					OrStmt->Lhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("lhs"));
 				}
 				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
-					OrStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					OrStmt->Rhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("rhs"));
 				}
 			}
@@ -3417,7 +3418,31 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				FString Text;
 				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
 				{
-					NotStmt->bRhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					NotStmt->Rhs = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("rhs"));
+				}
+			}
+			if (UShockArithmeticStatement* Arith = Cast<UShockArithmeticStatement>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("ArithmeticOp"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					int32 Op = 0;
+					if (Text.Contains(TEXT("SUBTRACT"), ESearchCase::IgnoreCase)) Op = 1;
+					else if (Text.Contains(TEXT("MULTIPLY"), ESearchCase::IgnoreCase)) Op = 2;
+					else if (Text.Contains(TEXT("DIVIDE"), ESearchCase::IgnoreCase)) Op = 3;
+					else LexFromString(Op, *Text);
+					Arith->ArithmeticOp = Op;
+					Applied.Add(TEXT("ArithmeticOp"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("lhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Arith->Lhs = Unquote(Text);
+					Applied.Add(TEXT("lhs"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("rhs"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Arith->Rhs = Unquote(Text);
 					Applied.Add(TEXT("rhs"));
 				}
 			}

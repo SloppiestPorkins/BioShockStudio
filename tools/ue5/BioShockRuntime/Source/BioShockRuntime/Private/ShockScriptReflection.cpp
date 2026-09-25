@@ -1,6 +1,10 @@
 #include "ShockScriptReflection.h"
 
+#include "BaseShockAI.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockAnimatedProp.h"
+#include "ShockDoor.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockScript.h"
 #include "ShockScriptRunner.h"
@@ -9,12 +13,105 @@
 
 namespace ShockScriptReflection
 {
+namespace
+{
+	const TCHAR* LabelTagPrefix = TEXT("BioShockLabel=");
+
+	bool TagMatchesLabel(FName Tag, const FString& Want)
+	{
+		const FString TagStr = Tag.ToString();
+		if (TagStr.Equals(Want, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+		if (TagStr.StartsWith(LabelTagPrefix, ESearchCase::IgnoreCase))
+		{
+			const FString Value = TagStr.Mid(FCString::Strlen(LabelTagPrefix));
+			return Value.Equals(Want, ESearchCase::IgnoreCase);
+		}
+		return false;
+	}
+}
+
+bool ActorMatchesLabel(const AActor* Actor, const FString& Want)
+{
+	if (!Actor || Want.IsEmpty())
+	{
+		return false;
+	}
+
+	if (const AShockDoor* Door = Cast<AShockDoor>(Actor))
+	{
+		if (Door->DoorLabel.ToString().Equals(Want, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	if (const AShockAnimatedProp* Prop = Cast<AShockAnimatedProp>(Actor))
+	{
+		if (Prop->PropLabel.ToString().Equals(Want, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Actor))
+	{
+		if (AI->GetScriptLabel().ToString().Equals(Want, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	if (const AShockScript* Script = Cast<AShockScript>(Actor))
+	{
+		if (const UShockScriptRunner* Runner = Script->GetRunner())
+		{
+			if (Runner->ScriptLabel.ToString().Equals(Want, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+	}
+
+	for (const FName& Tag : Actor->Tags)
+	{
+		if (TagMatchesLabel(Tag, Want))
+		{
+			return true;
+		}
+	}
+
+#if WITH_EDITOR
+	if (Actor->GetActorLabel().Equals(Want, ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+#endif
+	return false;
+}
+
+TArray<AActor*> CollectActorsByLabel(UWorld* World, FName Label)
+{
+	TArray<AActor*> Out;
+	if (!World || Label.IsNone())
+	{
+		return Out;
+	}
+	const FString Want = Label.ToString();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (Actor && ActorMatchesLabel(Actor, Want))
+		{
+			Out.Add(Actor);
+		}
+	}
+	return Out;
+}
 
 AActor* ResolveTargetActor(UWorld* World, FName Label)
 {
-	// UShockPhysicsLibrary::FindActorByLabel already chains editor label -> AI script label
-	// (UShockDamageLibrary) -> BioShockKey=/plain tag fallback. One resolver for every action
-	// that finds a target by label, matching R2.1's "shared ResolveTargetActor helper" ask.
+	// Shared label resolver: typed labels / BioShockLabel= tags / editor label (IgnoreCase).
+	// Works in packaged builds because the importer writes BioShockLabel=<label> tags.
 	return UShockPhysicsLibrary::FindActorByLabel(World, Label);
 }
 
@@ -157,6 +254,18 @@ bool SetPropertyFromText(AActor* Target, const FString& PropertyPath, const FStr
 			*OutError = Reason;
 		}
 		return false;
+	}
+
+	// Script.enabled → runner SetEnabled so disabling also drops MessageQueue (SCR-B16).
+	if (UShockScriptRunner* Runner = Cast<UShockScriptRunner>(Container))
+	{
+		if (PropName.Equals(TEXT("bEnabled"), ESearchCase::IgnoreCase))
+		{
+			const bool bNew = ValueText.Equals(TEXT("1"))
+				|| ValueText.Equals(TEXT("True"), ESearchCase::IgnoreCase);
+			Runner->SetEnabled(bNew);
+			return true;
+		}
 	}
 
 	void* ValuePtr = Property->ContainerPtrToValuePtr<void>(Container);

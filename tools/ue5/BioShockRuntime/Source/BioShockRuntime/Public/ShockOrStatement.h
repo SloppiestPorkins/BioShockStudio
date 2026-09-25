@@ -3,7 +3,7 @@
 #include "ShockActionBool.h"
 #include "ShockOrStatement.generated.h"
 
-/** UnrealScript `OrStatement` (ActionBool). First slice: bool Lhs || Rhs (no Variable VM). */
+/** UnrealScript `OrStatement` (ActionBool). Bindings PropertyName=lhs|rhs → UPROPERTY Lhs/Rhs. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockOrStatement : public UShockActionBool
 {
@@ -13,10 +13,10 @@ public:
 	UShockOrStatement();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bLhs = false;
+	bool Lhs = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
-	bool bRhs = false;
+	bool Rhs = false;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	void Configure(bool bInLhs, bool bInRhs);

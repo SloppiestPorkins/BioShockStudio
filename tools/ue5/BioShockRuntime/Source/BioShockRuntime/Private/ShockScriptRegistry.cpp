@@ -8,7 +8,8 @@ void UShockScriptRegistry::RegisterScript(UShockScriptRunner* Script)
 	{
 		return;
 	}
-	ByLabel.Add(Script->ScriptLabel, Script);
+	TArray<TObjectPtr<UShockScriptRunner>>& Slot = ByLabel.FindOrAdd(Script->ScriptLabel).Runners;
+	Slot.AddUnique(Script);
 }
 
 UShockScriptRunner* UShockScriptRegistry::FindScript(FName Label) const
@@ -17,11 +18,47 @@ UShockScriptRunner* UShockScriptRegistry::FindScript(FName Label) const
 	{
 		return nullptr;
 	}
-	if (const TObjectPtr<UShockScriptRunner>* Found = ByLabel.Find(Label))
+	if (const FShockRunnerList* Found = ByLabel.Find(Label))
 	{
-		return Found->Get();
+		for (const TObjectPtr<UShockScriptRunner>& Runner : Found->Runners)
+		{
+			if (Runner)
+			{
+				return Runner.Get();
+			}
+		}
 	}
 	return nullptr;
+}
+
+TArray<UShockScriptRunner*> UShockScriptRegistry::FindAllScripts(FName Label) const
+{
+	TArray<UShockScriptRunner*> Out;
+	if (Label.IsNone())
+	{
+		return Out;
+	}
+	if (const FShockRunnerList* Found = ByLabel.Find(Label))
+	{
+		for (const TObjectPtr<UShockScriptRunner>& Runner : Found->Runners)
+		{
+			if (Runner)
+			{
+				Out.Add(Runner.Get());
+			}
+		}
+	}
+	return Out;
+}
+
+int32 UShockScriptRegistry::Num() const
+{
+	int32 Total = 0;
+	for (const TPair<FName, FShockRunnerList>& Pair : ByLabel)
+	{
+		Total += Pair.Value.Runners.Num();
+	}
+	return Total;
 }
 
 int32 UShockScriptRegistry::DispatchMessage(FName MessageClassName, const FString& SourceLabel)
@@ -33,19 +70,22 @@ int32 UShockScriptRegistry::DispatchMessageWithFields(
 	FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields)
 {
 	int32 Started = 0;
-	for (const TPair<FName, TObjectPtr<UShockScriptRunner>>& Pair : ByLabel)
+	for (const TPair<FName, FShockRunnerList>& Pair : ByLabel)
 	{
-		UShockScriptRunner* Script = Pair.Value.Get();
-		if (!Script)
+		for (const TObjectPtr<UShockScriptRunner>& RunnerPtr : Pair.Value.Runners)
 		{
-			continue;
-		}
-		if (Script->TryStartFromMessageWithFields(MessageClassName, SourceLabel, Fields))
-		{
-			++Started;
+			UShockScriptRunner* Script = RunnerPtr.Get();
+			if (!Script)
+			{
+				continue;
+			}
+			if (Script->TryStartFromMessageWithFields(MessageClassName, SourceLabel, Fields))
+			{
+				++Started;
+			}
 		}
 	}
 	UE_LOG(LogTemp, Verbose, TEXT("BIOSHOCK_SCRIPT dispatch msg=%s src=%s runners=%d started=%d"),
-		*MessageClassName.ToString(), *SourceLabel, ByLabel.Num(), Started);
+		*MessageClassName.ToString(), *SourceLabel, Num(), Started);
 	return Started;
 }

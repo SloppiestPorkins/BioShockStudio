@@ -2,6 +2,7 @@
 
 #include "ShockAction.h"
 #include "ShockActionBool.h"
+#include "ShockActionCinematicFadeView.h"
 #include "ShockActionExecuteScript.h"
 #include "ShockActionExitLoop.h"
 #include "ShockActionExitScript.h"
@@ -175,12 +176,66 @@ bool UShockScriptRunner::TryStartFromMessageWithFields(
 		FQueuedMessage Queued;
 		Queued.MessageClass = MessageClassName;
 		Queued.SourceLabel = SourceLabel;
+		Queued.Fields = Fields;
 		MessageQueue.Add(Queued);
 		return true;
 	}
 	LastMessageClass = MessageClassName;
 	LastMessageSource = SourceLabel;
-	return StartExecution();
+	return StartExecutionWithMessageFields(Fields);
+}
+
+FString UShockScriptRunner::GetLastMessageField(const FString& FieldName) const
+{
+	for (const TPair<FString, FString>& Pair : LastMessageFields)
+	{
+		if (Pair.Key.Equals(FieldName, ESearchCase::IgnoreCase))
+		{
+			return Pair.Value;
+		}
+	}
+	return FString();
+}
+
+void UShockScriptRunner::SetEnabled(bool bInEnabled)
+{
+	bEnabled = bInEnabled;
+	if (!bEnabled)
+	{
+		MessageQueue.Reset();
+	}
+}
+
+void UShockScriptRunner::StartScriptTimer(float Seconds, float WorldTimeSeconds)
+{
+	if (Seconds <= 0.0f)
+	{
+		bTimerActive = false;
+		TimerExpireAt = -1.0f;
+		return;
+	}
+	bTimerActive = true;
+	TimerExpireAt = WorldTimeSeconds + Seconds;
+}
+
+void UShockScriptRunner::StopScriptTimer()
+{
+	bTimerActive = false;
+	TimerExpireAt = -1.0f;
+}
+
+void UShockScriptRunner::TickScriptTimer(float WorldTimeSeconds)
+{
+	if (!bTimerActive || TimerExpireAt < 0.0f || WorldTimeSeconds < TimerExpireAt)
+	{
+		return;
+	}
+	bTimerActive = false;
+	TimerExpireAt = -1.0f;
+	if (Registry)
+	{
+		Registry->DispatchMessage(FName(TEXT("MessageTimerExpired")), ScriptLabel.ToString());
+	}
 }
 
 void UShockScriptRunner::SetRegistry(UShockScriptRegistry* InRegistry)
@@ -215,8 +270,13 @@ UShockVariableScope* UShockScriptRunner::EnsureVariables()
 	return Variables;
 }
 
-bool UShockScriptRunner::StartExecution()
+bool UShockScriptRunner::BeginExecutionInternal(bool bClearMessageFields)
 {
+	if (bIsExecuting)
+	{
+		// Already running: refuse a second start (Blocking/NonBlocking ExecuteScript).
+		return false;
+	}
 	if (!bEnabled || Actions.Num() == 0)
 	{
 		return false;
@@ -235,6 +295,10 @@ bool UShockScriptRunner::StartExecution()
 	{
 		return false;
 	}
+	if (bClearMessageFields)
+	{
+		LastMessageFields.Reset();
+	}
 	EnsureVariables();
 	CurrentlyExecutingActionIndex = 0;
 	ActionsCompleted = 0;
@@ -242,16 +306,29 @@ bool UShockScriptRunner::StartExecution()
 	bWaitPrepared = false;
 	bGoalWaitPrepared = false;
 	bQuestLogWaitPrepared = false;
+	bFadePrepared = false;
 	PendingWait = nullptr;
 	PendingGoalWait = nullptr;
 	PendingQuestLogWait = nullptr;
 	PendingAnimation = nullptr;
+	PendingFade = nullptr;
 	PendingChild = nullptr;
 	SpawnedChildren.Reset();
 	LoopStack.Reset();
 	ForStack.Reset();
 	bIsExecuting = true;
 	return true;
+}
+
+bool UShockScriptRunner::StartExecution()
+{
+	return BeginExecutionInternal(/*bClearMessageFields=*/true);
+}
+
+bool UShockScriptRunner::StartExecutionWithMessageFields(const TMap<FString, FString>& Fields)
+{
+	LastMessageFields = Fields;
+	return BeginExecutionInternal(/*bClearMessageFields=*/false);
 }
 
 void UShockScriptRunner::FinishExecution()
@@ -261,10 +338,12 @@ void UShockScriptRunner::FinishExecution()
 	PendingGoalWait = nullptr;
 	PendingQuestLogWait = nullptr;
 	PendingAnimation = nullptr;
+	PendingFade = nullptr;
 	PendingChild = nullptr;
 	bWaitPrepared = false;
 	bGoalWaitPrepared = false;
 	bQuestLogWaitPrepared = false;
+	bFadePrepared = false;
 	CurrentlyExecutingActionIndex = -1;
 	RunQueue.Reset();
 	LoopStack.Reset();
@@ -291,7 +370,7 @@ bool UShockScriptRunner::TryDequeueAndStart()
 	MessageQueue.RemoveAt(0);
 	LastMessageClass = Msg.MessageClass;
 	LastMessageSource = Msg.SourceLabel;
-	return StartExecution();
+	return StartExecutionWithMessageFields(Msg.Fields);
 }
 
 int32 UShockScriptRunner::InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert)
@@ -422,8 +501,24 @@ bool UShockScriptRunner::AnySpawnedChildExecuting() const
 
 bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 {
+	TickScriptTimer(WorldTimeSeconds);
+
 	while (true)
 	{
+		if (PendingFade)
+		{
+			if (!PendingFade->IsReady(WorldTimeSeconds))
+			{
+				TickSpawnedChildren(WorldTimeSeconds);
+				return true;
+			}
+			PendingFade = nullptr;
+			bFadePrepared = false;
+			++CurrentlyExecutingActionIndex;
+			++ActionsCompleted;
+			continue;
+		}
+
 		if (PendingAnimation)
 		{
 			if (!PendingAnimation->IsCompleteInWorld(GetOuterWorld()))
@@ -466,7 +561,7 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 				continue;
 			}
 			// Blocked on Wait — leave until a later Tick with later WorldTime.
-			if (PendingWait || PendingGoalWait || PendingQuestLogWait || PendingAnimation)
+			if (PendingWait || PendingGoalWait || PendingQuestLogWait || PendingAnimation || PendingFade)
 			{
 				break;
 			}
@@ -481,7 +576,7 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 	}
 
 	TickSpawnedChildren(WorldTimeSeconds);
-	return bIsExecuting || AnySpawnedChildExecuting();
+	return bIsExecuting || AnySpawnedChildExecuting() || bTimerActive;
 }
 
 bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
@@ -518,12 +613,15 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	Ctx.SourceLabel = ScriptLabel;
 	Ctx.MessageClass = LastMessageClass;
 	Ctx.MessageSource = LastMessageSource;
+	Ctx.MessageFields = &LastMessageFields;
+	Ctx.WorldTimeSeconds = WorldTimeSeconds;
 
 	// ActionWait remains on this index across ticks. Its parameters are resolved at entry, like
 	// UnrealScript latentExecute(), rather than being rebound every frame while it is pending.
 	if (!(Cast<UShockActionWait>(Action) && bWaitPrepared)
 		&& !(Cast<UShockActionWaitForGoal>(Action) && bGoalWaitPrepared)
-		&& !(Cast<UShockActionWaitForQuestLogToFinish>(Action) && bQuestLogWaitPrepared))
+		&& !(Cast<UShockActionWaitForQuestLogToFinish>(Action) && bQuestLogWaitPrepared)
+		&& !(Cast<UShockActionCinematicFadeView>(Action) && bFadePrepared))
 	{
 		const bool bResolved = Action->ResolveParameters(Ctx);
 		if (!bResolved && !Action->ResolveInfoList.IsEmpty())
@@ -546,6 +644,26 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 		}
 		PendingWait = nullptr;
 		bWaitPrepared = false;
+		++CurrentlyExecutingActionIndex;
+		++ActionsCompleted;
+		return true;
+	}
+
+	if (UShockActionCinematicFadeView* Fade = Cast<UShockActionCinematicFadeView>(Action))
+	{
+		if (!bFadePrepared)
+		{
+			Fade->ApplyInWorld(Ctx);
+			Fade->PrepareWait(WorldTimeSeconds);
+			PendingFade = Fade;
+			bFadePrepared = true;
+		}
+		if (!Fade->IsReady(WorldTimeSeconds))
+		{
+			return false;
+		}
+		PendingFade = nullptr;
+		bFadePrepared = false;
 		++CurrentlyExecutingActionIndex;
 		++ActionsCompleted;
 		return true;
@@ -619,31 +737,38 @@ bool UShockScriptRunner::StepOne(float WorldTimeSeconds)
 	if (UShockActionExitScript* Exit = Cast<UShockActionExitScript>(Action))
 	{
 		Exit->RequestExit();
-		// Empty TargetScript means "current script" (confirmed against the shipped UnrealEd
-		// guide's own doc text on the action). A NAMED target is a different script -- e.g.
-		// 23-Scripting-Examples.md's CohenDies calls `ActionExitScript
-		// targetScript=CohenEntrance` to abort an unrelated in-flight cinematic script when the
-		// AI dies mid-sequence. This previously always exited `this`, ignoring TargetScript
-		// entirely, so a cross-script abort silently killed the wrong script (the caller) and
-		// left the real target running.
-		UShockScriptRunner* Target = this;
-		if (!Exit->TargetScript.IsNone() && Exit->TargetScript != ScriptLabel)
+		// Empty TargetScript → current script only. A named target stops EVERY runner with
+		// that label (Medical ships StandingOnCremationBody twice; registry keeps all).
+		if (Exit->TargetScript.IsNone())
 		{
-			Target = Registry ? Registry->FindScript(Exit->TargetScript) : nullptr;
+			++ActionsCompleted;
+			bExitRequested = true;
+			FinishExecution();
+			return false;
+		}
+		TArray<UShockScriptRunner*> Targets =
+			Registry ? Registry->FindAllScripts(Exit->TargetScript) : TArray<UShockScriptRunner*>();
+		bool bSelfAmongTargets = false;
+		for (UShockScriptRunner* Target : Targets)
+		{
+			if (!Target)
+			{
+				continue;
+			}
+			if (Target == this)
+			{
+				bSelfAmongTargets = true;
+				continue;
+			}
+			Target->FinishExecution();
 		}
 		++ActionsCompleted;
-		if (!Target)
-		{
-			++CurrentlyExecutingActionIndex;
-			return true;
-		}
-		if (Target == this)
+		if (bSelfAmongTargets)
 		{
 			bExitRequested = true;
 			FinishExecution();
 			return false;
 		}
-		Target->FinishExecution();
 		++CurrentlyExecutingActionIndex;
 		return true;
 	}

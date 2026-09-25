@@ -1,6 +1,7 @@
 #include "ShockDoor.h"
 
 #include "ShockPlayer.h"
+#include "ShockScriptReflection.h"
 
 #include "Animation/AnimSequence.h"
 #include "Components/BoxComponent.h"
@@ -362,31 +363,27 @@ uint8 AShockDoor::GetCollisionEnabledForVerify() const
 
 AShockDoor* AShockDoor::FindByLabel(UWorld* World, FName Label)
 {
+	TArray<AShockDoor*> All = CollectByLabel(World, Label);
+	return All.Num() > 0 ? All[0] : nullptr;
+}
+
+TArray<AShockDoor*> AShockDoor::CollectByLabel(UWorld* World, FName Label)
+{
+	TArray<AShockDoor*> Out;
 	if (!World || Label.IsNone())
 	{
-		return nullptr;
+		return Out;
 	}
-
 	const FString Want = Label.ToString();
 	for (TActorIterator<AShockDoor> It(World); It; ++It)
 	{
 		AShockDoor* Door = *It;
-		if (!Door)
+		if (Door && ShockScriptReflection::ActorMatchesLabel(Door, Want))
 		{
-			continue;
+			Out.Add(Door);
 		}
-		if (Door->DoorLabel.ToString().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			return Door;
-		}
-#if WITH_EDITOR
-		if (Door->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			return Door;
-		}
-#endif
 	}
-	return nullptr;
+	return Out;
 }
 
 void AShockDoor::ApplyVisualAndCollision(float Alpha)

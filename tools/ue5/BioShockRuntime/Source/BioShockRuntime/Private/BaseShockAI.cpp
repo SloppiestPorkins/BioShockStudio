@@ -8,6 +8,7 @@
 #include "ShockDamageLibrary.h"
 #include "ShockPlayer.h"
 #include "ShockPhysicsLibrary.h"
+#include "ShockScriptReflection.h"
 #include "ShockScriptSubsystem.h"
 #include "ShockWeapon.h"
 #include "AIController.h"
@@ -2322,18 +2323,7 @@ TArray<ABaseShockAI*> ABaseShockAI::CollectLabeled(UWorld* World, FName Label)
 	for (TActorIterator<ABaseShockAI> It(World); It; ++It)
 	{
 		ABaseShockAI* AI = *It;
-		if (!AI)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (AI->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			Out.Add(AI);
-			continue;
-		}
-#endif
-		if (AI->GetScriptLabel().ToString().Equals(Want, ESearchCase::CaseSensitive))
+		if (AI && ShockScriptReflection::ActorMatchesLabel(AI, Want))
 		{
 			Out.Add(AI);
 		}

@@ -28,9 +28,18 @@ bool UShockActionGetMessageValue::ApplyInWorld(const FShockActionContext& Ctx)
 	{
 		Text = Ctx.MessageClass.ToString();
 	}
-	else
+	else if (Ctx.MessageFields)
 	{
-		return false;
+		// Arbitrary message payload fields (Instigator, RA, Keycode, PawnLabel, …).
+		// Absent field → empty return (no crash). Callees started via ExecuteScript have none.
+		for (const TPair<FString, FString>& Pair : *Ctx.MessageFields)
+		{
+			if (Pair.Key.Equals(RequestedProperty, ESearchCase::IgnoreCase))
+			{
+				Text = Pair.Value;
+				break;
+			}
+		}
 	}
 	SetReturnValueText(Text, UShockVariable::InferVariableClass(Text));
 	return true;

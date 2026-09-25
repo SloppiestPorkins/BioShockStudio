@@ -150,6 +150,37 @@ No separate runtime bugs. Terms for Label, TriggeredBy, Global_ variable, messag
 
 ---
 
+## Status (25 Sept)
+
+y6 scripting-fidelity batch. Re-verified each audit cite against current tree before changing.
+Already-done items (B01/B02 SendTriggerMessage, subclass message class, messageFilter, Global_/y5,
+ExitScript target, WaitForGoal) were left alone.
+
+| id | status | notes |
+| --- | --- | --- |
+| SCR-B04 | FIXED | `LastMessageFields` on runner (cleared on ExecuteScript start; queued messages keep theirs); `ActionGetMessageValue` reads fields case-insensitively with Source/Class aliases; absent → empty. |
+| SCR-B05 | FIXED | And/Or/Not UPROPERTY renamed `bLhs`/`bRhs` → `Lhs`/`Rhs` so `FindPropertyByName(lhs)` lands; nested `UShockActionBool` evaluated inside `EvaluateBool`; `ActionBool::ApplyInWorld` publishes VariableBool. |
+| SCR-B06 | FIXED | Type table after substitution: bool/name/string eq IgnoreCase; ordered ops on bool/name always false; numeric lhs coerces non-numeric rhs to 0. |
+| SCR-B07 | FIXED | Open/Close/Lock/Unlock use `AShockDoor::CollectByLabel` (every match). |
+| SCR-B08 | FIXED | Label compares IgnoreCase via `ShockScriptReflection::ActorMatchesLabel` (doors, AI CollectLabeled, pawn CollectLabeled, props, FindActorByLabel). |
+| SCR-B09 | FIXED | Shared `ActorMatchesLabel` / `CollectActorsByLabel`; PlayEffect/SetProperty/HideOrShow/ChangeCollision/SetLightProperties/DestroyActor routed through it. Importer writes `BioShockLabel=<label>` (`import_level.py`, `import_scripts.py`) — **re-import needed** for packaged / non-editor resolve of already-imported maps. |
+| SCR-B10 | FIXED | Per-runner timer (`StartScriptTimer` / tick → `MessageTimerExpired` under ScriptLabel); `ActionStopTimer` clears by label; second start restarts. |
+| SCR-B11 | FIXED | `StartExecution` refuses when `bIsExecuting`. |
+| SCR-B12 | FIXED | `ActionCinematicFadeView` latent pending (Duration+Hold) like ActionWait. |
+| SCR-B13 | FIXED | Missing door label returns 0. **Verify impact:** `verify_script_doors.py` unchanged (only asserts `Request*` Last* labels, which still set). `verify_script_physics_timer.py` updated (player pending-timer asserts → per-runner timer). |
+| SCR-B14 | DEFERRED | Tracked skip (DealDamage empty-target class-wide). |
+| SCR-B16 | FIXED | `SetEnabled(false)` / reflection `enabled` → drops `MessageQueue`. |
+| SCR-B17 | DEFERRED | No DoorKeypad / keypad-control actor class in BioShockRuntime; `ActionDoorKeypadUsed` still records Success/label only. Stopped here as asked. |
+| SCR-G01 | DEFERRED | Tracked skip (movers). |
+| SCR-G02 | FIXED | `UShockArithmeticStatement` (ADD/SUB/MUL/DIV) return VariableFloat for nested bindings. |
+| SCR-G03 | FIXED | `UShockActionGetLevelLabel` returns lower-cased map short name. |
+| SCR-G04–G07, quests/facts/training | DEFERRED | Tracked skips. |
+| SCR-G19 | FIXED | Medical has duplicate Script label `StandingOnCremationBody` (×2). Registry is now `TMap<FName, TArray<Runner>>`; `ActionExitScript` stops every match via `FindAllScripts`. |
+
+**Deliverable verify:** `tools/ue5/verify_scripting_fidelity.py` (positive + negative per changed item). Claude builds + runs headless.
+
+---
+
 ## RESULT
 
 Wrote `docs/research/sdk-crossref-scripting.md` only. No code, builds, Unreal, or commits. Highest-impact silent wrongs: SendTriggerMessage source/class (SCR-B01/B02), missing Global_ container (SCR-B03), empty message payloads (SCR-B04), broken nested boolean binds (SCR-B05), and timers that never fire (SCR-B10).

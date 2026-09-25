@@ -18,4 +18,10 @@ public:
 	/** World-aware evaluation (e.g. ActionPropertyTest by actor Label). Defaults to EvaluateBool. */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	virtual bool EvaluateInWorld(class UWorld* World) const;
+
+	/**
+	 * Expression producers (nested under And/Or/Boolean bindings) publish True/False as a
+	 * VariableBool return so ResolveParameters can coerce into bool Lhs/Rhs properties.
+	 */
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
 };

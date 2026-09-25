@@ -24,8 +24,9 @@ means no row is currently claimed, not that no one is working ? always check the
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
+| Cursor (y6-scripting-fidelity) | SDK scripting fidelity batch (SCR-B04..B13,B16,B17,G02,G03,G19) | `tools/ue5/BioShockRuntime/**`, `tools/ue5/verify_scripting_fidelity.py`, `docs/research/sdk-crossref-scripting.md` | 25 Sept 2026 |
 
-_(no rows currently claimed — check the date on any that appear; an empty table means no active claim, not that no one is working. UI roadmap `docs/UI_ROADMAP.md` phases U1-U4 landed through `dc0d594`; U5+ dispatched one at a time via `tools/agents/orchestrator.ps1`. Recently cleared: 1-Medical wall textures landed `4be2d3e`.)_
+_(empty rows above claim table mean no other agent is claimed; UI roadmap `docs/UI_ROADMAP.md` phases U1-U4 landed through `dc0d594`; U5+ dispatched one at a time via `tools/agents/orchestrator.ps1`. Recently cleared: 1-Medical wall textures landed `4be2d3e`.)_
 
 **Backlog landed at `4d2247e` (28 Aug 2026).** Cursor item 0.
 

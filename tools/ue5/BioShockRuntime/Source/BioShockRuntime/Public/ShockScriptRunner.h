@@ -60,6 +60,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString LastMessageSource;
 
+	/**
+	 * Payload fields from the message that started the current run (Instigator, RA, Keycode, …).
+	 * Cleared when StartExecution begins without a message (ExecuteScript callee); message starts
+	 * and dequeued messages replace the map. Used by ActionGetMessageValue.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TMap<FString, FString> LastMessageFields;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	bool bEnabled = true;
 
@@ -132,8 +140,32 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	FString GetLastMessageSource() const { return LastMessageSource; }
 
+	/** Case-insensitive lookup into LastMessageFields; empty string when absent. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	FString GetLastMessageField(const FString& FieldName) const;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 GetMessageQueueNum() const { return MessageQueue.Num(); }
+
+	/** Enable/disable; disabling drops the MessageQueue (guide: enable and disable scripts). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetEnabled(bool bInEnabled);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool IsEnabled() const { return bEnabled; }
+
+	/** Per-script timer (ActionStartTimer). Expiry dispatches MessageTimerExpired under ScriptLabel. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void StartScriptTimer(float Seconds, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void StopScriptTimer();
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool HasActiveScriptTimer() const { return bTimerActive; }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	float GetScriptTimerExpireAt() const { return TimerExpireAt; }
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void SetRegistry(UShockScriptRegistry* InRegistry);
@@ -165,9 +197,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 GetForDepth() const { return ForStack.Num(); }
 
-	/** Copies authored Actions into the run queue and begins. Returns false if disabled/empty. */
+	/** Copies authored Actions into the run queue and begins. Returns false if disabled/empty
+	 * or already executing (second Blocking/NonBlocking execute must refuse, not restart). */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	bool StartExecution();
+
+	/**
+	 * Like StartExecution but keeps / installs the given message fields as LastMessageFields
+	 * (message-bus starts). ExecuteScript callees use StartExecution() which clears fields.
+	 */
+	bool StartExecutionWithMessageFields(const TMap<FString, FString>& Fields);
 
 	/**
 	 * Advance until blocked on a Wait / blocking child, or finished.
@@ -199,6 +238,7 @@ private:
 	{
 		FName MessageClass;
 		FString SourceLabel;
+		TMap<FString, FString> Fields;
 	};
 
 	UPROPERTY()
@@ -220,6 +260,9 @@ private:
 	TObjectPtr<UShockActionPlayAnimation> PendingAnimation;
 
 	UPROPERTY()
+	TObjectPtr<class UShockActionCinematicFadeView> PendingFade;
+
+	UPROPERTY()
 	TObjectPtr<UShockScriptRunner> PendingChild;
 
 	UPROPERTY()
@@ -233,6 +276,10 @@ private:
 	bool bWaitPrepared = false;
 	bool bGoalWaitPrepared = false;
 	bool bQuestLogWaitPrepared = false;
+	bool bFadePrepared = false;
+
+	bool bTimerActive = false;
+	float TimerExpireAt = -1.0f;
 
 	static constexpr int32 MaxLoopIterations = 1000;
 
@@ -244,5 +291,7 @@ private:
 	int32 InsertActionsAt(int32 InsertAt, const TArray<TObjectPtr<UShockAction>>& ToInsert);
 	void TickSpawnedChildren(float WorldTimeSeconds);
 	bool AnySpawnedChildExecuting() const;
+	void TickScriptTimer(float WorldTimeSeconds);
+	bool BeginExecutionInternal(bool bClearMessageFields);
 	UWorld* GetOuterWorld() const;
 };

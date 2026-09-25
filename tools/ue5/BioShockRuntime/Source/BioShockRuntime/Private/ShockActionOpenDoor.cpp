@@ -29,12 +29,16 @@ int32 UShockActionOpenDoor::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	int32 Opened = 0;
+	for (AShockDoor* Door : AShockDoor::CollectByLabel(World, DoorLabel))
 	{
-		return Door->OpenDoor(bStayOpen) ? 1 : 0;
+		if (Door && Door->OpenDoor(bStayOpen))
+		{
+			++Opened;
+		}
 	}
-	// No placed AShockDoor yet — keep record-only success so script runners still advance.
-	return 1;
+	// Missing label → 0 (not record-only success). Runner still advances either way.
+	return Opened;
 }
 
 bool UShockActionOpenDoor::ApplyInWorld(const FShockActionContext& Ctx)

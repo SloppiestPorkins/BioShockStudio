@@ -30,11 +30,15 @@ int32 UShockActionCloseDoor::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	if (AShockDoor* Door = AShockDoor::FindByLabel(World, DoorLabel))
+	int32 Closed = 0;
+	for (AShockDoor* Door : AShockDoor::CollectByLabel(World, DoorLabel))
 	{
-		return Door->CloseDoor(bForceClose) ? 1 : 0;
+		if (Door && Door->CloseDoor(bForceClose))
+		{
+			++Closed;
+		}
 	}
-	return 1;
+	return Closed;
 }
 
 bool UShockActionCloseDoor::ApplyInWorld(const FShockActionContext& Ctx)

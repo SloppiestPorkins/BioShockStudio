@@ -70,24 +70,12 @@ int32 UShockActionSetProperty::ApplyInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = ObjectLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* Actor : ShockScriptReflection::CollectActorsByLabel(World, ObjectLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
 		if (ApplyToActor(Actor))
 		{
 			++Applied;
 		}
-#endif
 	}
 	return Applied;
 }

@@ -1,8 +1,7 @@
 #include "ShockActionPlayEffect.h"
 
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
 #include "ShockEffectsSubsystem.h"
+#include "ShockScriptReflection.h"
 
 UShockActionPlayEffect::UShockActionPlayEffect()
 {
@@ -42,24 +41,12 @@ int32 UShockActionPlayEffect::FireInWorld(UWorld* World)
 	{
 		return 0;
 	}
-	const FString Want = ActorLabel.ToString();
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* Actor : ShockScriptReflection::CollectActorsByLabel(World, ActorLabel))
 	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-#if WITH_EDITOR
-		if (!Actor->GetActorLabel().Equals(Want, ESearchCase::CaseSensitive))
-		{
-			continue;
-		}
 		if (FireOnActor(Actor))
 		{
 			++Fired;
 		}
-#endif
 	}
 	return Fired;
 }
