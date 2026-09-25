@@ -1,3 +1,38 @@
+# The message-class gap — `scriptMessageClass` gating LANDED; dispatch sources and `messageFilter` remain
+
+> **Update, 25 Sept — receiver-side gating is done.** The earlier version of this doc scoped the
+> fix as "real engineering" needing new FCompactIndex resolution. It wasn't: the C# side already
+> had `UnrealProperty.TryAsObjectReference` + `BioShockPackage.ResolveName` (used by
+> `MaterialAnimator`/`SoundEventReader`/`CubemapReader`). What landed:
+>
+> - `LevelSceneExporter`: every `Object`-typed property now also carries `resolvedObjectName`
+>   in `level.json`/`ue5-level.json` (generic, not Script-specific). On `1-Medical` all 226
+>   `scriptMessageClass` values resolve (0 unresolved) to the real taxonomy: `MessageTriggerVolumeEnter`
+>   89, `Message` 21, `MessagePawnDied` 21, `MessageRAReacted` 19, `MessageLevelStarted` 16,
+>   `MessageReceivedInventory` 8, ... `messageFilter` resolves to the filter *instance* name
+>   (`MessagePawnDied0`, `MessageReceivedInventory2`, ...), i.e. an export whose own properties
+>   (`PawnLabel`, `Instigator`, ...) are the actual filter fields — not yet decoded.
+> - `import_scripts.py` reads it (`script_message_class_from_actor`) and calls
+>   `runner.set_script_message_class`.
+> - `UShockScriptRunner::ScriptMessageClass` + `MatchesMessageClass`; `TryStartFromMessage` now
+>   requires it. `NAME_None` (unresolved) and `"Message"` (UE2's base class) are wildcards.
+> - `verify_script_trigger.py`: the guide's elevator case — two scripts on `TriggeredBy="Lift"`,
+>   `MessageMoverOpened` vs `MessageMoverClosing` vs `Message` wildcard; only the right ones fire.
+>
+> **Behaviour change to know about:** scripts whose class we don't dispatch yet no longer start.
+> The runtime only dispatches `MessageLevelStarted`, `MessageTriggerVolumeEnter` and `Message`.
+> Previously a `TriggeredBy="all"` `MessagePawnDied` script wrongly fired at level entry (the
+> level-entry dispatch hits every `all` script); that's gone. The cost: `MessageTriggerEnter`
+> (TriggerRadius, 4 scripts) and `MessageTriggerVolumeExit`/`TriggerExit` (4) no longer fire via
+> the volume-enter relay. Those scripts' real events need real dispatch sources (below).
+>
+> **Still open:** (1) real dispatch sources for `MessagePawnDied` (21), `MessageRAReacted` (19),
+> `MessageReceivedInventory` (8), `MessageAIWeaponFired` (5), `MessagePawnTookDamage` (5),
+> `MessageMoverOpened/Closing`, `MessagePlayerFinishedHacking` (3), etc.; (2) TriggerRadius/exit
+> relay classes; (3) `messageFilter` field decoding + a message payload to compare against.
+> The historical analysis below is kept for the reasoning.
+
+---
 # The message-class gap — `scriptMessageClass` and `messageFilter` are not implemented
 
 Found during a full cross-reference of the runtime against the shipped BioShock UnrealEd guide

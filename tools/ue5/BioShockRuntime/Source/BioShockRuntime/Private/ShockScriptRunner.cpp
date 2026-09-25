@@ -90,9 +90,20 @@ bool UShockScriptRunner::MatchesTriggeredBy(const FString& SourceLabel) const
 	return false;
 }
 
+bool UShockScriptRunner::MatchesMessageClass(FName MessageClassName) const
+{
+	// NAME_None = the importer couldn't/didn't resolve one: fall back to the old label-only
+	// behaviour rather than silently stop a script that worked. "Message" is UE2's own base
+	// class and accepts every message from the listed labels (23-Scripting-Examples.md).
+	static const FName BaseMessage(TEXT("Message"));
+	return ScriptMessageClass.IsNone()
+		|| ScriptMessageClass == BaseMessage
+		|| ScriptMessageClass == MessageClassName;
+}
+
 bool UShockScriptRunner::TryStartFromMessage(FName MessageClassName, const FString& SourceLabel)
 {
-	if (!bEnabled || !MatchesTriggeredBy(SourceLabel))
+	if (!bEnabled || !MatchesTriggeredBy(SourceLabel) || !MatchesMessageClass(MessageClassName))
 	{
 		return false;
 	}

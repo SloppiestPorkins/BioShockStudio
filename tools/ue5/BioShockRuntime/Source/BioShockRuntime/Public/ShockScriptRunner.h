@@ -43,6 +43,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString TriggeredBy;
 
+	/**
+	 * UnrealScript `Script.scriptMessageClass`: which message CLASS from a TriggeredBy source
+	 * starts this script -- e.g. two scripts can share TriggeredBy="Lift" but one wants only
+	 * MessageMoverOpened and the other only MessageMoverClosing (23-Scripting-Examples.md's
+	 * elevator). NAME_None (the default for anything not resolved at import time) and "Message"
+	 * (UE2's own base/wildcard class) both match any dispatched class -- see TryStartFromMessage.
+	 * docs/research/message-class-gap.md.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName ScriptMessageClass;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FName LastMessageClass;
 
@@ -72,6 +83,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void SetTriggeredBy(const FString& InTriggeredBy);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetScriptMessageClass(FName InScriptMessageClass) { ScriptMessageClass = InScriptMessageClass; }
+
+	/** True when a dispatched message class satisfies this script's ScriptMessageClass: an
+	 * unresolved/absent class (NAME_None) or UE2's own "Message" wildcard both match anything;
+	 * otherwise an exact match is required. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool MatchesMessageClass(FName MessageClassName) const;
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	FString GetTriggeredBy() const { return TriggeredBy; }

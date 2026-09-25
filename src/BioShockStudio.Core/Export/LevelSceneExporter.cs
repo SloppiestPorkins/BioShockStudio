@@ -533,6 +533,14 @@ public static class LevelSceneExporter
                     ValueHex = property.Value.Length <= 256 ? Convert.ToHexString(property.Value) : null,
                     ValueLength = property.Value.Length,
                     ValueSha256 = Convert.ToHexString(SHA256.HashData(property.Value)),
+                    // An Object-typed property's raw bytes are an FCompactIndex package reference
+                    // (e.g. a Script actor's scriptMessageClass or messageFilter), not directly
+                    // readable the way a Str property like TriggeredBy is. Resolve it here with
+                    // the same TryAsObjectReference/ResolveName machinery MaterialAnimator/
+                    // SoundEventReader/CubemapReader already use for other Object properties,
+                    // rather than making every consumer re-derive class/import lookups from a
+                    // raw hex blob it cannot otherwise interpret.
+                    ResolvedObjectName = package is null ? null : ResolveObjectPropertyName(package, property),
                 }).ToList(),
                 TrailerHex = Convert.ToHexString(actor.Trailer),
                 Truncated = actor.Truncated,
@@ -1169,6 +1177,20 @@ public static class LevelSceneExporter
             SourcePackage = reference.Source?.Package,
             SourceExportIndex = reference.Source?.ExportIndex,
         };
+
+    /// <summary>
+    /// Resolves an Object-typed property's FCompactIndex package reference to a name, the same
+    /// TryAsObjectReference + ResolveName pair MaterialAnimator/SoundEventReader/CubemapReader
+    /// already use for other object references. Returns null for a null reference or a bytes
+    /// shape that does not parse as one — never throws, since a caller walking every property of
+    /// every actor cannot guard each one individually.
+    /// </summary>
+    private static string? ResolveObjectPropertyName(BioShockPackage package, UnrealProperty property)
+    {
+        if (property.Type != UnrealPropertyType.Object) return null;
+        if (!property.TryAsObjectReference(out var reference) || reference.IsNull) return null;
+        return package.ResolveName(reference);
+    }
 
     /// <summary>
     /// Keyed by the <see cref="Level.SourceId"/> a section actually names, not by the resolved
@@ -1843,6 +1865,15 @@ public sealed record LevelPropertyDocument
     public string? ValueHex { get; init; }
     public required int ValueLength { get; init; }
     public required string ValueSha256 { get; init; }
+
+    /// <summary>
+    /// For an Object-typed property only: the resolved name of the export or import the
+    /// FCompactIndex points at (a class name for a class reference such as
+    /// scriptMessageClass="MessageTriggerVolumeEnter", an instance name for an object
+    /// reference such as messageFilter). Null for every other property type, for a null
+    /// reference, or when the index does not resolve.
+    /// </summary>
+    public string? ResolvedObjectName { get; init; }
 }
 
 public sealed record LevelLightDocument

@@ -86,6 +86,40 @@ def main(out):
         f.append("fallback source %s" % send_none.get_last_instigator_label())
     report["parent_fallback"] = "ok"
 
+    # scriptMessageClass gating (23-Scripting-Examples.md Example 10, the elevator): two scripts
+    # share TriggeredBy="Lift" but listen for different classes. Each must fire only for its own.
+    opened = unreal.new_object(runner_cls)
+    opened.configure("ElevatorDoorOpen")
+    opened.set_triggered_by("Lift")
+    opened.set_script_message_class("MessageMoverOpened")
+    opened.set_registry(registry)
+    opened.add_action(_assign("DingPlayed", "yes"))
+
+    closing = unreal.new_object(runner_cls)
+    closing.configure("ElevatorDoorClose")
+    closing.set_triggered_by("Lift")
+    closing.set_script_message_class("MessageMoverClosing")
+    closing.set_registry(registry)
+    closing.add_action(_assign("DoorsShut", "yes"))
+
+    wildcard = unreal.new_object(runner_cls)
+    wildcard.configure("LiftAnyMessage")
+    wildcard.set_triggered_by("Lift")
+    wildcard.set_script_message_class("Message")
+    wildcard.set_registry(registry)
+    wildcard.add_action(_assign("SawAny", "yes"))
+
+    registry.dispatch_message("MessageMoverOpened", "Lift")
+    for r in (opened, closing, wildcard):
+        r.tick_execution(0.0)
+    if str(opened.ensure_variables().get_value_or_empty("DingPlayed")) != "yes":
+        f.append("class-matched script did not fire")
+    if str(closing.ensure_variables().get_value_or_empty("DoorsShut")) == "yes":
+        f.append("MessageMoverClosing script fired on MessageMoverOpened")
+    if str(wildcard.ensure_variables().get_value_or_empty("SawAny")) != "yes":
+        f.append("scriptMessageClass=Message wildcard did not fire")
+    report["message_class_gate"] = "ok"
+
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2)

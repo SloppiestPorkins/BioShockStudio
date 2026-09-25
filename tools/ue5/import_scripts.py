@@ -84,6 +84,20 @@ def triggered_by_from_actor(actor_doc):
     return ""
 
 
+def script_message_class_from_actor(actor_doc):
+    """UE2 Script.scriptMessageClass -- an Object-typed FCompactIndex package reference, not a
+    plain string like TriggeredBy. The C# exporter resolves it to the real class name
+    (resolvedObjectName, docs/research/message-class-gap.md) since decoding an FCompactIndex
+    against the level package's export/import tables needs the exporter's own machinery, not
+    something Python can do from the raw hex alone. Empty when absent/unresolved -- the
+    downstream C++ wildcard default, not a guess.
+    """
+    for prop in actor_doc.get("properties") or []:
+        if prop.get("name") == "scriptMessageClass" and prop.get("type") == "Object":
+            return prop.get("resolvedObjectName") or ""
+    return ""
+
+
 def shock_action_class_name(action_class):
     if not action_class:
         return None
@@ -759,6 +773,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
     registry = None
     sample_actor = None
     sample_tb = ""
+    sample_class = "Message"
     world = unreal.EditorLevelLibrary.get_editor_world()
     if world is not None and hasattr(unreal, "ShockScriptSubsystem"):
         try:
@@ -772,6 +787,9 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         triggered_by = triggered_by_from_actor(actor_doc)
         if triggered_by:
             report["with_triggered_by"] += 1
+        script_message_class = script_message_class_from_actor(actor_doc)
+        if script_message_class:
+            report["with_script_message_class"] = report.get("with_script_message_class", 0) + 1
 
         location = actor_doc.get("location") or [0, 0, 0]
         loc = unreal.Vector(float(location[0]), float(location[1]), float(location[2]))
@@ -789,6 +807,8 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
             actor.set_registry(registry)
 
         runner = actor.get_runner()
+        if script_message_class:
+            runner.set_script_message_class(unreal.Name(script_message_class))
         action_cache = {}
         sa = actor_doc.get("scriptActions") or {}
         action_count = 0
@@ -834,6 +854,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         if str(label) == "TipUnlock1-Medical":
             sample_actor = actor
             sample_tb = triggered_by
+            sample_class = script_message_class or "Message"
             report["sample"] = {
                 "label": str(label),
                 "triggeredBy": triggered_by,
@@ -844,7 +865,7 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         report["registry_num"] = int(registry.num())
 
     if registry is not None and sample_actor is not None and sample_tb:
-        accepted = int(registry.dispatch_message("Message", sample_tb))
+        accepted = int(registry.dispatch_message(sample_class, sample_tb))
         report["sample"]["dispatch_accepted"] = accepted
         sample_actor.tick_script(0.0)
         report["sample"]["actions_completed"] = int(sample_actor.get_runner().get_actions_completed())
