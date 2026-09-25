@@ -9,7 +9,8 @@
 
 namespace
 {
-void DispatchPawnMessageSources(UWorld* World, FName MessageClass, AShockPawn* Pawn)
+void DispatchPawnMessageSources(
+	UWorld* World, FName MessageClass, AShockPawn* Pawn, AActor* Damager = nullptr)
 {
 	if (!World || !Pawn)
 	{
@@ -21,13 +22,41 @@ void DispatchPawnMessageSources(UWorld* World, FName MessageClass, AShockPawn* P
 		return;
 	}
 	const FString Label = UShockScriptSubsystem::ResolveMessageSourceLabel(Pawn);
+
+	// The message's own fields, for a script's messageFilter (PawnLabel=..., PawnClass=...).
+	// PawnClass is only supplied when the AI carries a UE2-style class name (SpawnedBouncer,
+	// SpawnedMeleeThug ...): our older hand-configured types ("ThuggishSplicer") are a different
+	// naming scheme, and offering them would wrongly rule scripts out instead of letting the
+	// field pass as "unknown".
+	TMap<FString, FString> Fields;
 	if (!Label.IsEmpty())
 	{
-		Sub->DispatchMessageLogged(MessageClass, Label);
+		Fields.Add(TEXT("PawnLabel"), Label);
+	}
+	if (Damager)
+	{
+		const FString DamagerLabel = UShockScriptSubsystem::ResolveMessageSourceLabel(Damager);
+		if (!DamagerLabel.IsEmpty())
+		{
+			Fields.Add(TEXT("DamagerLabel"), DamagerLabel);
+		}
+	}
+	if (const ABaseShockAI* AI = Cast<ABaseShockAI>(Pawn))
+	{
+		const FString ClassName = AI->AITypeName.ToString();
+		if (ClassName.StartsWith(TEXT("Spawned")))
+		{
+			Fields.Add(TEXT("PawnClass"), ClassName);
+		}
+	}
+
+	if (!Label.IsEmpty())
+	{
+		Sub->DispatchMessageLoggedWithFields(MessageClass, Label, Fields);
 	}
 	// TriggeredBy="all" / "All" means any pawn (DispatchLevelEntryMessages uses both casings).
-	Sub->DispatchMessageLogged(MessageClass, TEXT("All"));
-	Sub->DispatchMessageLogged(MessageClass, TEXT("all"));
+	Sub->DispatchMessageLoggedWithFields(MessageClass, TEXT("All"), Fields);
+	Sub->DispatchMessageLoggedWithFields(MessageClass, TEXT("all"), Fields);
 }
 } // namespace
 
@@ -171,7 +200,7 @@ float UShockDamageLibrary::ApplyDamage(
 			if (Applied > 0.0f)
 			{
 				Cast<ABaseShockAI>(Pawn)->ReactToHit(Applied, Instigator);
-				DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn);
+				DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn, Instigator);
 			}
 			return Applied;
 		}
@@ -187,7 +216,7 @@ float UShockDamageLibrary::ApplyDamage(
 	// TookDamage before Died on the killing blow (scripts listening for either must see a stable order).
 	if (Applied > 0.0f && !bWasDead)
 	{
-		DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn);
+		DispatchPawnMessageSources(Pawn->GetWorld(), FName(TEXT("MessagePawnTookDamage")), Pawn, Instigator);
 	}
 	if (!bWasDead && Pawn->bIsDead)
 	{

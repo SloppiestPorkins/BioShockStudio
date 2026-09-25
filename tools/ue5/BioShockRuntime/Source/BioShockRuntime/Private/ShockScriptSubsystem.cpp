@@ -56,6 +56,21 @@ int32 UShockScriptSubsystem::DispatchMessageLogged(FName MessageClassName, const
 	return Accepted;
 }
 
+int32 UShockScriptSubsystem::DispatchMessageLoggedWithFields(
+	FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields)
+{
+	UShockScriptRegistry* Reg = GetOrCreateRegistry();
+	const int32 Accepted = Reg ? Reg->DispatchMessageWithFields(MessageClassName, SourceLabel, Fields) : 0;
+	FString FieldText;
+	for (const TPair<FString, FString>& Field : Fields)
+	{
+		FieldText += FString::Printf(TEXT(" %s=%s"), *Field.Key, *Field.Value);
+	}
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_MSG class=%s src=%s accepted=%d%s"),
+		*MessageClassName.ToString(), *SourceLabel, Accepted, *FieldText);
+	return Accepted;
+}
+
 FString UShockScriptSubsystem::ResolveMessageSourceLabel(const AActor* Actor)
 {
 	if (!Actor)

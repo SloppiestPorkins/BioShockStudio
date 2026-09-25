@@ -78,6 +78,22 @@ public sealed record UnrealProperty
         }
     }
 
+    /// <summary>
+    /// Reads a <see cref="UnrealPropertyType.Name"/> property's value as its text (name-table entry
+    /// plus the disambiguating number, the same form the property list uses for property names).
+    /// Returns null rather than throwing when the bytes do not form one.
+    /// </summary>
+    public string? TryAsNameText(IReadOnlyList<NameEntry> names)
+    {
+        if (Type != UnrealPropertyType.Name || Value.Length == 0) return null;
+        try { return UnrealPropertyReader.ReadFNameAt(Value, names); }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
     public override string ToString() => $"{Name} ({Type})";
 }
 
@@ -353,6 +369,13 @@ public static class UnrealPropertyReader
     /// </summary>
     internal static int ReadCompactIndexAt(ReadOnlySpan<byte> data, ref int offset) =>
         ReadCompactIndex(data, ref offset);
+
+    /// <summary>An <c>FName</c> value read from the start of <paramref name="data"/>.</summary>
+    internal static string ReadFNameAt(ReadOnlySpan<byte> data, IReadOnlyList<NameEntry> names)
+    {
+        int offset = 0;
+        return ReadFName(data, ref offset, names);
+    }
 
     private static int ReadCompactIndex(ReadOnlySpan<byte> data, ref int offset)
     {

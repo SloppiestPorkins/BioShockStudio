@@ -120,6 +120,43 @@ def main(out):
         f.append("scriptMessageClass=Message wildcard did not fire")
     report["message_class_gate"] = "ok"
 
+    # messageFilter (23-Scripting-Examples.md Examples 4/9/14): the script starts only when every
+    # non-empty filter field equals the message's own field. Empty/None/0 fields are ignored, and
+    # a field the sender didn't supply cannot rule the script out.
+    def _filtered(name, fields):
+        r = unreal.new_object(runner_cls)
+        r.configure(name)
+        r.set_triggered_by("all")
+        r.set_script_message_class("MessagePawnDied")
+        r.set_registry(registry)
+        for k, v in fields:
+            r.set_message_filter_field(k, v)
+        r.add_action(_assign("Ran", "yes"))
+        return r
+
+    only_friend = _filtered("OnlyFriend", [("PawnLabel", "Friend1")])
+    only_thug = _filtered("OnlyThug", [("PawnClass", "SpawnedMeleeThug")])
+    empty_fields = _filtered("EmptyFilter", [("PawnLabel", "None"), ("Reason", "0"), ("PawnClass", "")])
+    needs_unsent = _filtered("NeedsUnsent", [("Instigator", "Player")])
+
+    registry.dispatch_message_with_fields(
+        "MessagePawnDied", "all", {"PawnLabel": "friend1", "PawnClass": "SpawnedBouncer"})
+    for r in (only_friend, only_thug, empty_fields, needs_unsent):
+        r.tick_execution(0.0)
+
+    def _ran(r):
+        return str(r.ensure_variables().get_value_or_empty("Ran")) == "yes"
+
+    if not _ran(only_friend):
+        f.append("PawnLabel filter (case-insensitive) rejected a matching message")
+    if _ran(only_thug):
+        f.append("PawnClass filter accepted a different class")
+    if not _ran(empty_fields):
+        f.append("empty/None/0 filter fields should match anything")
+    if not _ran(needs_unsent):
+        f.append("a filter field the sender did not supply must not rule the script out")
+    report["message_filter"] = "ok"
+
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2)

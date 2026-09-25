@@ -26,6 +26,12 @@ UShockScriptRunner* UShockScriptRegistry::FindScript(FName Label) const
 
 int32 UShockScriptRegistry::DispatchMessage(FName MessageClassName, const FString& SourceLabel)
 {
+	return DispatchMessageWithFields(MessageClassName, SourceLabel, TMap<FString, FString>());
+}
+
+int32 UShockScriptRegistry::DispatchMessageWithFields(
+	FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields)
+{
 	int32 Started = 0;
 	for (const TPair<FName, TObjectPtr<UShockScriptRunner>>& Pair : ByLabel)
 	{
@@ -34,7 +40,7 @@ int32 UShockScriptRegistry::DispatchMessage(FName MessageClassName, const FStrin
 		{
 			continue;
 		}
-		if (Script->TryStartFromMessage(MessageClassName, SourceLabel))
+		if (Script->TryStartFromMessageWithFields(MessageClassName, SourceLabel, Fields))
 		{
 			++Started;
 		}

@@ -121,7 +121,14 @@ int32 UShockTriggerRelayComponent::DispatchNow(FName MessageClass)
 		return 0;
 	}
 
-	return Sub->DispatchMessageLogged(MessageClass, VolumeLabel);
+	// The relay only ever reports the player (bPlayerOnly), so the message's Instigator is Player --
+	// what scripts authored with messageFilter Instigator=Player compare against.
+	TMap<FString, FString> Fields;
+	if (bPlayerOnly)
+	{
+		Fields.Add(TEXT("Instigator"), TEXT("Player"));
+	}
+	return Sub->DispatchMessageLoggedWithFields(MessageClass, VolumeLabel, Fields);
 }
 
 int32 UShockTriggerRelayComponent::FireForVerify()

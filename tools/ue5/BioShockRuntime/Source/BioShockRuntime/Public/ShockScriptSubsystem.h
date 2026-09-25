@@ -40,6 +40,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
 	int32 DispatchMessageLogged(FName MessageClassName, const FString& SourceLabel);
 
+	/** As DispatchMessageLogged, carrying the message's own fields for messageFilter matching. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	int32 DispatchMessageLoggedWithFields(
+		FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields);
+
 	/**
 	 * Message source label for a world actor: AShockPlayer → "Player"; ABaseShockAI → ScriptLabel
 	 * (else editor label); otherwise editor actor label / GetName. Empty when Actor is null.

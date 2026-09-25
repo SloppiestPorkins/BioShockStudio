@@ -93,6 +93,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	bool MatchesMessageClass(FName MessageClassName) const;
 
+	/**
+	 * UE2 `Script.messageFilter`: a Message instance whose non-empty fields (PawnLabel, PawnClass,
+	 * ActualClass, Instigator, Reason ...) an incoming message must equal, compared as text and
+	 * case-insensitively like labels. Empty / "None" / "0" fields match anything and are not stored.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TMap<FString, FString> MessageFilter;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetMessageFilterField(const FString& FieldName, const FString& Value);
+
+	/** True when every filter field the payload can speak to is equal. A field the sender did not
+	 * supply is not evidence against the script (senders fill fields incrementally), so it passes. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool MatchesMessageFilter(const TMap<FString, FString>& Fields) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool TryStartFromMessageWithFields(
+		FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields);
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	FString GetTriggeredBy() const { return TriggeredBy; }
 

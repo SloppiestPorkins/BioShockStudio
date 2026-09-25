@@ -128,7 +128,11 @@ void AShockOilSlickVolume::IgniteSlick(
 		const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
 		if (!Src.IsEmpty())
 		{
-			Sub->DispatchMessageLogged(FName(TEXT("MessageRAReacted")), Src);
+			{
+		TMap<FString, FString> Fields;
+		Fields.Add(TEXT("RA"), Src);
+		Sub->DispatchMessageLoggedWithFields(FName(TEXT("MessageRAReacted")), Src, Fields);
+	}
 		}
 	}
 

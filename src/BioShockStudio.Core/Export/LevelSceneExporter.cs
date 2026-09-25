@@ -541,6 +541,7 @@ public static class LevelSceneExporter
                     // rather than making every consumer re-derive class/import lookups from a
                     // raw hex blob it cannot otherwise interpret.
                     ResolvedObjectName = package is null ? null : ResolveObjectPropertyName(package, property),
+                    ResolvedFields = package is null ? null : ResolveMessageFilterFields(package, property),
                 }).ToList(),
                 TrailerHex = Convert.ToHexString(actor.Trailer),
                 Truncated = actor.Truncated,
@@ -1185,6 +1186,61 @@ public static class LevelSceneExporter
     /// shape that does not parse as one — never throws, since a caller walking every property of
     /// every actor cannot guard each one individually.
     /// </summary>
+    private static List<LevelResolvedFieldDocument>? ResolveMessageFilterFields(
+        BioShockPackage package, UnrealProperty property)
+    {
+        if (property.Type != UnrealPropertyType.Object) return null;
+        if (!property.TryAsObjectReference(out var reference) || !reference.IsExport) return null;
+        if (reference.ExportIndex < 0 || reference.ExportIndex >= package.Exports.Count) return null;
+
+        var export = package.Exports[reference.ExportIndex];
+        if (!package.GetClassName(export).StartsWith("Message", StringComparison.Ordinal)) return null;
+
+        try
+        {
+            var fields = UnrealPropertyReader.Read(package.ReadExportData(export), package.Names, out _);
+            var result = new List<LevelResolvedFieldDocument>();
+            foreach (var field in fields)
+            {
+                if (field.Name == "CheckpointTypePadding") continue;
+                string? text = field.Type switch
+                {
+                    UnrealPropertyType.Name => field.TryAsNameText(package.Names),
+                    UnrealPropertyType.Object or UnrealPropertyType.Class =>
+                        field.TryAsObjectReference(out var r) && !r.IsNull ? package.ResolveName(r) : null,
+                    UnrealPropertyType.Int => field.AsInt().ToString(CultureInfo.InvariantCulture),
+                    UnrealPropertyType.Byte => field.AsByte().ToString(CultureInfo.InvariantCulture),
+                    UnrealPropertyType.Float => field.AsFloat().ToString("R", CultureInfo.InvariantCulture),
+                    UnrealPropertyType.Bool => field.BoolValue ? "True" : "False",
+                    UnrealPropertyType.Str => DecodeUtf16Str(field.Value),
+                    _ => null,
+                };
+                if (text is not null)
+                    result.Add(new LevelResolvedFieldDocument
+                    {
+                        Name = field.Name,
+                        Type = field.Type.ToString(),
+                        Text = text,
+                    });
+            }
+            return result;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IndexOutOfRangeException
+                                       or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A Str property: a count byte then UTF-16LE text (same decode import_scripts.py uses for TriggeredBy).</summary>
+    private static string DecodeUtf16Str(byte[] value)
+    {
+        if (value.Length < 2) return string.Empty;
+        int length = value.Length - 1;
+        if (length % 2 == 1) length--;
+        return Encoding.Unicode.GetString(value, 1, length).TrimEnd('\0');
+    }
+
     private static string? ResolveObjectPropertyName(BioShockPackage package, UnrealProperty property)
     {
         if (property.Type != UnrealPropertyType.Object) return null;
@@ -1874,6 +1930,20 @@ public sealed record LevelPropertyDocument
     /// reference, or when the index does not resolve.
     /// </summary>
     public string? ResolvedObjectName { get; init; }
+
+    /// <summary>
+    /// For an Object property that points at a Message* instance (a Script's messageFilter): that
+    /// instance's own fields, decoded to text. The filter's non-empty fields are what an incoming
+    /// message must equal for the script to start. Null otherwise.
+    /// </summary>
+    public List<LevelResolvedFieldDocument>? ResolvedFields { get; init; }
+}
+
+public sealed record LevelResolvedFieldDocument
+{
+    public required string Name { get; init; }
+    public required string Type { get; init; }
+    public required string Text { get; init; }
 }
 
 public sealed record LevelLightDocument

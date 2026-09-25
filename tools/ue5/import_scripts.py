@@ -84,6 +84,19 @@ def triggered_by_from_actor(actor_doc):
     return ""
 
 
+def message_filter_fields_from_actor(actor_doc):
+    """UE2 Script.messageFilter fields as (name, text) pairs, decoded by the C# exporter
+    (resolvedFields on the messageFilter property -- the referenced Message* instance's own
+    properties). Empty / None / 0 values are dropped by the runner, matching UE2's rule that
+    empty filter fields match anything.
+    """
+    for prop in actor_doc.get("properties") or []:
+        if prop.get("name") == "messageFilter" and prop.get("type") == "Object":
+            return [(f["name"], f["text"]) for f in (prop.get("resolvedFields") or [])
+                    if f.get("name") and f.get("text") is not None]
+    return []
+
+
 def script_message_class_from_actor(actor_doc):
     """UE2 Script.scriptMessageClass -- an Object-typed FCompactIndex package reference, not a
     plain string like TriggeredBy. The C# exporter resolves it to the real class name
@@ -809,6 +822,9 @@ def import_scripts(manifest_path, limit=None, schema_dir=None, props_path=None):
         runner = actor.get_runner()
         if script_message_class:
             runner.set_script_message_class(unreal.Name(script_message_class))
+        for fname, ftext in message_filter_fields_from_actor(actor_doc):
+            runner.set_message_filter_field(fname, ftext)
+            report["message_filter_fields"] = report.get("message_filter_fields", 0) + 1
         action_cache = {}
         sa = actor_doc.get("scriptActions") or {}
         action_count = 0

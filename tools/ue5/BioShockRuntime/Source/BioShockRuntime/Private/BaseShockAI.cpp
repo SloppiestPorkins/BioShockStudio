@@ -1446,7 +1446,11 @@ void ABaseShockAI::TryRangedFire()
 			const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(this);
 			if (!Src.IsEmpty())
 			{
-				Sub->DispatchMessageLogged(FName(TEXT("MessageAIWeaponFired")), Src);
+				{
+					TMap<FString, FString> Fields;
+					Fields.Add(TEXT("AILabel"), Src);
+					Sub->DispatchMessageLoggedWithFields(FName(TEXT("MessageAIWeaponFired")), Src, Fields);
+				}
 			}
 		}
 	}

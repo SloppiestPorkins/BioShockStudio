@@ -2805,7 +2805,11 @@ void AShockPlayer::NotifyReactedWithActor(AActor* Target)
 	{
 		return;
 	}
-	Sub->DispatchMessageLogged(FName(TEXT("MessageRAReacted")), Src);
+	{
+		TMap<FString, FString> Fields;
+		Fields.Add(TEXT("RA"), Src);
+		Sub->DispatchMessageLoggedWithFields(FName(TEXT("MessageRAReacted")), Src, Fields);
+	}
 }
 
 bool AShockPlayer::SpendAdam(int32 Amount)

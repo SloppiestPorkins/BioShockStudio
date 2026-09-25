@@ -101,9 +101,46 @@ bool UShockScriptRunner::MatchesMessageClass(FName MessageClassName) const
 		|| ScriptMessageClass == MessageClassName;
 }
 
+void UShockScriptRunner::SetMessageFilterField(const FString& FieldName, const FString& Value)
+{
+	const FString Trimmed = Value.TrimStartAndEnd();
+	if (FieldName.IsEmpty() || Trimmed.IsEmpty() || Trimmed.Equals(TEXT("None"), ESearchCase::IgnoreCase)
+		|| Trimmed == TEXT("0"))
+	{
+		return;
+	}
+	MessageFilter.Add(FieldName.ToLower(), Trimmed);
+}
+
+bool UShockScriptRunner::MatchesMessageFilter(const TMap<FString, FString>& Fields) const
+{
+	for (const TPair<FString, FString>& Want : MessageFilter)
+	{
+		for (const TPair<FString, FString>& Have : Fields)
+		{
+			if (Have.Key.Equals(Want.Key, ESearchCase::IgnoreCase))
+			{
+				if (!Have.Value.TrimStartAndEnd().Equals(Want.Value, ESearchCase::IgnoreCase))
+				{
+					return false;
+				}
+				break;
+			}
+		}
+	}
+	return true;
+}
+
 bool UShockScriptRunner::TryStartFromMessage(FName MessageClassName, const FString& SourceLabel)
 {
-	if (!bEnabled || !MatchesTriggeredBy(SourceLabel) || !MatchesMessageClass(MessageClassName))
+	return TryStartFromMessageWithFields(MessageClassName, SourceLabel, TMap<FString, FString>());
+}
+
+bool UShockScriptRunner::TryStartFromMessageWithFields(
+	FName MessageClassName, const FString& SourceLabel, const TMap<FString, FString>& Fields)
+{
+	if (!bEnabled || !MatchesTriggeredBy(SourceLabel) || !MatchesMessageClass(MessageClassName)
+		|| !MatchesMessageFilter(Fields))
 	{
 		return false;
 	}

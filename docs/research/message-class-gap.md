@@ -1,5 +1,21 @@
 # The message-class gap — `scriptMessageClass` gating LANDED; most Medical dispatch sources now exist
 
+> **Update, 25 Sept (later) — `messageFilter` is decoded and enforced.** The exporter now emits
+> `resolvedFields` on a Script's `messageFilter` (the referenced Message* instance's own
+> properties, decoded to text; all 64 Medical filters decode). `import_scripts.py` loads them
+> into `UShockScriptRunner::MessageFilter`; `MatchesMessageFilter` requires every non-empty field
+> (empty / `None` / `0` match anything) to equal the message's own field, case-insensitively.
+> Messages now carry fields (`DispatchMessageWithFields`): `PawnLabel`/`PawnClass`/`DamagerLabel`
+> (deaths, damage), `AILabel` (weapon fired), `RA` (reacted), `Instigator=Player` (trigger relays).
+> **A field the sender does not supply passes** — deliberately, so a script is never ruled out for
+> want of data we don't emit yet (`PawnClass` is only sent when the AI has a UE2-style
+> `Spawned*` class name; item `ActualClass`, `weaponClass`, `Amount`, `Reason` are not sent yet, so
+> those filters don't restrict yet). Field names seen in Medical filters: PawnLabel, PawnClass,
+> AILabel, weaponClass, Plasmid, GathererLabel, ActualClass, Amount, ContainerLabel, ItemClass,
+> ItemCount, ActorLabel, SuccessfulHack, Instigator, RA, Reason, StateName, DamagerLabel, AIClass,
+> DoorLabel. Verified on real data: the imported `SteinmanDies` starts for `Steinman` and not for
+> another pawn; the `all`-sourced over-fire noted below is fixed for PawnLabel/PawnClass filters.
+
 > **Update, 25 Sept — receiver-side gating is done.** The earlier version of this doc scoped the
 > fix as "real engineering" needing new FCompactIndex resolution. It wasn't: the C# side already
 > had `UnrealProperty.TryAsObjectReference` + `BioShockPackage.ResolveName` (used by
