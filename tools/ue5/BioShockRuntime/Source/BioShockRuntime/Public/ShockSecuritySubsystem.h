@@ -23,13 +23,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Security", meta = (WorldContext = "WorldContextObject"))
 	static UShockSecuritySubsystem* GetForWorld(UObject* WorldContextObject);
 
-	/** PLAUSIBLE — concurrent alarm-response bots; shipped cameras spawn NumSecurityBotsSpawned=1 each. */
+	/** PLAUSIBLE — concurrent alarm-response bots; guide: up to four on stacked alarms. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
-	int32 MaxActiveBots = 2;
+	int32 MaxActiveBots = 4;
 
-	/** PLAUSIBLE — despawn delay after alarm clears (no shipped lifetime-after-clear found). */
+	/**
+	 * Seconds after alarm clear before DespawnAllBots. Guide is silent on post-alarm bot lifetime
+	 * (U03). Default -1 = never auto-despawn; bots stay until killed or an explicit shutdown.
+	 * Positive values keep the old verify/opt-in delayed clear.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
-	float BotLifetimeAfterAlarmClearSeconds = 30.0f;
+	float BotLifetimeAfterAlarmClearSeconds = -1.0f;
 
 	/** Confirmed against the shipped UnrealEd guide ("The alarm lasts 60 seconds") -- not a
 	 * guess. An alarm the player never reaches a Bot Shutdown Panel for still clears itself. */
@@ -38,6 +42,7 @@ public:
 
 	void SetRequestedBotCount(int32 Count) { PendingBotSpawnCount = FMath::Max(0, Count); }
 
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Security")
 	void SetNextSpawnLocationLabel(FName Label) { NextSpawnLocationLabel = Label; }
 
 	FName GetNextSpawnLocationLabel() const { return NextSpawnLocationLabel; }
@@ -89,6 +94,12 @@ public:
 
 	FVector ResolveSpawnLocation(UWorld* World, FVector NearLocation) const;
 
+	/** Player-relative band + LOS spawn resolve used by alarm bots. */
+	FVector ResolveSpawnLocation(
+		UWorld* World,
+		FVector PlayerLocation,
+		bool bVersusAI) const;
+
 private:
 	void ScheduleBotDespawn(float DelaySeconds);
 
@@ -98,6 +109,10 @@ private:
 	void AdvanceSecurity(float DeltaSeconds);
 
 	void PurgeInvalidBots();
+
+	bool HasLineOfSightToPoint(UWorld* World, FVector From, FVector To) const;
+
+	bool IsPathNodeCandidate(const AActor* Actor) const;
 
 	UPROPERTY()
 	TArray<TObjectPtr<AShockSecurityBot>> ActiveBots;
@@ -112,6 +127,9 @@ private:
 
 	/** -1 = no alarm running. Set to AlarmDurationSeconds when an alarm starts, counts down. */
 	float AlarmRemainingSeconds = -1.0f;
+
+	/** True when the current alarm's source label resolves to an AI (uses 1500–4000 band). */
+	bool bAlarmVersusAI = false;
 
 	TWeakObjectPtr<AShockPlayer> AlarmPlayer;
 };

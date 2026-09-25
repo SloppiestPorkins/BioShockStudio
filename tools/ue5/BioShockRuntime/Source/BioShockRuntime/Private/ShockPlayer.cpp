@@ -2487,6 +2487,27 @@ bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty0
 		return false;
 	}
 
+	const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
+
+	auto DispatchHackMsg = [this, Device, Label](FName MessageClass, bool bIncludeSuccess, bool bOk)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World))
+			{
+				const FString Src = Label.ToString();
+				TMap<FString, FString> Fields;
+				Fields.Add(TEXT("ActorLabel"), Src);
+				if (bIncludeSuccess)
+				{
+					Fields.Add(TEXT("SuccessfulHack"), bOk ? TEXT("True") : TEXT("False"));
+				}
+				Sub->DispatchMessageLoggedWithFields(MessageClass, Src, Fields);
+			}
+		}
+		(void)Device;
+	};
+
 	if (!bInstantHack)
 	{
 		APlayerController* PC = Cast<APlayerController>(GetController());
@@ -2513,13 +2534,12 @@ bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty0
 				Menu->AddToViewport(55);
 			}
 			Menu->OpenMinigame(Difficulty01);
-			const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
 			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_HACK label=%s result=minigame"), *Label.ToString());
-			return false; // outcome deferred to the pipe puzzle
+			return false; // outcome deferred to the pipe puzzle (messages from minigame)
 		}
 	}
 
-	const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
+	DispatchHackMsg(FName(TEXT("MessagePlayerStartedHacking")), false, false);
 	const bool bSuccess = Difficulty01 <= HackSkill + KINDA_SMALL_NUMBER;
 	if (bSuccess)
 	{
@@ -2537,6 +2557,7 @@ bool AShockPlayer::TryHackDevice(AShockSecurityDevice* Device, float Difficulty0
 		const float MaxSafeDamage = FMath::Max(0.0f, GetCurrentHealth() - 1.0f);
 		ApplyAuthoredDamage(FMath::Min(HackFailSelfDamage, MaxSafeDamage));
 	}
+	DispatchHackMsg(FName(TEXT("MessagePlayerFinishedHacking")), true, bSuccess);
 	return bSuccess;
 }
 

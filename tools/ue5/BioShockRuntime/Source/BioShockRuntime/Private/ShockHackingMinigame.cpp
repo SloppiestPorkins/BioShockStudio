@@ -17,6 +17,8 @@
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "ShockPlayer.h"
+#include "ShockScriptSubsystem.h"
+#include "ShockSecurityBot.h"
 #include "ShockSecurityDeviceTypes.h"
 #include "ShockTurret.h"
 
@@ -189,6 +191,13 @@ void UShockHackingMinigame::BindDisplayPlayer(AShockPlayer* Player)
 void UShockHackingMinigame::BindDevice(AShockSecurityDevice* Device)
 {
 	BoundDevice = Device;
+	BoundBot = nullptr;
+}
+
+void UShockHackingMinigame::BindBot(AShockSecurityBot* Bot)
+{
+	BoundBot = Bot;
+	BoundDevice = nullptr;
 }
 
 AShockPlayer* UShockHackingMinigame::ResolvePlayer() const
@@ -207,6 +216,68 @@ AShockPlayer* UShockHackingMinigame::ResolvePlayer() const
 AShockSecurityDevice* UShockHackingMinigame::ResolveDevice() const
 {
 	return BoundDevice.Get();
+}
+
+AShockSecurityBot* UShockHackingMinigame::ResolveBot() const
+{
+	return BoundBot.Get();
+}
+
+AActor* UShockHackingMinigame::ResolveHackTargetActor() const
+{
+	if (AShockSecurityDevice* Device = ResolveDevice())
+	{
+		return Device;
+	}
+	return ResolveBot();
+}
+
+void UShockHackingMinigame::DispatchHackingMessage(
+	FName MessageClass, bool bIncludeSuccessField, bool bSuccessfulHack)
+{
+	UWorld* World = GetWorld();
+	AActor* Target = ResolveHackTargetActor();
+	if (!World || !Target || MessageClass.IsNone())
+	{
+		return;
+	}
+	UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(World);
+	if (!Sub)
+	{
+		return;
+	}
+
+	FString Label = UShockScriptSubsystem::ResolveMessageSourceLabel(Target);
+	if (Label.IsEmpty())
+	{
+#if WITH_EDITOR
+		Label = Target->GetActorLabel();
+#else
+		Label = Target->GetName();
+#endif
+	}
+	if (Label.IsEmpty())
+	{
+		return;
+	}
+
+	TMap<FString, FString> Fields;
+	Fields.Add(TEXT("ActorLabel"), Label);
+	if (bIncludeSuccessField)
+	{
+		Fields.Add(TEXT("SuccessfulHack"), bSuccessfulHack ? TEXT("True") : TEXT("False"));
+	}
+	Sub->DispatchMessageLoggedWithFields(MessageClass, Label, Fields);
+}
+
+void UShockHackingMinigame::NotifyHackFinished(bool bSuccessfulHack)
+{
+	if (bDidDispatchFinishedHacking)
+	{
+		return;
+	}
+	bDidDispatchFinishedHacking = true;
+	DispatchHackingMessage(FName(TEXT("MessagePlayerFinishedHacking")), true, bSuccessfulHack);
 }
 
 void UShockHackingMinigame::EnsureTextures()
@@ -719,9 +790,10 @@ void UShockHackingMinigame::BeginPlaying()
 	Result = EShockHackResult::Playing;
 	FluidProgress = 0.0f;
 	SpeedMultiplier = 1.0f;
-	bDidSetSecurityHacked = false;
+	bDidApplyHackSuccess = false;
 	bDidRaiseAlarm = false;
 	bAlarmTriggered = false;
+	bDidDispatchFinishedHacking = false;
 	HazardsTriggered.Reset();
 	SelectedTileIndex = INDEX_NONE;
 	RecomputePath();
@@ -736,15 +808,23 @@ void UShockHackingMinigame::ApplyHackSuccessToWorld()
 		return;
 	}
 
+	// Device / bot win flips only that actor. System-wide shutdown is ActionHackSecuritySystem /
+	// Bot Shutdown Panel via SetSecurityHacked — not a per-device puzzle win (guide ch.32).
 	if (AShockSecurityDevice* Device = ResolveDevice())
 	{
 		Device->SetAllegiance(EShockDeviceAllegiance::Friendly);
 		const FName Label = Device->DeviceLabel.IsNone() ? Device->GetFName() : Device->DeviceLabel;
 		Player->SetTurretHacked(Label, true);
+		bDidApplyHackSuccess = true;
 	}
 
-	Player->SetSecurityHacked(true, HackShutdownSeconds);
-	bDidSetSecurityHacked = true;
+	if (AShockSecurityBot* Bot = ResolveBot())
+	{
+		Bot->SetDormant(false);
+		Bot->ActivateForPlayer(Player);
+		Bot->SetBotAllegiance(EShockDeviceAllegiance::Friendly);
+		bDidApplyHackSuccess = true;
+	}
 }
 
 void UShockHackingMinigame::FinishWin()
@@ -755,6 +835,7 @@ void UShockHackingMinigame::FinishWin()
 	}
 	Result = EShockHackResult::Won;
 	ApplyHackSuccessToWorld();
+	NotifyHackFinished(true);
 	RefreshStatusText();
 	RebuildBoardVisual();
 }
@@ -774,6 +855,15 @@ void UShockHackingMinigame::FinishFail(bool bFromOverload)
 		const float MaxSafeDamage = FMath::Max(0.0f, Player->GetCurrentHealth() - 1.0f);
 		Player->ApplyAuthoredDamage(FMath::Min(RawDamage, MaxSafeDamage));
 	}
+	// Guide: dormant bot explodes after a failed hack, not after simply closing the puzzle.
+	if (AShockSecurityBot* Bot = ResolveBot())
+	{
+		if (Bot->IsDormant())
+		{
+			Bot->ExplodeFromFailedHack();
+		}
+	}
+	NotifyHackFinished(false);
 	RefreshStatusText();
 	RebuildBoardVisual();
 }
@@ -1085,6 +1175,7 @@ void UShockHackingMinigame::OpenMinigame(float Difficulty01)
 	SetVisibility(ESlateVisibility::Visible);
 	SetPaused(true);
 	SetKeyboardFocus();
+	DispatchHackingMessage(FName(TEXT("MessagePlayerStartedHacking")), false, false);
 }
 
 void UShockHackingMinigame::ForceOpenForCapture()
@@ -1103,6 +1194,11 @@ void UShockHackingMinigame::ForceOpenForCapture()
 
 void UShockHackingMinigame::CloseMinigame()
 {
+	// Closing while still Playing is a cancel: FinishedHacking(SuccessfulHack=False), no bot explode.
+	if (bOpen && Result == EShockHackResult::Playing)
+	{
+		NotifyHackFinished(false);
+	}
 	bOpen = false;
 	SetVisibility(ESlateVisibility::Collapsed);
 	if (bDidPause)
@@ -1250,15 +1346,20 @@ bool UShockHackingMinigame::RunHeadlessHackingMinigameVerify(UObject* WorldConte
 	{
 		Menu->AdvanceMinigame(0.1f);
 	}
-	if (Menu->GetResult() != EShockHackResult::Won || !Menu->DidCallSetSecurityHacked()
-		|| !Player->IsSecurityHacked())
+	if (Menu->GetResult() != EShockHackResult::Won || !Menu->DidApplyHackSuccess()
+		|| Player->IsSecurityHacked()
+		|| Turret->GetAllegiance() != EShockDeviceAllegiance::Friendly)
 	{
 		Menu->RemoveFromParent();
 		return Fail(FString::Printf(
-			TEXT("scripted win did not SetSecurityHacked (result=%d fluid=%.2f path=%d)"),
+			TEXT("scripted win should flip device only (result=%d fluid=%.2f path=%d "
+				 "applied=%d sysHack=%d alleg=%d)"),
 			static_cast<int32>(Menu->GetResult()),
 			Menu->GetFluidProgress(),
-			Menu->HasPathSourceToTarget() ? 1 : 0));
+			Menu->HasPathSourceToTarget() ? 1 : 0,
+			Menu->DidApplyHackSuccess() ? 1 : 0,
+			Player->IsSecurityHacked() ? 1 : 0,
+			static_cast<int32>(Turret->GetAllegiance())));
 	}
 	Menu->CloseMinigame();
 	Player->SetSecurityHacked(false, 0.0f);
@@ -1269,11 +1370,11 @@ bool UShockHackingMinigame::RunHeadlessHackingMinigameVerify(UObject* WorldConte
 	{
 		Menu->AdvanceMinigame(0.1f);
 	}
-	if (Menu->GetResult() != EShockHackResult::Failed || Menu->DidCallSetSecurityHacked()
+	if (Menu->GetResult() != EShockHackResult::Failed || Menu->DidApplyHackSuccess()
 		|| Player->IsSecurityHacked())
 	{
 		Menu->RemoveFromParent();
-		return Fail(TEXT("scripted lose should fail without SetSecurityHacked"));
+		return Fail(TEXT("scripted lose should fail without device/system hack"));
 	}
 	Menu->CloseMinigame();
 
@@ -1308,10 +1409,11 @@ bool UShockHackingMinigame::RunHeadlessHackingMinigameVerify(UObject* WorldConte
 		Menu->RemoveFromParent();
 		return Fail(TEXT("TryBuyOut failed"));
 	}
-	if (Player->GetMoney() != MoneyBefore - Cost || !Menu->DidCallSetSecurityHacked())
+	if (Player->GetMoney() != MoneyBefore - Cost || !Menu->DidApplyHackSuccess()
+		|| Player->IsSecurityHacked())
 	{
 		Menu->RemoveFromParent();
-		return Fail(TEXT("buy-out did not spend money / SetSecurityHacked"));
+		return Fail(TEXT("buy-out did not spend money / apply device hack (must not SetSecurityHacked)"));
 	}
 	Menu->CloseMinigame();
 	Menu->RemoveFromParent();

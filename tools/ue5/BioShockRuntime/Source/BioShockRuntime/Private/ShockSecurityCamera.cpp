@@ -11,7 +11,9 @@
 AShockSecurityCamera::AShockSecurityCamera()
 {
 	Allegiance = EShockDeviceAllegiance::Hostile;
-	DetectionHalfAngleDeg = 90.0f;
+	// Guide 31: FOV default 60° wide → half-angle 30; SightDistance default 1000.
+	DetectionRange = 1000.0f;
+	DetectionHalfAngleDeg = 30.0f;
 
 	Spotlight = CreateDefaultSubobject<USpotLightComponent>(TEXT("Spotlight"));
 	if (Spotlight)

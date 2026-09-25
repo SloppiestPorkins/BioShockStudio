@@ -5,6 +5,7 @@
 #include "ShockHackingMinigame.generated.h"
 
 class AShockPlayer;
+class AShockSecurityBot;
 class AShockSecurityDevice;
 class UButton;
 class UHorizontalBox;
@@ -31,6 +32,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|UI|Hacking")
 	void BindDevice(AShockSecurityDevice* Device);
+
+	/** Dormant security bot as the hack target (explode-on-fail path). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|UI|Hacking")
+	void BindBot(AShockSecurityBot* Bot);
 
 	/** Build a difficulty-scaled board and start fluid after a short delay. */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|UI|Hacking")
@@ -91,8 +96,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Hacking")
 	int32 GetBuyOutCost() const { return BuyOutCost; }
 
+	/**
+	 * True after a win applied allegiance / bot-friend on the bound target.
+	 * Does NOT mean SetSecurityHacked (system shutdown) — that is ActionHackSecuritySystem only.
+	 */
 	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Hacking")
-	bool DidCallSetSecurityHacked() const { return bDidSetSecurityHacked; }
+	bool DidApplyHackSuccess() const { return bDidApplyHackSuccess; }
+
+	/** @deprecated Prefer DidApplyHackSuccess — kept so older verifies compile until updated. */
+	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Hacking", meta = (DeprecatedFunction))
+	bool DidCallSetSecurityHacked() const { return bDidApplyHackSuccess; }
 
 	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Hacking")
 	bool DidRaiseAlarm() const { return bDidRaiseAlarm; }
@@ -142,6 +155,8 @@ protected:
 
 	AShockPlayer* ResolvePlayer() const;
 	AShockSecurityDevice* ResolveDevice() const;
+	AShockSecurityBot* ResolveBot() const;
+	AActor* ResolveHackTargetActor() const;
 
 	void BuildBoardForDifficulty(float Difficulty01);
 	void ScaleParamsFromDifficulty(float Difficulty01);
@@ -149,6 +164,8 @@ protected:
 	void FinishWin();
 	void FinishFail(bool bFromOverload);
 	void ApplyHackSuccessToWorld();
+	void DispatchHackingMessage(FName MessageClass, bool bIncludeSuccessField, bool bSuccessfulHack);
+	void NotifyHackFinished(bool bSuccessfulHack);
 
 	int32 IndexAt(int32 X, int32 Y) const;
 	bool InBounds(int32 X, int32 Y) const;
@@ -177,9 +194,10 @@ protected:
 	EShockHackResult Result = EShockHackResult::Playing;
 	bool bOpen = false;
 	bool bDidPause = false;
-	bool bDidSetSecurityHacked = false;
+	bool bDidApplyHackSuccess = false;
 	bool bDidRaiseAlarm = false;
 	bool bAlarmTriggered = false;
+	bool bDidDispatchFinishedHacking = false;
 	TSet<int32> HazardsTriggered;
 
 	int32 SelectedTileIndex = INDEX_NONE;
@@ -222,6 +240,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AShockSecurityDevice> BoundDevice;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AShockSecurityBot> BoundBot;
 
 	static FString LastHackingMinigameVerifyError;
 };

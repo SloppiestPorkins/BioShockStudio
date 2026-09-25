@@ -108,8 +108,33 @@ Ranked by how much Medical’s shipped layout depends on the mechanic (counts fr
 
 ---
 
+## Status (25 Sept)
+
+Gameplay fidelity batch applied against current runtime (re-verified each claim before edit).
+Verify: `tools/ue5/verify_gameplay_fidelity.py`. Related verifies updated where they encoded old
+behaviour: `verify_security.py` (`alarm_clear_despawns_bot` → keep-by-default + opt-in despawn);
+`ShockHackingMinigame::RunHeadlessHackingMinigameVerify` (win must **not** call
+`SetSecurityHacked`).
+
+| id | status | notes |
+| --- | --- | --- |
+| B01 | FIXED | `ApplyHackSuccessToWorld` flips bound device/bot only. System shutdown remains `SetSecurityHacked` / `ActionHackSecuritySystem`. Instant hack path already matched. |
+| B02 | FIXED | `ResolveSpawnLocation` uses player-relative 3000–6000 (1500–4000 vs AI), PathNode/FlyingPathNode/labelled markers, nav-mesh samples, failed LOS; honours `NextSpawnLocationLabel`; falls back to `+ (250,0,0)` with log. |
+| B03 | FIXED | Non-scripted `AShockTurretSpawner` spawns at BeginPlay; proximity defer removed. |
+| B04 | FIXED | Defaults only: `DetectionRange=1000` on device base; camera ctor half-angle **30** (FOV 60). Existing camera/hacking verifies set properties explicitly — default change does not break them (range still covers their 350–400 uu layouts). |
+| B05 | FIXED | `MaxActiveBots=4`; re-alarm while on adds +1 bot (hack-alarm path). |
+| B08 | FIXED | Guide silent (U03). `BotLifetimeAfterAlarmClearSeconds` default **-1 = never**; positive values keep opt-in delayed despawn for tests. |
+| B10 | FIXED | `CraftRecipe` uses `ceil(0.8 * count)` when `Station->bHacked`. |
+| B11 | FIXED | `BeginPlay` schedules `SpawnInitial` at 0.25 s. **Import check:** `import_slice_enemies.py` places AggressorSpawner markers only (InitialArchetypes filled); no live `BaseShockAI`. ProtectorSpawner not imported. No double-spawn risk with already-placed enemies. |
+| B12 | DEFERRED | Vita `bActive` still defaults **true**. Changing it would alter current respawn behaviour the player uses; report-only as requested. |
+| G19 | FIXED | Dormant bot (`SetDormant`) explodes on `FinishFail`; `CloseMinigame` cancel does not. |
+| G20 | FIXED | `MessagePlayerStartedHacking` / `MessagePlayerFinishedHacking` (`SuccessfulHack`, `ActorLabel`) from minigame + instant `TryHackDevice`. |
+| B06/B07/B09 | DEFERRED | Hacking.ini / vending-table importers — separate tasks. |
+| ecology | DEFERRED | Out of scope for this batch. |
+
 ## Notes for reviewers
 
 - Do **not** treat LootTables.ini runtime rolls, full spawn-manager/archetype system, or Gatherer ecology as newly discovered — they remain known-open; listed under GAP only for Medical planning.
 - Prior session fixes (health 16/10, hack non-lethal cap, security tick + 60 s expiry, etc.) were re-checked as still present and counted under OK where relevant.
 - Copyright: no guide prose copied; facts only.
+

@@ -25,11 +25,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|Security")
 	EShockDeviceAllegiance Allegiance = EShockDeviceAllegiance::Neutral;
 
-	/** ShockAI ViewDistance default (Turret.uc PreBeginPlay / ShockAI.uc). */
+	/** ShockAI ViewDistance / camera SightDistance default (guide: 1000). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
-	float DetectionRange = 3000.0f;
+	float DetectionRange = 1000.0f;
 
-	/** PLAUSIBLE — standby acquisition cone; shipped turret StandbyFOV is 360 (full sweep). */
+	/**
+	 * Half-angle of the acquisition cone. Cameras override to 30 (FOV 60° wide).
+	 * Turrets keep a wide standby cone here; camera ctor sets 30.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|Security")
 	float DetectionHalfAngleDeg = 90.0f;
 

@@ -55,6 +55,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Security|Bot")
 	void ActivateForPlayer(AShockPlayer* Player);
 
+	/** Placed dormant bot (hackable; explodes on failed hack). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Security|Bot")
+	void SetDormant(bool bInDormant);
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Security|Bot")
+	bool IsDormant() const { return bDormant; }
+
+	/** Guide: dormant bot explodes after a failed hack (not after cancel/close). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Security|Bot")
+	void ExplodeFromFailedHack();
+
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Security|Bot")
 	void CommandAttackLabel(FName TargetLabel);
 
@@ -93,6 +104,7 @@ private:
 	EShockDeviceAllegiance AllegianceBeforeShutdown = EShockDeviceAllegiance::Hostile;
 
 	bool bBotOperational = true;
+	bool bDormant = false;
 	bool bInSecurityShutdown = false;
 	float SecurityShutdownRemaining = 0.0f;
 	int32 BotFireCount = 0;

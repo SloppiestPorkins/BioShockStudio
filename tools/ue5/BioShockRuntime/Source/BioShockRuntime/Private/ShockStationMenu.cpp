@@ -574,20 +574,33 @@ bool UShockUInventMenu::CraftRecipe(int32 RecipeIndex)
 		return false;
 	}
 	const FShockCraftRecipe& R = Recipes[RecipeIndex];
+	const AShockStationBase* Station = ResolveStation();
+	const bool bHacked = Station && Station->bHacked;
+
 	for (const TPair<FName, int32>& Pair : R.Components)
 	{
-		if (Player->GetInventoryStack(Pair.Key) < Pair.Value)
+		if (Player->GetInventoryStack(Pair.Key) < ComponentCostForHackState(Pair.Value, bHacked))
 		{
 			return false;
 		}
 	}
 	for (const TPair<FName, int32>& Pair : R.Components)
 	{
-		Player->RemoveStackFromInventory(Pair.Key, Pair.Value);
+		Player->RemoveStackFromInventory(
+			Pair.Key, ComponentCostForHackState(Pair.Value, bHacked));
 	}
 	Player->AddStackToInventory(R.ResultItem, R.ResultStack);
 	RebuildContent();
 	return true;
+}
+
+int32 UShockUInventMenu::ComponentCostForHackState(int32 FullCount, bool bHacked)
+{
+	if (FullCount <= 0)
+	{
+		return 0;
+	}
+	return bHacked ? FMath::CeilToInt(0.8f * static_cast<float>(FullCount)) : FullCount;
 }
 
 // --- Gatherer's Garden -------------------------------------------------------

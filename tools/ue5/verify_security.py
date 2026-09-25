@@ -95,7 +95,8 @@ def main(out):
 
     sec = unreal.ShockSecuritySubsystem.get_for_world(world)
     if sec:
-        sec.set_editor_property("bot_lifetime_after_alarm_clear_seconds", 0.25)
+        # Default BotLifetimeAfterAlarmClearSeconds is -1 (never). Opt-in delay unused here.
+        sec.set_editor_property("bot_lifetime_after_alarm_clear_seconds", -1.0)
 
     # --- (a) hostile camera alerts and spawns bot ---
     player_loc = unreal.Vector(0.0, 0.0, 100.0)
@@ -109,6 +110,10 @@ def main(out):
     else:
         player.ensure_health_initialized()
         camera.configure_for_verify(unreal.Name("SecCamera"), ALLEGIANCE_HOSTILE, 40.0)
+        # The camera's real default cone is 60 degrees wide / 1000 uu (SDK guide ch.31) and it
+        # sweeps; this test is about alert->alarm->bot mechanics, so give it a wide cone.
+        camera.set_editor_property("detection_half_angle_deg", 90.0)
+        camera.set_editor_property("detection_range", 3000.0)
         camera.set_editor_property("alert_threshold", 1.5)
         yaw = _yaw_toward(camera.get_actor_location(), player.get_actor_location())
         camera.set_actor_rotation(unreal.Rotator(0.0, yaw, 0.0), False)
@@ -189,7 +194,7 @@ def main(out):
     _destroy_all(subsystem, spawned)
     spawned = []
 
-    # --- (c) alarm clear despawns bot ---
+    # --- (c) alarm clear keeps bots (guide silent on despawn; default lifetime=-1 never) ---
     clear_player = _spawn(subsystem, player_cls, "ClearPlayer", unreal.Vector(0.0, 400.0, 100.0))
     spawned.append(clear_player)
     if clear_player and sec:
@@ -200,7 +205,25 @@ def main(out):
         clear_player.set_security_alarm_on(False, unreal.Name(""))
         _tick_security(world, 0.5)
         after = int(sec.get_active_bot_count_for_verify())
-        check("alarm_clear_despawns_bot", before >= 1 and after == 0, {"before": before, "after": after})
+        check(
+            "alarm_clear_keeps_bots",
+            before >= 1 and after == before,
+            {"before": before, "after": after},
+        )
+        # Explicit positive lifetime still despawns (opt-in / old behaviour).
+        sec.set_editor_property("bot_lifetime_after_alarm_clear_seconds", 0.25)
+        clear_player.set_security_alarm_on(True, unreal.Name("ClearAlarm2"))
+        sec.spawn_bots_near(unreal.Vector(400.0, 400.0, 100.0), 1, clear_player)
+        before2 = int(sec.get_active_bot_count_for_verify())
+        clear_player.set_security_alarm_on(False, unreal.Name(""))
+        _tick_security(world, 0.5)
+        after2 = int(sec.get_active_bot_count_for_verify())
+        check(
+            "alarm_clear_optin_despawn",
+            before2 >= 1 and after2 == 0,
+            {"before": before2, "after": after2},
+        )
+        sec.set_editor_property("bot_lifetime_after_alarm_clear_seconds", -1.0)
 
     _destroy_all(subsystem, spawned)
     spawned = []

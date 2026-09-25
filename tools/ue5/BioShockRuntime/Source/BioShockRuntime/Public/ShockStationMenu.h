@@ -178,6 +178,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|UI|Station|UInvent")
 	bool CraftRecipe(int32 RecipeIndex);
 
+	/** Guide: hacked U-Invent uses ceil(0.8 * count) per component. */
+	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Station|UInvent")
+	static int32 ComponentCostForHackState(int32 FullCount, bool bHacked);
+
 	UFUNCTION(BlueprintPure, Category = "BioShock|UI|Station|UInvent")
 	int32 GetRecipeCount() const { return Recipes.Num(); }
 

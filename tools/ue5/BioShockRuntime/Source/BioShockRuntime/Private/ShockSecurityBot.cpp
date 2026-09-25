@@ -106,6 +106,7 @@ void AShockSecurityBot::ActivateForPlayer(AShockPlayer* Player)
 	AuthoredHealth = BotHealth;
 	EnsureHealthInitialized();
 
+	bDormant = false;
 	SetBotAllegiance(EShockDeviceAllegiance::Hostile);
 	EnsureBotWeapon();
 	RefreshCombatTargeting();
@@ -123,6 +124,37 @@ void AShockSecurityBot::ActivateForPlayer(AShockPlayer* Player)
 	{
 		Security->RegisterBot(this);
 	}
+}
+
+void AShockSecurityBot::SetDormant(bool bInDormant)
+{
+	bDormant = bInDormant;
+	if (bDormant)
+	{
+		bBotOperational = false;
+		ClearCombatTargetPawn();
+	}
+	else if (BotAllegiance != EShockDeviceAllegiance::Disabled)
+	{
+		bBotOperational = true;
+		RefreshCombatTargeting();
+	}
+}
+
+void AShockSecurityBot::ExplodeFromFailedHack()
+{
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_BOT_EXPLODE label=%s reason=failed_hack_dormant"),
+		*GetScriptLabel().ToString());
+	if (UShockSecuritySubsystem* Security = UShockSecuritySubsystem::Get(GetWorld()))
+	{
+		Security->UnregisterBot(this);
+	}
+	bDormant = false;
+	bBotOperational = false;
+	Destroy();
 }
 
 void AShockSecurityBot::CommandAttackLabel(FName TargetLabel)
