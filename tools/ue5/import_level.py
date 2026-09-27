@@ -138,6 +138,57 @@ def _place(actor, entry, key, convert_location=False):
     actor.tags = tags
 
 
+# UE2 ELightType ordinal -> our EShockLightEffectType (SCR-G07 / W-BUG-03). Engine.u's ELightType
+# is a native base-engine enum with no decompiled UE2 source in this repo; 0-5 are read off its
+# declared order (None, Steady, Pulse, Blink, Flicker, Strobe) and happen to already match our own
+# component's first six ordinals one-for-one. 7 is SubtlePulse, one slot further along than our
+# component's SubtlePulse (6) because our enum has no BackdropLight slot. 6/8/9/10 (BackdropLight,
+# the two TexturePalette modes, FadeOut) have no equivalent modulator here — an authored texture
+# palette isn't decoded, so a light using one stays steady rather than getting a guessed waveform.
+_UE2_LIGHT_TYPE_TO_EFFECT = {
+    # 0 (LT_None) is handled separately in _apply_light_effect — it means the light is off, not
+    # just unanimated, so it never reaches this table.
+    2: "Pulse",
+    3: "Blink",
+    4: "Flicker",
+    5: "Strobe",
+    7: "SubtlePulse",
+}
+
+
+def _apply_light_effect(actor, light, component):
+    """SCR-G07 / W-BUG-03: animate LightType via UShockLightEffectComponent; steady is untouched."""
+    light_type = light.get("type")
+    if light_type is None:
+        return
+    light_type = int(light_type)
+    if light_type == 0:
+        # LT_None: the guide's light-types table describes this ordinal as the light being off,
+        # not merely unanimated — an authored radius/brightness still exists (this importer would
+        # otherwise light the room), so zero the intensity rather than skip it.
+        component.set_editor_property("intensity", 0.0)
+        return
+    effect_name = _UE2_LIGHT_TYPE_TO_EFFECT.get(light_type)
+    if not effect_name:
+        return  # unmapped ordinal (BackdropLight/TexturePalette*/FadeOut) — leave steady, not guessed
+    effect_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockLightEffectComponent")
+    if effect_cls is None:
+        return
+    effect_component = unreal.ShockLightEffectComponent.ensure_on_actor(actor)
+    if effect_component is None:
+        return
+    period_raw = light.get("period")
+    # LightPeriod's authored unit is UNKNOWN (byte/scale APPROXIMATED per the component's own
+    # comment); treat it as already-seconds rather than invent a conversion factor.
+    period_seconds = float(period_raw) if period_raw else 1.0
+    base_intensity = float(component.get_editor_property("intensity"))
+    effect_component.configure(
+        getattr(unreal.EShockLightEffectType, effect_name),
+        base_intensity,
+        max(period_seconds, 0.1),
+        0.0)  # LightPhase is not exported (UNKNOWN offset) — start at cycle 0 rather than guess.
+
+
 def _import_lights(manifest, existing, report, handled):
     """Lights are the one class reproduced as a real, functioning UE5 actor."""
     for light in manifest.get("lights") or []:
@@ -201,6 +252,7 @@ def _import_lights(manifest, existing, report, handled):
         brightness = light.get("brightness")
         component.set_editor_property(
             "intensity", float(brightness) if brightness is not None else 1.0)
+        _apply_light_effect(actor, light, component)
 
 
 def _import_cubemap_faces(manifest, export_directory, destination, report):

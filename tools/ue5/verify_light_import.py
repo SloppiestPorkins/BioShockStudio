@@ -76,13 +76,17 @@ def main(manifest_path=None, report_path=None):
         radius = float(component.get_editor_property("attenuation_radius"))
         intensity = float(component.get_editor_property("intensity"))
         inverse = bool(component.get_editor_property("use_inverse_squared_falloff"))
-        expected_intensity = float(light["brightness"]) if light.get("brightness") is not None else 1.0
+        authored_intensity = float(light["brightness"]) if light.get("brightness") is not None else 1.0
+        light_type = light.get("type")
+        # SCR-G07 / W-BUG-03: LT_None (type 0) means the light is off, not just unanimated.
+        expected_intensity = 0.0 if light_type == 0 else authored_intensity
         expected_radius = float(light["radius"])
         sample = {
             "key": light["key"],
             "attenuationRadius": radius,
             "intensity": intensity,
             "inverseSquared": inverse,
+            "lightType": light_type,
         }
         report["lights"].append(sample)
         if abs(radius - expected_radius) > 0.5:
@@ -93,6 +97,24 @@ def main(manifest_path=None, report_path=None):
             failures.append("%s still inverse-squared" % light["key"])
         if expected_intensity > 0.05 and intensity >= expected_intensity * 50:
             failures.append("%s intensity %s looks like the old *1000 guess" % (light["key"], intensity))
+
+        effect_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockLightEffectComponent")
+        effect = actor.get_component_by_class(effect_cls) if effect_cls else None
+        mapped_effect_ordinals = import_level._UE2_LIGHT_TYPE_TO_EFFECT
+        if light_type in mapped_effect_ordinals:
+            if effect is None:
+                failures.append("%s type %s got no ShockLightEffectComponent" % (light["key"], light_type))
+            else:
+                expected_ordinal = int(getattr(
+                    unreal.EShockLightEffectType, mapped_effect_ordinals[light_type]))
+                got_ordinal = int(effect.get_effect_type_for_verify())
+                if got_ordinal != expected_ordinal:
+                    failures.append(
+                        "%s effect ordinal %s != expected %s"
+                        % (light["key"], got_ordinal, expected_ordinal))
+        elif light_type not in (None, 0) and effect is not None:
+            failures.append(
+                "%s type %s is unmapped but still got an effect component" % (light["key"], light_type))
 
     if failures:
         raise RuntimeError("light mapping failed:\n- " + "\n- ".join(failures[:20]))

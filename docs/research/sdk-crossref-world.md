@@ -91,6 +91,16 @@ Guide chapters: 06 Mapping Guidelines · 07 BSP · 08 Zones/Portals · 09 Actors
 
 ---
 
+## Status (28 Sept)
+
+| id | status | notes |
+| --- | --- | --- |
+| W-BUG-03 | FIXED | `import_level._apply_light_effect` maps the authored `type`/`period` onto y8's `UShockLightEffectComponent` (Pulse/Blink/Flicker/Strobe/SubtlePulse). Ordinal table taken from the community SDK's declared light-type order, which the census (0,2,3,4,5,7,9 seen in `1-Medical`) is consistent with. Explicit `LT_None` (type 0) now zeroes intensity — the guide's table calls that ordinal "off", not merely unanimated, so it was previously lighting rooms it shouldn't. `LT_BackdropLight`/both `TexturePalette*`/`LT_FadeOut` have no decoded waveform to drive and stay steady rather than guessed. `LightPhase` is still not exported — every animated light starts its cycle at 0. Verified against the real `1-Medical` census (`verify_light_import.py` via `run_light_look.py`), not synthetic data. |
+| W-BUG-01, W-BUG-02, W-BUG-05, W-BUG-06, W-BUG-07 | OPEN | Each needs either a level re-import + visual capture pass (spot/directional shape, mask channel) or new runtime systems (per-zone ambient, cascading water) — bigger than a self-contained fix; not attempted this pass. |
+| W-BUG-04 | OPEN — deliberately not touched | Current 88uu (176cm) half-height has a reasoned comment (movement/weapon/viewmodel tuning all happened at this height); the schema's 68 is the shipped default but flipping it would invalidate a lot of already capture-verified work (melee reach, viewmodel offsets, camera FOV) without a human PIE pass to re-tune against. Needs the user's call, not a blind revert. |
+
+
+
 ## N/A (editor / SDK-tooling how-to; no runtime mismatch to score)
 
 - **ch.07** brush builders, CSG UI, 2D shape editor, vertex clip modes — we consume cooked BSP, we do not author brushes.
