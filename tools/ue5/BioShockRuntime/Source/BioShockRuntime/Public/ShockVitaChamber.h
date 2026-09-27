@@ -41,8 +41,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock|VitaChamber")
 	FString SourceKey;
 
+	// SCR audit B12: a Vita-Chamber the player has never approached is not activated (the
+	// original ignores it entirely — with none active, death falls back rather than resurrecting
+	// at that chamber). ActivationVolume + OnActivationVolumeBeginOverlap below flip this true the
+	// moment the player enters its ~230uu radius, and the level's own scripted TriggerVolume ->
+	// ActionActivateResurrectionStation path (e.g. ResStation_FoyerActiveTV) does the same.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|VitaChamber")
-	bool bActive = true;
+	bool bActive = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BioShock|VitaChamber")
 	bool bAvailable = true;

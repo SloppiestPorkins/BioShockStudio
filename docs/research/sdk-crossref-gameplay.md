@@ -126,7 +126,7 @@ behaviour: `verify_security.py` (`alarm_clear_despawns_bot` → keep-by-default 
 | B08 | FIXED | Guide silent (U03). `BotLifetimeAfterAlarmClearSeconds` default **-1 = never**; positive values keep opt-in delayed despawn for tests. |
 | B10 | FIXED | `CraftRecipe` uses `ceil(0.8 * count)` when `Station->bHacked`. |
 | B11 | FIXED | `BeginPlay` schedules `SpawnInitial` at 0.25 s. **Import check:** `import_slice_enemies.py` places AggressorSpawner markers only (InitialArchetypes filled); no live `BaseShockAI`. ProtectorSpawner not imported. No double-spawn risk with already-placed enemies. |
-| B12 | DEFERRED | Vita `bActive` still defaults **true**. Changing it would alter current respawn behaviour the player uses; report-only as requested. |
+| B12 | FIXED (28 Sept) | `bActive` now defaults **false**; the importer no longer forces it on. Confirmed the level's own `ActionActivateResurrectionStation` on `ResStation_Foyer`/`ResStation_Surgery` (via `ResStation_*ActiveTV` trigger volumes) plus `AShockVitaChamber`'s own proximity `ActivationVolume` both flip it — the fix only removes the redundant forced-on default, not new behaviour. See `docs/research/vita-chamber.md`. |
 | G19 | FIXED | Dormant bot (`SetDormant`) explodes on `FinishFail`; `CloseMinigame` cancel does not. |
 | G20 | FIXED | `MessagePlayerStartedHacking` / `MessagePlayerFinishedHacking` (`SuccessfulHack`, `ActorLabel`) from minigame + instant `TryHackDevice`. |
 | B06/B07/B09 | DEFERRED | Hacking.ini / vending-table importers — separate tasks. |

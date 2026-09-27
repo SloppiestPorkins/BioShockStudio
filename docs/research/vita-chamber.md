@@ -51,8 +51,18 @@ and grants two seconds of invulnerability. It does not reload or reconstruct the
   from that floor and adds only that amount. EVE already above 75% therefore remains unchanged.
 - Availability and activation are separate, matching `bIsAvailable` and `bIsActivated`.
   `ActionActivateResurrectionStation` changes activation;
-  `ActionDisableOrEnableResurrectionStation` changes availability. The slice defaults both
-  Medical chambers active and available.
+  `ActionDisableOrEnableResurrectionStation` changes availability. **Fixed 28 Sept (audit B12):**
+  the slice previously defaulted both Medical chambers active on import, which the audit flagged —
+  the guide's machine chapter treats an un-activated chamber as ignored entirely. `AShockVitaChamber`
+  now spawns `bActive=false`; it flips true the moment the player enters its own ~230uu
+  `ActivationVolume` (self-contained proximity activation), and `1-Medical`'s own scripted
+  `ResStation_FoyerActiveTV` / `ResStation_SurgeryActiveTV` trigger volumes independently fire
+  `ActionActivateResurrectionStation` for the same effect — both paths were already present in the
+  runtime and level export; only the importer's forced `set_active(True)` and the class default were
+  wrong. A death with no chamber ever approached falls back to `RespawnStartSpot`
+  (`ShockDeathRespawnHandler.cpp`), not the main menu — an already-known, separately tracked
+  deviation. `bAvailable` (`ActionDisableOrEnableResurrectionStation`) is unaffected and still
+  defaults true.
 - `GetClosestStation` and `CanResurrectHere` are native and their bodies are absent from the
   decompiled UC. The exact shipped path-cost/line-distance algorithm is therefore **UNKNOWN**.
   The slice uses three-dimensional straight-line distance between the death point and each active,

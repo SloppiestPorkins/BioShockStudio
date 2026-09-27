@@ -492,7 +492,8 @@ def main(out):
     _destroy_all(subsystem, spawned)
     spawned = []
 
-    # --- B12 report only (do not change VitaChamber default) ---
+    # --- B12: chambers are NOT active until approached (fixed 28 Sept — see verify_vita_chamber
+    # for the full proximity/fallback checks; this just confirms the spawn default). ---
     if vita_cls:
         vita = _spawn(subsystem, vita_cls, "FidVita", unreal.Vector(9000.0, 0.0, 100.0))
         spawned.append(vita)
@@ -500,8 +501,8 @@ def main(out):
             active = bool(vita.get_editor_property("active"))
             report["B12_vita_default_active"] = active
             check(
-                "B12_report_only_default_still_true",
-                active is True,
+                "B12_default_inactive_until_approached",
+                active is False,
                 active,
             )
     _destroy_all(subsystem, spawned)

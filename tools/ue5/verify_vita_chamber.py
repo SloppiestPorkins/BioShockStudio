@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 
 import unreal
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import import_level
 
 MAP_PATH = "/Game/BioShockSlice/1-Medical"
@@ -115,6 +117,9 @@ def main(out_path=None, manifest_path=MANIFEST):
         }
         for actor in chambers
     ]
+    # SCR-B12: import must NOT force chambers active — activation is proximity/script-driven.
+    if any(_flag(actor.can_resurrect) for actor in chambers):
+        failures.append("a freshly imported chamber is already active (should require approach)")
     expected_keys = {entry["key"] for entry in expected}
     imported_keys = {
         str(actor.get_editor_property("source_key")) for actor in chambers
@@ -143,6 +148,17 @@ def main(out_path=None, manifest_path=MANIFEST):
             player.set_current_eve_for_verify(0.0)
             max_health = float(player.get_current_health())
             max_eve = float(player.get_max_eve())
+
+            # SCR-B12: neither chamber activates on its own; simulate the player having walked
+            # past `near` (as AShockVitaChamber's own ActivationVolume would on overlap) while
+            # `far` is left untouched — proving an unapproached chamber is never selected.
+            if _flag(near.can_resurrect):
+                failures.append("near chamber active before proximity/script activation")
+            if _flag(far.can_resurrect):
+                failures.append("far chamber active before proximity/script activation")
+            near.set_active(True)
+            if not _flag(near.can_resurrect):
+                failures.append("near chamber did not activate")
 
             ai.configure_identity("Agg_BabyJane", "VitaVerifyAI")
             ai.ensure_health_initialized()
@@ -193,6 +209,29 @@ def main(out_path=None, manifest_path=MANIFEST):
                 failures.append("pre-damaged AI health changed across respawn")
             if str(ai.get_behaviour_state_name()) not in ("Search", "Idle"):
                 failures.append("AI did not leave combat after respawn")
+
+            # SCR-B12 negative: with the (now activated) `near` chamber deactivated again and
+            # `far` never approached, no chamber is active — death must fall back rather than
+            # resurrecting at either.
+            near.set_active(False)
+            player.set_invincible(False)  # clear the first respawn's brief post-respawn grace
+            handler2 = unreal.new_object(handler_cls, outer=player)
+            handler2.set_editor_property("respawn_delay_seconds", 4.8)
+            handler2.initialize(unreal.EditorLevelLibrary.get_editor_world(), player, fallback)
+            player.ensure_health_initialized()
+            unreal.ShockDamageLibrary.apply_damage(
+                player, float(player.get_current_health()), ai, unreal.Name("VitaVerify"))
+            handler2.advance_respawn_for_verify(4.8)
+            no_chamber_selected = handler2.get_last_selected_chamber()
+            report["noActiveChamberFallback"] = {
+                "selected": no_chamber_selected.get_actor_label() if no_chamber_selected else None,
+                "distanceToFallback": _distance(
+                    player.get_actor_location(), fallback.get_actor_location()),
+            }
+            if no_chamber_selected is not None:
+                failures.append("a chamber was selected with none active")
+            if _distance(player.get_actor_location(), fallback.get_actor_location()) > 5.0:
+                failures.append("player not returned to the fallback PlayerStart")
 
     for actor in spawned:
         if actor:

@@ -365,7 +365,9 @@ def _import_vita_chambers(manifest, meshes, existing, report, handled):
         if mesh is not None:
             actor.set_station_mesh(mesh)
         actor.set_available(True)
-        actor.set_active(True)
+        # SCR-B12: available (usable when active) != active. A chamber is not activated until the
+        # player approaches it (AShockVitaChamber's own overlap volume) or a level script fires
+        # ActionActivateResurrectionStation — do not force it on at import.
         report["vitaChambersPlaced"] = report.get("vitaChambersPlaced", 0) + 1
 
 
