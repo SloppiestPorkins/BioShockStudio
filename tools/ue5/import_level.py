@@ -138,21 +138,25 @@ def _place(actor, entry, key, convert_location=False):
     actor.tags = tags
 
 
-# UE2 ELightType ordinal -> our EShockLightEffectType (SCR-G07 / W-BUG-03). Engine.u's ELightType
-# is a native base-engine enum with no decompiled UE2 source in this repo; 0-5 are read off its
-# declared order (None, Steady, Pulse, Blink, Flicker, Strobe) and happen to already match our own
-# component's first six ordinals one-for-one. 7 is SubtlePulse, one slot further along than our
-# component's SubtlePulse (6) because our enum has no BackdropLight slot. 6/8/9/10 (BackdropLight,
-# the two TexturePalette modes, FadeOut) have no equivalent modulator here — an authored texture
-# palette isn't decoded, so a light using one stays steady rather than getting a guessed waveform.
+# UE2 ELightType ordinal -> our EShockLightEffectType ordinal (SCR-G07 / W-BUG-03). Engine.u's
+# ELightType is a native base-engine enum with no decompiled UE2 source in this repo; 0-5 are read
+# off its declared order (None, Steady, Pulse, Blink, Flicker, Strobe) and happen to already match
+# our own component's first six ordinals (see ShockLightEffectComponent.h) one-for-one. 7 is
+# SubtlePulse, one slot further along than our component's SubtlePulse (6) because our enum has no
+# BackdropLight slot. 6/8/9/10 (BackdropLight, the two TexturePalette modes, FadeOut) have no
+# equivalent modulator here — an authored texture palette isn't decoded, so a light using one stays
+# steady rather than getting a guessed waveform. Values are (name-for-logging, our-ordinal); the
+# ordinal is what actually gets written — unreal.EShockLightEffectType is not attribute-accessible
+# on the unreal module in a commandlet that has never otherwise touched the enum by name, but a
+# plain int coerces into an EnumProperty fine via set_editor_property.
 _UE2_LIGHT_TYPE_TO_EFFECT = {
     # 0 (LT_None) is handled separately in _apply_light_effect — it means the light is off, not
     # just unanimated, so it never reaches this table.
-    2: "Pulse",
-    3: "Blink",
-    4: "Flicker",
-    5: "Strobe",
-    7: "SubtlePulse",
+    2: ("Pulse", 2),
+    3: ("Blink", 3),
+    4: ("Flicker", 4),
+    5: ("Strobe", 5),
+    7: ("SubtlePulse", 6),
 }
 
 
@@ -168,9 +172,10 @@ def _apply_light_effect(actor, light, component):
         # otherwise light the room), so zero the intensity rather than skip it.
         component.set_editor_property("intensity", 0.0)
         return
-    effect_name = _UE2_LIGHT_TYPE_TO_EFFECT.get(light_type)
-    if not effect_name:
+    mapped = _UE2_LIGHT_TYPE_TO_EFFECT.get(light_type)
+    if not mapped:
         return  # unmapped ordinal (BackdropLight/TexturePalette*/FadeOut) — leave steady, not guessed
+    _effect_name, effect_ordinal = mapped
     effect_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockLightEffectComponent")
     if effect_cls is None:
         return
@@ -182,11 +187,8 @@ def _apply_light_effect(actor, light, component):
     # comment); treat it as already-seconds rather than invent a conversion factor.
     period_seconds = float(period_raw) if period_raw else 1.0
     base_intensity = float(component.get_editor_property("intensity"))
-    effect_component.configure(
-        getattr(unreal.EShockLightEffectType, effect_name),
-        base_intensity,
-        max(period_seconds, 0.1),
-        0.0)  # LightPhase is not exported (UNKNOWN offset) — start at cycle 0 rather than guess.
+    # LightPhase is not exported (UNKNOWN offset) — start every cycle at 0 rather than guess.
+    effect_component.configure_from_int(effect_ordinal, base_intensity, max(period_seconds, 0.1), 0.0)
 
 
 def _import_lights(manifest, existing, report, handled):

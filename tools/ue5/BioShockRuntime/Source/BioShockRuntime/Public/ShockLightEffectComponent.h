@@ -52,6 +52,19 @@ public:
 		float InPeriodSeconds,
 		float InPhase01);
 
+	/**
+	 * Same as Configure, but the effect type is a plain int (EShockLightEffectType's ordinal).
+	 * The Python API for this project's UE version cannot nativize an EnumProperty from a bare
+	 * int or string, and this UENUM is never otherwise reflected into `unreal.*`, so a caller
+	 * driving this from an importer script (SCR-G07 / W-BUG-03) has no other way to name a value.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Light")
+	void ConfigureFromInt(
+		int32 InTypeOrdinal,
+		float InBaseIntensity,
+		float InPeriodSeconds,
+		float InPhase01);
+
 	UFUNCTION(BlueprintPure, Category = "BioShock|Light")
 	uint8 GetEffectTypeForVerify() const { return static_cast<uint8>(EffectType); }
 

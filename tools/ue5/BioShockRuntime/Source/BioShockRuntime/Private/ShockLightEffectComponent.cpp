@@ -55,6 +55,18 @@ void UShockLightEffectComponent::Configure(
 	}
 }
 
+void UShockLightEffectComponent::ConfigureFromInt(
+	int32 InTypeOrdinal,
+	float InBaseIntensity,
+	float InPeriodSeconds,
+	float InPhase01)
+{
+	const int32 Clamped = FMath::Clamp(
+		InTypeOrdinal, 0, static_cast<int32>(EShockLightEffectType::SubtlePulse));
+	Configure(
+		static_cast<EShockLightEffectType>(Clamped), InBaseIntensity, InPeriodSeconds, InPhase01);
+}
+
 ULightComponent* UShockLightEffectComponent::ResolveLight() const
 {
 	const AActor* Owner = GetOwner();

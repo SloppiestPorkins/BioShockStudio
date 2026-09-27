@@ -100,18 +100,17 @@ def main(manifest_path=None, report_path=None):
 
         effect_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockLightEffectComponent")
         effect = actor.get_component_by_class(effect_cls) if effect_cls else None
-        mapped_effect_ordinals = import_level._UE2_LIGHT_TYPE_TO_EFFECT
-        if light_type in mapped_effect_ordinals:
+        mapped_effects = import_level._UE2_LIGHT_TYPE_TO_EFFECT
+        if light_type in mapped_effects:
+            expected_name, expected_ordinal = mapped_effects[light_type]
             if effect is None:
                 failures.append("%s type %s got no ShockLightEffectComponent" % (light["key"], light_type))
             else:
-                expected_ordinal = int(getattr(
-                    unreal.EShockLightEffectType, mapped_effect_ordinals[light_type]))
                 got_ordinal = int(effect.get_effect_type_for_verify())
                 if got_ordinal != expected_ordinal:
                     failures.append(
-                        "%s effect ordinal %s != expected %s"
-                        % (light["key"], got_ordinal, expected_ordinal))
+                        "%s effect ordinal %s != expected %s (%s)"
+                        % (light["key"], got_ordinal, expected_ordinal, expected_name))
         elif light_type not in (None, 0) and effect is not None:
             failures.append(
                 "%s type %s is unmapped but still got an effect component" % (light["key"], light_type))
