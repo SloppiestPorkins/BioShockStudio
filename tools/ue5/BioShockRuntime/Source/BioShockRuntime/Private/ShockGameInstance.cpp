@@ -49,6 +49,13 @@ void UShockGameInstance::SetPendingCarry(UShockCarryState* State, FName StartLab
 	}
 }
 
+bool UShockGameInstance::ConsumePendingSavegameRestore()
+{
+	const bool bWas = bPendingSavegameRestore;
+	bPendingSavegameRestore = false;
+	return bWas;
+}
+
 bool UShockGameInstance::ConsumePendingArrival(AShockPlayer* Player)
 {
 	if (!bHasPendingArrival || !PendingCarryState || !Player)

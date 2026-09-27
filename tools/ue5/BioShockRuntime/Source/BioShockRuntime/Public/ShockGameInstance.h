@@ -33,6 +33,13 @@ public:
 	UPROPERTY()
 	bool bHasPendingArrival = false;
 
+	/**
+	 * When true, the next DispatchLevelEntryMessages sends MessageSavegameRestored instead of
+	 * MessageLevelStarted (SCR-G11). Set by load-from-slot; cleared when consumed.
+	 */
+	UPROPERTY()
+	bool bPendingSavegameRestore = false;
+
 	UPROPERTY(BlueprintReadOnly, Category = "BioShock|Difficulty")
 	EShockDifficulty SelectedDifficulty = EShockDifficulty::Medium;
 
@@ -65,6 +72,17 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Travel")
 	void SetPendingCarryForVerify(UShockCarryState* State, FName StartLabel) { SetPendingCarry(State, StartLabel); }
+
+	/** Mark the next level entry as a save restore (MessageSavegameRestored). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Travel")
+	void SetPendingSavegameRestore(bool bPending) { bPendingSavegameRestore = bPending; }
+
+	/** Consume and clear the save-restore flag. True once per load-from-slot arrival. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Travel")
+	bool ConsumePendingSavegameRestore();
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|Travel")
+	bool HasPendingSavegameRestore() const { return bPendingSavegameRestore; }
 
 	/** Restore onto Player, clear pending, log BIOSHOCK_ARRIVED. Returns false when nothing pending. */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Travel")

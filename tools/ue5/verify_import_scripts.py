@@ -64,7 +64,11 @@ def _verify_parameter_resolution(report):
         if_action.add_test(comparison)
         if_action.add_true_action(branch_assign)
 
-        for action in (assign_input, random_number, assign_random, calc_distance, if_action):
+        # Return values are temps that die when the list ends (SCR-G18); a trailing wait keeps
+        # them readable for the return-value checks below.
+        hold = _runtime_object("ShockActionWait", runner)
+        hold.configure(999.0)
+        for action in (assign_input, random_number, assign_random, calc_distance, if_action, hold):
             runner.add_action(action)
         if not runner.start_execution():
             raise RuntimeError("parameter-resolution runner did not start")

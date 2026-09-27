@@ -4,6 +4,7 @@
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "ShockScriptReflection.h"
+#include "ShockScriptSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 
 AShockAnimatedProp::AShockAnimatedProp()
@@ -36,6 +37,44 @@ void AShockAnimatedProp::BeginPlay()
 	{
 		bSpinEnabled = true;
 	}
+	RegisterWithScriptSubsystem();
+}
+
+void AShockAnimatedProp::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnregisterFromScriptSubsystem();
+	Super::EndPlay(EndPlayReason);
+}
+
+void AShockAnimatedProp::RegisterWithScriptSubsystem()
+{
+	if (bRegisteredWithSubsystem || MotionMode != EShockAnimatedPropMode::KeyframeMove)
+	{
+		return;
+	}
+	const FString Trimmed = TriggeredBy.TrimStartAndEnd();
+	if (Trimmed.IsEmpty() || Trimmed.Equals(TEXT("none"), ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+	if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+	{
+		Sub->RegisterAnimatedProp(this);
+		bRegisteredWithSubsystem = true;
+	}
+}
+
+void AShockAnimatedProp::UnregisterFromScriptSubsystem()
+{
+	if (!bRegisteredWithSubsystem)
+	{
+		return;
+	}
+	if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+	{
+		Sub->UnregisterAnimatedProp(this);
+	}
+	bRegisteredWithSubsystem = false;
 }
 
 void AShockAnimatedProp::Tick(float DeltaSeconds)
@@ -49,6 +88,21 @@ void AShockAnimatedProp::Tick(float DeltaSeconds)
 	else if (MotionMode == EShockAnimatedPropMode::KeyframeMove)
 	{
 		TickKeyframe(DeltaSeconds);
+		if (!bKeyframeMoving && StayOpenRemaining >= 0.0f)
+		{
+			StayOpenRemaining -= DeltaSeconds;
+			if (StayOpenRemaining <= 0.0f)
+			{
+				StayOpenRemaining = -1.0f;
+				// TriggerOpenTimed auto-close.
+				bool bOpening = false;
+				if (BeginKeyframeToggle(bOpening) && !bOpening)
+				{
+					EmitMoverMessage(FName(TEXT("MessageMoverClosing")));
+					PendingEndMessage = FName(TEXT("MessageMoverClosed"));
+				}
+			}
+		}
 	}
 }
 
@@ -108,6 +162,8 @@ void AShockAnimatedProp::ConfigureKeyframeMotion(
 	bKeyframeMoving = false;
 	KeyframeAlpha = 0.0f;
 	KeyframeDirection = 1.0f;
+	PendingEndMessage = NAME_None;
+	StayOpenRemaining = -1.0f;
 
 	CaptureRestPose();
 	KeyframeRelativeTransforms.Reset();
@@ -122,6 +178,129 @@ void AShockAnimatedProp::ConfigureKeyframeMotion(
 		KeyframeRelativeTransforms.Add(Absolute);
 	}
 	ApplyKeyframeAlpha(0.0f);
+	RegisterWithScriptSubsystem();
+}
+
+bool AShockAnimatedProp::MatchesTriggeredBy(const FString& SourceLabel) const
+{
+	const FString Trimmed = TriggeredBy.TrimStartAndEnd();
+	if (Trimmed.IsEmpty() || Trimmed.Equals(TEXT("none"), ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
+	TArray<FString> Parts;
+	Trimmed.ParseIntoArray(Parts, TEXT(","), true);
+	for (FString& Part : Parts)
+	{
+		Part.TrimStartAndEndInline();
+		if (Part.Equals(SourceLabel, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AShockAnimatedProp::MatchesTriggerMessageClass(FName MessageClassName) const
+{
+	const FName Want = TriggerMessageType.IsNone() ? FName(TEXT("MessageTrigger")) : TriggerMessageType;
+	if (MessageClassName == Want || Want == FName(TEXT("Message")))
+	{
+		return true;
+	}
+	// MessageTrigger is the base of enter/exit trigger classes; exact MessageTrigger matches.
+	if (Want == FName(TEXT("MessageTrigger")))
+	{
+		return MessageClassName == FName(TEXT("MessageTrigger"))
+			|| MessageClassName == FName(TEXT("MessageTriggerEnter"))
+			|| MessageClassName == FName(TEXT("MessageTriggerExit"))
+			|| MessageClassName == FName(TEXT("MessageTriggerVolumeEnter"))
+			|| MessageClassName == FName(TEXT("MessageTriggerVolumeExit"))
+			|| MessageClassName == FName(TEXT("MessageTriggerVolume"));
+	}
+	return false;
+}
+
+void AShockAnimatedProp::EmitMoverMessage(FName MessageClassName)
+{
+	if (PropLabel.IsNone() || MessageClassName.IsNone())
+	{
+		return;
+	}
+	if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
+	{
+		Sub->DispatchMessageLogged(MessageClassName, PropLabel.ToString());
+	}
+}
+
+bool AShockAnimatedProp::BeginKeyframeToggle(bool& bOpening)
+{
+	if (MotionMode != EShockAnimatedPropMode::KeyframeMove)
+	{
+		MotionMode = EShockAnimatedPropMode::KeyframeMove;
+	}
+	if (KeyframeRelativeTransforms.Num() < 2)
+	{
+		return false;
+	}
+	if (bKeyframeMoving)
+	{
+		return false;
+	}
+	if (bTriggerOnceOnly && bTriggerOnceCompleted)
+	{
+		return false;
+	}
+
+	const float MaxAlpha = static_cast<float>(KeyframeSegmentCount());
+	if (KeyframeAlpha >= MaxAlpha - KINDA_SMALL_NUMBER)
+	{
+		KeyframeDirection = -1.0f;
+		bOpening = false;
+	}
+	else
+	{
+		KeyframeDirection = 1.0f;
+		bOpening = true;
+	}
+	bOpeningMove = bOpening;
+	bKeyframeMoving = true;
+	return true;
+}
+
+bool AShockAnimatedProp::HandleTriggerMessage(FName MessageClassName, const FString& SourceLabel)
+{
+	if (MotionMode != EShockAnimatedPropMode::KeyframeMove && KeyframeRelativeTransforms.Num() < 2)
+	{
+		return false;
+	}
+	if (!MatchesTriggerMessageClass(MessageClassName) || !MatchesTriggeredBy(SourceLabel))
+	{
+		return false;
+	}
+	// Guide does not say mid-move triggers reverse; ignore while moving (SCR-G01).
+	if (bKeyframeMoving)
+	{
+		return false;
+	}
+
+	bool bOpening = false;
+	if (!BeginKeyframeToggle(bOpening))
+	{
+		return false;
+	}
+
+	if (bOpening)
+	{
+		EmitMoverMessage(FName(TEXT("MessageMoverOpening")));
+		PendingEndMessage = FName(TEXT("MessageMoverOpened"));
+	}
+	else
+	{
+		EmitMoverMessage(FName(TEXT("MessageMoverClosing")));
+		PendingEndMessage = FName(TEXT("MessageMoverClosed"));
+	}
+	return true;
 }
 
 bool AShockAnimatedProp::PlayScriptedMotion(FName AnimationName, float Rate, bool bLoop)
@@ -159,15 +338,21 @@ bool AShockAnimatedProp::PlayScriptedMotion(FName AnimationName, float Rate, boo
 
 	if (!bKeyframeMoving)
 	{
-		if (KeyframeAlpha >= static_cast<float>(KeyframeSegmentCount()) - KINDA_SMALL_NUMBER)
+		bool bOpening = false;
+		if (!BeginKeyframeToggle(bOpening))
 		{
-			KeyframeDirection = -1.0f;
+			return false;
 		}
-		else if (KeyframeAlpha <= KINDA_SMALL_NUMBER)
+		if (bOpening)
 		{
-			KeyframeDirection = 1.0f;
+			EmitMoverMessage(FName(TEXT("MessageMoverOpening")));
+			PendingEndMessage = FName(TEXT("MessageMoverOpened"));
 		}
-		bKeyframeMoving = true;
+		else
+		{
+			EmitMoverMessage(FName(TEXT("MessageMoverClosing")));
+			PendingEndMessage = FName(TEXT("MessageMoverClosed"));
+		}
 		return true;
 	}
 
@@ -218,6 +403,21 @@ void AShockAnimatedProp::ConfigureKeyframeForVerify(
 	TArray<FTransform> Keys;
 	Keys.Add(FTransform(FRotator::ZeroRotator, TargetRelativeLocation));
 	ConfigureKeyframeMotion(Label, Keys, InMoveDuration, EShockPropLoopMode::OneShot);
+}
+
+void AShockAnimatedProp::ConfigureMoverForVerify(
+	FName Label,
+	const FString& InTriggeredBy,
+	FVector TargetRelativeLocation,
+	float InMoveDuration,
+	bool bInTriggerOnceOnly)
+{
+	ConfigureKeyframeForVerify(Label, TargetRelativeLocation, InMoveDuration);
+	TriggeredBy = InTriggeredBy;
+	bTriggerOnceOnly = bInTriggerOnceOnly;
+	bTriggerOnceCompleted = false;
+	InitialState = FName(TEXT("TriggerToggle"));
+	RegisterWithScriptSubsystem();
 }
 
 AShockAnimatedProp* AShockAnimatedProp::FindByLabel(UWorld* World, FName Label)
@@ -308,6 +508,7 @@ void AShockAnimatedProp::TickKeyframe(float DeltaSeconds)
 	KeyframeAlpha += Step * KeyframeDirection;
 
 	const float MaxAlpha = static_cast<float>(Segments);
+	bool bStopped = false;
 
 	if (KeyframeAlpha >= MaxAlpha)
 	{
@@ -323,6 +524,7 @@ void AShockAnimatedProp::TickKeyframe(float DeltaSeconds)
 		default:
 			KeyframeAlpha = MaxAlpha;
 			bKeyframeMoving = false;
+			bStopped = true;
 			break;
 		}
 	}
@@ -340,9 +542,30 @@ void AShockAnimatedProp::TickKeyframe(float DeltaSeconds)
 		default:
 			KeyframeAlpha = 0.0f;
 			bKeyframeMoving = false;
+			bStopped = true;
 			break;
 		}
 	}
 
 	ApplyKeyframeAlpha(KeyframeAlpha);
+
+	if (bStopped)
+	{
+		if (!PendingEndMessage.IsNone())
+		{
+			EmitMoverMessage(PendingEndMessage);
+			PendingEndMessage = NAME_None;
+		}
+		if (bTriggerOnceOnly)
+		{
+			bTriggerOnceCompleted = true;
+		}
+		// TriggerOpenTimed: after open, wait StayOpenTime then close.
+		if (bOpeningMove
+			&& InitialState == FName(TEXT("TriggerOpenTimed"))
+			&& StayOpenTime >= 0.0f)
+		{
+			StayOpenRemaining = StayOpenTime;
+		}
+	}
 }

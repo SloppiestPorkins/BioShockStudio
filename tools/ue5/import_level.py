@@ -1136,6 +1136,10 @@ def _ensure_trigger_relay(actor, entry, class_name="TriggerVolume"):
 
     TriggerVolume → MessageTriggerVolumeEnter / MessageTriggerVolumeExit.
     TriggerRadius → MessageTriggerEnter / MessageTriggerExit (Medical PSA* / ghostscreen scripts).
+
+    SCR-G20: wire filter label/class lists from regionActor when present. MaxEnterCount and
+    RequireClearTrace are not in the C# regionActor export — only triggerOnlyOnce / disabled /
+    triggerOnlyByLabels / triggeredByFilter / triggerOnlyByClasses exist.
     """
     relay_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockTriggerRelayComponent")
     if relay_cls is None or actor is None:
@@ -1152,10 +1156,33 @@ def _ensure_trigger_relay(actor, entry, class_name="TriggerVolume"):
         enter_cls = "MessageTriggerVolumeEnter"
         exit_cls = "MessageTriggerVolumeExit"
     try:
-        return unreal.ShockTriggerRelayComponent.install_on_actor(
+        relay = unreal.ShockTriggerRelayComponent.install_on_actor(
             actor, str(label), once, disabled, enter_cls, exit_cls)
     except Exception:  # noqa: BLE001
         return None
+    if relay is None:
+        return None
+
+    filter_labels = []
+    for name in (region.get("triggerOnlyByLabels") or []):
+        if name:
+            filter_labels.append(str(name))
+    for name in (region.get("triggeredByFilter") or []):
+        if name and str(name) not in filter_labels:
+            filter_labels.append(str(name))
+    filter_classes = []
+    for ref in (region.get("triggerOnlyByClasses") or []):
+        if not isinstance(ref, dict):
+            continue
+        cname = ref.get("className") or ref.get("objectName") or ""
+        if cname:
+            filter_classes.append(str(cname))
+    if filter_labels or filter_classes:
+        try:
+            relay.configure_filters(filter_labels, filter_classes)
+        except Exception:  # noqa: BLE001
+            pass
+    return relay
 
 
 def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root, rig_names=None):
@@ -1465,6 +1492,7 @@ def _import_animated_props(manifest, meshes, existing, report, handled):
         actor.tags = [
             unreal.Name(KEY_TAG_PREFIX + akey),
             unreal.Name("BioShockClass=" + class_name),
+            unreal.Name("BioShockLabel=" + str(label)),
         ]
 
         mesh = by_name.get(mesh_name)
@@ -1493,6 +1521,41 @@ def _import_animated_props(manifest, meshes, existing, report, handled):
             if hasattr(actor, "configure_keyframe_motion"):
                 actor.configure_keyframe_motion(
                     unreal.Name(label), relative_keys, float(move_time), loop_mode)
+            # SCR-G01: ScriptableMover TriggeredBy + StayOpenTime / TriggerOnceOnly / InitialState.
+            mover = entry.get("mover") or {}
+            triggered_by = mover.get("triggeredBy")
+            if triggered_by is None:
+                for prop in entry.get("properties") or []:
+                    if prop.get("name") == "TriggeredBy" and prop.get("type") == "Str":
+                        # Same UTF-16LE decode as import_scripts TriggeredBy.
+                        hx = prop.get("valueHex") or ""
+                        try:
+                            raw = bytes.fromhex(hx)
+                            if raw:
+                                count = raw[0]
+                                triggered_by = raw[1:1 + count * 2].decode(
+                                    "utf-16-le", errors="replace")
+                        except Exception:  # noqa: BLE001
+                            triggered_by = None
+                        break
+            if triggered_by and hasattr(actor, "set_triggered_by"):
+                actor.set_triggered_by(str(triggered_by))
+            if mover.get("triggerOnceOnly") is True:
+                try:
+                    actor.set_editor_property("b_trigger_once_only", True)
+                except Exception:  # noqa: BLE001
+                    pass
+            if mover.get("stayOpenTime") is not None:
+                try:
+                    actor.set_editor_property("stay_open_time", float(mover["stayOpenTime"]))
+                except Exception:  # noqa: BLE001
+                    pass
+            if mover.get("initialState"):
+                try:
+                    actor.set_editor_property(
+                        "initial_state", unreal.Name(str(mover["initialState"])))
+                except Exception:  # noqa: BLE001
+                    pass
             report["scriptableMoversPlaced"] = report.get("scriptableMoversPlaced", 0) + 1
         else:
             if hasattr(actor, "configure_continuous_spin"):

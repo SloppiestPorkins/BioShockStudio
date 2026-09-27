@@ -2633,7 +2633,7 @@ void AShockPlayer::HandleCrouchReleased()
 	}
 }
 
-int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
+int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize, FName Reason)
 {
 	if (ItemClass.IsNone() || StackSize <= 0)
 	{
@@ -2656,7 +2656,14 @@ int32 AShockPlayer::AddStackToInventory(FName ItemClass, int32 StackSize)
 		if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
 		{
 			// Case-insensitive MatchesTriggeredBy — one "Player" covers Medical's "player" too.
-			Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+			TMap<FString, FString> Fields;
+			const FString ClassText = ItemClass.ToString();
+			Fields.Add(TEXT("ActualClass"), ClassText);
+			Fields.Add(TEXT("ItemClass"), ClassText);
+			Fields.Add(TEXT("Amount"), LexToString(Count - Before));
+			Fields.Add(TEXT("Reason"), Reason.IsNone() ? TEXT("Touch") : Reason.ToString());
+			Sub->DispatchMessageLoggedWithFields(
+				FName(TEXT("MessageReceivedInventory")), TEXT("Player"), Fields);
 		}
 	}
 	return Count;
@@ -2775,7 +2782,13 @@ void AShockPlayer::AddMoney(int32 Amount)
 		{
 			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
 			{
-				Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+				TMap<FString, FString> Fields;
+				Fields.Add(TEXT("ActualClass"), TEXT("Money"));
+				Fields.Add(TEXT("ItemClass"), TEXT("Money"));
+				Fields.Add(TEXT("Amount"), LexToString(Amount));
+				Fields.Add(TEXT("Reason"), TEXT("Touch"));
+				Sub->DispatchMessageLoggedWithFields(
+					FName(TEXT("MessageReceivedInventory")), TEXT("Player"), Fields);
 			}
 		}
 	}
@@ -2804,7 +2817,13 @@ void AShockPlayer::AddAdam(int32 Amount)
 		{
 			if (UShockScriptSubsystem* Sub = UShockScriptSubsystem::Get(GetWorld()))
 			{
-				Sub->DispatchMessageLogged(FName(TEXT("MessageReceivedInventory")), TEXT("Player"));
+				TMap<FString, FString> Fields;
+				Fields.Add(TEXT("ActualClass"), TEXT("Adam"));
+				Fields.Add(TEXT("ItemClass"), TEXT("Adam"));
+				Fields.Add(TEXT("Amount"), LexToString(Amount));
+				Fields.Add(TEXT("Reason"), TEXT("Touch"));
+				Sub->DispatchMessageLoggedWithFields(
+					FName(TEXT("MessageReceivedInventory")), TEXT("Player"), Fields);
 			}
 		}
 	}

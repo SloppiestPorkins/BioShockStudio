@@ -1,6 +1,7 @@
 #include "ShockScriptRegistry.h"
 
 #include "ShockScriptRunner.h"
+#include "ShockScriptSubsystem.h"
 
 void UShockScriptRegistry::RegisterScript(UShockScriptRunner* Script)
 {
@@ -84,6 +85,11 @@ int32 UShockScriptRegistry::DispatchMessageWithFields(
 				++Started;
 			}
 		}
+	}
+	// ScriptableMovers listen for MessageTrigger via the owning subsystem (SCR-G01).
+	if (UShockScriptSubsystem* Sub = Cast<UShockScriptSubsystem>(GetOuter()))
+	{
+		Started += Sub->NotifyAnimatedProps(MessageClassName, SourceLabel);
 	}
 	UE_LOG(LogTemp, Verbose, TEXT("BIOSHOCK_SCRIPT dispatch msg=%s src=%s runners=%d started=%d"),
 		*MessageClassName.ToString(), *SourceLabel, Num(), Started);

@@ -4,6 +4,7 @@
 #include "ShockScriptSubsystem.generated.h"
 
 class AActor;
+class AShockAnimatedProp;
 class UShockScriptRegistry;
 
 /**
@@ -53,15 +54,36 @@ public:
 	static FString ResolveMessageSourceLabel(const AActor* Actor);
 
 	/**
-	 * Fire level-entry MessageTriggers: map short name (e.g. "1-Medical"), plus "All" / "all".
-	 * Scripts whose TriggeredBy lists those labels start (LoadRoomDoor, MedicalStart, …).
-	 * Idempotent per world play session.
+	 * Fire level-entry messages: map short name (e.g. "1-Medical"), plus "All" / "all".
+	 * Fresh start → MessageLevelStarted; save restore (pending flag) → MessageSavegameRestored
+	 * so _Resume ambient scripts restart (SCR-G11). Idempotent per world play session.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
 	void DispatchLevelEntryMessages();
 
+	/** Dispatch with an explicit mode (true = MessageSavegameRestored) — headless verify has no ShockGameInstance. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	void DispatchLevelEntryMessagesMode(bool bSaveRestore);
+
 	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
 	void DispatchLevelEntryMessagesForVerify() { DispatchLevelEntryMessages(); }
+
+	/** Reset the one-shot level-entry gate so a headless verify can re-dispatch. */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	void ResetLevelEntryDispatchForVerify() { bDidLevelEntryDispatch = false; }
+
+	/**
+	 * MessageDoorKeypadUsed under KeypadLabel with Keycode field (SCR-G12). No keypad actor
+	 * class yet (SCR-B17); call from verify / future keypad UI.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	int32 DispatchDoorKeypadUsed(const FString& KeypadLabel, const FString& Keycode);
+
+	/** ScriptableMover registration: MessageTrigger matching TriggeredBy toggles keyframes. */
+	void RegisterAnimatedProp(AShockAnimatedProp* Prop);
+	void UnregisterAnimatedProp(AShockAnimatedProp* Prop);
+	/** Called from the registry after script dispatch so movers hear ActionSendTriggerMessage. */
+	int32 NotifyAnimatedProps(FName MessageClassName, const FString& SourceLabel);
 
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 
@@ -70,6 +92,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UShockScriptRegistry> Registry;
+
+	UPROPERTY()
+	TArray<TObjectPtr<AShockAnimatedProp>> RegisteredMovers;
 
 	bool bDidLevelEntryDispatch = false;
 };

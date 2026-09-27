@@ -181,6 +181,27 @@ ExitScript target, WaitForGoal) were left alone.
 
 ---
 
-## RESULT
+## Status (27 Sept, y8)
 
-Wrote `docs/research/sdk-crossref-scripting.md` only. No code, builds, Unreal, or commits. Highest-impact silent wrongs: SendTriggerMessage source/class (SCR-B01/B02), missing Global_ container (SCR-B03), empty message payloads (SCR-B04), broken nested boolean binds (SCR-B05), and timers that never fire (SCR-B10).
+y8 ScriptableMover + remaining scripting gaps. Re-verified each audit claim against the tree
+before changing. Skipped as asked: G04 watchers, G05 critical, G08–G10 quests/facts/training, G13
+stubs. Did not touch `ShockVariableScope` Global_ handling.
+
+| id | status | notes |
+| --- | --- | --- |
+| SCR-G01 | FIXED | `AShockAnimatedProp` listens for `MessageTrigger` on `TriggeredBy` (TriggerToggle; ignore mid-move); emits `MessageMoverOpening/Opened/Closing/Closed` under `PropLabel` via subsystem. Registry notifies registered movers on dispatch. Importer writes `TriggeredBy` / StayOpenTime / TriggerOnceOnly / InitialState from `mover` record + `BioShockLabel` tag. |
+| SCR-G07 | FIXED | `ActionSetLightProperties` ChangeProperty LightType / Period / Phase → `UShockLightEffectComponent` (Steady / Flicker / Pulse / Blink / Strobe / SubtlePulse / None). Brightness/colour unchanged. Shadow flag recorded when set. |
+| SCR-G11 | FIXED | Load-from-slot sets `UShockGameInstance::bPendingSavegameRestore`; `DispatchLevelEntryMessages` sends `MessageSavegameRestored` (map + All/all) when consumed, else `MessageLevelStarted`. |
+| SCR-G12 | FIXED | `AddStackToInventory` / `AddMoney` / `AddAdam` send `ActualClass`, `Amount`, `Reason`, `ItemClass`. `DispatchDoorKeypadUsed` carries `Keycode` (no keypad actor yet — SCR-B17). |
+| SCR-G18 | FIXED | `FinishExecution` clears action return-value temps via `ResetActionRuntimeState` (script/global vars untouched). |
+| SCR-G20 | FIXED (partial) | Relay + importer honour `triggerOnlyByLabels` / `triggeredByFilter` / `triggerOnlyByClasses` from `regionActor`. **MaxEnterCount** and **RequireClearTrace** are not in the C# regionActor export — left unwired (existing `triggerOnlyOnce` remains). |
+
+**Deliverable verify:** `tools/ue5/verify_scripting_movers.py` (positive + negative per item). Claude builds + runs headless.
+
+---
+
+## RESULT (27 Sept, y8)
+
+Implemented SCR-G01, G07, G11, G12 remainder, G18, G20 (filter lists only — MaxEnterCount /
+RequireClearTrace absent from regionActor export). Lane: `tools/ue5/**`, `docs/research/**`.
+No commit / Unreal build in this sandboxed run.

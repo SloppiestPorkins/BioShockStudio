@@ -260,9 +260,10 @@ public:
 	 * UnrealScript `ShockPlayer.AddStackToInventory` stand-in: merge StackSize into the
 	 * named ItemClass. FirstAidKit / EveHypo stacks clamp to MaxFirstAidKits / MaxEveHypos.
 	 * Returns the new stack total, or 0 if the grant is refused.
+	 * Dispatches MessageReceivedInventory with ActualClass / Amount / Reason / ItemClass (SCR-G12).
 	 */
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
-	int32 AddStackToInventory(FName ItemClass, int32 StackSize);
+	int32 AddStackToInventory(FName ItemClass, int32 StackSize, FName Reason = FName(TEXT("Touch")));
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	int32 RemoveStackFromInventory(FName ItemClass, int32 StackSize);

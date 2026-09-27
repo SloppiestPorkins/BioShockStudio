@@ -34,6 +34,9 @@ enum class EShockPropLoopMode : uint8
  * Transform-driven motion only — no skeletal animation data. Fans spin about a local axis;
  * movers interpolate RelativeTransform between keyframes with a swept move so they push/block
  * the player rather than teleporting through them.
+ *
+ * ScriptableMovers (SCR-G01): listen for MessageTrigger from labels in TriggeredBy (TriggerToggle),
+ * ignore triggers mid-move, and emit MessageMoverOpening/Opened/Closing/Closed under PropLabel.
  */
 UCLASS()
 class BIOSHOCKRUNTIME_API AShockAnimatedProp : public AActor
@@ -45,6 +48,29 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|AnimatedProp")
 	FName PropLabel;
+
+	/**
+	 * Comma-separated Script Labels whose MessageTrigger toggles this mover (UE2 TriggeredBy).
+	 * Empty / "none" → never message-driven (script PlayAnimation still works).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Mover")
+	FString TriggeredBy;
+
+	/** UE2 triggerMessageType; movers listen for MessageTrigger (and subclasses). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Mover")
+	FName TriggerMessageType = FName(TEXT("MessageTrigger"));
+
+	/** UE2 bTriggerOnceOnly — after one completed toggle cycle, further triggers are ignored. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Mover")
+	bool bTriggerOnceOnly = false;
+
+	/** UE2 StayOpenTime — used when InitialState is TriggerOpenTimed (auto-close after open). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Mover")
+	float StayOpenTime = 0.0f;
+
+	/** UE2 InitialState name (TriggerToggle / TriggerOpenTimed). Default TriggerToggle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Mover")
+	FName InitialState = FName(TEXT("TriggerToggle"));
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp")
 	EShockAnimatedPropMode MotionMode = EShockAnimatedPropMode::ContinuousSpin;
@@ -67,7 +93,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Spin")
 	bool bSpinOnBeginPlay = true;
 
-	/** Seconds to traverse one keyframe segment at MotionRateScale == 1. */
+	/** Seconds to traverse one keyframe segment at MotionRateScale == 1 (UE2 MoveTime). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BioShock|AnimatedProp|Keyframe")
 	float MoveDuration = 1.0f;
 
@@ -86,6 +112,9 @@ public:
 	void SetPropLabel(FName Label) { PropLabel = Label; }
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
+	void SetTriggeredBy(const FString& InTriggeredBy) { TriggeredBy = InTriggeredBy; }
+
+	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
 	void ConfigureContinuousSpin(FName Label, FVector Axis, float InRevolutionsPerSecond, bool bStartEnabled = true);
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
@@ -98,6 +127,14 @@ public:
 	/** Script ActionPlayAnimation: start/toggle keyframe move, or ensure spin is on. */
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
 	bool PlayScriptedMotion(FName AnimationName, float Rate, bool bLoop);
+
+	/**
+	 * MessageTrigger (or subclass) from a Script Label listed in TriggeredBy.
+	 * TriggerToggle: ignore while mid-move; otherwise open or close along keyframes and emit
+	 * MessageMover* under PropLabel. Returns true when the trigger was accepted.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
+	bool HandleTriggerMessage(FName MessageClassName, const FString& SourceLabel);
 
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
 	void SetSpinEnabled(bool bEnabled);
@@ -141,6 +178,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "BioShock|AnimatedProp")
 	float GetAccumulatedSpinDegrees() const { return AccumulatedSpinDegrees; }
 
+	UFUNCTION(BlueprintPure, Category = "BioShock|AnimatedProp")
+	FString GetTriggeredBy() const { return TriggeredBy; }
+
+	UFUNCTION(BlueprintPure, Category = "BioShock|AnimatedProp")
+	bool HasCompletedTriggerOnce() const { return bTriggerOnceCompleted; }
+
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
 	void AdvanceMotionForVerify(float DeltaSeconds);
 
@@ -150,10 +193,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
 	void ConfigureKeyframeForVerify(FName Label, FVector TargetRelativeLocation, float InMoveDuration);
 
+	/** Headless: keyframe mover + TriggeredBy + MoveTime (StayOpen unused unless InitialState set). */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|AnimatedProp")
+	void ConfigureMoverForVerify(
+		FName Label,
+		const FString& InTriggeredBy,
+		FVector TargetRelativeLocation,
+		float InMoveDuration,
+		bool bInTriggerOnceOnly = false);
+
 	static AShockAnimatedProp* FindByLabel(UWorld* World, FName Label);
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BioShock|AnimatedProp")
@@ -165,6 +218,12 @@ private:
 	void ApplyKeyframeAlpha(float Alpha);
 	void CaptureRestPose();
 	int32 KeyframeSegmentCount() const;
+	bool MatchesTriggeredBy(const FString& SourceLabel) const;
+	bool MatchesTriggerMessageClass(FName MessageClassName) const;
+	bool BeginKeyframeToggle(/*out*/ bool& bOpening);
+	void EmitMoverMessage(FName MessageClassName);
+	void RegisterWithScriptSubsystem();
+	void UnregisterFromScriptSubsystem();
 
 	FTransform RestRelativeTransform = FTransform::Identity;
 	bool bRestCaptured = false;
@@ -174,4 +233,11 @@ private:
 	float KeyframeDirection = 1.0f;
 	FName LastScriptAnimation;
 	float AccumulatedSpinDegrees = 0.0f;
+
+	/** Message class to emit when the current one-shot move stops (Opened or Closed). */
+	FName PendingEndMessage = NAME_None;
+	bool bOpeningMove = false;
+	bool bTriggerOnceCompleted = false;
+	bool bRegisteredWithSubsystem = false;
+	float StayOpenRemaining = -1.0f;
 };

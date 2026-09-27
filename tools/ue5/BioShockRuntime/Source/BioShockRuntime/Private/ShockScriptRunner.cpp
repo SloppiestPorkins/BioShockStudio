@@ -333,6 +333,14 @@ bool UShockScriptRunner::StartExecutionWithMessageFields(const TMap<FString, FSt
 
 void UShockScriptRunner::FinishExecution()
 {
+	// SCR-G18: value-producing action temps die when the list ends (not script/global vars).
+	{
+		TSet<UShockAction*> ClearVisited;
+		for (const TObjectPtr<UShockAction>& Action : Actions)
+		{
+			ResetActionRuntimeState(Action, ClearVisited);
+		}
+	}
 	bIsExecuting = false;
 	PendingWait = nullptr;
 	PendingGoalWait = nullptr;

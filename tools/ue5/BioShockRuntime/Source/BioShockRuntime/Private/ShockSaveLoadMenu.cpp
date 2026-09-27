@@ -432,6 +432,8 @@ bool UShockSaveLoadMenu::ActivateSelectedSlot()
 	if (UShockGameInstance* GI = UShockGameInstance::GetShockInstance(GetWorld()))
 	{
 		GI->SetSelectedDifficulty(Loaded->Difficulty);
+		// SCR-G11: load-from-slot (not map travel) → MessageSavegameRestored on next level entry.
+		GI->SetPendingSavegameRestore(true);
 		GI->SetPendingCarry(Carry, FName(*Loaded->ArrivalStartLabel));
 		const bool bWasSuppress = GI->bSuppressLevelTravel;
 		// Always record; respect suppress for actual OpenLevel.

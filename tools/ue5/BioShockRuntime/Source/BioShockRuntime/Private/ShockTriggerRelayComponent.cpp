@@ -24,6 +24,19 @@ void UShockTriggerRelayComponent::ConfigureMessages(FName InEnterMessageClass, F
 	ExitMessageClass = InExitMessageClass;
 }
 
+void UShockTriggerRelayComponent::ConfigureFilters(
+	const TArray<FString>& InFilterLabels,
+	const TArray<FString>& InFilterClassNames)
+{
+	FilterLabels = InFilterLabels;
+	FilterClassNames = InFilterClassNames;
+	// Authoring with an explicit label list (usually Player) replaces the blunt bPlayerOnly gate.
+	if (FilterLabels.Num() > 0)
+	{
+		bPlayerOnly = false;
+	}
+}
+
 UShockTriggerRelayComponent* UShockTriggerRelayComponent::InstallOnActor(
 	AActor* Owner,
 	const FString& InLabel,
@@ -96,6 +109,58 @@ void UShockTriggerRelayComponent::BindOverlap()
 	}
 }
 
+bool UShockTriggerRelayComponent::PassesFilters(AActor* OtherActor) const
+{
+	if (!OtherActor)
+	{
+		return false;
+	}
+	if (bPlayerOnly && !Cast<AShockPlayer>(OtherActor))
+	{
+		return false;
+	}
+	if (FilterLabels.Num() > 0)
+	{
+		const FString Src = UShockScriptSubsystem::ResolveMessageSourceLabel(OtherActor);
+		bool bLabelOk = false;
+		for (const FString& Want : FilterLabels)
+		{
+			if (!Want.IsEmpty() && Src.Equals(Want, ESearchCase::IgnoreCase))
+			{
+				bLabelOk = true;
+				break;
+			}
+		}
+		if (!bLabelOk)
+		{
+			return false;
+		}
+	}
+	if (FilterClassNames.Num() > 0)
+	{
+		const FString ClassName = OtherActor->GetClass() ? OtherActor->GetClass()->GetName() : FString();
+		bool bClassOk = false;
+		for (const FString& Want : FilterClassNames)
+		{
+			if (Want.IsEmpty())
+			{
+				continue;
+			}
+			if (ClassName.Equals(Want, ESearchCase::IgnoreCase)
+				|| ClassName.Contains(Want, ESearchCase::IgnoreCase))
+			{
+				bClassOk = true;
+				break;
+			}
+		}
+		if (!bClassOk)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 int32 UShockTriggerRelayComponent::DispatchNow(FName MessageClass)
 {
 	if (bDisabled || MessageClass.IsNone())
@@ -121,13 +186,11 @@ int32 UShockTriggerRelayComponent::DispatchNow(FName MessageClass)
 		return 0;
 	}
 
-	// The relay only ever reports the player (bPlayerOnly), so the message's Instigator is Player --
-	// what scripts authored with messageFilter Instigator=Player compare against.
+	// The relay only ever reports the player (bPlayerOnly / FilterLabels=Player), so the
+	// message's Instigator is Player — what scripts authored with messageFilter Instigator=Player
+	// compare against.
 	TMap<FString, FString> Fields;
-	if (bPlayerOnly)
-	{
-		Fields.Add(TEXT("Instigator"), TEXT("Player"));
-	}
+	Fields.Add(TEXT("Instigator"), TEXT("Player"));
 	return Sub->DispatchMessageLoggedWithFields(MessageClass, VolumeLabel, Fields);
 }
 
@@ -161,7 +224,7 @@ void UShockTriggerRelayComponent::OnBeginOverlap(
 	(void)bFromSweep;
 	(void)SweepResult;
 
-	if (bPlayerOnly && !Cast<AShockPlayer>(OtherActor))
+	if (!PassesFilters(OtherActor))
 	{
 		return;
 	}
@@ -183,7 +246,7 @@ void UShockTriggerRelayComponent::OnEndOverlap(
 	(void)OtherComp;
 	(void)OtherBodyIndex;
 
-	if (bPlayerOnly && !Cast<AShockPlayer>(OtherActor))
+	if (!PassesFilters(OtherActor))
 	{
 		return;
 	}

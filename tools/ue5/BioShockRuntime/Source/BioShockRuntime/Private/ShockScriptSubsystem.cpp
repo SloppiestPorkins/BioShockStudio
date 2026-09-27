@@ -4,6 +4,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "ShockAnimatedProp.h"
+#include "ShockGameInstance.h"
 #include "ShockPlayer.h"
 #include "ShockScriptRegistry.h"
 #include "ShockSecurityDevice.h"
@@ -71,6 +73,50 @@ int32 UShockScriptSubsystem::DispatchMessageLoggedWithFields(
 	return Accepted;
 }
 
+int32 UShockScriptSubsystem::DispatchDoorKeypadUsed(const FString& KeypadLabel, const FString& Keycode)
+{
+	if (KeypadLabel.IsEmpty())
+	{
+		return 0;
+	}
+	TMap<FString, FString> Fields;
+	Fields.Add(TEXT("Keycode"), Keycode);
+	Fields.Add(TEXT("Instigator"), TEXT("Player"));
+	return DispatchMessageLoggedWithFields(FName(TEXT("MessageDoorKeypadUsed")), KeypadLabel, Fields);
+}
+
+void UShockScriptSubsystem::RegisterAnimatedProp(AShockAnimatedProp* Prop)
+{
+	if (Prop)
+	{
+		RegisteredMovers.AddUnique(Prop);
+	}
+}
+
+void UShockScriptSubsystem::UnregisterAnimatedProp(AShockAnimatedProp* Prop)
+{
+	RegisteredMovers.Remove(Prop);
+}
+
+int32 UShockScriptSubsystem::NotifyAnimatedProps(FName MessageClassName, const FString& SourceLabel)
+{
+	int32 Accepted = 0;
+	for (int32 i = RegisteredMovers.Num() - 1; i >= 0; --i)
+	{
+		AShockAnimatedProp* Prop = RegisteredMovers[i].Get();
+		if (!IsValid(Prop))
+		{
+			RegisteredMovers.RemoveAt(i);
+			continue;
+		}
+		if (Prop->HandleTriggerMessage(MessageClassName, SourceLabel))
+		{
+			++Accepted;
+		}
+	}
+	return Accepted;
+}
+
 FString UShockScriptSubsystem::ResolveMessageSourceLabel(const AActor* Actor)
 {
 	if (!Actor)
@@ -133,26 +179,40 @@ void UShockScriptSubsystem::DispatchLevelEntryMessages()
 {
 	if (bDidLevelEntryDispatch)
 	{
+		return; // don't consume the pending-restore flag on a repeat call
+	}
+	// SCR-G11: save restore uses MessageSavegameRestored so _Resume ambient scripts restart;
+	// a fresh start still sends MessageLevelStarted.
+	bool bSaveRestore = false;
+	if (UShockGameInstance* GI = UShockGameInstance::GetShockInstance(GetWorld()))
+	{
+		bSaveRestore = GI->ConsumePendingSavegameRestore();
+	}
+	DispatchLevelEntryMessagesMode(bSaveRestore);
+}
+
+void UShockScriptSubsystem::DispatchLevelEntryMessagesMode(bool bSaveRestore)
+{
+	if (bDidLevelEntryDispatch)
+	{
 		return;
 	}
 	bDidLevelEntryDispatch = true;
 
 	const FString LevelLabel = ResolveLevelEntryLabel();
-	// UE2's real class for level entry, confirmed against the shipped UnrealEd guide ("Level
-	// start" pattern: TriggeredBy="<map name>", scriptMessageClass=MessageLevelStarted). Not yet
-	// checked receiver-side (see docs/research/message-class-gap.md) but the dispatched name
-	// should be the real one.
-	const FName MessageLevelStarted(TEXT("MessageLevelStarted"));
+	const FName EntryClass = bSaveRestore
+		? FName(TEXT("MessageSavegameRestored"))
+		: FName(TEXT("MessageLevelStarted"));
 	int32 Started = 0;
 	if (!LevelLabel.IsEmpty())
 	{
-		Started += DispatchMessage(MessageLevelStarted, LevelLabel);
+		Started += DispatchMessage(EntryClass, LevelLabel);
 	}
 	// TipUnlock / Present_LevelStartedCheck / etc. author TriggeredBy as All/all.
-	Started += DispatchMessage(MessageLevelStarted, TEXT("All"));
-	Started += DispatchMessage(MessageLevelStarted, TEXT("all"));
-	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT levelEntry label=%s started=%d"),
-		*LevelLabel, Started);
+	Started += DispatchMessage(EntryClass, TEXT("All"));
+	Started += DispatchMessage(EntryClass, TEXT("all"));
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT levelEntry class=%s label=%s started=%d"),
+		*EntryClass.ToString(), *LevelLabel, Started);
 }
 
 void UShockScriptSubsystem::OnWorldBeginPlay(UWorld& InWorld)

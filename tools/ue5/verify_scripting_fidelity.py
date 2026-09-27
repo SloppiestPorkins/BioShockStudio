@@ -27,6 +27,13 @@ def _assign(name, value):
     return a
 
 
+def _hold_open(runner):
+    """Return values die when a script's list ends (SCR-G18); a trailing wait keeps them readable."""
+    w = unreal.new_object(_cls("ShockActionWait"))
+    w.configure(999.0)
+    runner.add_action(w)
+
+
 def main(out):
     report = {"failures": [], "checks": {}}
     f = report["failures"]
@@ -235,6 +242,7 @@ def main(out):
     ar_runner = unreal.new_object(runner_cls)
     ar_runner.configure("Arith")
     ar_runner.add_action(arith)
+    _hold_open(ar_runner)
     ar_runner.start_execution()
     ar_runner.tick_execution(0.0)
     rv = arith.get_return_value()
@@ -244,6 +252,7 @@ def main(out):
     ar2 = unreal.new_object(runner_cls)
     ar2.configure("Arith0")
     ar2.add_action(arith_bad)
+    _hold_open(ar2)
     ar2.start_execution()
     ar2.tick_execution(0.0)
     rv0 = arith_bad.get_return_value()
@@ -257,6 +266,7 @@ def main(out):
     gl_actor.configure("LevelLbl", "")
     gl_runner = gl_actor.get_runner()
     gl_runner.add_action(gl)
+    _hold_open(gl_runner)
     gl_runner.start_execution()
     gl_runner.tick_execution(0.0)
     gl_rv = gl.get_return_value()
