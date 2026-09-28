@@ -22,9 +22,18 @@ try:
 
     result = verify_main_menu.main(OUT)
 except Exception as exc:  # noqa: BLE001 -- the commandlet must still write the file
-    result["error"] = str(exc)
-    result["traceback"] = traceback.format_exc()
+    # main() may already have written a full report to OUT before raising --
+    # merge the error/traceback into it instead of clobbering that data (w19 fix).
+    merged = result
+    if os.path.isfile(OUT):
+        try:
+            with open(OUT, "r", encoding="utf-8") as existing:
+                merged = json.load(existing)
+        except Exception:  # noqa: BLE001 -- fall back to the stub result on unreadable JSON
+            merged = result
+    merged["error"] = str(exc)
+    merged["traceback"] = traceback.format_exc()
     os.makedirs(os.path.dirname(os.path.abspath(OUT)), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as handle:
-        json.dump(result, handle, indent=2)
+        json.dump(merged, handle, indent=2)
     raise

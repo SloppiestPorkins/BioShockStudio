@@ -2421,6 +2421,9 @@ void AShockPlayer::TickInteractionTrace()
 {
 	CachedInteractPrompt.Reset();
 	CachedInteractActor = nullptr;
+	LastInteractTraceHitActor = nullptr;
+	LastInteractTraceHitDistance = -1.0f;
+	bLastInteractTraceDidHit = false;
 
 	UWorld* World = GetWorld();
 	if (!World || !FirstPersonCamera)
@@ -2435,6 +2438,10 @@ void AShockPlayer::TickInteractionTrace()
 	{
 		return;
 	}
+
+	bLastInteractTraceDidHit = true;
+	LastInteractTraceHitActor = Hit.GetActor();
+	LastInteractTraceHitDistance = Hit.Distance;
 
 	AActor* HitActor = Hit.GetActor();
 	if (const AShockConsumablePickup* Pickup = Cast<AShockConsumablePickup>(HitActor))

@@ -3,6 +3,10 @@
 Enumerates placed AShockConsumablePickup / AShockSearchableContainer / AShockStationBase,
 teleports a possessed player in front of each, runs TickInteractionTrace, asserts prompt +
 HandleInteractInput effect. Zero placed actors of a type is reported plainly (not a false fail).
+
+w19: PROMPT_FAIL lines are paired with BIOSHOCK_INTERACT_TRACE_HIT diagnostics that record the
+raw Visibility hit (hitActor / hitDist) and FaceActor stand placement, so a miss can be
+classified as no-hit / wrong-mesh / wrong-interactable without guessing.
 """
 
 from __future__ import annotations
@@ -36,6 +40,16 @@ FAIL_RE = re.compile(
 PROMPT_FAIL_RE = re.compile(
     r"BIOSHOCK_INTERACT_PROMPT_FAIL kind=(\S+) actor=(\S+)"
 )
+# w19 diagnostic emitted immediately after each PROMPT_FAIL.
+TRACE_HIT_RE = re.compile(
+    r"BIOSHOCK_INTERACT_TRACE_HIT kind=(?P<kind>\S+) target=(?P<target>\S+) "
+    r"hit=(?P<hit>[01]) hitActor=(?P<hitActor>\S+) hitDist=(?P<hitDist>-?[\d.]+) "
+    r"stand=\((?P<sx>-?[\d.]+),(?P<sy>-?[\d.]+),(?P<sz>-?[\d.]+)\) "
+    r"targetAim=\((?P<tx>-?[\d.]+),(?P<ty>-?[\d.]+),(?P<tz>-?[\d.]+)\) "
+    r"standToTarget=(?P<standToTarget>-?[\d.]+) awayDegenerate=(?P<awayDegenerate>[01]) "
+    r"cached=(?P<cached>\S+) prompt=(?P<prompt>.*)$",
+    re.MULTILINE,
+)
 
 
 def _log(message):
@@ -59,16 +73,57 @@ def _run_game(timeout_s=600):
     return subprocess.run(cmd, timeout=timeout_s).returncode
 
 
+def _classify_trace_hit(entry):
+    """Bucket a TRACE_HIT row for the report summary (no Unreal required)."""
+    if entry.get("hit") != 1:
+        return "no_hit"
+    hit_actor = entry.get("hitActor") or "None"
+    target = entry.get("target") or ""
+    cached = entry.get("cached") or "None"
+    if hit_actor == "None":
+        return "hit_null_actor"
+    if hit_actor == target:
+        return "hit_target_but_no_prompt"
+    if cached not in ("None", "", None) and cached != target:
+        return "wrong_interactable"
+    # Hit something that is not the target and did not become CachedInteractActor.
+    return "wrong_mesh_or_blocker"
+
+
 def _parse_log():
     if not os.path.isfile(LOG_PATH):
         return None, "log missing"
     text = open(LOG_PATH, encoding="utf-8", errors="replace").read()
     counts = COUNTS_RE.search(text)
+    trace_hits = []
+    class_counts = {}
+    for match in TRACE_HIT_RE.finditer(text):
+        entry = match.groupdict()
+        entry["hit"] = int(entry["hit"])
+        entry["hitDist"] = float(entry["hitDist"])
+        entry["standToTarget"] = float(entry["standToTarget"])
+        entry["awayDegenerate"] = int(entry["awayDegenerate"])
+        entry["stand"] = [
+            float(entry.pop("sx")),
+            float(entry.pop("sy")),
+            float(entry.pop("sz")),
+        ]
+        entry["targetAim"] = [
+            float(entry.pop("tx")),
+            float(entry.pop("ty")),
+            float(entry.pop("tz")),
+        ]
+        entry["classification"] = _classify_trace_hit(entry)
+        class_counts[entry["classification"]] = class_counts.get(entry["classification"], 0) + 1
+        trace_hits.append(entry)
+
     result = {
         "pickups": int(counts.group(1)) if counts else None,
         "containers": int(counts.group(2)) if counts else None,
         "stations": int(counts.group(3)) if counts else None,
         "promptFails": [m.group(0) for m in PROMPT_FAIL_RE.finditer(text)],
+        "traceHits": trace_hits,
+        "traceHitClasses": class_counts,
     }
     ok = OK_RE.search(text)
     fail = FAIL_RE.search(text)
@@ -123,6 +178,23 @@ def main(schema_path, report_path, map_path=MAP_PATH):
         failures.append(err)
         for line in (parsed or {}).get("promptFails") or []:
             failures.append(line)
+        # Surface the classification histogram so a fail report names the dominant mode
+        # (wrong_mesh vs no_hit vs wrong_interactable) without grepping the raw log.
+        classes = (parsed or {}).get("traceHitClasses") or {}
+        if classes:
+            failures.append("traceHitClasses=%s" % json.dumps(classes, sort_keys=True))
+        for hit in (parsed or {}).get("traceHits") or []:
+            failures.append(
+                "TRACE_HIT kind=%s target=%s class=%s hitActor=%s hitDist=%s awayDegenerate=%s"
+                % (
+                    hit.get("kind"),
+                    hit.get("target"),
+                    hit.get("classification"),
+                    hit.get("hitActor"),
+                    hit.get("hitDist"),
+                    hit.get("awayDegenerate"),
+                )
+            )
     else:
         # Plain census: zero of a type is information, not failure.
         for kind in ("pickups", "containers", "stations"):

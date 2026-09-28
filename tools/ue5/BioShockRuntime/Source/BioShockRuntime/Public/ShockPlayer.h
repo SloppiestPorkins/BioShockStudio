@@ -237,6 +237,21 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player")
 	AActor* GetCachedInteractActorForVerify() const { return CachedInteractActor.Get(); }
 
+	/**
+	 * Headless verify diagnostics for remaining interact-trace fails (w19): the raw
+	 * LineTraceSingleByChannel hit from the last TickInteractionTrace, before the
+	 * interactable-class filter. Distinguishes "hit nothing" / "hit wrong mesh" /
+	 * "hit right actor" when CachedInteractActor is null or mismatched.
+	 */
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	AActor* GetLastInteractTraceHitActorForVerify() const { return LastInteractTraceHitActor.Get(); }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	float GetLastInteractTraceHitDistanceForVerify() const { return LastInteractTraceHitDistance; }
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	bool GetLastInteractTraceDidHitForVerify() const { return bLastInteractTraceDidHit; }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void HandleInteractInputForVerify() { HandleInteractInput(); }
 
@@ -963,6 +978,10 @@ private:
 	FName PlasmidHandsAnimName = NAME_None;
 	FString CachedInteractPrompt;
 	TWeakObjectPtr<AActor> CachedInteractActor;
+	/** Last raw Visibility hit from TickInteractionTrace (verify diagnostics; not gameplay). */
+	TWeakObjectPtr<AActor> LastInteractTraceHitActor;
+	float LastInteractTraceHitDistance = -1.0f;
+	bool bLastInteractTraceDidHit = false;
 	bool bPlasmidHandActive = false;
 	bool bPlasmidHandsPlayingOneShot = false;
 	float PlasmidHandsOneShotRemaining = 0.0f;

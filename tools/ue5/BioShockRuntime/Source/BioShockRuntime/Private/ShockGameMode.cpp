@@ -2727,16 +2727,120 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 	int32 ActionFail = 0;
 	int32 InteractPickups = 0;
 
-	auto FaceActor = [Player](AActor* Target)
+	// Last FaceActor placement — logged on PROMPT_FAIL so w19 can tell "Away degenerate /
+	// stood inside geometry" apart from "trace hit a shelf" without re-running PIE.
+	FVector LastFaceStand = FVector::ZeroVector;
+	FVector LastFaceTarget = FVector::ZeroVector;
+	bool bLastFaceAwayDegenerate = false;
+	auto FaceActor = [Player, &LastFaceStand, &LastFaceTarget, &bLastFaceAwayDegenerate](AActor* Target)
 	{
 		if (!Player || !Target)
 		{
 			return;
 		}
-		const FVector TargetLoc = Target->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
-		const FVector Away = (Player->GetActorLocation() - TargetLoc).GetSafeNormal2D();
-		const FVector Stand = TargetLoc + (Away.IsNearlyZero() ? FVector(120.0f, 0.0f, 0.0f) : Away * 120.0f);
-		Player->SetActorLocation(Stand + FVector(0.0f, 0.0f, 90.0f), false);
+		// A flat +40uu-above-pivot guess (the previous approach) lands exactly on the boundary
+		// of a pickup's own 48uu collision sphere when that pickup sits flush under a shelf --
+		// confirmed on ShockConsumablePickup_12 (sphere center Z=8095, sphere top Z=8143, the
+		// shelf StaticMeshActor_1517 directly above starts at Z=8142.5: the +40 aim point
+		// Z=8135 sat 7uu inside the sphere but right at the shelf's underside, so a
+		// sub-uu-precision ring probe could clip either one). GetActorBounds' collision-only
+		// origin is the true center of whatever collision volume actually blocks the interact
+		// trace (sphere center for pickups/containers, mesh-bounds center for floor-pivoted
+		// stations), so it can't graze a neighbouring collider the way a fixed offset can.
+		FVector TargetLoc = Target->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+		{
+			FVector BoundsOrigin, BoundsExtent;
+			Target->GetActorBounds(true, BoundsOrigin, BoundsExtent);
+			if (!BoundsExtent.IsNearlyZero())
+			{
+				TargetLoc = BoundsOrigin;
+			}
+		}
+		UWorld* World = Player->GetWorld();
+
+		// w19 found the single "away from wherever the player last stood" direction blind to real
+		// room geometry: 23/46 remaining interact fails were blocked by a StaticMeshActor between
+		// that stand point and the target (a shelf, a wall corner, a decoration), and 12/46
+		// overshot the target's own collision sphere onto whatever sat behind it -- neither is an
+		// interact-system bug, both are the harness placing the camera somewhere without a clear
+		// shot. Try a ring of candidate stand points (same shape as AimPlayerAtNearestWall's
+		// TryDeltas below) and keep the first one whose trace actually reaches the target's own
+		// collision, falling back to the first merely-unobstructed one, and only then to the naive
+		// single direction so a target this still can't clear is at least diagnosable, not silently
+		// skipped.
+		static const FVector2D Rings[] = {
+			FVector2D(1.0f, 0.0f), FVector2D(-1.0f, 0.0f), FVector2D(0.0f, 1.0f), FVector2D(0.0f, -1.0f),
+			FVector2D(0.70710678f, 0.70710678f), FVector2D(-0.70710678f, 0.70710678f),
+			FVector2D(0.70710678f, -0.70710678f), FVector2D(-0.70710678f, -0.70710678f),
+		};
+		static const float Distances[] = {120.0f, 150.0f, 90.0f, 180.0f};
+
+		FVector BestClearStand = FVector::ZeroVector;
+		bool bFoundClear = false;
+		FVector BestReachedStand = FVector::ZeroVector;
+		bool bFoundReachesTarget = false;
+
+		for (float Distance : Distances)
+		{
+			for (const FVector2D& Dir : Rings)
+			{
+				const FVector Candidate =
+					TargetLoc + FVector(Dir.X, Dir.Y, 0.0f) * Distance + FVector(0.0f, 0.0f, 90.0f);
+				const FVector EyeAtCandidate = Candidate; // capsule root ~= eye height for this probe
+				FHitResult ProbeHit;
+				FCollisionQueryParams ProbeParams(SCENE_QUERY_STAT(ShockInteractFaceProbe), false, Player);
+				const bool bProbeHit = World && World->LineTraceSingleByChannel(
+					ProbeHit, EyeAtCandidate, TargetLoc, ECC_Visibility, ProbeParams);
+				if (!bProbeHit)
+				{
+					if (!bFoundClear)
+					{
+						BestClearStand = Candidate;
+						bFoundClear = true;
+					}
+					continue;
+				}
+				if (ProbeHit.GetActor() == Target)
+				{
+					BestReachedStand = Candidate;
+					bFoundReachesTarget = true;
+					break;
+				}
+				if (!bFoundClear)
+				{
+					// Blocked, but record it as a last-resort clear-ish candidate only if nothing
+					// better ever turns up -- a blocked probe is not actually clear.
+				}
+			}
+			if (bFoundReachesTarget)
+			{
+				break;
+			}
+		}
+
+		FVector Stand;
+		if (bFoundReachesTarget)
+		{
+			Stand = BestReachedStand;
+		}
+		else if (bFoundClear)
+		{
+			Stand = BestClearStand;
+		}
+		else
+		{
+			// Nothing in the ring cleared or reached -- fall back to the original naive placement
+			// so this target is still diagnosable (LogPromptFailDiagnostics reports the outcome)
+			// rather than silently skipped.
+			const FVector Away = (Player->GetActorLocation() - TargetLoc).GetSafeNormal2D();
+			bLastFaceAwayDegenerate = Away.IsNearlyZero();
+			Stand = TargetLoc + (bLastFaceAwayDegenerate ? FVector(120.0f, 0.0f, 0.0f) : Away * 120.0f)
+				+ FVector(0.0f, 0.0f, 90.0f);
+		}
+
+		LastFaceTarget = TargetLoc;
+		LastFaceStand = Stand;
+		Player->SetActorLocation(LastFaceStand, false);
 		const FRotator Aim = (TargetLoc - Player->GetActorLocation()).Rotation();
 		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
 		{
@@ -2752,6 +2856,37 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 		{
 			Player->FirstPersonCamera->SetWorldRotation(Aim);
 		}
+	};
+
+	auto LogPromptFailDiagnostics = [Player, &LastFaceStand, &LastFaceTarget, &bLastFaceAwayDegenerate](
+		const TCHAR* Kind,
+		AActor* Target)
+	{
+		const bool bHit = Player && Player->GetLastInteractTraceDidHitForVerify();
+		const AActor* HitActor = Player ? Player->GetLastInteractTraceHitActorForVerify() : nullptr;
+		const float HitDist = Player ? Player->GetLastInteractTraceHitDistanceForVerify() : -1.0f;
+		const float StandToTarget = FVector::Dist(LastFaceStand, LastFaceTarget);
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_INTERACT_TRACE_HIT kind=%s target=%s hit=%s hitActor=%s hitDist=%.1f "
+				 "stand=(%.0f,%.0f,%.0f) targetAim=(%.0f,%.0f,%.0f) standToTarget=%.1f awayDegenerate=%d "
+				 "cached=%s prompt=%s"),
+			Kind,
+			*GetNameSafe(Target),
+			bHit ? TEXT("1") : TEXT("0"),
+			*GetNameSafe(HitActor),
+			HitDist,
+			LastFaceStand.X,
+			LastFaceStand.Y,
+			LastFaceStand.Z,
+			LastFaceTarget.X,
+			LastFaceTarget.Y,
+			LastFaceTarget.Z,
+			StandToTarget,
+			bLastFaceAwayDegenerate ? 1 : 0,
+			*GetNameSafe(Player ? Player->GetCachedInteractActorForVerify() : nullptr),
+			Player ? *Player->GetInteractionPrompt() : TEXT(""));
 	};
 
 	for (AShockConsumablePickup* Pickup : Pickups)
@@ -2802,6 +2937,7 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 				*Pickup->GetName(),
 				*GetNameSafe(Player->GetCachedInteractActorForVerify()),
 				*Player->GetInteractionPrompt());
+			LogPromptFailDiagnostics(TEXT("pickup"), Pickup);
 		}
 	}
 
@@ -2849,6 +2985,7 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 				TEXT("BIOSHOCK_INTERACT_PROMPT_FAIL kind=container actor=%s cached=%s"),
 				*Container->GetName(),
 				*GetNameSafe(Player->GetCachedInteractActorForVerify()));
+			LogPromptFailDiagnostics(TEXT("container"), Container);
 		}
 	}
 
@@ -2897,6 +3034,7 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 				TEXT("BIOSHOCK_INTERACT_PROMPT_FAIL kind=station actor=%s cached=%s"),
 				*Station->GetName(),
 				*GetNameSafe(Player->GetCachedInteractActorForVerify()));
+			LogPromptFailDiagnostics(TEXT("station"), Station);
 		}
 	}
 
