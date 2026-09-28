@@ -49,9 +49,15 @@ per-system sections below.
 
 1. **Close out the w18 live-PIE bug list** — see STATUS.md's bug table. Concrete, scoped, blocking a
    clean human playtest.
-2. **The scripting VM's remaining stubs** — watchers (`ActionCreateWatcher`), critical/immediate
-   execution mode on level travel, quests/facts/training-message plumbing. Everything else in the
-   top-90%-of-usage census executes.
+2. **The scripting VM's remaining stubs** — watchers (`ActionCreateWatcher`, entirely unbuilt),
+   critical/immediate execution mode on level travel (entirely unbuilt), `TestFact`'s boolean
+   evaluation (hardcoded `return false`, so fact-gated `ActionIf` branches can never pass — the
+   assert/retract side is real, only the read side is stubbed), and training-message HUD display
+   (`SetTrainingMessage` stores a name, nothing renders it). **Not a gap, contrary to earlier
+   wording here**: the quest state machine (`InitiateQuest`/`CompleteQuestObjective`/
+   `CompleteQuest`/`FailQuest`/`GetActiveQuestNames`, `ShockPlayer.cpp` ~3112–3188) is real —
+   `ShockStatusMenu.cpp:412` reads live state, not a stub list. Corrected 28 Sept 2026 after
+   checking current code before dispatching w20.
 3. **Script-graph import on the 20 non-Medical maps** — the exporter already runs clean on all 21;
    only Medical has been *imported* and had its per-map `nested_unmapped` gaps fixed.
 4. **AI**: generalize the goal/ability brain (`UShockAIBrain`) past the two slice archetypes to every
@@ -223,10 +229,13 @@ money) on one hand-built test map.
 - **Tonics.** No tonic system exists at all. The Gene Bank UI is plasmids-only.
 - **Switches / levers.** No dedicated actor class; anything that looks like a lever in the shipped
   levels currently has no gameplay behind it.
-- **Quests.** No quest system. The Status menu's Goals tab reads a stub list
-  (`GetActiveQuestNames`), not a real quest log; `InitiateQuest`/`CompleteQuestObjective`/
-  `CompleteQuest`/`FailQuest` are request-record slices in the script runner, not a quest state
-  machine.
+- **Quests.** A real, if simple, state machine exists and is live (`InitiateQuest`/
+  `CompleteQuestObjective`/`CompleteQuest`/`FailQuest`/`GetActiveQuestNames` on `AShockPlayer`,
+  `ShockPlayer.cpp` ~3112–3188), consumed by the Status menu's Goals tab
+  (`ShockStatusMenu.cpp:412`) — corrected 28 Sept 2026, this file previously said it was a stub.
+  Still missing: quest *hint* text/objective descriptions beyond a bare name, and nothing in the
+  script-actions import currently calls `InitiateQuest` from real Medical script data to prove the
+  chain end-to-end against shipped content, not just headless verifies.
 - **U-Invent crafting.** Runs against generic inventory stacks; there is no crafting-component bag
   (glue/rubber/screws/…) or recipe resolution.
 - **ADAM economy / vending economy loop.** Money and ADAM are tracked scalars; the vending discount-
