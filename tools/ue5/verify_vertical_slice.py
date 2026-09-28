@@ -284,6 +284,12 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
         "map": map_path,
         "manifest": manifest_path,
         "expected": {
+            # W-BUG-01: sun-shaped lights spawn without radius; point/spot/directional need one.
+            "importedLights": len([
+                light for light in (manifest.get("lights") or [])
+                if import_level._light_shape(light) == "sun"
+                or (light.get("radius") is not None and float(light["radius"]) > 0)
+            ]),
             "lightsWithRadius": len([light for light in (manifest.get("lights") or [])
                                      if light.get("radius") is not None
                                      and float(light["radius"]) > 0]),
@@ -349,10 +355,13 @@ def main(manifest_path, report_path, weapon_directory=None, rig_names=None,
         failures.append("actor count changed across save/reload: %d before, %d after"
                         % (total_before, total_after))
 
-    lights = by_class.get("PointLight", 0)
-    if lights != report["expected"]["lightsWithRadius"]:
-        failures.append("PointLight %d != %d lights with a usable radius"
-                        % (lights, report["expected"]["lightsWithRadius"]))
+    lights = (by_class.get("PointLight", 0)
+              + by_class.get("SpotLight", 0)
+              + by_class.get("DirectionalLight", 0))
+    if lights != report["expected"]["importedLights"]:
+        failures.append(
+            "imported lights %d (Point+Spot+Directional) != %d expected"
+            % (lights, report["expected"]["importedLights"]))
 
     captures = by_class.get("SphereReflectionCapture", 0)
     if captures != report["expected"]["cubemapProbes"]:

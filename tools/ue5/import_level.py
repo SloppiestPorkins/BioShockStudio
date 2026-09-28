@@ -10,10 +10,13 @@ tag. A second run finds the existing actor by that tag and updates it in place r
 a duplicate, which is the property Gate 5 item 1 asks for and the one that makes re-importing a
 level safe.
 
-**What is and is not reproduced.** Lights become real `PointLight` actors: colour, authored
-`LightBrightness` as intensity (no candela conversion), `LightRadius` as attenuation radius,
-inverse-square falloff off so intensity stays a brightness scale. A light with no radius is not
-spawned — its reach is UNKNOWN. **Drawable** geometry instances become `StaticMeshActor`/
+**What is and is not reproduced.** Lights become real UE5 light actors branched on authored
+`LightEffect` shape (W-BUG-01): point → `PointLight`, spot → `SpotLight` (rotation + cone),
+sun/directional → `DirectionalLight` (rotation; no attenuation radius). Colour and authored
+`LightBrightness` map to intensity (no candela conversion); point/spot carry `LightRadius` as
+attenuation radius with inverse-square falloff off so intensity stays a brightness scale. A
+point/spot/directional light with no radius is not spawned — its reach is UNKNOWN; sun lights
+omit radius by design and still spawn. **Drawable** geometry instances become `StaticMeshActor`/
 `SkeletalMeshActor`. **Gameplay volumes** (`TriggerVolume`, `BlockingVolume`, `FluidVolume`, …)
 become invisible UE5 volume actors sized from their brush OBJ bounds — never as visible meshes.
 **Water volumes** (`FluidVolume`, `CascadingWaterVolume`, `TunnelCollapseWaterVolume`) spawn as
@@ -159,9 +162,75 @@ _UE2_LIGHT_TYPE_TO_EFFECT = {
     7: ("SubtlePulse", 6),
 }
 
+# BioShock LightEffect → shape (W-BUG-01). Not stock UE2's 20-value waver enum — the SDK guide's
+# lighting chapter lists four shapes in declaration order (Pointlight, Spotlight, Sunlight,
+# Directionallight). Engine.u's exact ordinals are still unreadable here (W-UNK-01), so the map
+# below is inferred the same way `_UE2_LIGHT_TYPE_TO_EFFECT` is: declared-order names plus the
+# real Medical census. In `1-Medical.ue5-level.json` (695 lights): effect absent 514, 2→175,
+# 3→6; cone set on 232 (148 of the effect=2 set). That pins:
+#   absent / 0 / 1 → point  (guide default is Pointlight; whole-game also writes rare explicit 1)
+#   2             → spot   (25% of Medical; 148/175 carry LightCone; 174/175 non-identity rotation)
+#   3             → sun    (6 lights; two omit radius entirely — only sun does that per the guide)
+#   4             → directional (not seen in Medical; same UE5 class as sun)
+# Confidence: PLAUSIBLE. Sun and directional both spawn `DirectionalLight` (parallel rays; UE5
+# has no separate "sun" actor class for this import).
+_UE2_LIGHT_EFFECT_TO_SHAPE = {
+    0: "point",
+    1: "point",
+    2: "spot",
+    3: "sun",
+    4: "directional",
+}
+
+# Guide default LightCone when a spotlight omits the byte.
+_DEFAULT_SPOT_CONE_BYTE = 128
+
+
+def _light_shape(light):
+    """Return 'point' | 'spot' | 'sun' | 'directional' from the authored LightEffect byte."""
+    effect = light.get("effect")
+    if effect is None:
+        return "point"
+    return _UE2_LIGHT_EFFECT_TO_SHAPE.get(int(effect), "point")
+
+
+def _light_actor_class(shape):
+    if shape == "spot":
+        return unreal.SpotLight
+    if shape in ("sun", "directional"):
+        return unreal.DirectionalLight
+    return unreal.PointLight
+
+
+def _is_imported_light_actor(actor):
+    return isinstance(actor, (unreal.PointLight, unreal.SpotLight, unreal.DirectionalLight))
+
+
+def _cone_half_angle_degrees(cone_byte):
+    """Spot half-angle in degrees from the guide relation cos(θ) = 1 − LightCone/255."""
+    cosine = 1.0 - float(cone_byte) / 255.0
+    cosine = max(-1.0, min(1.0, cosine))
+    return math.degrees(math.acos(cosine))
+
+
+def _with_light_rotation(light, actors_by_key):
+    """Prefer lights[].rotation; fall back to actors[] (same key) until manifests are re-exported."""
+    if light.get("rotation"):
+        return light
+    actor_doc = actors_by_key.get(light.get("key"))
+    if actor_doc is not None and actor_doc.get("rotation") is not None:
+        enriched = dict(light)
+        enriched["rotation"] = actor_doc["rotation"]
+        return enriched
+    return light
+
 
 def _apply_light_effect(actor, light, component):
-    """SCR-G07 / W-BUG-03: animate LightType via UShockLightEffectComponent; steady is untouched."""
+    """SCR-G07 / W-BUG-03: animate LightType via UShockLightEffectComponent; steady is untouched.
+
+    Only touches `intensity` on the shared ULightComponent base — safe for Point/Spot/Directional.
+    Does not read or write attenuation_radius (DirectionalLight has none).
+    """
     light_type = light.get("type")
     if light_type is None:
         return
@@ -193,31 +262,33 @@ def _apply_light_effect(actor, light, component):
 
 def _import_lights(manifest, existing, report, handled):
     """Lights are the one class reproduced as a real, functioning UE5 actor."""
+    actors_by_key = {a["key"]: a for a in (manifest.get("actors") or []) if a.get("key")}
     for light in manifest.get("lights") or []:
         key = light["key"]
         actor = existing.get(key)
+        shape = _light_shape(light)
+        expected_cls = _light_actor_class(shape)
         radius = light.get("radius")
-
-        # Reach is UNKNOWN when the package wrote no radius (or zero). The studio drops those
-        # rather than inventing one. Do not spawn a PointLight with UE5's 1000 cm default.
-        if radius is None or float(radius) <= 0:
-            if actor is not None and isinstance(actor, unreal.PointLight):
+        has_radius = radius is not None and float(radius) > 0
+        # Sun has infinite range (no LightRadius). Point/spot/directional-beam need a radius;
+        # without one, reach is UNKNOWN — drop rather than invent UE5's 1000 cm default.
+        if shape != "sun" and not has_radius:
+            if actor is not None and _is_imported_light_actor(actor):
                 _actor_subsystem().destroy_actor(actor)
                 existing.pop(key, None)
             continue
 
         handled.add(key)
+        light = _with_light_rotation(light, actors_by_key)
 
-        # A light already owned by a previous run must still BE a light. If an earlier, buggier run
-        # left a placeholder under this key, replace it rather than trying to set light properties
-        # on it -- which is exactly how the duplicate-spawn bug below announced itself.
-        if actor is not None and not isinstance(actor, unreal.PointLight):
+        # Wrong class (placeholder TargetPoint, or a prior PointLight under a spot key) → replace.
+        if actor is not None and not isinstance(actor, expected_cls):
             _actor_subsystem().destroy_actor(actor)
             actor = None
 
         if actor is None:
             actor = _actor_subsystem().spawn_actor_from_class(
-                unreal.PointLight, unreal.Vector(*_to_unreal_location(light.get("location", [0, 0, 0]))))
+                expected_cls, unreal.Vector(*_to_unreal_location(light.get("location", [0, 0, 0]))))
             if actor is None:
                 report["skipped"] += 1
                 continue
@@ -238,22 +309,29 @@ def _import_lights(manifest, existing, report, handled):
             component.set_editor_property(
                 "light_color", unreal.Color(r=colour[0], g=colour[1], b=colour[2], a=255))
 
-        # Radius is world centimetres, same unit as UE5 AttenuationRadius — carry it, do not scale.
-        component.set_editor_property("attenuation_radius", float(radius))
-
-        # Inverse-square treats AttenuationRadius as a clip on 1/r^2. BioShock authored a finite
-        # radius as the light's reach (float world units, median hundreds of cm). This project's
-        # own viewer found inverse-square "almost black" at those scales (SoftwareRenderer). UE5's
-        # PointLightComponent: when inverse-square is off, Intensity is a brightness scale. The
-        # authored LightBrightness is that scale (0–4, median ~1) — carry it, do not multiply.
-        # The previous `* 1000` was the uncalibrated guess Phase 1.4 exists to remove.
-        component.set_editor_property("use_inverse_squared_falloff", False)
-        units = getattr(unreal.LightUnits, "UNITLESS", None)
-        if units is not None:
-            component.set_editor_property("intensity_units", units)
         brightness = light.get("brightness")
-        component.set_editor_property(
-            "intensity", float(brightness) if brightness is not None else 1.0)
+        intensity = float(brightness) if brightness is not None else 1.0
+        component.set_editor_property("intensity", intensity)
+
+        if shape in ("point", "spot"):
+            # Radius is world centimetres, same unit as UE5 AttenuationRadius — carry it, do not scale.
+            component.set_editor_property("attenuation_radius", float(radius))
+            # Inverse-square treats AttenuationRadius as a clip on 1/r^2. BioShock authored a finite
+            # radius as the light's reach. When inverse-square is off, Intensity is a brightness
+            # scale — carry LightBrightness, do not multiply.
+            component.set_editor_property("use_inverse_squared_falloff", False)
+            units = getattr(unreal.LightUnits, "UNITLESS", None)
+            if units is not None:
+                component.set_editor_property("intensity_units", units)
+            if shape == "spot":
+                cone_byte = light.get("cone")
+                if cone_byte is None:
+                    cone_byte = _DEFAULT_SPOT_CONE_BYTE
+                component.set_editor_property(
+                    "outer_cone_angle", _cone_half_angle_degrees(cone_byte))
+        # sun / directional: no AttenuationRadius on UDirectionalLightComponent — colour,
+        # brightness, rotation, and type-driven effect only.
+
         _apply_light_effect(actor, light, component)
 
 
@@ -431,7 +509,8 @@ def _import_actors(manifest, existing, report, handled):
         key = entry["key"]
 
         # The actors list includes the lights, which _import_lights has already placed as real
-        # PointLights. Skipping on `handled` rather than on the pre-run snapshot matters: the
+        # light actors (Point/Spot/Directional). Skipping on `handled` rather than on the pre-run
+        # snapshot matters: the
         # snapshot is taken before anything spawns, so on a first run it does not contain the
         # lights this same run just created, and every light was getting a duplicate placeholder.
         if key in handled:

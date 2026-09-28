@@ -1,7 +1,8 @@
-"""Verify PointLight radius and brightness mapping against a level manifest.
+"""Verify light radius/brightness/effect mapping against a level manifest.
 
-Phase 1.4. Inverse-square off, intensity = authored LightBrightness (or 1.0),
-attenuation radius = authored LightRadius. Raises RuntimeError on mismatch.
+Phase 1.4 + W-BUG-03 + W-BUG-01. Point lights keep the original intensity/radius contract;
+spot/sun/directional shapes are counted separately so this script does not false-fail when
+`_import_lights` spawns SpotLight / DirectionalLight. Raises RuntimeError on mismatch.
 """
 
 import json
@@ -20,6 +21,17 @@ def _tag_value(actor, prefix):
     return None
 
 
+def _collect_lights_by_key():
+    by_key = {}
+    for actor in import_level._actor_subsystem().get_all_level_actors():
+        if not import_level._is_imported_light_actor(actor):
+            continue
+        key = _tag_value(actor, "BioShockKey=")
+        if key:
+            by_key[key] = actor
+    return by_key
+
+
 def main(manifest_path=None, report_path=None):
     manifest_path = manifest_path or os.environ.get("BIOSHOCK_LIGHT_MANIFEST")
     report_path = report_path or os.environ.get("BIOSHOCK_LIGHT_LOOK_OUT")
@@ -31,15 +43,20 @@ def main(manifest_path=None, report_path=None):
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
 
-    expected = [light for light in (manifest.get("lights") or [])
-                if light.get("radius") is not None and float(light["radius"]) > 0]
+    expected = []
+    for light in manifest.get("lights") or []:
+        shape = import_level._light_shape(light)
+        radius = light.get("radius")
+        has_radius = radius is not None and float(radius) > 0
+        if shape == "sun" or has_radius:
+            expected.append(light)
     dropped = len(manifest.get("lights") or []) - len(expected)
     if not expected:
-        raise RuntimeError("manifest has no lights with a usable radius")
+        raise RuntimeError("manifest has no lights with a usable radius (or sun shape)")
 
     report = {
         "package": manifest.get("package"),
-        "expectedPointLights": len(expected),
+        "expectedLights": len(expected),
         "droppedNoRadius": dropped,
         "intensityScale": 1.0,
         "inverseSquared": False,
@@ -53,17 +70,11 @@ def main(manifest_path=None, report_path=None):
     import_level._import_lights(manifest, existing, import_report, handled)
     report["import"] = import_report
 
-    by_key = {}
-    for actor in import_level._actor_subsystem().get_all_level_actors():
-        if not isinstance(actor, unreal.PointLight):
-            continue
-        key = _tag_value(actor, "BioShockKey=")
-        if key:
-            by_key[key] = actor
+    by_key = _collect_lights_by_key()
 
     if len(by_key) != len(expected):
         raise RuntimeError(
-            "PointLight count %d != usable-radius lights %d"
+            "imported light count %d != expected %d"
             % (len(by_key), len(expected)))
 
     failures = []
@@ -72,29 +83,38 @@ def main(manifest_path=None, report_path=None):
         if actor is None:
             failures.append("missing %s" % light["key"])
             continue
+        shape = import_level._light_shape(light)
+        expected_cls = import_level._light_actor_class(shape)
+        if not isinstance(actor, expected_cls):
+            failures.append(
+                "%s class %s != expected %s"
+                % (light["key"], type(actor).__name__, expected_cls.__name__))
+            continue
         component = actor.get_editor_property("light_component")
-        radius = float(component.get_editor_property("attenuation_radius"))
         intensity = float(component.get_editor_property("intensity"))
-        inverse = bool(component.get_editor_property("use_inverse_squared_falloff"))
-        authored_intensity = float(light["brightness"]) if light.get("brightness") is not None else 1.0
         light_type = light.get("type")
         # SCR-G07 / W-BUG-03: LT_None (type 0) means the light is off, not just unanimated.
+        authored_intensity = float(light["brightness"]) if light.get("brightness") is not None else 1.0
         expected_intensity = 0.0 if light_type == 0 else authored_intensity
-        expected_radius = float(light["radius"])
         sample = {
             "key": light["key"],
-            "attenuationRadius": radius,
+            "shape": shape,
             "intensity": intensity,
-            "inverseSquared": inverse,
             "lightType": light_type,
         }
+        if shape in ("point", "spot"):
+            radius = float(component.get_editor_property("attenuation_radius"))
+            inverse = bool(component.get_editor_property("use_inverse_squared_falloff"))
+            expected_radius = float(light["radius"])
+            sample["attenuationRadius"] = radius
+            sample["inverseSquared"] = inverse
+            if abs(radius - expected_radius) > 0.5:
+                failures.append("%s radius %s != %s" % (light["key"], radius, expected_radius))
+            if inverse:
+                failures.append("%s still inverse-squared" % light["key"])
         report["lights"].append(sample)
-        if abs(radius - expected_radius) > 0.5:
-            failures.append("%s radius %s != %s" % (light["key"], radius, expected_radius))
         if abs(intensity - expected_intensity) > 1e-4:
             failures.append("%s intensity %s != %s" % (light["key"], intensity, expected_intensity))
-        if inverse:
-            failures.append("%s still inverse-squared" % light["key"])
         if expected_intensity > 0.05 and intensity >= expected_intensity * 50:
             failures.append("%s intensity %s looks like the old *1000 guess" % (light["key"], intensity))
 

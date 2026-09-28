@@ -555,6 +555,8 @@ public static class LevelSceneExporter
                 ClassName = l.ClassName,
                 ExportIndex = l.Source.ExportIndex,
                 Location = ToArray(l.Location),
+                // Same raw UE2 rotator triple as LevelActorDocument.Rotation — not GameBasis-converted.
+                Rotation = [l.Rotation.Pitch, l.Rotation.Yaw, l.Rotation.Roll],
                 Color = l.Color is { } c ? [c.R, c.G, c.B, c.A] : null,
                 Brightness = l.Brightness,
                 Radius = l.Radius,
@@ -1954,6 +1956,14 @@ public sealed record LevelLightDocument
     public required string ClassName { get; init; }
     public required int ExportIndex { get; init; }
     public required float[] Location { get; init; }
+
+    /// <summary>
+    /// Raw UE2 pitch/yaw/roll (same shape as <see cref="LevelActorDocument.Rotation"/>). Spot /
+    /// sun / directional lights aim along this; the UE5 importer converts with
+    /// <c>ROTATOR_TO_DEGREES</c>.
+    /// </summary>
+    public required int[] Rotation { get; init; }
+
     public int[]? Color { get; init; }
     public float? Brightness { get; init; }
     public float? Radius { get; init; }
@@ -1967,7 +1977,10 @@ public sealed record LevelLightDocument
     /// <summary><c>LightType</c> raw byte — <c>PLAUSIBLE</c> stock <c>ELightType</c>, not confirmed.</summary>
     public byte? Type { get; init; }
 
-    /// <summary><c>LightEffect</c> raw byte — near-constant 2 across the game, semantic <c>UNKNOWN</c>.</summary>
+    /// <summary>
+    /// <c>LightEffect</c> raw byte — shape selector. Medical census + guide declaration order pin
+    /// 2=spot / 3=sun as <c>PLAUSIBLE</c>; see W-BUG-01 / <c>_UE2_LIGHT_EFFECT_TO_SHAPE</c>.
+    /// </summary>
     public byte? Effect { get; init; }
 
     /// <summary><c>LightPeriod</c> raw byte — animation timing for whichever <see cref="Type"/> is set.</summary>

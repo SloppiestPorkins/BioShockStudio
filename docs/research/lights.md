@@ -16,7 +16,7 @@ is why the first three sat unread until Nyko's SDK (`bioshock1-bsm.md` §C.6) na
 | `LightRadius` | `FloatProperty`, world units, 0–120 000, median 2048 | byte, `WorldRadius = 25·(b+1)` | `CONFIRMED_BYTES` | World centimetres. |
 | `LightCone` | `Byte` | `Byte` (spot aperture) | value `CONFIRMED_BYTES`; semantic `PLAUSIBLE` | Written by **3,343 of 10,917** lights with a non-zero value (+22 that write an explicit `0`). A light that writes it casts a cone, not a sphere — a first-class spotlight signal even without the exact byte→angle formula. Range 1–255. |
 | `LightType` | `Byte` | `ELightType` enum | value `CONFIRMED_BYTES`; enum **`CORROBORATED`** | 940 lights write it. Values seen: **0, 2, 3, 4, 5, 7, 9** — 4 (`LT_Flicker` under stock) the most common (331). Every value is inside stock `ELightType`'s 0–9 range and **1 (`LT_Steady`, the default) never appears**. Two decompiled gameplay uses match the stock reading in context: `DynamicLight_MuzzleMGPulse` sets `LightType=2` (`LT_Pulse` — a pulsing muzzle light); `FlameThrower_Player` sets `LightType=9` (`LT_TexturePaletteLoop` — an animated flame). Not `CONFIRMED_EXTERNAL` — the authoritative enum is in `Engine.U`, which this project's decompiler cannot read — but census + two contextual uses agree. |
-| `LightEffect` | `Byte` | `ELightEffect` enum (20 values) | value `CONFIRMED_BYTES`; semantic `UNKNOWN` | 2,040 lights write it and **1,927 of them write exactly `2`** (the rest: 1 or 3). A 20-value enum does not look like that. The stock reading (2 = `LE_FireWaver`) is therefore rejected — value 2 is most likely Vengeance's repurposed "normal light" path. Surfaced raw so the near-constant is visible. |
+| `LightEffect` | `Byte` | BioShock shape enum (4 names in the SDK guide) | value `CONFIRMED_BYTES`; semantic **`PLAUSIBLE`** (W-BUG-01) | 2,040 lights write it and **1,927 of them write exactly `2`** (the rest: 1 or 3). Stock UE2's 20-value waver reading is rejected. Medical census + guide declaration order → importer map absent/`0`/`1`=point, `2`=spot, `3`=sun, `4`=directional (`_UE2_LIGHT_EFFECT_TO_SHAPE`). Engine.u confirmation still W-UNK-01. |
 | `LightPeriod` | `Byte` | `Byte` (animation timing) | value `CONFIRMED_BYTES`; semantic `PLAUSIBLE` | 1,085 lights write it, spread across the whole 0–255 range. The rate/period for whichever animated `LightType` is set. |
 
 Census: `LevelLightFieldTests.TheFourAddedLightFieldsDecodeAndTheirWholeGameCensusHolds`, 21 base
@@ -32,16 +32,17 @@ decode — and the static look is lightmap-dominated regardless.
 
 ## What is still open
 
-- **The `LightType` and `LightEffect` enums** are not pinned to BioShock's own definitions. Stock
-  `ELightType` is `PLAUSIBLE` from the value distribution; `LightEffect`'s meaning is genuinely
-  `UNKNOWN`. Pinning needs `Engine.U` to decompile (currently a hard failure in `tools/uelib-bridge`)
-  or in-editor observation.
-- **`LightCone` byte → cone angle.** Stock UE2.5 scales an aperture to 0–255; not verified against
-  BioShock's renderer. "Is a spotlight" is solid; the exact angle is not.
-- **The manifest does not carry these four fields yet.** `LevelLightDocument` still exports
-  colour/brightness/radius only. Adding cone/type/effect/period is a schema bump — coordinate with
-  the Cursor lane's `import_level.py` (which would gain `SpotLight` spawning and flicker).
+- **`LightEffect` ordinals in `Engine.U`.** Importer uses a PLAUSIBLE map (W-BUG-01); W-UNK-01
+  until `Engine.U` decompiles or an editor observation confirms.
+- **Medical re-export** so `lights[].rotation` is on disk (schema is in `LevelLightDocument`;
+  importer falls back to `actors[].rotation` by key until then).
 - **`LevelAnalyzer.Interpreted`** does not list any `Light*` property, so the uninterpreted-property
   census still counts all seven as unread. Pre-existing (the original three were never added either);
   fixing it moves a coverage figure and needs the classify-before-touching pass (`ENGINEERING_RULES.md`
   §24).
+
+## W-BUG-01 notes (28 Sept 2026)
+
+- Cone half-angle: `θ = acos(1 − LightCone/255)` degrees → UE5 `OuterConeAngle`.
+- `LevelLight.Rotation` / `LevelLightDocument.Rotation` = raw UE2 pitch/yaw/roll (same as actors).
+- Verify: `tools/ue5/verify_light_shape.py` against the real Medical manifest.

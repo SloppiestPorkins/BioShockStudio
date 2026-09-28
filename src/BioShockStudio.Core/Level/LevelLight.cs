@@ -33,6 +33,13 @@ public sealed record LevelLight
     /// <summary>Where the light is, in the studio's basis.</summary>
     public required Vector3 Location { get; init; }
 
+    /// <summary>
+    /// Actor <c>Rotation</c> as the package wrote it (raw UE2 pitch/yaw/roll). Spot, sun and
+    /// directional shapes aim along this; point lights ignore it. Not run through
+    /// <c>GameBasis.Convert</c> — same convention as <c>LevelActorDocument.Rotation</c>.
+    /// </summary>
+    public required UnrealRotator Rotation { get; init; }
+
     /// <summary>The light's colour. Null when the actor stores none, which is not an error.</summary>
     public required LightColor? Color { get; init; }
 
@@ -65,11 +72,12 @@ public sealed record LevelLight
     public byte? Type { get; init; }
 
     /// <summary>
-    /// <c>LightEffect</c>, a byte. Written by ~1/5 of lights and — unlike a 20-value enum would be —
-    /// almost always exactly <c>2</c> (1,925 of 2,038 across the game; the rest are 1 or 3). The
-    /// stock UE2.5 <c>ELightEffect</c> reading (2 = <c>LE_FireWaver</c>) is contradicted by that
-    /// distribution, so the semantic is <c>UNKNOWN</c> — value 2 is most likely Vengeance's
-    /// repurposed "normal" light path. Surfaced raw so the fact that it is near-constant is visible.
+    /// <c>LightEffect</c>, a byte. Shape selector in BioShock (not stock UE2's 20-value waver
+    /// enum). Whole-game writes are almost always <c>2</c> (1,925 of 2,038; rest 1 or 3). The
+    /// importer treats that as <c>PLAUSIBLE</c> spotlight (see
+    /// <c>tools/ue5/import_level.py</c> <c>_UE2_LIGHT_EFFECT_TO_SHAPE</c> and
+    /// <c>docs/research/sdk-crossref-world.md</c> W-BUG-01); Engine.u confirmation is still
+    /// <c>W-UNK-01</c>. Surfaced raw.
     /// </summary>
     public byte? Effect { get; init; }
 
@@ -142,6 +150,7 @@ public static class LevelLightReader
         {
             Source = actor.Source,
             Location = Coordinates.GameBasis.Convert(actor.Transform.Location),
+            Rotation = actor.Transform.Rotation,
             Color = color is not null ? ReadColor(color) : null,
             Brightness = brightness is not null ? ReadFloat(brightness) : null,
             Radius = radius is not null ? ReadFloat(radius) : null,
