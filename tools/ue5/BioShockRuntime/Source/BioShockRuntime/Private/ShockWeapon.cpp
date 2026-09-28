@@ -1402,9 +1402,20 @@ void AShockWeapon::PlayFireFeedback(
 
 	if (ShouldDrawTracer())
 	{
+		// DrawDebugLine is a world-space debug primitive; it does not know about the first-person
+		// viewmodel's own close-range depth/FOV pass. Starting the line exactly at the muzzle
+		// socket -- which sits inside that near-camera viewmodel space -- makes the tracer render
+		// as if it slices through the gun mesh instead of leaving the barrel cleanly. Starting the
+		// line past the viewmodel's typical near range (the gun itself is ~40-90uu from the
+		// camera) avoids the visual clash without moving where the muzzle flash/shell eject/light
+		// spawn, which should stay at the true muzzle.
+		const FVector TracerDirection = (VisualEnd - MuzzleLocation).GetSafeNormal();
+		const FVector TracerStart = TracerDirection.IsNearlyZero()
+			? MuzzleLocation
+			: MuzzleLocation + TracerDirection * 150.0f;
 		DrawDebugLine(
 			World,
-			MuzzleLocation,
+			TracerStart,
 			VisualEnd,
 			FColor(255, 220, 150),
 			false,
