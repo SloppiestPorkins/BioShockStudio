@@ -4,7 +4,8 @@ Headless (`-run=pythonscript`). Spawns from the authored `lights[].effect` censu
 ordinals. Asserts:
 
   (a) every effect=2 (spot) light with radius → SpotLight, attenuation + rotation + OuterConeAngle
-  (b) every effect=3 (sun) light → DirectionalLight (radius optional; never set on the component)
+  (b) every effect=3 (sun) light -> SpotLight, never UE5's scene-wide DirectionalLight (28 Sept
+      correction -- see the check's own comment)
   (c) point-shaped lights with radius remain PointLight (regression)
   (d) an existing wrong-class actor under a spot key is destroyed and replaced, not reused
 """
@@ -209,15 +210,23 @@ def main(manifest_path=None, report_path=None):
     check("all_spots_ok", spot_ok == len(spots), "%d/%d" % (spot_ok, len(spots)))
 
     # --- (b) suns / directionals ---
+    # 28 Sept correction: sun/directional shapes are real, individually-placed BioShock lights.
+    # UE5's DirectionalLight is a positionless, whole-scene singleton -- spawning six of them (as
+    # Medical's census has) produces the editor's own "multiple directional lights are competing"
+    # warning and starves water/forward-shaded surfaces of a deterministic light, which is exactly
+    # what the user's live PIE report showed as an untextured/checkerboard water surface. These now
+    # spawn as a real local SpotLight (a real reach, a wide default cone) like every other placed
+    # light, never the scene-wide actor.
     sun_ok = 0
     for light in suns:
         actor = by_key.get(light["key"])
         if actor is None:
             failures.append("sun missing %s" % light["key"])
             continue
-        if not isinstance(actor, unreal.DirectionalLight):
+        if not isinstance(actor, unreal.SpotLight):
             failures.append(
-                "sun %s is %s not DirectionalLight" % (light["key"], type(actor).__name__))
+                "sun %s is %s not SpotLight (a DirectionalLight competes scene-wide)"
+                % (light["key"], type(actor).__name__))
             continue
         expected_rot = _expected_rotation_degrees(light, actors_by_key)
         if expected_rot is not None and not _rotation_close(actor, expected_rot):
@@ -228,6 +237,10 @@ def main(manifest_path=None, report_path=None):
             continue
         sun_ok += 1
     check("all_suns_ok", sun_ok == len(suns), "%d/%d" % (sun_ok, len(suns)))
+    check(
+        "no_directional_lights_in_level",
+        not any(isinstance(a, unreal.DirectionalLight) for a in by_key.values()),
+    )
 
     # --- (c) point regression ---
     point_ok = 0

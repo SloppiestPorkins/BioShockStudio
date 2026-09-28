@@ -172,8 +172,18 @@ _UE2_LIGHT_TYPE_TO_EFFECT = {
 #   2             → spot   (25% of Medical; 148/175 carry LightCone; 174/175 non-identity rotation)
 #   3             → sun    (6 lights; two omit radius entirely — only sun does that per the guide)
 #   4             → directional (not seen in Medical; same UE5 class as sun)
-# Confidence: PLAUSIBLE. Sun and directional both spawn `DirectionalLight` (parallel rays; UE5
-# has no separate "sun" actor class for this import).
+# Confidence: PLAUSIBLE. **28 Sept correction:** sun/directional originally spawned UE5's
+# `DirectionalLight` (a positionless, whole-scene actor). UE5 expects at most ONE meaningful
+# DirectionalLight per level -- it is the single light selected for forward shading / water /
+# volumetric fog, and a second one only produces "multiple directional lights are competing"
+# (visible in-editor, and the reason water and other forward-shaded surfaces read as an untextured
+# checker: the wrong light -- or none deterministically -- won the selection). Medical alone places
+# 6 "sun"-shaped lights, each at its own room location; BioShock's own engine has no such
+# singleton rule, so a 1:1 class mapping was wrong regardless of how confident the shape ordinal
+# is. A DirectionalLight also ignores its Location entirely (only rotation matters), so mapping a
+# POSITIONED BioShock light onto it silently discarded exactly the data that makes each one a
+# separate room light. Sun/directional now spawn `SpotLight` like a real aimed local light --
+# still uses the (now-exported) rotation and an authored/default cone -- never the scene-wide actor.
 _UE2_LIGHT_EFFECT_TO_SHAPE = {
     0: "point",
     1: "point",
@@ -195,10 +205,8 @@ def _light_shape(light):
 
 
 def _light_actor_class(shape):
-    if shape == "spot":
+    if shape in ("spot", "sun", "directional"):
         return unreal.SpotLight
-    if shape in ("sun", "directional"):
-        return unreal.DirectionalLight
     return unreal.PointLight
 
 
@@ -270,9 +278,16 @@ def _import_lights(manifest, existing, report, handled):
         expected_cls = _light_actor_class(shape)
         radius = light.get("radius")
         has_radius = radius is not None and float(radius) > 0
-        # Sun has infinite range (no LightRadius). Point/spot/directional-beam need a radius;
-        # without one, reach is UNKNOWN — drop rather than invent UE5's 1000 cm default.
-        if shape != "sun" and not has_radius:
+        if not has_radius and shape == "sun":
+            # A radius-less "sun" light (2 of Medical's 6) modelled infinite reach when this shape
+            # spawned UE5's positionless DirectionalLight; now that it is a real local SpotLight (see
+            # the shape-mapping comment above), it needs an actual reach. No authored value exists to
+            # carry, so this is a placed guess sized to fill a room rather than a decoded number.
+            radius = 3000.0
+            has_radius = True
+        # Point/spot need a radius; without one and not a sun, reach is UNKNOWN — drop rather than
+        # invent UE5's 1000 cm default.
+        if not has_radius:
             if actor is not None and _is_imported_light_actor(actor):
                 _actor_subsystem().destroy_actor(actor)
                 existing.pop(key, None)
@@ -313,7 +328,7 @@ def _import_lights(manifest, existing, report, handled):
         intensity = float(brightness) if brightness is not None else 1.0
         component.set_editor_property("intensity", intensity)
 
-        if shape in ("point", "spot"):
+        if shape in ("point", "spot", "sun", "directional"):
             # Radius is world centimetres, same unit as UE5 AttenuationRadius — carry it, do not scale.
             component.set_editor_property("attenuation_radius", float(radius))
             # Inverse-square treats AttenuationRadius as a clip on 1/r^2. BioShock authored a finite
@@ -329,7 +344,11 @@ def _import_lights(manifest, existing, report, handled):
                     cone_byte = _DEFAULT_SPOT_CONE_BYTE
                 component.set_editor_property(
                     "outer_cone_angle", _cone_half_angle_degrees(cone_byte))
-        # sun / directional: no AttenuationRadius on UDirectionalLightComponent — colour,
+            elif shape in ("sun", "directional"):
+                # No LightCone concept for these shapes (the guide's cone formula is spot-only) --
+                # a wide fixed cone approximates a broad wash of light rather than a narrow beam.
+                component.set_editor_property("outer_cone_angle", 80.0)
+        # (no remaining shape needs component-level handling here)
         # brightness, rotation, and type-driven effect only.
 
         _apply_light_effect(actor, light, component)
