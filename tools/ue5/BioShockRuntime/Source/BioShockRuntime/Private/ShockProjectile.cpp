@@ -2,6 +2,7 @@
 
 #include "ShockDamageLibrary.h"
 #include "ShockPawn.h"
+#include "ShockWeapon.h"
 #include "Components/SphereComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
@@ -77,10 +78,10 @@ void AShockProjectile::OnProjectileHit(
 	}
 
 	const bool bDirectPawnHit = Cast<AShockPawn>(OtherActor) != nullptr;
-	Detonate(Hit.ImpactPoint, bDirectPawnHit);
+	Detonate(Hit.ImpactPoint, bDirectPawnHit, &Hit);
 }
 
-void AShockProjectile::Detonate(const FVector& ImpactPoint, bool bDirectHit)
+void AShockProjectile::Detonate(const FVector& ImpactPoint, bool bDirectHit, const FHitResult* WorldHit)
 {
 	if (bHasImpacted)
 	{
@@ -132,6 +133,16 @@ void AShockProjectile::Detonate(const FVector& ImpactPoint, bool bDirectHit)
 		}
 	}
 
+	// Hitscan/shotgun/beam spawn wall FX in PlayFireFeedback; projectile fire only draws a muzzle
+	// flash there. World decals/FX must come from the impact hit (GL / Crossbow).
+	if (WorldHit && !bDirectHit)
+	{
+		if (AShockWeapon* OwnerWeapon = Cast<AShockWeapon>(GetOwner()))
+		{
+			OwnerWeapon->SpawnWorldImpactFromHit(*WorldHit, false);
+		}
+	}
+
 	DrawDebugSphere(World, ImpactPoint, FMath::Max(8.0f, ImpactRadius * 0.05f), 8, FColor::Orange, false, 0.25f);
 	UE_LOG(
 		LogTemp,
@@ -158,7 +169,7 @@ void AShockProjectile::ExpireLifetime(float DeltaSeconds)
 	RemainingLife -= DeltaSeconds;
 	if (RemainingLife <= 0.0f && !bHasImpacted)
 	{
-		Detonate(GetActorLocation(), false);
+		Detonate(GetActorLocation(), false, nullptr);
 	}
 }
 
@@ -218,7 +229,7 @@ void AShockProjectile::AdvanceForVerify(float DeltaSeconds)
 	{
 		SetActorLocation(Hit.Location);
 		const bool bDirectPawnHit = Cast<AShockPawn>(Hit.GetActor()) != nullptr;
-		Detonate(Hit.ImpactPoint, bDirectPawnHit);
+		Detonate(Hit.ImpactPoint, bDirectPawnHit, &Hit);
 		return;
 	}
 

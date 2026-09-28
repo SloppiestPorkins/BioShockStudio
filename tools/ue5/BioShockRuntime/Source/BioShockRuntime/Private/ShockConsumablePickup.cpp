@@ -38,6 +38,10 @@ AShockConsumablePickup::AShockConsumablePickup()
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Collision->SetCollisionObjectType(ECC_WorldDynamic);
 	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
+	// TickInteractionTrace (ShockPlayer) uses ECC_Visibility. Without this, keypress pickups
+	// (weapons / plasmids / diaries) never populate CachedInteractActor — containers already
+	// Block Visibility; pickups previously only Overlapped Pawn for auto-collect.
+	Collision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &AShockConsumablePickup::OnOverlap);

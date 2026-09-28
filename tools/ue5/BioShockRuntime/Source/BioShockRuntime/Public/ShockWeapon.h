@@ -298,6 +298,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Impact")
 	void SimulateWorldImpactForVerify(FName MaterialName, FVector ImpactPoint, FVector ImpactNormal);
 
+	/** Production entry for projectile / external hit results (same path as hitscan world impacts). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Impact")
+	void SpawnWorldImpactFromHit(const FHitResult& Hit, bool bBeamImpact = false);
+
 	UFUNCTION(BlueprintPure, Category="BioShock|Audio")
 	FName GetFireSoundCueForVerify() const { return FireSoundCue; }
 

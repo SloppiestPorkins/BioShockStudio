@@ -230,6 +230,16 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|Player")
 	FString GetInteractionPrompt() const { return CachedInteractPrompt; }
 
+	/** Headless verify: run one interact look-trace and return the cached actor (may be null). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	AActor* RunInteractionTraceForVerify();
+
+	UFUNCTION(BlueprintPure, Category="BioShock|Player")
+	AActor* GetCachedInteractActorForVerify() const { return CachedInteractActor.Get(); }
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void HandleInteractInputForVerify() { HandleInteractInput(); }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player|PlasmidHands")
 	void SetPlasmidHandActive(bool bActive);
 

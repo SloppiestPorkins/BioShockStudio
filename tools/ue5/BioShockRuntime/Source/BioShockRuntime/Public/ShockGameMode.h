@@ -146,6 +146,12 @@ private:
 	void SpawnSliceSecurityCamera(AShockPlayer* Player, AActor* StartSpot);
 	void SpawnSliceStations(AShockPlayer* Player, AActor* StartSpot);
 	void VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy);
+	/** -bioshockverifyweaponimpacts: fire each starter weapon at a WorldStatic wall; assert decals. */
+	void BeginVerifyWeaponImpacts(AShockPlayer* Player);
+	/** -bioshockverifyragdollcoverage: kill every Medical archetype key; assert ragdoll active. */
+	void BeginVerifyRagdollCoverage(AShockPlayer* Player);
+	/** -bioshockverifyinteract: look-trace + F each placed pickup/container/station in the slice. */
+	void BeginVerifyInteractTrace(AShockPlayer* Player);
 	/** -bioshockverifymovement: drive MoveForward for real seconds, log displacement, exit. */
 	void BeginVerifyMovement(AShockPlayer* Player);
 	void TickVerifyMovementDrive();

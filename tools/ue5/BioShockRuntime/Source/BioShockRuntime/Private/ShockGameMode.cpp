@@ -4,6 +4,7 @@
 #include "ShockAmmoPickup.h"
 #include "ShockCarryState.h"
 #include "ShockConsumablePickup.h"
+#include "ShockSearchableContainer.h"
 #include "ShockDamageLibrary.h"
 #include "ShockDeathRespawnHandler.h"
 #include "ShockDoor.h"
@@ -30,6 +31,7 @@
 #include "ShockResearchCamera.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
+#include "ShockProjectile.h"
 
 #include "Camera/CameraComponent.h"
 #include "CollisionQueryParams.h"
@@ -37,6 +39,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkyLight.h"
@@ -2320,6 +2323,617 @@ void AShockGameMode::ForceOpenHackingForCapture(AShockPlayer* Player)
 	Menu->ForceOpenForCapture();
 }
 
+namespace
+{
+bool TraceWorldStaticHit(
+	UWorld* World,
+	AActor* Ignore,
+	const FVector& Start,
+	const FVector& End,
+	FHitResult& OutHit)
+{
+	if (!World)
+	{
+		return false;
+	}
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShockVerifyWall), false, Ignore);
+	Params.bReturnFaceIndex = true;
+	Params.bReturnPhysicalMaterial = true;
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	return World->LineTraceSingleByObjectType(OutHit, Start, End, ObjectParams, Params)
+		&& OutHit.bBlockingHit
+		&& OutHit.GetActor()
+		&& !Cast<AShockPawn>(OutHit.GetActor());
+}
+
+bool AimPlayerAtNearestWall(AShockPlayer* Player, FHitResult& OutWallHit)
+{
+	if (!Player || !Player->GetWorld())
+	{
+		return false;
+	}
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	UCameraComponent* Cam = Player->FirstPersonCamera;
+	const FVector Eye = Cam ? Cam->GetComponentLocation()
+							: Player->GetActorLocation() + FVector(0.0f, 0.0f, Player->BaseEyeHeight);
+	const FRotator BaseRot = PC ? PC->GetControlRotation() : Player->GetActorRotation();
+	static const FRotator TryDeltas[] = {
+		FRotator::ZeroRotator,
+		FRotator(0.0f, 90.0f, 0.0f),
+		FRotator(0.0f, -90.0f, 0.0f),
+		FRotator(0.0f, 180.0f, 0.0f),
+		FRotator(-10.0f, 0.0f, 0.0f),
+		FRotator(10.0f, 0.0f, 0.0f),
+	};
+	float BestDistSq = TNumericLimits<float>::Max();
+	FHitResult BestHit;
+	FRotator BestRot = BaseRot;
+	bool bFound = false;
+	for (const FRotator& Delta : TryDeltas)
+	{
+		const FRotator Aim = BaseRot + Delta;
+		FHitResult Hit;
+		if (!TraceWorldStaticHit(
+				Player->GetWorld(),
+				Player,
+				Eye,
+				Eye + Aim.Vector() * 4000.0f,
+				Hit))
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Eye, Hit.ImpactPoint);
+		if (DistSq < 80.0f * 80.0f || DistSq > BestDistSq)
+		{
+			continue;
+		}
+		BestDistSq = DistSq;
+		BestHit = Hit;
+		BestRot = Aim;
+		bFound = true;
+	}
+	if (!bFound)
+	{
+		return false;
+	}
+	if (PC)
+	{
+		PC->SetControlRotation(BestRot);
+	}
+	OutWallHit = BestHit;
+	return true;
+}
+
+struct FWeaponImpactCase
+{
+	const TCHAR* DefName;
+	int32 Slot;
+	bool bProjectile;
+	float SettleSeconds;
+};
+
+static const FWeaponImpactCase GWeaponImpactCases[] = {
+	{TEXT("Pistol"), 1, false, 0.15f},
+	{TEXT("TommyGun"), 2, false, 0.15f},
+	{TEXT("Shotgun"), 3, false, 0.15f},
+	{TEXT("GrenadeLauncher"), 4, true, 0.85f},
+	{TEXT("ChemicalThrower"), 5, false, 0.20f},
+	{TEXT("Crossbow"), 6, true, 0.85f},
+};
+}
+
+void AShockGameMode::BeginVerifyWeaponImpacts(AShockPlayer* Player)
+{
+	if (!Player || !GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_IMPACTS_FAIL reason=no_player"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	FHitResult WallHit;
+	if (!AimPlayerAtNearestWall(Player, WallHit))
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_IMPACTS_FAIL reason=no_world_static_wall"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_WEAPON_IMPACTS_WALL actor=%s loc=%s"),
+		*GetNameSafe(WallHit.GetActor()),
+		*WallHit.ImpactPoint.ToCompactString());
+
+	TWeakObjectPtr<AShockPlayer> WeakPlayer = Player;
+	TWeakObjectPtr<AShockGameMode> WeakThis = this;
+	GetWorld()->GetTimerManager().SetTimer(
+		SliceEncounterVerifyTimer,
+		FTimerDelegate::CreateLambda([WeakPlayer, WeakThis, WallHit]() mutable
+		{
+			AShockPlayer* VerifyPlayer = WeakPlayer.Get();
+			AShockGameMode* Mode = WeakThis.Get();
+			if (!VerifyPlayer || !Mode || !Mode->GetWorld())
+			{
+				UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_WEAPON_IMPACTS_FAIL reason=lost_player"));
+				FGenericPlatformMisc::RequestExit(false);
+				return;
+			}
+
+			int32 Pass = 0;
+			int32 Fail = 0;
+			for (const FWeaponImpactCase& Case : GWeaponImpactCases)
+			{
+				AimPlayerAtNearestWall(VerifyPlayer, WallHit);
+				AShockWeapon* Weapon = VerifyPlayer->GiveWeaponByDef(FName(Case.DefName), Case.Slot);
+				if (!Weapon)
+				{
+					UE_LOG(
+						LogTemp,
+						Error,
+						TEXT("BIOSHOCK_WEAPON_IMPACT_FAIL weapon=%s reason=give"),
+						Case.DefName);
+					++Fail;
+					continue;
+				}
+				Weapon->SetEnforceAmmo(false);
+				Weapon->ClearFireCooldownForVerify();
+				VerifyPlayer->SelectWeaponSlot(Case.Slot);
+				const int32 Before = Weapon->GetImpactDecalCountForVerify();
+				// TryFireEquippedWeapon()'s bool return is FireAt's own bDamaged -- whether a PAWN
+				// was hit, not whether the weapon fired at all. Aimed at a wall on purpose, it is
+				// always false regardless of whether the shot (and its decal) actually happened;
+				// GetFireCount() is the real "did a shot leave the barrel" signal.
+				const int32 FireCountBefore = Weapon->GetFireCount();
+				VerifyPlayer->TryFireEquippedWeapon();
+				const bool bFired = Weapon->GetFireCount() > FireCountBefore;
+				if (Case.bProjectile)
+				{
+					// AdvanceForVerify walks the projectile without waiting on wall-clock ticks.
+					const int32 Steps = FMath::Max(1, FMath::CeilToInt(Case.SettleSeconds / 0.05f));
+					for (int32 Step = 0; Step < Steps; ++Step)
+					{
+						for (TActorIterator<AShockProjectile> It(Mode->GetWorld()); It; ++It)
+						{
+							if (*It)
+							{
+								(*It)->AdvanceForVerify(0.05f);
+							}
+						}
+					}
+				}
+				const int32 After = Weapon->GetImpactDecalCountForVerify();
+				const int32 Delta = After - Before;
+				if (bFired && Delta > 0)
+				{
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("BIOSHOCK_WEAPON_IMPACT_OK weapon=%s fired=1 decalDelta=%d surface=%s"),
+						Case.DefName,
+						Delta,
+						*Weapon->GetLastImpactSurfaceForVerify().ToString());
+					++Pass;
+				}
+				else
+				{
+					UE_LOG(
+						LogTemp,
+						Error,
+						TEXT("BIOSHOCK_WEAPON_IMPACT_FAIL weapon=%s fired=%d decalDelta=%d before=%d after=%d"),
+						Case.DefName,
+						bFired ? 1 : 0,
+						Delta,
+						Before,
+						After);
+					++Fail;
+				}
+			}
+			if (Fail == 0)
+			{
+				UE_LOG(
+					LogTemp,
+					Display,
+					TEXT("BIOSHOCK_WEAPON_IMPACTS_OK pass=%d fail=0"),
+					Pass);
+			}
+			else
+			{
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("BIOSHOCK_WEAPON_IMPACTS_FAIL pass=%d fail=%d"),
+					Pass,
+					Fail);
+			}
+			FGenericPlatformMisc::RequestExit(false);
+		}),
+		0.35f,
+		false);
+}
+
+void AShockGameMode::BeginVerifyRagdollCoverage(AShockPlayer* Player)
+{
+	if (!Player || !GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_RAGDOLL_COVERAGE_FAIL reason=no_player"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	TArray<FName> Keys;
+	FString KeyList;
+	if (FParse::Value(FCommandLine::Get(), TEXT("bioshockragdollkeys="), KeyList) && !KeyList.IsEmpty())
+	{
+		TArray<FString> Parts;
+		KeyList.ParseIntoArray(Parts, TEXT(","), true);
+		for (const FString& Part : Parts)
+		{
+			const FString Trimmed = Part.TrimStartAndEnd();
+			if (!Trimmed.IsEmpty())
+			{
+				Keys.Add(FName(*Trimmed));
+			}
+		}
+	}
+	if (Keys.Num() == 0)
+	{
+		Keys = {
+			FName(TEXT("Agg_BabyJane")),
+			FName(TEXT("ThuggishSplicer")),
+			FName(TEXT("LeadheadSplicer")),
+			FName(TEXT("MachineGunMutant")),
+			FName(TEXT("RangedAggressor")),
+		};
+	}
+
+	const FVector Base = Player->GetActorLocation() + FVector(0.0f, 250.0f, 20.0f);
+	int32 Pass = 0;
+	int32 Fail = 0;
+	int32 Unavailable = 0;
+	for (int32 Index = 0; Index < Keys.Num(); ++Index)
+	{
+		const FName Key = Keys[Index];
+		ABaseShockAI* Enemy = SpawnOneSliceEnemy(
+			Player,
+			100 + Index,
+			Key,
+			Base + FVector(0.0f, Index * 120.0f, 0.0f),
+			(-Player->GetActorForwardVector()).Rotation(),
+			false);
+		if (!Enemy)
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_RAGDOLL_COVERAGE_FAIL archetype=%s reason=spawn"),
+				*Key.ToString());
+			++Fail;
+			continue;
+		}
+		Enemy->CorpseFadeSeconds = 0.0f;
+		USkeletalMeshComponent* Body = Enemy->GetMesh();
+		const bool bHasMesh = Body && Body->GetSkeletalMeshAsset() != nullptr;
+		UPhysicsAsset* Phys = Body ? Body->GetPhysicsAsset() : nullptr;
+		if (!Phys && bHasMesh)
+		{
+			Phys = Body->GetSkeletalMeshAsset()->GetPhysicsAsset();
+		}
+		UShockDamageLibrary::ApplyDamage(
+			Enemy,
+			10000.0f,
+			Player,
+			FName(TEXT("RagdollCoverage")),
+			FVector::ZeroVector,
+			Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 70.0f),
+			FName(TEXT("Bip01_Spine2")));
+		const bool bActive = Enemy->IsRagdollActiveForVerify();
+		if (bActive)
+		{
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_RAGDOLL_COVERAGE_OK archetype=%s dead=%d active=1 physics=%s"),
+				*Key.ToString(),
+				Enemy->IsDead() ? 1 : 0,
+				Phys ? *Phys->GetName() : TEXT("none"));
+			++Pass;
+		}
+		else
+		{
+			const bool bMissingPhys = Phys == nullptr;
+			if (bMissingPhys)
+			{
+				++Unavailable;
+			}
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_RAGDOLL_COVERAGE_FAIL archetype=%s dead=%d active=0 mesh=%d physics=%d"),
+				*Key.ToString(),
+				Enemy->IsDead() ? 1 : 0,
+				bHasMesh ? 1 : 0,
+				Phys ? 1 : 0);
+			++Fail;
+		}
+	}
+	if (Fail == 0)
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_RAGDOLL_COVERAGE_OK pass=%d fail=0 unavailable=0"),
+			Pass);
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_RAGDOLL_COVERAGE_FAIL pass=%d fail=%d unavailable=%d"),
+			Pass,
+			Fail,
+			Unavailable);
+	}
+	FGenericPlatformMisc::RequestExit(false);
+}
+
+void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
+{
+	if (!Player || !GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_INTERACT_FAIL reason=no_player"));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
+
+	TArray<AShockConsumablePickup*> Pickups;
+	TArray<AShockSearchableContainer*> Containers;
+	TArray<AShockStationBase*> Stations;
+	for (TActorIterator<AShockConsumablePickup> It(GetWorld()); It; ++It)
+	{
+		if (*It)
+		{
+			Pickups.Add(*It);
+		}
+	}
+	for (TActorIterator<AShockSearchableContainer> It(GetWorld()); It; ++It)
+	{
+		if (*It)
+		{
+			Containers.Add(*It);
+		}
+	}
+	for (TActorIterator<AShockStationBase> It(GetWorld()); It; ++It)
+	{
+		if (*It)
+		{
+			Stations.Add(*It);
+		}
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("BIOSHOCK_INTERACT_COUNTS pickups=%d containers=%d stations=%d"),
+		Pickups.Num(),
+		Containers.Num(),
+		Stations.Num());
+
+	int32 PromptOk = 0;
+	int32 PromptFail = 0;
+	int32 ActionOk = 0;
+	int32 ActionFail = 0;
+	int32 InteractPickups = 0;
+
+	auto FaceActor = [Player](AActor* Target)
+	{
+		if (!Player || !Target)
+		{
+			return;
+		}
+		const FVector TargetLoc = Target->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+		const FVector Away = (Player->GetActorLocation() - TargetLoc).GetSafeNormal2D();
+		const FVector Stand = TargetLoc + (Away.IsNearlyZero() ? FVector(120.0f, 0.0f, 0.0f) : Away * 120.0f);
+		Player->SetActorLocation(Stand + FVector(0.0f, 0.0f, 90.0f), false);
+		const FRotator Aim = (TargetLoc - Player->GetActorLocation()).Rotation();
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(Aim);
+		}
+		// bUseControllerRotationYaw only turns the actor (and hence the attached camera) to face
+		// ControlRotation during a normal Tick/FaceRotation pass -- this harness calls
+		// RunInteractionTraceForVerify() synchronously right after teleporting, with no world tick
+		// in between, so without this the trace fired from wherever the camera happened to be
+		// facing BEFORE this call. Force both directly so the very next trace is aimed correctly.
+		Player->SetActorRotation(FRotator(0.0f, Aim.Yaw, 0.0f));
+		if (Player->FirstPersonCamera)
+		{
+			Player->FirstPersonCamera->SetWorldRotation(Aim);
+		}
+	};
+
+	for (AShockConsumablePickup* Pickup : Pickups)
+	{
+		if (!Pickup || !Pickup->RequiresInteract())
+		{
+			continue;
+		}
+		++InteractPickups;
+		FaceActor(Pickup);
+		Player->RunInteractionTraceForVerify();
+		const bool bPrompt =
+			Player->GetCachedInteractActorForVerify() == Pickup
+			&& !Player->GetInteractionPrompt().IsEmpty();
+		if (bPrompt)
+		{
+			++PromptOk;
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_OK kind=pickup actor=%s prompt=%s"),
+				*Pickup->GetName(),
+				*Player->GetInteractionPrompt());
+			Player->HandleInteractInputForVerify();
+			// TryCollect destroys on success.
+			if (!IsValid(Pickup))
+			{
+				++ActionOk;
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_INTERACT_ACTION_OK kind=pickup"));
+			}
+			else
+			{
+				++ActionFail;
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("BIOSHOCK_INTERACT_ACTION_FAIL kind=pickup actor=%s"),
+					*Pickup->GetName());
+			}
+		}
+		else
+		{
+			++PromptFail;
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_FAIL kind=pickup actor=%s cached=%s prompt=%s"),
+				*Pickup->GetName(),
+				*GetNameSafe(Player->GetCachedInteractActorForVerify()),
+				*Player->GetInteractionPrompt());
+		}
+	}
+
+	for (AShockSearchableContainer* Container : Containers)
+	{
+		if (!Container || Container->WasSearchedForVerify())
+		{
+			continue;
+		}
+		FaceActor(Container);
+		Player->RunInteractionTraceForVerify();
+		const bool bPrompt =
+			Player->GetCachedInteractActorForVerify() == Container
+			&& !Player->GetInteractionPrompt().IsEmpty();
+		if (bPrompt)
+		{
+			++PromptOk;
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_OK kind=container actor=%s"),
+				*Container->GetName());
+			Player->HandleInteractInputForVerify();
+			if (Container->WasSearchedForVerify())
+			{
+				++ActionOk;
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_INTERACT_ACTION_OK kind=container"));
+			}
+			else
+			{
+				++ActionFail;
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("BIOSHOCK_INTERACT_ACTION_FAIL kind=container actor=%s"),
+					*Container->GetName());
+			}
+		}
+		else
+		{
+			++PromptFail;
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_FAIL kind=container actor=%s cached=%s"),
+				*Container->GetName(),
+				*GetNameSafe(Player->GetCachedInteractActorForVerify()));
+		}
+	}
+
+	for (AShockStationBase* Station : Stations)
+	{
+		if (!Station)
+		{
+			continue;
+		}
+		FaceActor(Station);
+		Player->RunInteractionTraceForVerify();
+		const bool bPrompt =
+			Player->GetCachedInteractActorForVerify() == Station
+			&& !Player->GetInteractionPrompt().IsEmpty();
+		if (bPrompt)
+		{
+			++PromptOk;
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_OK kind=station actor=%s"),
+				*Station->GetName());
+			Player->HandleInteractInputForVerify();
+			if (Station->GetOpenMenu() != nullptr)
+			{
+				++ActionOk;
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_INTERACT_ACTION_OK kind=station"));
+				Station->CloseMenu();
+			}
+			else
+			{
+				++ActionFail;
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("BIOSHOCK_INTERACT_ACTION_FAIL kind=station actor=%s"),
+					*Station->GetName());
+			}
+		}
+		else
+		{
+			++PromptFail;
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("BIOSHOCK_INTERACT_PROMPT_FAIL kind=station actor=%s cached=%s"),
+				*Station->GetName(),
+				*GetNameSafe(Player->GetCachedInteractActorForVerify()));
+		}
+	}
+
+	const int32 Targets = InteractPickups + Containers.Num() + Stations.Num();
+	if (Targets == 0)
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_INTERACT_OK placed=0 note=no_recognized_interactables_in_slice"));
+	}
+	else if (PromptFail == 0 && ActionFail == 0)
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("BIOSHOCK_INTERACT_OK targets=%d promptOk=%d actionOk=%d"),
+			Targets,
+			PromptOk,
+			ActionOk);
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("BIOSHOCK_INTERACT_FAIL targets=%d promptFail=%d actionFail=%d pickupsInteract=%d containers=%d stations=%d"),
+			Targets,
+			PromptFail,
+			ActionFail,
+			InteractPickups,
+			Containers.Num(),
+			Stations.Num());
+	}
+	FGenericPlatformMisc::RequestExit(false);
+}
+
 void AShockGameMode::VerifySliceFire(AShockPlayer* Player, ABaseShockAI* Enemy)
 {
 	if (!Player || !Enemy)
@@ -2395,7 +3009,10 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyambient"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess"))
 			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyencounter"))
-			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdoll"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweaponimpacts"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdollcoverage"))
+			|| FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyinteract"))))
 	{
 		UE_LOG(LogTemp, Error, TEXT("BIOSHOCK_MOVEMENT_FAIL reason=no_pawn_spawned"));
 		FGenericPlatformMisc::RequestExit(false);
@@ -2652,6 +3269,21 @@ void AShockGameMode::PostLogin(APlayerController* NewPlayer)
 					{
 						return;
 					}
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyweaponimpacts")))
+				{
+					BeginVerifyWeaponImpacts(Player);
+					return;
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyragdollcoverage")))
+				{
+					BeginVerifyRagdollCoverage(Player);
+					return;
+				}
+				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifyinteract")))
+				{
+					BeginVerifyInteractTrace(Player);
+					return;
 				}
 				if (FParse::Param(FCommandLine::Get(), TEXT("bioshockverifypossess")))
 				{

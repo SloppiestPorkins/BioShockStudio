@@ -1129,6 +1129,11 @@ void AShockWeapon::SpawnWorldImpact(const FHitResult& Hit, bool bBeamImpact)
 		bBeamImpact);
 }
 
+void AShockWeapon::SpawnWorldImpactFromHit(const FHitResult& Hit, bool bBeamImpact)
+{
+	SpawnWorldImpact(Hit, bBeamImpact);
+}
+
 void AShockWeapon::SimulateWorldImpactForVerify(
 	FName MaterialName,
 	FVector ImpactPoint,

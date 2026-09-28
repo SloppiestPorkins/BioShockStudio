@@ -924,9 +924,30 @@ void ABaseShockAI::RecordRagdollHit(FVector Impulse, FVector HitLocation, FName 
 void ABaseShockAI::StartRagdoll()
 {
 	USkeletalMeshComponent* Body = GetMesh();
-	if (!Body || !Body->GetSkeletalMeshAsset() || !Body->GetPhysicsAsset())
+	if (!Body || !Body->GetSkeletalMeshAsset())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_RAGDOLL_UNAVAILABLE ai=%s physicsAsset=0"), *GetName());
+		SetActorTickEnabled(false);
+		return;
+	}
+	// ApplyCombatSkeletalMesh / archetype assign can leave the component without a physics asset
+	// pointer even when the USkeletalMesh itself carries one (repair_ragdoll_physics). Re-pull
+	// before refusing — matches live "some corpses ragdoll, some don't" reports.
+	if (!Body->GetPhysicsAsset())
+	{
+		if (UPhysicsAsset* FromMesh = Body->GetSkeletalMeshAsset()->GetPhysicsAsset())
+		{
+			Body->SetPhysicsAsset(FromMesh, true);
+		}
+	}
+	if (!Body->GetPhysicsAsset())
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("BIOSHOCK_RAGDOLL_UNAVAILABLE ai=%s mesh=%s physicsAsset=0"),
+			*GetName(),
+			*Body->GetSkeletalMeshAsset()->GetName());
 		SetActorTickEnabled(false);
 		return;
 	}

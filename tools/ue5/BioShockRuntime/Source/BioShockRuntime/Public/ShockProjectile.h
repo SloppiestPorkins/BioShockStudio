@@ -66,7 +66,7 @@ private:
 		FVector NormalImpulse,
 		const FHitResult& Hit);
 
-	void Detonate(const FVector& ImpactPoint, bool bDirectHit);
+	void Detonate(const FVector& ImpactPoint, bool bDirectHit, const FHitResult* WorldHit);
 	void ExpireLifetime(float DeltaSeconds);
 
 	UPROPERTY(Transient)

@@ -2411,6 +2411,12 @@ void AShockPlayer::HandleHackToolInput()
 	TryHackDevice(Device, 0.5f);
 }
 
+AActor* AShockPlayer::RunInteractionTraceForVerify()
+{
+	TickInteractionTrace();
+	return CachedInteractActor.Get();
+}
+
 void AShockPlayer::TickInteractionTrace()
 {
 	CachedInteractPrompt.Reset();
@@ -2471,6 +2477,15 @@ void AShockPlayer::HandleInteractInput()
 		else if (AShockSearchableContainer* Container = Cast<AShockSearchableContainer>(Target))
 		{
 			if (Container->Search(this))
+			{
+				return;
+			}
+		}
+		else if (AShockStationBase* Station = Cast<AShockStationBase>(Target))
+		{
+			// Trace reach (260uu) can exceed InteractRadius (200uu). Honour the looked-at station
+			// so a visible "Press F to use" prompt cannot fail silently on F.
+			if (Station->TryInteract(this))
 			{
 				return;
 			}
