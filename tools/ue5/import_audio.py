@@ -29,9 +29,20 @@ DEFAULT_MAP = "/Game/BioShockSlice/1-Medical"
 SUPPORTED_VERSION = 1
 KEY_TAG_PREFIX = "BioShockKey="
 AMBIENT_SOUND_CLASS_NAME = "Ambient"
+# w14 (5f4e14e) found 28/32 sampled cues under 1500uu outer radius -- inaudible from a typical
+# player spawn -- and force-widened EVERY placed cue to a flat 4000uu (40m) floor. That fixed
+# silence but, per the user's live PIE report (28 Sept), made water ambience "too loud": Medical
+# alone places 98 separate water-tagged AmbientSound actors (drips/streams/splashes authored at
+# 100-1500uu), and forcing each one out to 40m means dozens of them overlap and additively stack
+# almost everywhere in the slice. Only widen a cue that is genuinely too small to be heard
+# (< AMBIENT_MIN_OUTER_RADIUS) rather than every cue unconditionally, and widen it to a smaller
+# floor -- still well above "silent," far below "audible across the whole level."
 AMBIENT_MIN_OUTER_RADIUS = 1500.0
-AMBIENT_TARGET_OUTER_RADIUS = 4000.0
-AMBIENT_CLASS_VOLUME = 0.65
+AMBIENT_TARGET_OUTER_RADIUS = 2000.0
+# Lowered 0.65 -> 0.45 alongside the radius cut: with dozens of overlapping emitters even a
+# correctly-scoped radius stacks louder than any single cue's own level implies. Both numbers are
+# a first-pass correction, not a measured value -- needs the user's ear to confirm in PIE.
+AMBIENT_CLASS_VOLUME = 0.45
 AMBIENT_SOUND_CLASS_PATH = "/Game/BioShockAudio/Ambient.Ambient"
 
 
@@ -238,10 +249,12 @@ def _apply_cue_settings(asset, cue, looping, ambient_class=None):
     outer = float(cue.get("outerRadius", 3000.0))
     inner = float(cue.get("innerRadius", 0.0))
     if ambient_class is not None:
-        # BioShock's authored radii are centimetres, but values as low as 100-700
-        # make dense placed ambience effectively absent at a UE player spawn. Keep
-        # larger authored room beds and raise local emitters to a 40 m outer radius.
-        outer = max(outer, AMBIENT_TARGET_OUTER_RADIUS)
+        # BioShock's authored radii are centimetres. Only a cue too small to ever be heard from a
+        # typical player spawn gets widened (see AMBIENT_MIN_OUTER_RADIUS's comment) -- an already
+        # locally-audible authored radius (most water drips/streams: 700-1500uu) is left alone
+        # rather than blown out to the same floor as a near-silent one.
+        if outer < AMBIENT_MIN_OUTER_RADIUS:
+            outer = AMBIENT_TARGET_OUTER_RADIUS
         inner = min(max(0.0, inner), outer - 1.0)
         is_2d = False
     if not is_2d and outer > 0.0:
