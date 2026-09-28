@@ -31,7 +31,9 @@ off, and which weapon animation plays with which hand animation. FBX has no plac
 import hashlib
 import json
 import os
+import struct
 import subprocess
+import zlib
 
 import unreal
 
@@ -616,7 +618,114 @@ def _material_declares_alpha_texture(material, rig):
     return False
 
 
-def _material_rendering_kind(material, rig):
+def _material_has_opacity_slot_texture(material, rig):
+    """A texture the exporter assigned to a real Opacity/Mask slot, bound to a genuinely
+    different file than the Diffuse slot -- not the diffuse map's own alpha channel.
+
+    An "Opacity" slot entry existing is not sufficient on its own: measured on `glass_shader`,
+    the exporter bound BOTH Diffuse and Opacity to the exact same file (glass_diffuse.png), whose
+    alpha channel turns out to be uniformly opaque -- the slot exists but carries no real
+    coverage data, same failure mode `_diffuse_png_alpha_extrema` exists to catch. Distinct from
+    `declaresAlphaTexture`, which can also be wrong (see that function's docstring).
+    """
+    name = material.get("name")
+    diffuse_file, _normal, _opacity, _by_slot = _material_texture_bindings(material, rig)
+    for entry in rig.get("textures") or []:
+        if (entry.get("material") == name and entry.get("slot") == "Opacity"
+                and entry.get("file") and entry.get("file") != diffuse_file):
+            return True
+    return False
+
+
+def _png_chunks(path):
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    pos = 8
+    chunks = {}
+    idat = bytearray()
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos:pos + 4])[0]
+        tag = data[pos + 4:pos + 8]
+        chunk = data[pos + 8:pos + 8 + length]
+        if tag == b"IDAT":
+            idat += chunk
+        elif tag == b"IEND":
+            break
+        else:
+            chunks[tag] = chunk
+        pos += 12 + length
+    chunks[b"IDAT"] = bytes(idat)
+    return chunks
+
+
+def _png_unfilter(data, width, height, bpp):
+    stride = width * bpp
+    out = bytearray(height * stride)
+    prev_row = bytearray(stride)
+    pos = 0
+    for y in range(height):
+        filter_type = data[pos]
+        pos += 1
+        row = bytearray(data[pos:pos + stride])
+        pos += stride
+        if filter_type == 1:  # Sub
+            for i in range(stride):
+                row[i] = (row[i] + (row[i - bpp] if i >= bpp else 0)) & 0xFF
+        elif filter_type == 2:  # Up
+            for i in range(stride):
+                row[i] = (row[i] + prev_row[i]) & 0xFF
+        elif filter_type == 3:  # Average
+            for i in range(stride):
+                a = row[i - bpp] if i >= bpp else 0
+                row[i] = (row[i] + ((a + prev_row[i]) // 2)) & 0xFF
+        elif filter_type == 4:  # Paeth
+            for i in range(stride):
+                a = row[i - bpp] if i >= bpp else 0
+                b = prev_row[i]
+                c = prev_row[i - bpp] if i >= bpp else 0
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                row[i] = (row[i] + pr) & 0xFF
+        out[y * stride:(y + 1) * stride] = row
+        prev_row = row
+    return bytes(out)
+
+
+def _diffuse_png_alpha_extrema(path):
+    """(min, max) alpha byte value across an RGBA/LA 8-bit PNG, or None if it has no alpha
+    channel / can't be parsed. Stdlib-only (struct+zlib) -- UE5's embedded Python has no PIL,
+    and Texture2D's `Source` property is not readable from Python.
+
+    Exists because `declaresAlphaTexture` (the exporter's own flag) is not reliable: measured
+    29 Sept 2026 on `Window_Material`'s diffuse (Round_Windows_diffuse.png) -- the manifest marks
+    it True, but the decoded PNG's alpha channel is uniformly 255 (opaque) end to end.
+    """
+    try:
+        chunks = _png_chunks(path)
+        if not chunks or b"IHDR" not in chunks:
+            return None
+        width, height, bit_depth, color_type = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
+        if color_type not in (4, 6) or bit_depth != 8:
+            return None
+        channels = 4 if color_type == 6 else 2
+        raw = zlib.decompress(chunks[b"IDAT"])
+        pixels = _png_unfilter(raw, width, height, channels)
+        alpha_min, alpha_max = 255, 0
+        for i in range(channels - 1, len(pixels), channels):
+            v = pixels[i]
+            if v < alpha_min:
+                alpha_min = v
+            if v > alpha_max:
+                alpha_max = v
+        return (alpha_min, alpha_max)
+    except Exception:  # noqa: BLE001 -- best-effort signal, never block an import on this
+        return None
+
+
+def _material_rendering_kind(material, rig, manifest_dir=None):
     """Map decoded BioShock material flags to a UE5 master-material variant.
 
     OutputBlending ordinals are still UNKNOWN individually, but 2 and 3 are carried through as
@@ -646,21 +755,54 @@ def _material_rendering_kind(material, rig):
         "grate", "grating", "fence", "chain", "mesh_wire", "wire_mesh", "net", "lattice"))
     if material.get("masked") and cutout_name:
         return "mask"
-    if _material_declares_alpha_texture(material, rig):
+    def _has_usable_transparency():
+        """Real coverage data exists somewhere for this material -- a dedicated Opacity-slot
+        texture, or a diffuse map whose own alpha channel actually varies. Guards the two
+        "this looks translucent" signals below that are inferred rather than authoritative
+        (`declaresAlphaTexture`, and the bare window/glass name heuristic): without this, a
+        material with genuinely no coverage data anywhere renders BLEND_TRANSLUCENT at a
+        constant opacity of 1.0 -- worse than opaque (skips normal opaque-surface shading) for
+        no visual benefit. `declaresAlphaTexture` itself is not trustworthy enough to skip this
+        check: measured 29 Sept 2026 on Window_Material's diffuse (Round_Windows_diffuse.png),
+        the manifest marks it True but the decoded PNG's alpha is uniformly 255 end to end.
+        """
+        if _material_has_opacity_slot_texture(material, rig):
+            return True
+        if not manifest_dir:
+            # No filesystem access to check -- do not downgrade on a guess either way.
+            return True
+        diffuse_file, _normal, _opacity, _by_slot = _material_texture_bindings(material, rig)
+        if not diffuse_file:
+            return False
+        extrema = _diffuse_png_alpha_extrema(
+            os.path.join(manifest_dir, diffuse_file.replace("/", os.sep)))
+        if extrema is None:
+            return True  # couldn't read it -- do not downgrade on a guess
+        return extrema[0] != extrema[1]
+
+    if _material_declares_alpha_texture(material, rig) and _has_usable_transparency():
         return "translucent"
 
     output_blending = material.get("outputBlending")
-    if output_blending == 1:
-        return "translucent"
-    if output_blending == 2:
+    # "OutputBlending ordinals are still UNKNOWN individually" (see this function's own
+    # docstring) -- 1/2 are just as inferred as declaresAlphaTexture and the name heuristic, so
+    # they get the same _has_usable_transparency() guard. 3 (additive) does not: an additive
+    # surface with no real alpha variation still looks fine (it decays to nothing wherever the
+    # base colour is black), unlike straight translucent alpha which is opaque everywhere a
+    # texture-alpha source turns out to be degenerate.
+    if output_blending in (1, 2) and _has_usable_transparency():
         return "translucent"
     if output_blending == 3:
         return "additive"
+    # FluidShader/WindowShader are explicit engine-class markers, not inferred from a texture or
+    # a name -- the original engine's own transparency mechanism for these classes is likely not
+    # texture-alpha-based at all, so they are not gated on decoded alpha data either.
     if class_name in ("FluidShader", "FluidSurfaceShader"):
         return "translucent"
     if class_name in ("WindowShader", "LightBeamShader"):
         return "translucent" if class_name == "WindowShader" else "additive"
-    if class_name == "Shader" and ("window" in name_lower or "glass" in name_lower):
+    if (class_name == "Shader" and ("window" in name_lower or "glass" in name_lower)
+            and _has_usable_transparency()):
         return "translucent"
     return "opaque"
 
@@ -702,15 +844,57 @@ def _wire_opacity_mask(master, opacity_texture=None, soft=False):
     return node
 
 
+def _repair_translucent_opacity_texture(master, opacity_texture):
+    """A "translucent"-kind master's Opacity sampler defaulted to the diffuse texture (the only
+    source `_load_or_create_master` used to read for it, see the git history around 29 Sept 2026).
+    When a real, separately-exported Opacity-slot texture exists for this material, repoint the
+    Opacity sampler node at it instead — the diffuse map's own alpha is very often uniformly
+    opaque (packed spec/gloss data, not coverage), which reads live as fully-opaque "glass" with
+    no visible transparency.
+
+    The node feeding MP_OPACITY on a master built by an older pass is not reliably a
+    `MaterialExpressionTextureSampleParameter2D` named "Opacity" -- measured live on
+    `glass_safety_shader`'s master, it is a plain (non-parameter) `MaterialExpressionTextureSample`
+    with no `parameter_name` at all. Accept either class; only require that it actually exposes a
+    settable `texture` property and is not the same node BaseColor reads from (that shared-node
+    shape is `_repair_translucent_opacity_sampler`'s job, which must run first -- see its call
+    site in `_load_or_create_master`).
+    """
+    if master is None or opacity_texture is None:
+        return False
+    try:
+        if master.get_editor_property("blend_mode") != unreal.BlendMode.BLEND_TRANSLUCENT:
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    edit = unreal.MaterialEditingLibrary
+    opacity_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY)
+    base_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+    if not isinstance(opacity_node, unreal.MaterialExpressionTextureSample):
+        return False
+    if base_node is not None and opacity_node.get_name() == base_node.get_name():
+        return False  # still the shared-node shape; the structural split has to run first
+    try:
+        current = opacity_node.get_editor_property("texture")
+    except Exception:  # noqa: BLE001
+        return False
+    if current is not None and current.get_path_name() == opacity_texture.get_path_name():
+        return False
+    opacity_node.set_editor_property("texture", opacity_texture)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _load_or_create_master(material, content_root, diffuse_texture=None, normal_texture=None,
-                           opacity_texture=None, rig=None):
+                           opacity_texture=None, rig=None, manifest_dir=None):
     """Create the small, shared graph every imported BioShock material instances.
 
     Masked, translucent and additive variants are separate masters so UE5 blend mode and opacity
     wiring stay compile-time constants. Two-sidedness is part of the master key for the same reason.
     """
     rig = rig or {}
-    kind = _material_rendering_kind(material, rig)
+    kind = _material_rendering_kind(material, rig, manifest_dir=manifest_dir)
     two_sided = bool(material.get("twoSided"))
     name_lower = (material.get("name") or "").lower()
     if kind == "translucent" and (
@@ -727,12 +911,19 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     path = "%s/Materials/Masters/%s" % (content_root, name)
     existing = _load_if_exists(path)
     if existing is not None:
-        if material.get("opacity"):
-            _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
+        # Must run before _repair_translucent_opacity_texture: a master built under the
+        # pre-split code still has Opacity and BaseColor sharing one node (parameter_name
+        # "BaseColor", not "Opacity"), so the opacity-texture repair below would find the wrong
+        # node shape and silently no-op, then this split would recreate the diffuse-as-opacity
+        # bug it exists to fix -- copying whatever texture the shared node already had.
         _repair_translucent_opacity_sampler(existing)
+        if material.get("opacity"):
+            _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
+        elif kind == "translucent":
+            _repair_translucent_opacity_texture(existing, opacity_texture)
         return existing
 
     factory = unreal.MaterialFactoryNew()
@@ -778,12 +969,15 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
             # mask read -- a hard SM5 compile error in this project ("Sampler type is Color,
             # should be Masks"), not a benign warning; confirmed live in-editor on
             # Wall_Leak_diff_shader/reinforcedglass_diffuse_shader, 4 Sept 2026 (both fell back to
-            # the default checkerboard material). Give Opacity its own Masks-sampler node reading
-            # the same texture instead of sharing BaseColor's.
+            # the default checkerboard material). Give Opacity its own Masks-sampler node.
+            # Prefer a real, separately-exported Opacity-slot texture when one exists (see
+            # _repair_translucent_opacity_texture) -- only fall back to reading the diffuse map's
+            # own alpha when no dedicated opacity source was ever exported for this material.
             opacity_src = edit.create_material_expression(
                 master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
             opacity_src.set_editor_property("parameter_name", "Opacity")
-            opacity_src.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
+            opacity_src.set_editor_property(
+                "texture", opacity_texture or diffuse_texture or _default_base_color_texture())
             opacity_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
             edit.connect_material_property(opacity_src, "A", unreal.MaterialProperty.MP_OPACITY)
 
@@ -804,7 +998,8 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     return master
 
 
-def _create_material_instances(rig, destination, content_root, imported_by_file=None):
+def _create_material_instances(rig, destination, content_root, imported_by_file=None,
+                               manifest_dir=None):
     """Create/update one material instance per authored material, preserving slot order."""
     imported_by_file = imported_by_file or {}
     textures = {}
@@ -847,7 +1042,8 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
         instance.set_editor_property(
             "parent", _load_or_create_master(
                 material, content_root, diffuse_texture=diffuse_texture,
-                normal_texture=normal_texture, opacity_texture=opacity_texture, rig=rig))
+                normal_texture=normal_texture, opacity_texture=opacity_texture, rig=rig,
+                manifest_dir=manifest_dir))
         if diffuse_texture is not None:
             library.set_material_instance_texture_parameter_value(instance, "BaseColor", diffuse_texture)
         if normal_texture is not None:
@@ -1170,7 +1366,7 @@ def main(export_directory, content_root="/Game/BioShock", normalize_fbx=True, bl
             _log(f"  imported {len(imported_textures)} texture(s) with declared intent")
 
         materials = _create_material_instances(
-            rig, destination, content_root, imported_by_file)
+            rig, destination, content_root, imported_by_file, manifest_dir=export_directory)
         _assign_materials(mesh, materials)
         if materials:
             _log(f"  created/updated and assigned {len(materials)} material instance(s)")

@@ -698,7 +698,7 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
         _log("  imported %d texture(s) with declared intent" % len(textures))
 
     instances = import_bioshock._create_material_instances(
-        manifest, destination, content_root, imported_by_file)
+        manifest, destination, content_root, imported_by_file, manifest_dir=manifest_dir)
     _configure_medical_fluid_materials(
         manifest, instances, destination, imported_by_file, report)
     return {material["key"]: instance for material, instance in zip(materials, instances)}

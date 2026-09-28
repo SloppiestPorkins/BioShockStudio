@@ -119,9 +119,16 @@ the per-system detail and priority order — this is a summary, not a repeat of 
   first Big Daddy sighting) are unbuilt; the data exists in the decoded scripts.
 - **Gatherer/Protector ecology** — Little Sister harvest, Big Daddy AI, the ADAM choice. Explicitly
   its own later project.
-- **Glass, god rays** — decal/particle stand-ins exist for some effects; glass/god-rays are not yet
-  real UE5 material work. Water is done (`z1`, 28 Sept 2026) — Medical's 19 `FluidShader` surfaces
-  now carry their own decoded textures/pan values, not one generic stand-in.
+- **God rays** — decal/particle stand-ins exist for some effects; not yet real UE5 material work.
+  Water is done (`z1`, 28 Sept 2026) — Medical's 19 `FluidShader` surfaces now carry their own
+  decoded textures/pan values, not one generic stand-in. **Glass is also done, corrected 29 Sept
+  2026** — this file previously said glass material slots were "not yet real UE5 material work";
+  that was wrong. All 25 of Medical's glass materials were already correctly built (real textures,
+  correct translucent classification); the actual bug was a wiring mistake (Opacity always read
+  the diffuse texture's own alpha instead of a separately-exported opacity texture when one
+  existed), fixed live — see `docs/research/medical-glass-opacity-fix.md`. Decals remain a real,
+  separate, un-fixed gap: they are genuinely textureless by design (a procedural radial-falloff
+  stand-in, no bullet-hole art was ever recovered), not a bug.
 - **Watchers, critical/immediate script execution mode, `TestFact`, training-message HUD** — all
   landed 28 Sept 2026 (`w20`). Still open: `ActionEnableOrDisableTrainingMessages` (a global mute
   gate, out of `w20`'s scope) and nested-loop critical-sub-action expansion during a travel flush

@@ -303,11 +303,16 @@ fog, exposed knobs).
 **Open, roughly in visible-impact order** — this is the fidelity punch list a live in-editor pass
 produced; treat items here as independent unless noted:
 
-- **Water materials.** Not yet built as real UE5 material graphs; the animator/panner/timeline/switch
-  values already copy onto the manifest but nothing drives them. This is also the likely cause of the
-  bathysphere-room water/stairs bug in STATUS.md's live bug list (**STATUS UNCLEAR — verify**: not
-  confirmed root-caused).
-- **Glass** — window/glass material slots are a known gap (see STATUS.md).
+- **Water materials — done** (`z1`, 28 Sept 2026, corrected here 29 Sept 2026). Medical's 19
+  `FluidShader` surfaces carry their own decoded textures/pan values. The bathysphere-room
+  water/stairs bug in STATUS.md's live bug list stays **STATUS UNCLEAR — verify**; the water-graph
+  gap this line used to blame it on no longer exists, so if the bug is still real live it needs a
+  fresh look, not this explanation.
+- **Glass — done** (corrected 29 Sept 2026, was wrongly listed as a gap). All 25 of Medical's glass
+  materials were already correctly built; a wiring bug (Opacity reading the diffuse texture's own
+  alpha instead of a real separate opacity texture when one existed) is fixed — see
+  `docs/research/medical-glass-opacity-fix.md`. Decals remain genuinely unbuilt (procedural
+  stand-in, no real bullet-hole art recovered) — that part of the gap is real.
 - **God rays**, decal alpha and particle/effects stand-ins for shipped particle systems that can't be
   recovered byte-for-byte (a Niagara stand-in pack under `/Game/BioShockFX/`, following the same
   pattern as the existing impact-decal and plasmid-VFX stand-ins).
