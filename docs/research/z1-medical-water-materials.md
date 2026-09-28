@@ -144,5 +144,16 @@ overlap, and underwater-fade checks (`tools/ue5/verify_water.py:60`, `:145`).
 
 ## Validation
 
-Pending headless UE commandlet results. Python syntax and diff checks are run separately; this
-section is updated only with measured commandlet output.
+Measured, not pending. Claude's landing pass found the patch's material reconfiguration had run
+against the wrong content root (`/Game/BioShockLevel`, `import_level.py`'s default) — the live
+playable slice's static mesh actors reference `/Game/BioShockSlice/Content` instead, a separate,
+disconnected asset tree (confirmed by inspecting a live actor's material parent chain directly).
+Re-ran `_import_level_materials` against the correct root. Headless `verify_water.py` against the
+live `/Game/BioShockSlice/1-Medical` slice then reported:
+
+```
+medicalSurfaces: count=101, distinctTextureParameters=11, distinctPanParameters=12
+```
+
+(was 1 material / 1 signature everywhere, before this task). Non-regression checks
+`verify_import_scripts.py` and `verify_light_import.py` both pass against the same live slice.
