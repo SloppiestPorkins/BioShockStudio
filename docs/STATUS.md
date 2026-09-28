@@ -107,8 +107,10 @@ the per-system detail and priority order — this is a summary, not a repeat of 
 
 - **Tonics** — no system at all; Gene Bank UI is plasmids-only.
 - **Switches / levers** — no dedicated actor class.
-- **Quests** — no quest system; Status → Goals reads a stub list, script actions that reference
-  quests are request-record slices.
+- **Quest hints/content** — the state machine itself is real and live (`AShockPlayer`, see
+  `docs/ROADMAP.md`'s "Inventory, economy, and player systems" for the corrected description,
+  28 Sept 2026); what's actually missing is quest hint/objective text beyond a bare name, and
+  nothing in script import yet calls `InitiateQuest` from real Medical script data.
 - **U-Invent crafting** — runs against generic inventory stacks, no component bag or recipes.
 - **Weapon/plasmid icon art** — never located in any decoded SWF; UI shows name + brass ring only.
 - **Level-to-level travel at scale** — the mechanism works, proven on one synthetic test map only;
