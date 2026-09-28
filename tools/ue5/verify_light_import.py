@@ -7,8 +7,11 @@ spot/sun/directional shapes are counted separately so this script does not false
 
 import json
 import os
+import sys
 
 import unreal
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import import_level
 

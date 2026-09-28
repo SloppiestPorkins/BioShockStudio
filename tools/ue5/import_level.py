@@ -626,6 +626,58 @@ def _decompose(matrix):
     return (unreal.Vector(*unreal_location), quat.rotator(), unreal.Vector(*scale))
 
 
+def _material_texture_for_file(manifest, material, relative_file, destination,
+                               imported_by_file):
+    if not relative_file:
+        return None
+    entry = next((
+        item for item in (manifest.get("textures") or [])
+        if item.get("material") == material.get("name")
+        and item.get("file") == relative_file
+    ), None)
+    if entry is None:
+        return None
+    return import_bioshock._resolve_imported_texture(entry, destination, imported_by_file)
+
+
+def _configure_medical_fluid_materials(manifest, instances, destination,
+                                       imported_by_file, report):
+    """Reparent Medical's decoded FluidShader MIs to the specialised water graph.
+
+    The confirmed surface link is the ordinary render chain
+    assets[].sections[].materialKey -> instances[].asset/actorKey. The 27 water-volume brush
+    assets have no materialKey and their actors have empty materialOverrides, so this deliberately
+    does not invent a nearest-volume association for the generic collision-volume planes.
+    """
+    if manifest.get("package") != "1-Medical":
+        return
+
+    import author_water_material
+
+    water_report = {"failures": [], "assets": {}}
+    master, _ = author_water_material.ensure_water_materials(water_report)
+    report["waterMaterials"] = water_report.get("assets") or {}
+    if water_report.get("failures") or master is None:
+        raise RuntimeError(
+            "could not author Medical FluidShader master: %s" % water_report.get("failures"))
+
+    for material, instance in zip(manifest.get("materials") or [], instances):
+        if material.get("className") != "FluidShader":
+            continue
+        diffuse = _material_texture_for_file(
+            manifest, material, material.get("diffuse"), destination, imported_by_file)
+        normal = _material_texture_for_file(
+            manifest, material, material.get("normalMap"), destination, imported_by_file)
+        author_water_material.configure_fluid_instance(
+            material,
+            instance,
+            diffuse_texture=diffuse,
+            normal_texture=normal,
+            master=master,
+            report=report,
+        )
+
+
 def _import_level_materials(manifest, manifest_dir, destination, content_root, report):
     """Create UE5 textures and material instances for a level's resolved materials.
 
@@ -647,6 +699,8 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
 
     instances = import_bioshock._create_material_instances(
         manifest, destination, content_root, imported_by_file)
+    _configure_medical_fluid_materials(
+        manifest, instances, destination, imported_by_file, report)
     return {material["key"]: instance for material, instance in zip(materials, instances)}
 
 

@@ -1,6 +1,8 @@
-"""Headless verify: AShockWaterVolume surface + IsActorInWater + underwater PP fade.
+"""Headless verify: water mechanics plus decoded Medical surface materials.
 
-Spawns volumes in the editor world (does not require 1-Medical). Asserts:
+Loads the live 1-Medical slice, then spawns temporary volumes. Asserts:
+  - at least two placed render surfaces use M_ShockWater instances with distinct decoded textures
+    and distinct UPan/VPan parameter tuples
   - configure_from_half_extent places a visible surface with a material
   - player IsInWaterForVerify true inside / false outside
   - underwater blend fades toward 1 when inside, toward 0 when outside
@@ -21,6 +23,10 @@ import sys
 import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+MAP_PATH = os.environ.get("BIOSHOCK_WATER_MAP", "/Game/BioShockSlice/1-Medical")
+MASTER_PATH = "/Game/BioShock/Water/M_ShockWater"
+KEY_TAG_PREFIX = "BioShockKey=instance:"
 
 
 def _log(message):
@@ -47,8 +53,58 @@ def _destroy_all(subsystem, actors):
             subsystem.destroy_actor(actor)
 
 
+def _asset_path(asset):
+    return asset.get_path_name() if asset is not None else None
+
+
+def _medical_surface_materials():
+    """Describe placed mesh slots whose saved MIC is parented to M_ShockWater."""
+    edit = unreal.MaterialEditingLibrary
+    master = unreal.EditorAssetLibrary.load_asset(MASTER_PATH)
+    master_path = _asset_path(master)
+    surfaces = []
+    for actor in unreal.get_editor_subsystem(
+            unreal.EditorActorSubsystem).get_all_level_actors():
+        if not isinstance(actor, unreal.StaticMeshActor):
+            continue
+        source_key = next((
+            str(tag)[len(KEY_TAG_PREFIX):]
+            for tag in actor.tags if str(tag).startswith(KEY_TAG_PREFIX)
+        ), None)
+        if source_key is None:
+            continue
+        component = actor.static_mesh_component
+        for slot in range(component.get_num_materials()):
+            material = component.get_material(slot)
+            if not isinstance(material, unreal.MaterialInstanceConstant):
+                continue
+            parent = material.get_editor_property("parent")
+            if _asset_path(parent) != master_path:
+                continue
+            diffuse = edit.get_material_instance_texture_parameter_value(
+                material, "WaterDiffuse1")
+            normal = edit.get_material_instance_texture_parameter_value(
+                material, "WaterNormal1")
+            pans = tuple(round(float(
+                edit.get_material_instance_scalar_parameter_value(material, name)), 6)
+                for name in (
+                    "DiffusePan1U", "DiffusePan1V", "DiffusePan2U", "DiffusePan2V",
+                    "NormalPan1U", "NormalPan1V", "NormalPan2U", "NormalPan2V",
+                ))
+            surfaces.append({
+                "actor": actor.get_actor_label(),
+                "sourceKey": source_key,
+                "slot": slot,
+                "material": _asset_path(material),
+                "diffuse": _asset_path(diffuse),
+                "normal": _asset_path(normal),
+                "pans": list(pans),
+            })
+    return surfaces
+
+
 def main(out):
-    report = {"failures": [], "results": []}
+    report = {"failures": [], "results": [], "map": MAP_PATH}
     failures = report["failures"]
 
     def check(name, ok, detail=None):
@@ -69,6 +125,31 @@ def main(out):
         bool(mat_report.get("assets", {}).get("M_ShockWater"))
         and not mat_report.get("failures"),
         mat_report.get("failures") or mat_report.get("assets"),
+    )
+
+    loaded = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(MAP_PATH)
+    check("medical_map_loaded", loaded, MAP_PATH)
+    surfaces = _medical_surface_materials() if loaded else []
+    texture_signatures = {
+        (entry["diffuse"], entry["normal"]) for entry in surfaces
+        if entry["diffuse"] is not None or entry["normal"] is not None
+    }
+    pan_signatures = {tuple(entry["pans"]) for entry in surfaces}
+    report["medicalSurfaces"] = {
+        "count": len(surfaces),
+        "distinctTextureParameters": len(texture_signatures),
+        "distinctPanParameters": len(pan_signatures),
+        "samples": surfaces[:12],
+    }
+    check(
+        "medical_distinct_surface_textures",
+        len(surfaces) >= 2 and len(texture_signatures) >= 2,
+        report["medicalSurfaces"],
+    )
+    check(
+        "medical_distinct_surface_pans",
+        len(pan_signatures) >= 2,
+        {"distinct": len(pan_signatures), "samples": surfaces[:4]},
     )
 
     water_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWaterVolume")
