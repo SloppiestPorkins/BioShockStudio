@@ -29,6 +29,7 @@
 #include "ShockSecurityCamera.h"
 #include "ShockSecurityDeviceTypes.h"
 #include "ShockResearchCamera.h"
+#include "ShockScriptSubsystem.h"
 #include "ShockWeapon.h"
 #include "ShockWeaponDef.h"
 #include "ShockProjectile.h"
@@ -472,6 +473,13 @@ void AShockGameMode::TravelToLevel(const FString& Map, FName StartLabel)
 	if (!World || Map.IsEmpty())
 	{
 		return;
+	}
+
+	// UC Script.executeCriticalActionsImmediately: flush bIsGameCritical pending actions
+	// before the level unloads so latent ticks that will never come are not silently dropped.
+	if (UShockScriptSubsystem* Scripts = UShockScriptSubsystem::Get(World))
+	{
+		Scripts->ExecutePendingCriticalActions();
 	}
 
 	if (UShockGameInstance* GI = UShockGameInstance::GetShockInstance(World))

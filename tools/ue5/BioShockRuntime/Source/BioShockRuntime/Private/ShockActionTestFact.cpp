@@ -1,5 +1,7 @@
 #include "ShockActionTestFact.h"
 
+#include "ShockPlayer.h"
+
 UShockActionTestFact::UShockActionTestFact()
 {
 	ActionClassName = TEXT("ActionTestFact");
@@ -20,6 +22,20 @@ bool UShockActionTestFact::RequestTest()
 
 bool UShockActionTestFact::EvaluateBool() const
 {
-	// Native TestFact() is not ported yet — refuse a true result rather than invent one.
+	// Needs a World to resolve the local player — use EvaluateInWorld from ActionIf.
 	return false;
+}
+
+bool UShockActionTestFact::EvaluateInWorld(UWorld* World) const
+{
+	if (!World || Slot1.IsNone())
+	{
+		return false;
+	}
+	AShockPlayer* Player = AShockPlayer::FindLocalOrFirst(World);
+	if (!Player)
+	{
+		return false;
+	}
+	return Player->HasFact(Slot1, Slot2, Slot3);
 }

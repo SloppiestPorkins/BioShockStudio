@@ -898,6 +898,28 @@ void UShockHudWidget::RefreshDisplay()
 			InteractPromptText->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
 	}
+	// Training toast: reuse the existing ToastText slot (created but previously unused).
+	{
+		const FName TrainingName = Player ? Player->GetTrainingMessage() : NAME_None;
+		if (TrainingName.IsNone())
+		{
+			CachedTrainingMessageText.Reset();
+			if (ToastText)
+			{
+				ToastText->SetText(FText::GetEmpty());
+				ToastText->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
+		else
+		{
+			CachedTrainingMessageText = TrainingName.ToString();
+			if (ToastText)
+			{
+				ToastText->SetText(FText::FromString(CachedTrainingMessageText));
+				ToastText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			}
+		}
+	}
 	const float Health = Player ? Player->GetCurrentHealth() : 0.0f;
 	const float MaxHealth = Player ? FMath::Max(Player->GetMaxHealth(), 1.0f) : 1.0f;
 
@@ -1072,6 +1094,11 @@ FString UShockHudWidget::GetDisplayedEveText() const
 FString UShockHudWidget::GetDisplayedConsumablesText() const
 {
 	return CachedConsumablesText;
+}
+
+FString UShockHudWidget::GetDisplayedTrainingMessageText() const
+{
+	return CachedTrainingMessageText;
 }
 
 bool UShockHudWidget::HasHealthMeterFrame() const

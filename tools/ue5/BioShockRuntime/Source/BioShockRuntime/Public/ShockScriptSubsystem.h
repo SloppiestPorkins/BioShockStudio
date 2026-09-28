@@ -73,6 +73,13 @@ public:
 	void ResetLevelEntryDispatchForVerify() { bDidLevelEntryDispatch = false; }
 
 	/**
+	 * Level-travel flush (Script.executeCriticalActionsImmediately): walk every live runner's
+	 * still-queued bIsGameCritical actions and apply them synchronously before OpenLevel.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BioShock|Script")
+	int32 ExecutePendingCriticalActions();
+
+	/**
 	 * MessageDoorKeypadUsed under KeypadLabel with Keycode field (SCR-G12). No keypad actor
 	 * class yet (SCR-B17); call from verify / future keypad UI.
 	 */

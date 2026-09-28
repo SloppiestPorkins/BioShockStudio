@@ -5,6 +5,7 @@
 UShockActionPrintClientMessage::UShockActionPrintClientMessage()
 {
 	ActionClassName = TEXT("ActionPrintClientMessage");
+	bIsGameCritical = false;
 }
 void UShockActionPrintClientMessage::Configure(const FString& InText, FName InType)
 {

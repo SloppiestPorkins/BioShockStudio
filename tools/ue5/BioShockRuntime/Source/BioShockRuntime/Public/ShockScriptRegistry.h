@@ -37,6 +37,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	TArray<UShockScriptRunner*> FindAllScripts(FName Label) const;
 
+	/** Every registered runner across all labels (level-travel critical flush). */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	TArray<UShockScriptRunner*> GetAllRunners() const;
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	int32 Num() const;
 

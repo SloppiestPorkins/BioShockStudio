@@ -22,6 +22,7 @@ see `docs/ENGINEERING_RULES.md` §61 for the file-ownership split) had one open 
 
 | Agent | Track | Areas / files | Started |
 |---|---|---|---|
+| Cursor (w20-scripting-vm-stubs) | Scripting VM remaining stubs (watchers, critical travel, TestFact, training HUD) | `tools/ue5/BioShockRuntime/**`, `tools/ue5/verify_scripting_vm_stubs.py`, `docs/research/w20-scripting-vm-stubs.md` | 28 Sept 2026 |
 | Cursor (w19-interact-trace-remaining-fails) | Remaining interact-trace failures + 3 STATUS UNCLEAR | `tools/ue5/BioShockRuntime/**` (interact verify harness), `tools/ue5/verify_interact_trace.py`, `docs/research/w19-remaining-interact-fails.md` | 28 Sept 2026 |
 | Cursor (y6-scripting-fidelity) | SDK scripting fidelity batch (SCR-B04..B13,B16,B17,G02,G03,G19) | `tools/ue5/BioShockRuntime/**`, `tools/ue5/verify_scripting_fidelity.py`, `docs/research/sdk-crossref-scripting.md` | 25 Sept 2026 |
 

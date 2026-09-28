@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	FString GetDisplayedConsumablesText() const;
 
+	/** Training-message toast text currently shown (empty when collapsed). */
+	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
+	FString GetDisplayedTrainingMessageText() const;
+
 	/** True when the lower-right weapon cluster (ring + name) is shown. */
 	UFUNCTION(BlueprintPure, Category="BioShock|HUD")
 	bool IsAmmoPanelVisible() const { return bAmmoPanelVisible; }
@@ -222,6 +226,7 @@ private:
 	FString CachedAmmoMagText;
 	FString CachedWeaponNameText;
 	FString CachedAmmoReserveText;
+	FString CachedTrainingMessageText;
 	bool bAmmoPanelVisible = false;
 	bool bAmmoDigitsVisible = false;
 

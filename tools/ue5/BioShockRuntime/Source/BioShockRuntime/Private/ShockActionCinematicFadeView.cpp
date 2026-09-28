@@ -5,6 +5,7 @@ UShockActionCinematicFadeView::UShockActionCinematicFadeView()
 	ActionClassName = TEXT("ActionCinematicFadeView");
 	FadeAlphaEnd = 1.0f;
 	Duration = 2.0f;
+	bIsGameCritical = false;
 }
 
 void UShockActionCinematicFadeView::Configure(float InAlphaStart, float InAlphaEnd, float InDuration, float InHold)

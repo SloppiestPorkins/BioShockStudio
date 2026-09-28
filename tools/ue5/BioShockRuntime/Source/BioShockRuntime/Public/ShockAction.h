@@ -72,6 +72,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	FString ActionClassName;
 
+	/**
+	 * UnrealScript `Action.bIsGameCritical` (default true). Latent/cosmetic actions opt out
+	 * (Wait / PlayEffect / CinematicFadeView / PrintClientMessage). On level travel, pending
+	 * critical actions flush synchronously before OpenLevel.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bIsGameCritical = true;
+
+	/** Test-only override so a headless verify can exercise the "non-critical action is skipped
+	 * on flush" path without a class that defaults to non-critical. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void SetGameCriticalForVerify(bool bInCritical) { bIsGameCritical = bInCritical; }
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
 	TMap<FString, FString> Parameters;
 

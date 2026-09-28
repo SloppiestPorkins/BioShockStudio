@@ -5,6 +5,7 @@ UShockActionWait::UShockActionWait()
 	ActionClassName = TEXT("ActionWait");
 	Seconds = 1.0f;
 	WakeAtTime = -1.0f;
+	bIsGameCritical = false;
 }
 
 void UShockActionWait::Configure(float InSeconds)

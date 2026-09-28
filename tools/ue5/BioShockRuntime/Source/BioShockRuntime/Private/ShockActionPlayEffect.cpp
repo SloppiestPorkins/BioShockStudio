@@ -7,6 +7,7 @@ UShockActionPlayEffect::UShockActionPlayEffect()
 {
 	ActionClassName = TEXT("ActionPlayEffect");
 	EffectEvent = FName(TEXT("ScriptTrigger"));
+	bIsGameCritical = false;
 }
 
 void UShockActionPlayEffect::Configure(FName InEffectEvent, FName InEffectTag, FName InActorLabel)

@@ -238,6 +238,180 @@ void UShockScriptRunner::TickScriptTimer(float WorldTimeSeconds)
 	}
 }
 
+void UShockScriptRunner::AddWatcher(
+	FName WatcherName, UShockActionBool* Expression, bool bInEnabled, float WorldTimeSeconds)
+{
+	if (WatcherName.IsNone() || !Expression)
+	{
+		return;
+	}
+	for (FShockWatcherState& Existing : Watchers)
+	{
+		if (Existing.WatcherName == WatcherName)
+		{
+			Existing.WatchedExpression = Expression;
+			Existing.bEnabled = bInEnabled;
+			Existing.NextPollAt = bInEnabled ? (WorldTimeSeconds + 1.0f) : -1.0f;
+			return;
+		}
+	}
+	FShockWatcherState State;
+	State.WatcherName = WatcherName;
+	State.WatchedExpression = Expression;
+	State.bEnabled = bInEnabled;
+	State.NextPollAt = bInEnabled ? (WorldTimeSeconds + 1.0f) : -1.0f;
+	Watchers.Add(State);
+}
+
+bool UShockScriptRunner::SetWatcherEnabled(FName WatcherName, bool bInEnabled, float WorldTimeSeconds)
+{
+	for (FShockWatcherState& State : Watchers)
+	{
+		if (State.WatcherName != WatcherName)
+		{
+			continue;
+		}
+		State.bEnabled = bInEnabled;
+		// UC setWatcherEnabled: re-enter LookAtExpression (1s Sleep then execute) when enabled.
+		State.NextPollAt = bInEnabled ? (WorldTimeSeconds + 1.0f) : -1.0f;
+		return true;
+	}
+	return false;
+}
+
+bool UShockScriptRunner::IsWatcherEnabled(FName WatcherName) const
+{
+	for (const FShockWatcherState& State : Watchers)
+	{
+		if (State.WatcherName == WatcherName)
+		{
+			return State.bEnabled;
+		}
+	}
+	return false;
+}
+
+void UShockScriptRunner::TickWatchers(float WorldTimeSeconds)
+{
+	UWorld* World = GetOuterWorld();
+	for (FShockWatcherState& State : Watchers)
+	{
+		if (!State.bEnabled || !State.WatchedExpression || State.NextPollAt < 0.0f)
+		{
+			continue;
+		}
+		if (WorldTimeSeconds < State.NextPollAt)
+		{
+			continue;
+		}
+		// LookAtExpression: evaluate once, then either fire (one-shot disable) or Sleep(1) again.
+		FShockActionContext EvalCtx;
+		EvalCtx.World = World;
+		EvalCtx.OwnerActor = Cast<AActor>(GetOuter());
+		EvalCtx.Variables = EnsureVariables();
+		EvalCtx.SourceLabel = ScriptLabel;
+		EvalCtx.WorldTimeSeconds = WorldTimeSeconds;
+		State.WatchedExpression->ResolveParameters(EvalCtx);
+
+		const bool bTrue = State.WatchedExpression->EvaluateInWorld(World);
+		if (bTrue)
+		{
+			State.bEnabled = false;
+			State.NextPollAt = -1.0f;
+			if (Registry)
+			{
+				TMap<FString, FString> Fields;
+				Fields.Add(TEXT("scriptName"), ScriptLabel.ToString());
+				Fields.Add(TEXT("watcherName"), State.WatcherName.ToString());
+				Registry->DispatchMessageWithFields(
+					FName(TEXT("MessageWatcher")), ScriptLabel.ToString(), Fields);
+			}
+		}
+		else
+		{
+			State.NextPollAt = WorldTimeSeconds + 1.0f;
+		}
+	}
+}
+
+int32 UShockScriptRunner::ExecutePendingCriticalActions()
+{
+	if (!bIsExecuting || CurrentlyExecutingActionIndex < 0)
+	{
+		return 0;
+	}
+
+	FShockActionContext Ctx;
+	Ctx.World = GetOuterWorld();
+	Ctx.OwnerActor = Cast<AActor>(GetOuter());
+	Ctx.Variables = EnsureVariables();
+	Ctx.SourceLabel = ScriptLabel;
+	Ctx.MessageClass = LastMessageClass;
+	Ctx.MessageSource = LastMessageSource;
+	Ctx.MessageFields = &LastMessageFields;
+	Ctx.WorldTimeSeconds = Ctx.World ? Ctx.World->GetTimeSeconds() : 0.0f;
+
+	int32 Flushed = 0;
+	for (int32 i = CurrentlyExecutingActionIndex; i < RunQueue.Num(); ++i)
+	{
+		UShockAction* Action = RunQueue[i];
+		if (!Action || !Action->bIsGameCritical)
+		{
+			continue;
+		}
+		// Latent waits are never critical in the UC defaults; skip anything that would block.
+		if (Cast<UShockActionWait>(Action)
+			|| Cast<UShockActionWaitForGoal>(Action)
+			|| Cast<UShockActionWaitForQuestLogToFinish>(Action)
+			|| Cast<UShockActionCinematicFadeView>(Action))
+		{
+			continue;
+		}
+		Action->ResolveParameters(Ctx);
+		if (UShockActionVariableAssign* Assign = Cast<UShockActionVariableAssign>(Action))
+		{
+			if (Assign->ApplyToScope(EnsureVariables()))
+			{
+				++Flushed;
+			}
+			continue;
+		}
+		if (UShockActionVariableIncrement* Inc = Cast<UShockActionVariableIncrement>(Action))
+		{
+			if (Inc->ApplyToScope(EnsureVariables()))
+			{
+				++Flushed;
+			}
+			continue;
+		}
+		if (UShockActionVariableDecrement* Dec = Cast<UShockActionVariableDecrement>(Action))
+		{
+			if (Dec->ApplyToScope(EnsureVariables()))
+			{
+				++Flushed;
+			}
+			continue;
+		}
+		if (Action->ApplyInWorld(Ctx))
+		{
+			++Flushed;
+		}
+	}
+
+	PendingWait = nullptr;
+	PendingGoalWait = nullptr;
+	PendingQuestLogWait = nullptr;
+	PendingFade = nullptr;
+	PendingAnimation = nullptr;
+	PendingChild = nullptr;
+	bWaitPrepared = false;
+	bGoalWaitPrepared = false;
+	bQuestLogWaitPrepared = false;
+	bFadePrepared = false;
+	FinishExecution();
+	return Flushed;
+}
+
 void UShockScriptRunner::SetRegistry(UShockScriptRegistry* InRegistry)
 {
 	Registry = InRegistry;
@@ -510,6 +684,7 @@ bool UShockScriptRunner::AnySpawnedChildExecuting() const
 bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 {
 	TickScriptTimer(WorldTimeSeconds);
+	TickWatchers(WorldTimeSeconds);
 
 	while (true)
 	{
@@ -584,7 +759,16 @@ bool UShockScriptRunner::TickExecution(float WorldTimeSeconds)
 	}
 
 	TickSpawnedChildren(WorldTimeSeconds);
-	return bIsExecuting || AnySpawnedChildExecuting() || bTimerActive;
+	bool bWatcherAlive = false;
+	for (const FShockWatcherState& State : Watchers)
+	{
+		if (State.bEnabled)
+		{
+			bWatcherAlive = true;
+			break;
+		}
+	}
+	return bIsExecuting || AnySpawnedChildExecuting() || bTimerActive || bWatcherAlive;
 }
 
 bool UShockScriptRunner::StepOne(float WorldTimeSeconds)

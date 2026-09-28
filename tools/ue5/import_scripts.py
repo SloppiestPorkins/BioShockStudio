@@ -186,6 +186,14 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
         return False
     bag = props_by_key[source_key]
     try:
+        # Per-instance bIsGameCritical from the script-actions sidecar (22 Medical rows carry it).
+        crit = _prop(bag, "bIsGameCritical")
+        if crit is not None and hasattr(action, "set_editor_property"):
+            try:
+                action.set_editor_property("b_is_game_critical", bool(crit))
+                stats["instance_applied"] += 1
+            except Exception:
+                pass
         if action_class == "ActionWait":
             seconds = _prop(bag, "Seconds")
             if seconds is not None and hasattr(action, "configure"):
@@ -407,6 +415,22 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
             s3 = _prop(bag, "Slot_3", "Slot3")
             if s1 is not None and hasattr(action, "configure"):
                 action.configure(s1, str(s2 or ""), str(s3 or ""))
+                stats["instance_applied"] += 1
+                return True
+        if action_class in ("ActionEnableWatcher", "ActionDisableWatcher"):
+            script = _prop(bag, "scriptName", "ScriptName")
+            watcher = _prop(bag, "watcherName", "WatcherName")
+            if watcher is not None and hasattr(action, "configure"):
+                action.configure(script or "", watcher)
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionCreateWatcher":
+            # Nested Watcher object carries watcherName/enabled; scalar fallbacks if present.
+            watcher = _prop(bag, "watcherName", "WatcherName")
+            enabled = _prop(bag, "enabled", "Enabled")
+            if watcher is not None and hasattr(action, "configure"):
+                action.configure(
+                    watcher, None, bool(enabled) if enabled is not None else True)
                 stats["instance_applied"] += 1
                 return True
         if action_class == "ActionPropertyTest":
@@ -726,6 +750,30 @@ def expand_nested_actions(
                     "nested_for", outer=outer, action_cache=action_cache)
                 if child is not None and hasattr(action, "add_for_action"):
                     action.add_for_action(child)
+        elif action_class == "ActionCreateWatcher":
+            # newWatcher is a WatcherBase (not a UShockAction); pull scalars + nested
+            # watchedExpression from its bag. watchedExpression may also sit on CreateWatcher.
+            for child_key in _child_keys(bag, "newWatcher", "watchedExpression"):
+                child_bag = props_by_key.get(child_key) or {}
+                child_class = (child_bag.get("className") or child_bag.get("class") or "")
+                # Nested boolean tree (TruthStatement / BooleanStatement / …).
+                if child_class and child_class != "Watcher" and child_class != "WatcherBase":
+                    child = _create_from_source_key(
+                        child_key, props_by_key, source_keys_by_index, paths, stats, depth,
+                        visiting, "nested_watcher", outer=outer, action_cache=action_cache)
+                    if child is not None and hasattr(action, "set_watched_expression"):
+                        action.set_watched_expression(child)
+                wname = _prop(child_bag, "watcherName", "WatcherName")
+                wen = _prop(child_bag, "enabled", "Enabled")
+                if wname is not None and hasattr(action, "configure"):
+                    expr = getattr(action, "watched_expression", None)
+                    action.configure(wname, expr, bool(wen) if wen is not None else True)
+                for expr_key in _child_keys(child_bag, "watchedExpression"):
+                    expr = _create_from_source_key(
+                        expr_key, props_by_key, source_keys_by_index, paths, stats, depth + 1,
+                        visiting, "nested_watcher_expr", outer=outer, action_cache=action_cache)
+                    if expr is not None and hasattr(action, "set_watched_expression"):
+                        action.set_watched_expression(expr)
     finally:
         visiting.discard(source_key)
 

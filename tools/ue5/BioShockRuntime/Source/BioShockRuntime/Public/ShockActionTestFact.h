@@ -5,7 +5,7 @@
 
 /**
  * UnrealScript `ActionTestFact` (ShockGame.U, native). Holds Slot_1/2/3 for a fact check.
- * First slice stores params; EvaluateBool is false until FactDatabase is wired.
+ * EvaluateInWorld reads AShockPlayer::HasFact (same keying as AssertFact/RetractFact).
  */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionTestFact : public UShockActionBool
@@ -34,4 +34,5 @@ public:
 	bool RequestTest();
 
 	virtual bool EvaluateBool() const override;
+	virtual bool EvaluateInWorld(class UWorld* World) const override;
 };

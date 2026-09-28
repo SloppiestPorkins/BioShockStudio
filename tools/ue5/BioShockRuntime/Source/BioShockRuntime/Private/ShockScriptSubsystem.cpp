@@ -8,6 +8,7 @@
 #include "ShockGameInstance.h"
 #include "ShockPlayer.h"
 #include "ShockScriptRegistry.h"
+#include "ShockScriptRunner.h"
 #include "ShockSecurityDevice.h"
 #include "TimerManager.h"
 
@@ -83,6 +84,25 @@ int32 UShockScriptSubsystem::DispatchDoorKeypadUsed(const FString& KeypadLabel, 
 	Fields.Add(TEXT("Keycode"), Keycode);
 	Fields.Add(TEXT("Instigator"), TEXT("Player"));
 	return DispatchMessageLoggedWithFields(FName(TEXT("MessageDoorKeypadUsed")), KeypadLabel, Fields);
+}
+
+int32 UShockScriptSubsystem::ExecutePendingCriticalActions()
+{
+	UShockScriptRegistry* Reg = GetOrCreateRegistry();
+	if (!Reg)
+	{
+		return 0;
+	}
+	int32 Flushed = 0;
+	for (UShockScriptRunner* Runner : Reg->GetAllRunners())
+	{
+		if (Runner)
+		{
+			Flushed += Runner->ExecutePendingCriticalActions();
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_SCRIPT criticalFlush applied=%d"), Flushed);
+	return Flushed;
 }
 
 void UShockScriptSubsystem::RegisterAnimatedProp(AShockAnimatedProp* Prop)

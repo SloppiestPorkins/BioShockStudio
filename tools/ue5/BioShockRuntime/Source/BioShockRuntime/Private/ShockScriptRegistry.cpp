@@ -52,6 +52,22 @@ TArray<UShockScriptRunner*> UShockScriptRegistry::FindAllScripts(FName Label) co
 	return Out;
 }
 
+TArray<UShockScriptRunner*> UShockScriptRegistry::GetAllRunners() const
+{
+	TArray<UShockScriptRunner*> Out;
+	for (const TPair<FName, FShockRunnerList>& Pair : ByLabel)
+	{
+		for (const TObjectPtr<UShockScriptRunner>& Runner : Pair.Value.Runners)
+		{
+			if (Runner)
+			{
+				Out.Add(Runner.Get());
+			}
+		}
+	}
+	return Out;
+}
+
 int32 UShockScriptRegistry::Num() const
 {
 	int32 Total = 0;

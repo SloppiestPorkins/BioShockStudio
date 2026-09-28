@@ -4,6 +4,7 @@
 #include "ShockScriptRunner.generated.h"
 
 class UShockAction;
+class UShockActionBool;
 class UShockActionLoop;
 class UShockActionFor;
 class UShockActionPlayAnimation;
@@ -14,6 +15,26 @@ class UShockScriptRegistry;
 class UShockScriptRunner;
 class UShockVariableScope;
 class UWorld;
+
+/** One Script.watchers[] entry: named expression polled once per second while enabled. */
+USTRUCT(BlueprintType)
+struct BIOSHOCKRUNTIME_API FShockWatcherState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	FName WatcherName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	bool bEnabled = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	TObjectPtr<UShockActionBool> WatchedExpression;
+
+	/** World time when the next 1s LookAtExpression poll is due. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BioShock")
+	float NextPollAt = -1.0f;
+};
 
 /**
  * First-slice stand-in for UnrealScript `Script` action execution.
@@ -173,6 +194,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	void AddAction(UShockAction* Action);
 
+	/**
+	 * Script.addWatcher: register a named expression watcher. When bEnabled, schedules the first
+	 * LookAtExpression poll one second from WorldTimeSeconds (UC Sleep(1.0) before execute).
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	void AddWatcher(FName WatcherName, UShockActionBool* Expression, bool bInEnabled, float WorldTimeSeconds);
+
+	/** Script.setWatcherEnabled: toggle + restart LookAtExpression when re-enabled. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool SetWatcherEnabled(FName WatcherName, bool bInEnabled, float WorldTimeSeconds);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	bool IsWatcherEnabled(FName WatcherName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 GetWatcherCount() const { return Watchers.Num(); }
+
+	/**
+	 * Level-travel flush: run every still-queued bIsGameCritical leaf in RunQueue synchronously
+	 * (skip latent waits / non-critical). Returns how many actions applied. Ends the run.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
+	int32 ExecutePendingCriticalActions();
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Script")
 	UShockVariableScope* EnsureVariables();
 
@@ -248,6 +293,9 @@ private:
 	TArray<TObjectPtr<UShockAction>> RunQueue;
 
 	UPROPERTY()
+	TArray<FShockWatcherState> Watchers;
+
+	UPROPERTY()
 	TObjectPtr<UShockActionWait> PendingWait;
 
 	UPROPERTY()
@@ -292,6 +340,7 @@ private:
 	void TickSpawnedChildren(float WorldTimeSeconds);
 	bool AnySpawnedChildExecuting() const;
 	void TickScriptTimer(float WorldTimeSeconds);
+	void TickWatchers(float WorldTimeSeconds);
 	bool BeginExecutionInternal(bool bClearMessageFields);
 	UWorld* GetOuterWorld() const;
 };

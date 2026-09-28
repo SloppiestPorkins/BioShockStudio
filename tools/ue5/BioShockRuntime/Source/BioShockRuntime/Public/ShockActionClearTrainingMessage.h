@@ -3,7 +3,7 @@
 #include "ShockAction.h"
 #include "ShockActionClearTrainingMessage.generated.h"
 
-/** UnrealScript `ActionClearTrainingMessage`. Records MessageName; no HUD yet. */
+/** UnrealScript `ActionClearTrainingMessage`. Clears ShockPlayer::LastTrainingMessage (HUD toast). */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionClearTrainingMessage : public UShockAction
 {
@@ -26,4 +26,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestClear();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(class UWorld* World);
 };

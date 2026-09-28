@@ -7,6 +7,9 @@
 #include "ShockActionApplyScriptedHandAttachment.h"
 #include "ShockActionAssassinTeleport.h"
 #include "ShockActionAssertFact.h"
+#include "ShockActionCreateWatcher.h"
+#include "ShockActionDisableWatcher.h"
+#include "ShockActionEnableWatcher.h"
 #include "ShockActionAssignNextGathererBooty.h"
 #include "ShockActionTellAIToContinue.h"
 #include "ShockActionShowBathysphereUI.h"
@@ -439,6 +442,16 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 		else
 		{
 			Action->ActionClassName = ClassName;
+
+			// Schema/defaultproperties carry bIsGameCritical (Action=true; Wait/PlayEffect/…=false).
+			{
+				FString CritText;
+				if (Lookup(Classes, ClassName, TEXT("bIsGameCritical"), CritText) && !CritText.StartsWith(TEXT("<")))
+				{
+					Action->bIsGameCritical = CritText.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("bIsGameCritical"));
+				}
+			}
 
 			auto ApplyFloat = [&](const TCHAR* Property, const TFunctionRef<void(float)>& Sink)
 			{
@@ -1430,6 +1443,48 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Train->MessageName = FName(*Unquote(Text));
 					Applied.Add(TEXT("MessageName"));
+				}
+			}
+			if (UShockActionCreateWatcher* CreateWatch = Cast<UShockActionCreateWatcher>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("watcherName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CreateWatch->WatcherName = FName(*Unquote(Text));
+					Applied.Add(TEXT("watcherName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("enabled"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					CreateWatch->bWatcherEnabled = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+					Applied.Add(TEXT("enabled"));
+				}
+			}
+			if (UShockActionEnableWatcher* EnableWatch = Cast<UShockActionEnableWatcher>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("scriptName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					EnableWatch->ScriptName = FName(*Unquote(Text));
+					Applied.Add(TEXT("scriptName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("watcherName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					EnableWatch->WatcherName = FName(*Unquote(Text));
+					Applied.Add(TEXT("watcherName"));
+				}
+			}
+			if (UShockActionDisableWatcher* DisableWatch = Cast<UShockActionDisableWatcher>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("scriptName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DisableWatch->ScriptName = FName(*Unquote(Text));
+					Applied.Add(TEXT("scriptName"));
+				}
+				if (Lookup(Classes, ClassName, TEXT("watcherName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					DisableWatch->WatcherName = FName(*Unquote(Text));
+					Applied.Add(TEXT("watcherName"));
 				}
 			}
 			if (UShockActionCompleteQuest* Complete = Cast<UShockActionCompleteQuest>(Action))
