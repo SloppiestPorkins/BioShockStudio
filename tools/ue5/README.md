@@ -515,7 +515,8 @@ before every placement call. Verified in a live UE5.7 editor, not just re-derive
 `LevelSceneTests.TheMedicalPavilionCeilingArchFormsOneContinuousSurface`'s own check against the
 actually-placed actors on `1-Medical`, the four `window_512_corner_4up` instances' combined
 world-space bounding diagonal came back **2422 units** — that test's own reference value for a
-correctly-assembled arch (a twisted, wrong-handed one measures ~4295). See `docs/HANDOFF.md` §4.
+correctly-assembled arch (a twisted, wrong-handed one measures ~4295). See `docs/archive/HANDOFF.md`
+§4 (archived 28 Sept 2026, unmodified — see `docs/STATUS.md`).
 
 **Materials, verified in the same live UE5.7 run, 24 Aug 2026.** When the manifest carries a
 `materials`/`textures` array (only when the level was exported with an open package — see

@@ -83,7 +83,8 @@ Bulk extraction size has already been reported as a fault in this project when i
 unstated cost.
 
 **Three faults in this tab were found by rendering it and looking, with every test green** — see
-`HANDOFF.md`. The one worth repeating here: **`IsVisible="{Binding !SomeObject}"` does not negate a
+`docs/archive/HANDOFF.md` (archived 28 Sept 2026, unmodified — see `docs/STATUS.md`). The one worth
+repeating here: **`IsVisible="{Binding !SomeObject}"` does not negate a
 non-boolean binding in Avalonia**, and silently renders the control always. Use
 `{Binding X, Converter={x:Static ObjectConverters.IsNull}}`.
 
@@ -161,8 +162,8 @@ It works per **surface**, not per instance: a mesh can be part painted and part 
 instance would take the painted half with it.
 
 Both the volume and the by-design classifications key off the **game's own statement** — an actor's
-class, a material's class. Never a name; `HANDOFF.md` §4 records what a name-based allowlist cost
-the material reader once already.
+class, a material's class. Never a name; `docs/archive/HANDOFF.md` §4 records what a name-based
+allowlist cost the material reader once already.
 
 Volumes are identified by the actor's class ending in `Volume`, `Trigger` or `ZoneInfo` — the game's
 own statement of what the thing is. A suffix test rather than a fixed list, because the game ships
@@ -274,7 +275,7 @@ A mesh that yields no geometry reports, in the details panel:
 **That wording is deliberate and was a correction.** It used to say "a geometry layout this tool does
 not read yet", which blamed the reader for the data: the exports that reach this are four door rigs
 that carry no vertex data at all, and the evidence is against the unsupported-layout diagnosis.
-`docs/HANDOFF.md` §6.2.
+`docs/archive/HANDOFF.md` §6.2.
 
 A shader whose property walk stopped early says the material is partial. A bulk extraction records
 every failure with its reason and keeps going; one bad asset never ends a job.

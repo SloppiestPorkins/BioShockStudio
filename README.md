@@ -16,19 +16,22 @@ extract and play correctly. The FBX is validated by importing it back and compar
 game's own transforms, and multiple character/weapon/door/prop skeleton families now verify clean in
 a live UE5.7 editor import.
 
-**[`docs/ROADMAP.md`](docs/ROADMAP.md) is the canonical, kept-current status document** — what's done
-(Part 1), what's left in gate order (Part 2), and the whole-game figures behind each claim. This file
-does not keep its own copy, because a second copy is exactly how status pages drift out of sync with
-each other (this one once said lightmaps were "not started" after they'd already been decoded).
+**[`docs/ROADMAP.md`](docs/ROADMAP.md) is the forward plan** — the target, the systems, and what's
+left, in priority order. **[`docs/STATUS.md`](docs/STATUS.md) is the current-state snapshot** —
+what's done and verified, what's landed but not yet confirmed live, open bugs, and known-missing
+features. This file does not keep its own copy of either, because a second copy is exactly how
+status pages drift out of sync with each other (this one once said lightmaps were "not started"
+after they'd already been decoded).
 
 See [docs/research/](docs/research/) for the byte-level evidence behind every claim,
 [docs/QUALITY.md](docs/QUALITY.md) for the headline mesh/material/texture/animation figures each
 pinned by a test, and [docs/research/open-questions.md](docs/research/open-questions.md) for what is
 still unknown.
 
-Two AI agents work this repo concurrently — [docs/DUAL_AGENT_ROADMAP.md](docs/DUAL_AGENT_ROADMAP.md)
-splits the remaining work by file ownership: Cursor drives the UE5 runtime (`tools/ue5/**`), Claude
-Code drives the C# extraction tool (`src/**`).
+Two AI agents work this repo concurrently — `docs/ENGINEERING_RULES.md` §61 splits the remaining
+work by file ownership: Cursor drives the UE5 runtime (`tools/ue5/**`), Claude Code drives the C#
+extraction tool (`src/**`). (The split used to be documented in `docs/DUAL_AGENT_ROADMAP.md`,
+archived 28 Sept 2026 — see `docs/STATUS.md`.)
 
 ## Building
 

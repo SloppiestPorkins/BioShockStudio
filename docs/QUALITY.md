@@ -322,7 +322,8 @@ bucket. `WP_CrossbowMesh` names `Crossbow_Shader` and
 whether each of these is now in the resolved 61 or the unresolved 94 has not been checked
 individually here. The preview, the details panel and the Problems panel all say so. See open
 question 4c, and item 6
-under NEXT CLAUDE SESSION in `HANDOFF.md`.
+under NEXT CLAUDE SESSION in `docs/archive/HANDOFF.md` (archived 28 Sept 2026, unmodified — see
+`docs/STATUS.md`).
 
 ### 3. Three skeletal meshes resolve a material that will not read — 3 distinct
 
@@ -359,7 +360,7 @@ Recorded so the next person does not chase them.
   **This entry was wrong and is corrected here.** A user then photographed `PI_Fire_B` drawing a
   splicer with no arms, and measuring it showed 25 of 54 driven bones folded onto their parents on
   frame 0 — not a constant offset, and not intact. The render that "checked" it did not catch it.
-  These three, plus `smg_fire`, are the open fault in `docs/HANDOFF.md` §6.0c, and the audit now
+  These three, plus `smg_fire`, are the open fault in `docs/archive/HANDOFF.md` §6.0c, and the audit now
   measures them (`AnimationAudit.WorstCollapse`, `BoneRigidityTests`) instead of dismissing them.
   **A check dismissed as a false positive needs the same evidence as a check acted on.**
 - **`anim-prop-translates` (132 distinct).** Fish schools, bats, a sinking engine. A prop rig

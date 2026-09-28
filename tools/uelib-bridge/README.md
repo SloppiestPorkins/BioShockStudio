@@ -20,7 +20,8 @@ dotnet run --project tools/uelib-bridge -- <out-dir> <package-name.U> [scripts-d
 `scripts-dir` defaults to the auto-detected game install's `Build/Final/BakedScripts/pc`. Output is
 one `.uc` file per class. **Do not commit decompiled output** — it is derived from the shipped
 game's own bytecode, the same reason no extracted textures/meshes/audio are committed either
-(`docs/HANDOFF.md`: "No game data is in the repository").
+(`docs/archive/HANDOFF.md`: "No game data is in the repository" — archived 28 Sept 2026, unmodified,
+see `docs/STATUS.md`).
 
 ## Known limits, measured 19 Aug 2026
 

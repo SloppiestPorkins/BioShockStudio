@@ -7,14 +7,17 @@ this file is the entry point, and it is deliberately short so the two cannot dri
 how to not repeat an expensive, unreliable, or unmeasured verification step. `ENGINEERING_RULES.md`
 governs rigor; that one governs not wasting a day proving it slowly.
 
-**Starting a Cursor chat:** do not re-survey the whole repo. Use the pattern in
-`docs/NEXT_SESSION.md` §"How to start in Cursor" — one Gate item named in the first message, Fast
-tier only, claim table before touching shared files. Full rule: `ENGINEERING_RULES.md` §60
-"Cursor session start".
+**Starting a Cursor chat:** do not re-survey the whole repo. Name one concrete item from
+`docs/ROADMAP.md` in the first message, Fast tier only, claim table before touching shared files.
+Full rule: `ENGINEERING_RULES.md` §60 "Cursor session start" (the pattern used to live in
+`docs/archive/NEXT_SESSION.md` §"How to start in Cursor" — archived 28 Sept 2026, see
+`docs/STATUS.md`).
 
-**Two agents, split by file.** `docs/DUAL_AGENT_ROADMAP.md` (`ENGINEERING_RULES.md` §61): Cursor
-owns `tools/ue5/**` and the UE5 runtime; Claude Code owns `src/**` / `tests/**` and the C# tool.
-Stay in your lane; the `docs/HANDOFF.md` claim table still governs any shared file.
+**Two agents, split by file.** `ENGINEERING_RULES.md` §61 (canonical text now there; it used to
+point at `docs/archive/DUAL_AGENT_ROADMAP.md`, superseded): Cursor owns `tools/ue5/**` and the UE5
+runtime; Claude Code owns `src/**` / `tests/**` and the C# tool. Stay in your lane; the
+`docs/STATUS.md` "Active work" claim table (formerly `docs/HANDOFF.md`'s) still governs any shared
+file.
 
 ## The rules that get broken most often
 
@@ -25,8 +28,8 @@ Full text in `docs/ENGINEERING_RULES.md`; these are the ones worth having in fro
 - **User scope beats agent curiosity.** "Write it up and move on" means stop, document, and move on —
   not keep pulling the thread because a new clue appeared. §55 has a worked example of getting this
   exactly wrong.
-- **Work a roadmap in order — no jumping around.** Take the next undone item in `docs/ROADMAP.md`
-  Part 2 sequentially and finish it *fully* before starting another. §60 "Roadmap discipline".
+- **Work a roadmap in order — no jumping around.** Take the next undone item in `docs/ROADMAP.md`'s
+  priority order and finish it *fully* before starting another. §60 "Roadmap discipline".
 - **Capture discoveries; do not chase them.** `DISCOVER → VERIFY → RECORD → DEFER → CONTINUE`.
 - **Never guess when the bytes can be inspected**, and never promote a hypothesis to a fact. Label
   confidence, always.
@@ -53,8 +56,10 @@ dotnet test                                          # both; only when reporting
 ```
 
 **Do not re-run the full suite to re-confirm a figure another session just measured.** Standing user
-instruction — `docs/ENGINEERING_RULES.md` §60 "Test-run economy". Read the verification stamp at the
-top of `docs/ROADMAP.md` "Test health" first: it names the commit the suite was last green at, so
+instruction — `docs/ENGINEERING_RULES.md` §60 "Test-run economy". Read the verification stamp
+(the last-known-green commit for the suite) before running anything — it last lived in the old
+`docs/ROADMAP.md` "Test health" section, now `docs/archive/ROADMAP.md` "Test health" (28 Sept 2026,
+may be stale — check `docs/QUALITY.md` and a fresh `dotnet test --filter Tier=Fast` if in doubt).
 `git diff --stat <stamp>..HEAD` tells you the only thing that needs re-running. An unrun tier is
 reported as unrun, never as passing.
 

@@ -11,11 +11,16 @@ import sys
 # through Phase 4 execution wiring without a manual restart every 25 turns.
 MAX_LOOPS = 500
 
+# 28 Sept 2026: docs/NEXT_SESSION.md and docs/DUAL_AGENT_ROADMAP.md (the Aug-28-era Phase 4 census
+# workflow this hook was written for) were archived to docs/archive/ during a documentation
+# consolidation -- both are stale, superseded by docs/ROADMAP.md + docs/STATUS.md. The Cursor lane
+# now runs one task at a time via tools/agents/orchestrator.ps1 (see docs/ENGINEERING_RULES.md), not
+# this hook's auto-continuation loop, so DEFAULT_FOLLOWUP should not resurrect Phase 4 instructions
+# -- it should point at where real work is actually tracked now.
 DEFAULT_FOLLOWUP = (
-    "Keep going on the Cursor lane (docs/DUAL_AGENT_ROADMAP.md). The action census is COMPLETE "
-    "- do NOT run more census batches. Read the docs/NEXT_SESSION.md resume block, take the next "
-    "Phase 4 execution-wiring item (move one stub from record-the-request to do-it-in-world, "
-    "most-used first per the Phase 2.2 census), verify live, commit, update docs. No status pauses."
+    "Read docs/STATUS.md for current state and the open bug list, and tools/agents/tasks/*.md "
+    "(files without a matching *.done) for queued work. Do not resume the old Phase 4 census "
+    "workflow (docs/archive/NEXT_SESSION.md, docs/archive/DUAL_AGENT_ROADMAP.md) -- it is retired."
 )
 
 

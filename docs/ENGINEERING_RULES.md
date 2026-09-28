@@ -5,10 +5,11 @@ loads automatically; this file is what it should read in full.
 
 Three other documents carry rules and none is superseded by this one:
 
-- **`docs/HANDOFF.md` §7 "Working rules"** — the project's own reverse-engineering rules (no
-  hypothesis becomes a hardcoded parser; every structure gets a regression test against real bytes;
-  confidence labels; fail honestly; correct the record when wrong). §4 "Landmines" is the list of
-  things that have already cost real time.
+- **`docs/archive/HANDOFF.md` §7 "Working rules"** (archived 28 Sept 2026, unmodified — see
+  `docs/STATUS.md`) — the project's own reverse-engineering rules (no hypothesis becomes a
+  hardcoded parser; every structure gets a regression test against real bytes; confidence labels;
+  fail honestly; correct the record when wrong). §4 "Landmines" is the list of things that have
+  already cost real time.
 - **§60 below** — standing instructions the user has given directly, which are not in either.
 - **`docs/EFFICIENCY_RULES.md`** — a different axis from this file's rigor: iteration speed and
   verification economy, so a change that follows every rule here doesn't still cost ten times what
@@ -507,8 +508,9 @@ so a future session can see what changed and why. Audio is being worked on concu
 agent (a ChatGPT session) against this same repository — see the git-safety note this implies in
 §48 workflow: stage and commit specific files, not `git add -A`, while that overlap continues, and
 prefer small frequent commits from both sides to shrink the window where an accidental sweep could
-happen again. **Check and update `docs/HANDOFF.md`'s "Active work" table before starting on or
-touching a file another session might be mid-edit on** — added 19 Aug 2026 after a week-long,
+happen again. **Check and update `docs/STATUS.md`'s "Active work" table before starting on or
+touching a file another session might be mid-edit on** (this table lived in `docs/HANDOFF.md` until
+that file was archived 28 Sept 2026 — see `docs/STATUS.md`) — added 19 Aug 2026 after a week-long,
 61-file uncommitted backlog made it hard to tell which changes were whose; it's the lowest-overhead
 coordination signal two independently-run sessions can actually be expected to keep current.
 
@@ -536,9 +538,11 @@ decision to port something to UE5 is not itself evidence that the underlying dec
 ### Roadmap discipline — added 22 Aug 2026
 
 **Work a roadmap's items in order, not by jumping to whichever looks interesting.** Applies to
-`docs/ROADMAP.md` Part 2's gates and their numbered items (e.g. Gate 2 items 1–4): pick the next
-undone item in sequence and drive it to done before starting another. Do not open item 4 while item
-2 is half-finished because it looked more tractable, and do not work two items in parallel.
+`docs/ROADMAP.md`'s per-system sections and its numbered priority list: pick the next undone item in
+sequence and drive it to done before starting another. Do not open a lower-priority item while a
+higher one is half-finished because it looked more tractable, and do not work two items in parallel.
+(This used to cite "Gate 2 items 1–4" against the old `docs/ROADMAP.md`'s gate structure, retired
+28 Sept 2026 — see `docs/archive/ROADMAP.md` if that numbering is needed for history.)
 
 **"Done" means fully cleared, not merely started or mostly working.** Do not mark an item done, or
 move off it, while it still has an open sub-part, an unresolved discrepancy, or a "still to do"
@@ -549,15 +553,18 @@ track/gate is currently active.
 
 ### Cursor session start — added 25 Aug 2026
 
-**Open a session with one named Gate item, not a full-repo re-survey.** Given directly by the user
+**Open a session with one named roadmap item, not a full-repo re-survey.** Given directly by the user
 after a chat burned its first turn re-reading handoff/roadmap under "have a look through this and
-start working". The durable recipe lives in `docs/NEXT_SESSION.md` §"How to start in Cursor"; this
-entry makes it a standing instruction so it is not rediscovered.
+start working". The durable recipe used to live in `docs/NEXT_SESSION.md` §"How to start in Cursor"
+(archived 28 Sept 2026 — see `docs/STATUS.md`); this entry is the standing instruction so it is not
+rediscovered.
 
-- User (or opening prompt): `@docs/NEXT_SESSION.md` + `@docs/ROADMAP.md` + one concrete Part 2 ask.
-- Agent: claim table → Fast-tier baseline → only the research note and code for that item.
-- Do not treat "orient yourself / look through this" as licence to re-summarise every gate before
-  writing code. If no Gate item is named, ask which one — do not invent a tour.
+- User (or opening prompt): `@docs/ROADMAP.md` + `@docs/STATUS.md` + one concrete ask from
+  ROADMAP's priority list.
+- Agent: claim table (`docs/STATUS.md` "Active work") → Fast-tier baseline → only the research note
+  and code for that item.
+- Do not treat "orient yourself / look through this" as licence to re-summarise every system before
+  writing code. If no item is named, ask which one — do not invent a tour.
 
 ### Test-run economy — added 23 Aug 2026
 
@@ -569,9 +576,11 @@ subsystem. §2 applies: this is a user decision, not an engineering opinion.
 The order to work in:
 
 1. **`dotnet test --filter Tier=Fast` constantly** while working — ~40s, 204 tests. Unchanged.
-2. **Before any sweep run, read the verification stamp** in `docs/ROADMAP.md` "Test health": the
-   point the full suite was last green at. `git diff --stat <stamp>..HEAD` is then the complete list
-   of what could possibly have moved since — usually one subsystem, not fifty-five.
+2. **Before any sweep run, read the verification stamp**: the point the full suite was last green at.
+   This lived in the old `docs/ROADMAP.md` "Test health" section, now `docs/archive/ROADMAP.md`
+   "Test health" (archived 28 Sept 2026 — check `docs/QUALITY.md` and re-stamp in `docs/STATUS.md`
+   if this section is still being consulted regularly). `git diff --stat <stamp>..HEAD` is then the
+   complete list of what could possibly have moved since — usually one subsystem, not fifty-five.
 3. **Run only the sweep classes covering that diff**, by name:
    `dotnet test --filter "FullyQualifiedName~<Class>"`. Closing out `1c2e4b2` this way took
    **2m17s against ~19min**, over the same surface the commit could have touched.
@@ -643,8 +652,10 @@ placement.
   UModel, *against* Nyko's note. See `docs/research/reference-comparison.md`.
 - **Render it.** Numeric validation has passed on visibly wrong output more than once in this
   project's history. A reader is not finished until something has been drawn from it and looked at.
-- **Update `docs/HANDOFF.md` before finishing any substantial task**, including failed approaches.
-  If a discovery exists only in chat, it does not exist.
+- **Update `docs/STATUS.md` before finishing any substantial task**, including failed approaches.
+  If a discovery exists only in chat, it does not exist. (This was `docs/HANDOFF.md` until it was
+  archived 28 Sept 2026 — see `docs/STATUS.md`; durable byte-level findings and landmines still go
+  in the relevant `docs/research/*.md` file, not here.)
 - ~~**Do not commit unless asked.**~~ **Superseded, 4 Sept 2026.** Stopped matching practice well
   before it was corrected — 62 commits landed in the first four days of September alone, in small
   logical units, with no per-commit ask, which is what the user's standing "run the roadmap
@@ -675,11 +686,14 @@ start wiring runtime audio unless the user asks.
 
 ## 61. Two-agent lane split — added 28 Aug 2026
 
-**Canonical text: [`docs/DUAL_AGENT_ROADMAP.md`](DUAL_AGENT_ROADMAP.md).** This entry only points
-at it so the rule is not rediscovered.
+**This section is now the canonical text.** It used to point at
+[`docs/DUAL_AGENT_ROADMAP.md`](DUAL_AGENT_ROADMAP.md), archived 28 Sept 2026 into
+[`docs/archive/DUAL_AGENT_ROADMAP.md`](archive/DUAL_AGENT_ROADMAP.md) (kept for its coordination-
+protocol detail and the lane interface contract) — see `docs/STATUS.md` for the archive note.
 
-Cursor and Claude Code both work `main` with the `docs/HANDOFF.md` claim table as the only lock, so
-the two are kept apart by **file ownership**, not by turn-taking:
+Cursor and Claude Code both work `main` with the `docs/STATUS.md` "Active work" claim table (formerly
+`docs/HANDOFF.md`'s) as the only lock, so the two are kept apart by **file ownership**, not by
+turn-taking:
 
 - **Cursor owns `tools/ue5/**`** — the Python import/verify scripts and the `BioShockRuntime/` C++
   plugin. It drives the UE5 runtime and the playable slice (UE5 plan Phases 0, 3, 4-execution).
@@ -688,13 +702,16 @@ the two are kept apart by **file ownership**, not by turn-taking:
   (UE5 plan Phases 1–2, ROADMAP Gate residuals).
 
 **The export format is a contract.** Changing a manifest or script-action sidecar schema is a
-breaking change for the other lane: announce it in `docs/HANDOFF.md`, bump the manifest version,
+breaking change for the other lane: announce it in `docs/STATUS.md`, bump the manifest version,
 keep the old reader working until the consuming lane has migrated.
 
-**Status docs are lane-scoped.** Cursor updates `docs/UE5_FULL_PORT_PLAN.md` §9 and its
-`docs/NEXT_SESSION.md` resume block; Claude updates `docs/ROADMAP.md` Parts 1–2 and
-`docs/QUALITY.md`. Neither edits the other's entries. §60 "Roadmap discipline", "Cursor session
-start" and "Test-run economy" apply to both agents unchanged.
+**Status docs are lane-scoped.** Cursor and Claude both now update the shared `docs/ROADMAP.md`
+(forward plan) and `docs/STATUS.md` (current state) in their own sections rather than maintaining
+separate per-lane status files — the old split (Cursor: `docs/UE5_FULL_PORT_PLAN.md` §9 +
+`docs/NEXT_SESSION.md`; Claude: the old `docs/ROADMAP.md` Parts 1–2 + `docs/QUALITY.md`) was
+retired when those docs were archived 28 Sept 2026. `docs/QUALITY.md` stays Claude's own evidence
+record, unchanged. Neither agent edits the other's entries in the shared docs. §60 "Roadmap
+discipline", "Cursor session start" and "Test-run economy" apply to both agents unchanged.
 
 ---
 

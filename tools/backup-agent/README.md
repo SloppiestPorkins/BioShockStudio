@@ -16,8 +16,9 @@ scoping bug, an empty-slot regression) — the same thing could happen here with
 **It runs the fast test tier after every task** (`auto-test: true` in `.aider.conf.yml`) and the
 wrapper script (`run.ps1`) stops the whole queue if that fails, rather than piling more edits on a
 broken tree. This catches an obviously broken change; it does not replace review, and it cannot
-catch the "numerically fine, visibly wrong" failure mode this project's own `docs/HANDOFF.md` §4
-records repeatedly — several of those needed a live UE5 run or a render to actually catch.
+catch the "numerically fine, visibly wrong" failure mode this project's own `docs/archive/HANDOFF.md`
+§4 (archived 28 Sept 2026, unmodified — see `docs/STATUS.md`) records repeatedly — several of those
+needed a live UE5 run or a render to actually catch.
 
 **It can race a live session's own uncommitted edit and silently discard it — this actually
 happened, 25 Aug 2026.** `.run.lock` only stops two `run.ps1` invocations from overlapping each
@@ -26,8 +27,8 @@ its usage limit mid-edit, the `SessionEnd` hook fired, `run.ps1` ran autonomousl
 own live edit to `Program.cs` ended up reverted to the last committed state with no error at all.
 **Do not run this (by hand or via a hook) while a session you care about has uncommitted changes
 anywhere in the repo — commit or stash first.** The `SessionEnd` hook is disabled for this reason
-(see `docs/HANDOFF.md` §4) until the wrapper itself checks for a clean tree, or some other real
-signal, before starting.
+(see `docs/archive/HANDOFF.md` §4) until the wrapper itself checks for a clean tree, or some other
+real signal, before starting.
 
 ## What's set up
 
