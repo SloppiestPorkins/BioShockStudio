@@ -10,25 +10,19 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (28 Sept 2026)
 
-The most recent commits, newest first: a light-shape/rotation fix and a same-day regression fix for
-it (`977f7c4`, `a7f2b41`, `8705199`), the w18 live-PIE-bug fixes (`12e8b9c`), the B12 Vita-Chamber
+The most recent commits, newest first: `w20` (watchers, critical/immediate execution flush,
+`TestFact`, training-message HUD, `d9e8830`), `z1` (Medical's 19 per-instance water materials,
+`ffa4f5a`/`b8b6777`), `w19` (interact-trace pipeline bugs fixed + real aim-point root-cause fix,
+46→36 failures, `5b6eb43`), a light-shape/rotation fix and a same-day regression fix for it
+(`977f7c4`, `a7f2b41`, `8705199`), the w18 live-PIE-bug fixes (`12e8b9c`), the B12 Vita-Chamber
 default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`957ed72` … `fa3332b`,
 25–27 Sept 2026). All are described in their own sections below.
 
 ## Active work
 
-`docs/archive/HANDOFF.md`'s claim table (the coordination mechanism for the two concurrent workers —
-see `docs/ENGINEERING_RULES.md` §61 for the file-ownership split) had one open row at archive time:
-
-| Agent | Track | Areas / files | Started |
-|---|---|---|---|
-| Cursor (w20-scripting-vm-stubs) | Scripting VM remaining stubs (watchers, critical travel, TestFact, training HUD) | `tools/ue5/BioShockRuntime/**`, `tools/ue5/verify_scripting_vm_stubs.py`, `docs/research/w20-scripting-vm-stubs.md` | 28 Sept 2026 |
-| Cursor (w19-interact-trace-remaining-fails) | Remaining interact-trace failures + 3 STATUS UNCLEAR | `tools/ue5/BioShockRuntime/**` (interact verify harness), `tools/ue5/verify_interact_trace.py`, `docs/research/w19-remaining-interact-fails.md` | 28 Sept 2026 |
-| Cursor (y6-scripting-fidelity) | SDK scripting fidelity batch (SCR-B04..B13,B16,B17,G02,G03,G19) | `tools/ue5/BioShockRuntime/**`, `tools/ue5/verify_scripting_fidelity.py`, `docs/research/sdk-crossref-scripting.md` | 25 Sept 2026 |
-
-Check this against the live `git log` / working tree before assuming it's still current — an empty
-or stale row here does not mean nothing is in flight, only that nothing was claimed as of the archive
-date. If picking up new work, use this file (not the archived claim table) going forward.
+Nothing in flight as of this writing (28 Sept 2026, after `w20` landed) — see `docs/ROADMAP.md`
+"Priority order" for what's next. If picking up new work, update this section rather than trusting
+an old claim table.
 
 ---
 
@@ -123,10 +117,13 @@ the per-system detail and priority order — this is a summary, not a repeat of 
   first Big Daddy sighting) are unbuilt; the data exists in the decoded scripts.
 - **Gatherer/Protector ecology** — Little Sister harvest, Big Daddy AI, the ADAM choice. Explicitly
   its own later project.
-- **Water material graphs, glass, god rays** — decal/particle stand-ins exist for some effects;
-  water/glass/god-rays are not yet real UE5 material work.
-- **Watchers, critical/immediate script execution mode, facts/training UI** — explicitly deferred in
-  the most recent scripting audit (y8), not a gap anyone missed.
+- **Glass, god rays** — decal/particle stand-ins exist for some effects; glass/god-rays are not yet
+  real UE5 material work. Water is done (`z1`, 28 Sept 2026) — Medical's 19 `FluidShader` surfaces
+  now carry their own decoded textures/pan values, not one generic stand-in.
+- **Watchers, critical/immediate script execution mode, `TestFact`, training-message HUD** — all
+  landed 28 Sept 2026 (`w20`). Still open: `ActionEnableOrDisableTrainingMessages` (a global mute
+  gate, out of `w20`'s scope) and nested-loop critical-sub-action expansion during a travel flush
+  (the flush walks the flat remaining run queue only).
 - **Menu stubs** — Options, Credits, Director's Commentary, Museum, Challenge Rooms.
 - **HUD liquid-fill material** (`M_Hud_LiquidFill`) — renders invisible, flat-tint fallback forced.
 - **Audio diaries, music, per-language audio routing** — audio playback exists for weapons/footsteps/
@@ -142,7 +139,7 @@ no "queue x2" commit exists). Their underlying goals were partially reached by l
 work:
 
 - `x2` (material-slot fixes) — substantially covered by the later `g4`/`h9`/`d`-series texture work.
-- `x4` (VM watchers/timers) — timers landed (`y6`); watchers explicitly still deferred (`y8`).
+- `x4` (VM watchers/timers) — timers landed (`y6`); watchers landed (`w20`, 28 Sept 2026).
 - `x8` (effects stand-in FX pack) — partially covered by `w15` (impact FX) and `w9` (plasmid VFX);
   not confirmed as a complete stand-in pack.
 - `x9` (skeletal-prop idle animation) — **STATUS UNCLEAR — verify**, no evidence found either way.
