@@ -17,6 +17,7 @@ import sys
 import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import clear_interactable_placement as clear_place  # noqa: E402
 import import_level  # noqa: E402
 import import_slice_pickups as pk  # noqa: E402  (reuse _place / _load_mesh)
 
@@ -75,6 +76,15 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
             comp.set_static_mesh(mesh)
         report["stations"] += 1
         report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
+
+    # Same flush-overlap clearance as pickups/containers (w21). Re-scans all interactables so a
+    # station that landed flush against decoration is nudged before the level save.
+    clearance = clear_place.clear_overlaps(map_path=map_path, save=False, reload_map=False)
+    report["placementClearance"] = {
+        "nudged": len(clearance.get("nudged") or []),
+        "skippedDeep": len(clearance.get("skippedDeep") or []),
+        "checked": clearance.get("checked"),
+    }
 
     if save:
         level.save_current_level()

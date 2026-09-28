@@ -21,6 +21,7 @@ import sys
 import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import clear_interactable_placement as clear_place  # noqa: E402
 import import_level  # noqa: E402
 
 SLICE_MAP = "/Game/BioShockSlice/1-Medical"
@@ -206,6 +207,16 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
         elif cn and ("Pickup" in cn or "Container" in cn or "Booty" in cn):
             report["unmapped"][cn] = report["unmapped"].get(cn, 0) + 1
+
+    # Flush-overlap clearance against neighbouring StaticMeshActors (w21). Runs before save so
+    # the nudged transforms land in the same level write. Stations are cleared from
+    # import_slice_stations after they are placed.
+    clearance = clear_place.clear_overlaps(map_path=map_path, save=False, reload_map=False)
+    report["placementClearance"] = {
+        "nudged": len(clearance.get("nudged") or []),
+        "skippedDeep": len(clearance.get("skippedDeep") or []),
+        "checked": clearance.get("checked"),
+    }
 
     if save:
         level.save_current_level()
