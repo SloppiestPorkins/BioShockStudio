@@ -4,8 +4,8 @@ Bridges to `Unreal-Library-master` (UELib), a third-party UnrealScript bytecode 
 explicit BioShock/Vengeance support, to decompile the game's own shipped `.U` script packages back
 to readable UnrealScript. See `docs/research/bytecode.md` for what this found and its known limits.
 
-UELib itself is not part of this repository (`Unreal-Library-master/` sits gitignored at the repo
-root, alongside the other reference projects — see `ENGINEERING_RULES.md`). Its own `.csproj` files
+UELib itself is not part of this repository (`external/Unreal-Library-master/` sits gitignored,
+alongside the other reference projects — see `ENGINEERING_RULES.md`). Its own `.csproj` files
 target frameworks (`net10.0` in the multi-target list) this repo's installed SDK doesn't support, so
 `uelib-standalone.csproj` here compiles its source directly against `net8.0` instead of using the
 project's own build files.
@@ -33,7 +33,7 @@ game's own bytecode, the same reason no extracted textures/meshes/audio are comm
   IGModEffectsSubsystem (3), IGSoundEffectsSubsystem (14), IGVisualEffectsSubsystem (9) — 1,445
   classes, 0 hard failures.
 - Native function calls decompile as `__NFUN_<id>__(...)` placeholders — the native ID-to-name table
-  is per-game and not part of this bridge. `Bioshock1REMSDK-WIP--main/docs/reverse-engineering/
+  is per-game and not part of this bridge. `external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/
   coop-natives-map.md` already resolves a couple dozen common ones (operators, `GotoState`, `FRand`,
   vector math), keyed by call-site context rather than a complete table.
 - A handful of `Emitters`/`Skins`/`EventResponse` array properties fail to parse in class defaults

@@ -236,7 +236,7 @@ is `UNKNOWN` and one hand-decode would settle it.
 
 ## 11d. A `SkeletalMesh` section table — the `UNKNOWN` is closed, the work is not
 
-`CONFIRMED_EXTERNAL`, from `UModel-master/Unreal/UnMeshBioshock.cpp`. HANDOFF item 6 and
+`CONFIRMED_EXTERNAL`, from `external/UModel-master/Unreal/UnMeshBioshock.cpp`. HANDOFF item 6 and
 `docs/QUALITY.md` §2 both record it as unknown whether the skeletal container carries a per-material
 run table. **It does:** `FStaticLODModelBio` opens with `TArray<FSkelMeshSection> Sections`, nine
 `uint16`s each — `MaterialIndex, MinStreamIndex, MinWedgeIndex, MaxWedgeIndex, NumStreamIndices,

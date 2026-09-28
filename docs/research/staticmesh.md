@@ -158,7 +158,7 @@ not bound, and drawing them in one space would imply they were.
 ## The section table — found via Nyko's SDK, verified here
 
 `CONFIRMED_BYTES`. **This is the missing piece for multi-material meshes**, and it was found by
-reading Nyko's `Bioshock1REMSDK-WIP--main/bioshock1-bsm.md` §C.4 rather than from these bytes.
+reading Nyko's `external/Bioshock1REMSDK-WIP--main/bioshock1-bsm.md` §C.4 rather than from these bytes.
 
 A `UStaticMesh` carries a section table **before** the vertex block:
 

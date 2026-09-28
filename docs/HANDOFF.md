@@ -823,7 +823,7 @@ mean, not how they are unpacked, is still missing.
   against `AnimationAudit.WorstCollapse` rather than by eye.
 - **Disassembling the compiled Havok `.lib`/`.pdb` to recover `sampleTranslation` or
   `evaluateSimple1/2/3`'s actual bodies ? considered and explicitly declined, 22 Aug 2026.**
-  Havok's own license (`hk2012_2_0_r1/Havok Limited Use License Agreement for PC XS 12-19-2011.txt`
+  Havok's own license (`external/hk2012_2_0_r1/Havok Limited Use License Agreement for PC XS 12-19-2011.txt`
   ?4.2) prohibits reverse engineering, disassembling or decompiling the product "even for purposes
   of interoperability or error correction." This is a hard line, not a project-scope choice ? **do
   not attempt this**, regardless of how the item is otherwise framed. The license's own ?4.2 names

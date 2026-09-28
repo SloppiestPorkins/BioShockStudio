@@ -17,7 +17,7 @@
     <DefineConstants>DECOMPILE;BINARYMETADATA;UE1;UE2;UE3;UE4;VENGEANCE;SWAT4;BIOSHOCK;UT</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\Unreal-Library-master\src\**\*.cs"
-             Exclude="..\..\Unreal-Library-master\src\**\bin\**;..\..\Unreal-Library-master\src\**\obj\**" />
+    <Compile Include="..\..\external\Unreal-Library-master\src\**\*.cs"
+             Exclude="..\..\external\Unreal-Library-master\src\**\bin\**;..\..\external\Unreal-Library-master\src\**\obj\**" />
   </ItemGroup>
 </Project>

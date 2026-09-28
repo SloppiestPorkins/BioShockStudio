@@ -214,5 +214,5 @@ Actors in the slice: `Light_Beam_01_12861`, `Light_Beams_Science_Yellow_28345`,
   say so and note the lighting cost.
 - Do NOT commit. No `docs/HANDOFF.md` claim row. Leave the diff for review; a human does the
   final visual + PIE QC in the editor.
-- Read the reference projects (`UModel-master/`, `Unreal-Library-master/`, `tmp/uc_shockgame/`,
+- Read the reference projects (`external/UModel-master/`, `external/Unreal-Library-master/`, `tmp/uc_shockgame/`,
   gitignored at repo root) before deriving anything from bytes.

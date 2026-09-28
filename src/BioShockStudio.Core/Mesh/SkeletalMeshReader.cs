@@ -268,7 +268,7 @@ public static class SkeletalMeshReader
     /// transform array — the values after it do not behave like transforms under either layout, and
     /// the recurring <c>-0.0058</c> and <c>8.7e-8</c> are what small integers look like when read as
     /// floats. Anything here is more likely the bone map or another index array. **Do not fit a
-    /// third guess to it; find the layout in `UModel-master/Unreal/` or Nyko's SDK first.**
+    /// third guess to it; find the layout in `external/UModel-master/Unreal/` or Nyko's SDK first.**
     /// </para>
     /// </summary>
     public static (int Start, int End, int Count) DescribeSocketTable(

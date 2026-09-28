@@ -286,7 +286,7 @@ and for `Blending`/`enum EParticle*`, with none found. That rules out a BioShock
 pins the declarations to `Engine.U` specifically — the one package that crashes the decompiler
 during initialization (`UClass.Dependency.Deserialize`, "Unexpected value for a boolean", a
 version-gated field this UELib build reads incorrectly for BioShock's package version).
-`Unreal-Library-master/src/Core/Classes/UClass.cs` already special-cases one other build the same
+`external/Unreal-Library-master/src/Core/Classes/UClass.cs` already special-cases one other build the same
 way for its `IsDeep` field, so the shape of a fix exists in the codebase, just not for this build.
 That fix wasn't attempted here — patching a third-party decompiler's version branching and
 re-verifying it doesn't regress the 11 packages that already work is Track B item 4's own scope,

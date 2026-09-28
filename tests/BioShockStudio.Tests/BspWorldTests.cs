@@ -969,7 +969,7 @@ public sealed class BspWorldTests(GameFixture game)
     /// </summary>
     /// <remarks>
     /// The +16 offset and its meaning come from
-    /// <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c>, a working, rendering
+    /// <c>external/Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c>, a working, rendering
     /// level editor — read before this was implemented, not derived independently from these bytes.
     /// Measured: <b>81,559 of 81,566 polygon-carrying nodes (99.99%)</b> across all 21 maps. The 7
     /// exceptions all carry <c>Zone == 0</c>, plausibly the "outside"/default zone behaving

@@ -100,7 +100,7 @@ public sealed record BspNode
 
     /// <summary>
     /// Every zone index visible from this node — the node's own 128-bit mask at <c>+16</c>, per
-    /// <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c> (a working, rendering
+    /// <c>external/Bioshock1REMSDK-WIP--main/tools/level_editor/src/bsp_parser.cpp</c> (a working, rendering
     /// level editor's reading, exercised there as a per-node visibility mask, not derived from these
     /// bytes independently). See <see cref="BspZone"/> for the separate per-zone connectivity mask.
     /// </summary>

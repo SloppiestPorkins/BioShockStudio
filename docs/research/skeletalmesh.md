@@ -171,7 +171,7 @@ The 18 exports that still fail are all doors — `LowRentDoor_Mesh`, `Sliding512
 
 ## Where the section table prediction came from
 
-`CONFIRMED_EXTERNAL`, from `UModel-master/Unreal/UnMeshBioshock.cpp`, and since fully implemented —
+`CONFIRMED_EXTERNAL`, from `external/UModel-master/Unreal/UnMeshBioshock.cpp`, and since fully implemented —
 see "Section table" below for the decode and its verification. Recorded here only for provenance:
 `FStaticLODModelBio`'s `TArray<FSkelMeshSection> Sections` (nine `uint16`s each, commented "1
 section = 1 material") is what said a per-material table existed at all, before this project found

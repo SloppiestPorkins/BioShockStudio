@@ -87,7 +87,7 @@ both are reading the real game correctly.
 
 - **Native function calls decompile as `__NFUN_<id>__(...)` placeholders.** The native ID-to-name
   table is per-game and isn't part of UELib generically.
-  `Bioshock1REMSDK-WIP--main/docs/reverse-engineering/coop-natives-map.md` already resolves several
+  `external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/coop-natives-map.md` already resolves several
   dozen common ones by call-site context — operators (`__NFUN_112__` = `$` string concat,
   `__NFUN_119__` = `!=` on an Object, `__NFUN_130__` = `&&`, `__NFUN_150__` = `>` on int, etc.),
   `GotoState`, `FRand()`, vector math (`VSize`, `Normal`) — but it is a partial map built for one
@@ -110,7 +110,7 @@ independent decoder against.
 
 ## 4. Bytecode length framing — from reading UELib's source, not yet independently re-derived
 
-`Unreal-Library-master/src/Core/Classes/UStruct.cs`, in `UStruct.Serialize()`, after whatever header
+`external/Unreal-Library-master/src/Core/Classes/UStruct.cs`, in `UStruct.Serialize()`, after whatever header
 fields a given build/version serializes (mostly false for BioShock's low version):
 
 ```
@@ -175,7 +175,7 @@ recurrence of the same underlying engine change.
 
 ## 6. The opcode table — `CONFIRMED_EXTERNAL`
 
-`Unreal-Library-master/src/UnrealTokens.cs` declares `ExprToken` as a plain sequential C# enum — its
+`external/Unreal-Library-master/src/UnrealTokens.cs` declares `ExprToken` as a plain sequential C# enum — its
 numeric values are **not** the on-disk byte values. The real byte-to-token mapping is version-gated,
 in `DefaultEngineBranch.cs`'s `BuildTokenMap(UnrealPackage linker)`. Since no `EngineBranch.VG.cs`
 exists, Vengeance/BioShock uses this table as-is (bar the one `LogFunctionToken` addition) — and

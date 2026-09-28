@@ -163,5 +163,5 @@ the clear offenders; leave a list for the user to point at the rest.
   the h11↔h19 Movable↔Static trap for props.
 - Do NOT commit. No `docs/HANDOFF.md` claim row. Leave the diff for review; a human does the
   final PIE + visual QC.
-- Read `tmp/uc_shockgame/` (Havok death / `TakeDamage` / `PlayDying`), `UModel-master/`,
-  `Unreal-Library-master/` (all gitignored at repo root) before deriving behaviour from bytes.
+- Read `tmp/uc_shockgame/` (Havok death / `TakeDamage` / `PlayDying`), `external/UModel-master/`,
+  `external/Unreal-Library-master/` (all gitignored at repo root) before deriving behaviour from bytes.

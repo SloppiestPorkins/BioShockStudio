@@ -198,7 +198,7 @@ real files. For these seven, there is no schema to check *against*; recovering t
 would mean inferring Havok's own undisclosed, proprietary struct design purely by experimenting on the
 bytes. That is black-box reverse engineering of the Havok product's design, not of BioShock's file
 format, regardless of which file the encoded bytes happen to live in — the same category of thing
-Havok's license (§4.2, `hk2012_2_0_r1/Havok Limited Use License Agreement...txt`) prohibits, considered
+Havok's license (§4.2, `external/hk2012_2_0_r1/Havok Limited Use License Agreement...txt`) prohibits, considered
 and declined for the same reason as the `sampleTranslation`/`evaluateSimple1-3` disassembly question
 in `docs/HANDOFF.md` §6.0c. **Do not attempt this** — the topology (which shape belongs to which body,
 which bodies a constraint connects, which bone a body maps to) is fully solved and `CONFIRMED_BYTES`;

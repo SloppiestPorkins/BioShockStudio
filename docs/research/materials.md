@@ -7,7 +7,7 @@
 ## Every material class is an ordinary property list, and a texture binding is not a name on a list
 
 `CONFIRMED_EXTERNAL` then `CONFIRMED_BYTES`. Nyko's
-`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md` states it
+`external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md` states it
 plainly: **a material has no custom binary serialisation.** Every material class — `Shader`,
 `FacingShader`, `FluidShader`, `PlantShader`, `LightBeamShader`, `MaterialSwitch`,
 `MaterialSequence`, `LayeredShader` and the rest — is a stock UE2 object header plus a tagged

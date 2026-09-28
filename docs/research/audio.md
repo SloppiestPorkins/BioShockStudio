@@ -489,10 +489,10 @@ different flags, which is why the array is a list and not a set of names.
 type is the parameter of the native
 `PickSoundToPlay(Material.EMaterialVisualType inTextureFlags, ...)`. Two independent sources agree:
 that decompiled declaration, and Nyko's independently-authored SDK documentation
-(`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md:68`), which
+(`external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md:68`), which
 describes the field as "physical-surface class (Stone, Glass, Flesh, Water, …) — drives
 footstep/impact/decal selection, **not** rendering." The full 28-value enum (0–27, matching the
-observed range exactly) is in `Bioshock1REMSDK-WIP--main/tools/property_db.json`:
+observed range exactly) is in `external/Bioshock1REMSDK-WIP--main/tools/property_db.json`:
 
 ```
 0 MVT_Default        7  MVT_ThinMetal     14 MVT_Flesh          21 MVT_ElectricalGlass

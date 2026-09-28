@@ -680,7 +680,7 @@ public static class MaterialReader
         // texture"). 162 meshes in the game name a Texture in a material slot rather than a shader;
         // reading one as if it were a Shader finds no Object properties and reports a material that
         // binds nothing, and the mesh draws flat with its own texture sitting right there.
-        // Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §1.
+        // external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §1.
         if (className == BitmapMaterialClass)
         {
             textures.Add(new MaterialTexture
@@ -748,7 +748,7 @@ public static class MaterialReader
             // The class check is what makes this safe rather than greedy: a FluidShader also carries
             // Object properties naming TextureRotator and TexturePanner objects, which are UV
             // modifiers and not textures, and those resolve to nothing here. See
-            // Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §2.
+            // external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md §2.
             if (property.Type == UnrealPropertyType.Object)
             {
                 var texture = ReadTexture(package, property);

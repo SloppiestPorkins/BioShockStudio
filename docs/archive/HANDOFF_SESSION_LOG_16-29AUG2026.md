@@ -57,7 +57,7 @@ fresh survey: the survey has been run.
 
    **The sweep's largest finding has been acted on.** It said 755 meshes resolved a material that
    binds no base colour, mostly material classes the reader did not know. **Reading one file settled
-   it** ? `Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md`,
+   it** ? `external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Materials_And_Shaders.md`,
    which states that every material class is a plain tagged-property object and that texture
    references are ordinary objrefs. The reader was deciding what counted as a binding from a list of
    thirteen slot names. Now: **an `Object` property whose reference resolves to a `Texture`**, plus
@@ -137,11 +137,11 @@ fresh survey: the survey has been run.
      "library" arguably ought to carry them all as alternatives.
 
    Then:
-   ?6.2 (skeletal geometry variant ? read `UModel-master/Unreal/` first), ?6.4 (verify the Unreal
+   ?6.2 (skeletal geometry variant ? read `external/UModel-master/Unreal/` first), ?6.4 (verify the Unreal
    import, never once run ? and it now also has `ByPolygon` material mapping to confirm), ?6.6
    (attachment placement under animation).
 6. **Skeletal meshes DO have a section table, and this item's `UNKNOWN` is closed.** It was worth
-   looking for in `UModel-master/Unreal/` exactly as this item said, and it is there:
+   looking for in `external/UModel-master/Unreal/` exactly as this item said, and it is there:
    `UnMeshBioshock.cpp`'s `FStaticLODModelBio` opens with `TArray<FSkelMeshSection> Sections`, nine
    `uint16`s each ? `MaterialIndex, MinStreamIndex, MinWedgeIndex, MaxWedgeIndex, NumStreamIndices,
    BoneIndex, fE, FirstFace, NumFaces` ? commented "1 section = 1 material". That is the **153**
@@ -966,11 +966,11 @@ measuring around it. **Read the reference projects first.**
 
 Highest-value unread material, in order:
 
-- **`Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Reading_Textures.md`** and
+- **`external/Bioshock1REMSDK-WIP--main/docs/reverse-engineering/BioShock_Reading_Textures.md`** and
   `BioShock_Texture_Lightmap_Format.md` ? 247 lines, never opened, and the obvious place to look for
   `Format` ordinal 12 (open question 11c, 274 normal maps that will not decode).
-- **`UModel-master/Unreal/`** ? mesh readers, for ?6.2.
-- **`hk2012_2_0_r1/Docs/?User_Guide.pdf`** ? never opened. Likely settles `blendHint` and the
+- **`external/UModel-master/Unreal/`** ? mesh readers, for ?6.2.
+- **`external/hk2012_2_0_r1/Docs/?User_Guide.pdf`** ? never opened. Likely settles `blendHint` and the
   animation-binding contract outright.
 - `hkaSkeleton.h`, `hkaAnimationBinding.h`, `hkaSkeletonMapper.h` ? we carry `Unknown*` fields and
   two carried-but-unused flags on inference.

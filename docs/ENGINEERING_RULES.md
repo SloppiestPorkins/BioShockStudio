@@ -634,8 +634,9 @@ placement.
 
 ### Process instructions
 
-- **Read the reference projects before deriving from bytes.** `UModel-master/`, `hk2012_2_0_r1/`,
-  `Bioshock1REMSDK-WIP--main/`, `Unreal-Library-master/` are in the repo root and gitignored. This is
+- **Read the reference projects before deriving from bytes.** `external/UModel-master/`,
+  `external/hk2012_2_0_r1/`, `external/Bioshock1REMSDK-WIP--main/`, `external/Unreal-Library-master/`
+  are gitignored (consolidated under `external/` 28 Sept; previously loose at the repo root). This is
   policy because it keeps paying: the first-person hand blocker cost three sessions of internal
   measurement and was settled by one function in the Havok SDK; the static section table came from
   Nyko's SDK after this project failed to find it from bytes; the DXT5N texture format came from

@@ -23,7 +23,7 @@ namespace BioShockStudio.Tests;
 /// and run against the whole shipped population.
 /// </para>
 /// <para>
-/// <b>The reference.</b> <c>Bioshock1REMSDK-WIP--main/tools/level_editor/src/viewport.cpp</c>,
+/// <b>The reference.</b> <c>external/Bioshock1REMSDK-WIP--main/tools/level_editor/src/viewport.cpp</c>,
 /// <c>BuildActorTransform</c>, is reimplemented literally below — same column-major <c>float[16]</c>,
 /// same index arithmetic, same multiplication order — so it can be diffed against the C++ by eye
 /// rather than trusted as a paraphrase. Its rotator-to-degrees conversion is
