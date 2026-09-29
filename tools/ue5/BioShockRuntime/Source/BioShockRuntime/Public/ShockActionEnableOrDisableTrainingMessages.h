@@ -3,7 +3,8 @@
 #include "ShockAction.h"
 #include "ShockActionEnableOrDisableTrainingMessages.generated.h"
 
-/** UnrealScript `ActionEnableOrDisableTrainingMessages`. Records enable flag; no training manager yet. */
+/** UnrealScript `ActionEnableOrDisableTrainingMessages`. Sets ShockPlayer's global training-message
+ * mute gate -- ActionShowTrainingMessage becomes a no-op while disabled. */
 UCLASS(BlueprintType)
 class BIOSHOCKRUNTIME_API UShockActionEnableOrDisableTrainingMessages : public UShockAction
 {
@@ -26,4 +27,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
 	bool RequestSet();
+
+	virtual bool ApplyInWorld(const FShockActionContext& Ctx) override;
+	UFUNCTION(BlueprintCallable, Category="BioShock|Action")
+	int32 ApplyInWorld(class UWorld* World);
 };

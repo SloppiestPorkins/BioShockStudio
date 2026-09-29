@@ -507,6 +507,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	FName GetTrainingMessage() const { return LastTrainingMessage; }
 
+	/** ActionEnableOrDisableTrainingMessages's global mute gate. Disabling suppresses future
+	 * ActionShowTrainingMessage calls (SetTrainingMessage with a real name); clearing (NAME_None)
+	 * still goes through regardless, matching the source's "disable stops new toasts, doesn't
+	 * freeze an old one on screen forever" behaviour. */
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	void SetTrainingMessagesEnabled(bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
+	bool AreTrainingMessagesEnabled() const { return bTrainingMessagesEnabled; }
+
 	UFUNCTION(BlueprintCallable, Category="BioShock|Player")
 	void SetFadeVolumeOverride(float Volume, float Duration);
 
@@ -1058,6 +1068,9 @@ private:
 
 	UPROPERTY()
 	FName LastTrainingMessage;
+
+	UPROPERTY()
+	bool bTrainingMessagesEnabled = true;
 
 	UPROPERTY()
 	float FadeVolumeOverride = 1.0f;

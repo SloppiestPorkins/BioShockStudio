@@ -10,7 +10,13 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent fix, not yet committed: the real root cause of the SM5 "Sampler type is Color,
+The most recent landed work, newest first: `ActionEnableOrDisableTrainingMessages`'s mute gate
+(roadmap priority 2's last remaining scripting-VM stub — see "Known-missing features" below for
+detail; `verify_scripting_vm_stubs.py` now 37/37), a live-PIE weapon fix (ejected Tommy Gun shell
+casings used the engine's bare default `Cylinder` mesh with no material ever assigned, rendering as
+a flat grey artifact at the eject socket — reported live, gave it a real brass-toned master
+material, `verify_weapon_impacts_pie` still 6/6 clean), and the real root cause of the SM5 "Sampler
+type is Color,
 should be Masks" family of compile errors, found only because the user's real (non-nullrhi) editor
 session kept showing the live compile-error banner for `Wall_Leak_diff_shader` after TWO prior
 "complete" fixes in this same saga. The actual defect was never just a node's own `sampler_type` —
@@ -166,9 +172,12 @@ the per-system detail and priority order — this is a summary, not a repeat of 
   separate, un-fixed gap: they are genuinely textureless by design (a procedural radial-falloff
   stand-in, no bullet-hole art was ever recovered), not a bug.
 - **Watchers, critical/immediate script execution mode, `TestFact`, training-message HUD** — all
-  landed 28 Sept 2026 (`w20`). Still open: `ActionEnableOrDisableTrainingMessages` (a global mute
-  gate, out of `w20`'s scope) and nested-loop critical-sub-action expansion during a travel flush
-  (the flush walks the flat remaining run queue only).
+  landed 28 Sept 2026 (`w20`). `ActionEnableOrDisableTrainingMessages` landed 29 Sept 2026: sets a
+  real mute gate on `AShockPlayer` (`bTrainingMessagesEnabled`, default true); while disabled,
+  `ActionShowTrainingMessage` is a no-op (`ActionClearTrainingMessage` still always goes through).
+  Verified headless: 6 new checks in `verify_scripting_vm_stubs.py` (mute suppresses a new toast,
+  unmute restores it), 37/37 pass. Still open: nested-loop critical-sub-action expansion during a
+  travel flush (the flush walks the flat remaining run queue only).
 - **Menu stubs** — Options, Credits, Director's Commentary, Museum, Challenge Rooms.
 - **HUD liquid-fill material** (`M_Hud_LiquidFill`) — renders invisible, flat-tint fallback forced.
 - **Audio diaries, music, per-language audio routing** — audio playback exists for weapons/footsteps/

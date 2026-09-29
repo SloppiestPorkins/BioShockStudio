@@ -219,6 +219,28 @@ def main(out):
         cleared = str(hud.get_displayed_training_message_text())
         check("hud_clears_training", cleared == "", cleared)
 
+        # ---- 4b. Training message mute gate (ActionEnableOrDisableTrainingMessages) ----
+        mute = unreal.new_object(_cls("ShockActionEnableOrDisableTrainingMessages"))
+        mute.configure(False)
+        check("mute_training_applied", int(mute.apply_in_world(world)) == 1)
+        check("player_reports_muted", not bool(player.are_training_messages_enabled()))
+        show2 = unreal.new_object(_cls("ShockActionShowTrainingMessage"))
+        show2.configure("Tip_Hack")
+        show2.apply_in_world(world)
+        hud.refresh_display_now()
+        suppressed = str(hud.get_displayed_training_message_text())
+        check("show_suppressed_while_muted", suppressed == "", suppressed)
+        unmute = unreal.new_object(_cls("ShockActionEnableOrDisableTrainingMessages"))
+        unmute.configure(True)
+        check("unmute_training_applied", int(unmute.apply_in_world(world)) == 1)
+        check("player_reports_unmuted", bool(player.are_training_messages_enabled()))
+        show3 = unreal.new_object(_cls("ShockActionShowTrainingMessage"))
+        show3.configure("Tip_Hack")
+        show3.apply_in_world(world)
+        hud.refresh_display_now()
+        restored = str(hud.get_displayed_training_message_text())
+        check("show_works_after_unmute", restored == "Tip_Hack", restored)
+
     finally:
         for a in reversed(spawned):
             try:

@@ -3228,7 +3228,23 @@ void AShockPlayer::SetMapHUDRegion(const FString& Description)
 
 void AShockPlayer::SetTrainingMessage(FName MessageName)
 {
+	// Clearing (NAME_None, from ActionClearTrainingMessage) always goes through -- the mute gate
+	// only stops NEW toasts from ActionShowTrainingMessage while disabled, it doesn't need to
+	// preserve one that was already on screen when it was flipped off.
+	if (!bTrainingMessagesEnabled && !MessageName.IsNone())
+	{
+		return;
+	}
 	LastTrainingMessage = MessageName;
+}
+
+void AShockPlayer::SetTrainingMessagesEnabled(bool bEnable)
+{
+	bTrainingMessagesEnabled = bEnable;
+	if (!bTrainingMessagesEnabled)
+	{
+		LastTrainingMessage = NAME_None;
+	}
 }
 
 void AShockPlayer::SetFadeVolumeOverride(float Volume, float Duration)
