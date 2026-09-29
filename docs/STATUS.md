@@ -1,6 +1,6 @@
 Supersedes docs/archive/HANDOFF.md, docs/archive/NEXT_SESSION.md, docs/archive/AUDIT_2026-09-06.md.
 
-# Status — as of 28 Sept 2026
+# Status — as of 30 Sept 2026
 
 For the forward plan (systems, priority order, what's still unbuilt), see **[`docs/ROADMAP.md`](ROADMAP.md)**.
 This file is the current-state snapshot: what's done and verified, what's landed but not yet
@@ -8,9 +8,32 @@ confirmed by the user in a live PIE session, what's an open bug, and what's a kn
 Where a claim below could not be confirmed against the repository (commits, task files, source), it
 says **STATUS UNCLEAR — verify** rather than guessing.
 
-## Most recent landed work (29 Sept 2026)
+## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **levers/switches/buttons are real, interactive actors — a genuine
+The most recent landed work: **54 `NonPhysicalReactiveActor` debris/set-dressing instances in
+1-Medical are now real, visible, collidable level geometry — a level-fidelity gap, not an
+"unlocks dead content" one.** Same root cause as switches: `NonPhysicalReactiveActor` never had a
+dedicated actor class wired, so all 54 instances (`TunnelBlock`, `CollapsedTunnel`,
+`SteinmanBrokenGlass`, `ShatterGlass`, `CremationContainer`, `EternalFlameBlast` prop dressing,
+`SteinmanBed`, ...) fell through `import_level.py`'s fallback into invisible, non-collidable
+`TargetPoint`s. Checked first whether this was script-load-bearing the same way switches were
+(`quarswitch` → Fisheries gate): it is not — grepped every Script's `TriggeredBy`/`scriptMessageClass`
+and every other actor's action-target property in the manifest for these 54 labels and found zero
+references anywhere, so unlike switches this doesn't unlock any dead content. It's still a real
+playability bug: several `TunnelBlock`/`CollapsedTunnel` instances carry `bBlockActors`/
+`bBlockPlayers`/`bBlockHavok`/`bCollideActors` in their own manifest property list — and since the
+original .lvl format only serializes non-default properties, that presence means the level design
+explicitly wants that rubble to physically block a corridor (forcing a detour) — right now that
+corridor is wide open with nothing there at all. New `import_slice_reactive_props.py` places all 54
+directly as engine `StaticMeshActor`/`SkeletalMeshActor` (no custom class needed — these aren't
+interactable) with the manifest mesh and a `BlockAll` collision profile, respecting `bHidden` where
+the manifest carries it (24/54 start hidden by design, matching the same non-default-property
+convention). Live result: 54/54 resolved a real mesh (better than switches' 8/10 — no manifest
+className-mismatch cases here), 30 visible + collidable, 24 hidden per manifest intent, 0 errors.
+Verified end-to-end headless: every placed actor confirmed to have a real mesh assigned, `BlockAll`
+collision profile, and the correct hidden/visible split against the import report.
+
+The prior landed work: **levers/switches/buttons are real, interactive actors — a genuine
 content gap closed, not a roadmap-breadth item.** `1-Medical` places 10 `DoorSwitch`/`Switch`/
 `IncineratorSwitch`/`BathysphereSwitch`/`Med_MedicalGateSwitch`/`ChompersDentalButton` actors, and
 none of them ever had a dedicated actor class wired — `import_level.py`'s "other decoded-but-

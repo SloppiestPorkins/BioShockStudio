@@ -491,6 +491,12 @@ STEPS = [
     # previously invisible, non-interactive TargetPoint stand-ins; real scripts (e.g. the
     # Fisheries quarantine gate) gate on these actors' own labels via TriggeredBy.
     ("import_slice_switches", "import_slice_switches", "main", ()),
+    # NonPhysicalReactiveActor debris/set-dressing (TunnelBlock, SteinmanBrokenGlass, ...) --
+    # same invisible-TargetPoint fallback bug as switches; some carry bBlockActors/bBlockHavok
+    # in the manifest meaning they're meant to physically block a corridor. Not script-gated
+    # (checked 30 Sept 2026: no script or action references any of these labels), so this is a
+    # visual/collision-fidelity fix, not an "unlocks dead content" one.
+    ("import_slice_reactive_props", "import_slice_reactive_props", "main", ()),
     # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
     ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
     # Loose props (trash cans, ashtrays, steamer trunks, fridge doors, debris) back to rigid-body

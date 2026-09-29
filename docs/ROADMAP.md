@@ -81,10 +81,15 @@ per-system sections below.
 5. **Content gaps with no system behind them yet**: ~~switches/levers as a dedicated actor~~ **done,
    29 Sept 2026** — `AShockSwitchActor` + `import_slice_switches.py`, all 10 of Medical's
    DoorSwitch/Switch/IncineratorSwitch/BathysphereSwitch/Med_MedicalGateSwitch/ChompersDentalButton
-   actors are now real, interactive, message-dispatching props (see STATUS.md). Still open: Gene
-   Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
-   inventory stacks today). **Quests are not a gap** — see the "Inventory, economy, and player
-   systems" section below; the state machine is real, only quest hint/objective text is missing.
+   actors are now real, interactive, message-dispatching props (see STATUS.md). Also **done, 30
+   Sept 2026**: ~~NonPhysicalReactiveActor debris/set-dressing~~ — `import_slice_reactive_props.py`,
+   all 54 of Medical's instances (TunnelBlock, CollapsedTunnel, broken glass, cremation props, ...)
+   are now real, visible, `BlockAll`-collidable level geometry instead of invisible TargetPoints;
+   confirmed not script-load-bearing (unlike switches, nothing gates on these labels), so this was a
+   level-fidelity fix, not an unlocks-content one. Still open: Gene Bank tonics (no tonic system
+   exists at all), U-Invent crafting components (runs against generic inventory stacks today).
+   **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
+   state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art
    (never located in any SWF — brass ring + name only), the HUD liquid-fill material.
 7. **Level-to-level travel at scale** — the carry-state mechanism works on one hand-built test map;
@@ -246,8 +251,6 @@ money) on one hand-built test map.
 **Missing systems, not just missing content** — these need a system built, not a data fill:
 
 - **Tonics.** No tonic system exists at all. The Gene Bank UI is plasmids-only.
-- **Switches / levers.** No dedicated actor class; anything that looks like a lever in the shipped
-  levels currently has no gameplay behind it.
 - **Quests.** A real, if simple, state machine exists and is live (`InitiateQuest`/
   `CompleteQuestObjective`/`CompleteQuest`/`FailQuest`/`GetActiveQuestNames` on `AShockPlayer`,
   `ShockPlayer.cpp` ~3112–3188), consumed by the Status menu's Goals tab
