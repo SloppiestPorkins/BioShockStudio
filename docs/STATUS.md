@@ -10,7 +10,27 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent landed work: **roadmap priority 4, AI archetype weapon resolution — a real,
+The most recent landed work: **levers/switches/buttons are real, interactive actors — a genuine
+content gap closed, not a roadmap-breadth item.** `1-Medical` places 10 `DoorSwitch`/`Switch`/
+`IncineratorSwitch`/`BathysphereSwitch`/`Med_MedicalGateSwitch`/`ChompersDentalButton` actors, and
+none of them ever had a dedicated actor class wired — `import_level.py`'s "other decoded-but-
+unplaced classes" fallback left every one as an invisible, non-interactive `TargetPoint`. Real
+scripts already gate on these actors' own labels via `TriggeredBy` (Medical's `quarswitch` unlocks
+the Fisheries quarantine gate; `ToNeptuneSwitch` is the bathysphere departure switch), so this was a
+genuine "the player cannot progress" gap, not cosmetic. New `AShockSwitchActor`: a mesh the player
+walks up to and presses (Press F), which dispatches `MessageRAReacted` with the actor's own label as
+the source — the exact mechanism `AShockPlayer::NotifyReactedWithActor` already implements for
+`NonPhysicalReactiveActor`, reused rather than duplicated. New `import_slice_switches.py` places all
+10 with their real manifest mesh (8/10 resolve a real static/skeletal mesh; 2 `Med_MedicalGateSwitch`
+records fall back to invisible-but-functional, same graceful-degradation convention as pickups
+without an imported mesh — see the script for why). Verified end-to-end, not just "it compiles": a
+fresh headless test spawns a switch and a script gated on its message class + label, interacts with
+the switch, and confirms the script's own action actually ran; separately confirms the real
+`quarswitch` actor in the live slice is now a genuine `AShockSwitchActor` with the correct label, not
+the old stand-in. Regression-verified clean: `verify_gameplay_fidelity`, `verify_scripting_movers`,
+`verify_vita_chamber`, `verify_import_scripts`, `verify_water`.
+
+The prior landed work: **roadmap priority 4, AI archetype weapon resolution — a real,
 grounded first slice, not the whole priority.** Investigated `1-Medical`'s 23 placed archetypes
 (the actual bounded test surface, not the full 267-archetype census) and found
 `SpawnArchetypeWeaponIfNeeded` (`BaseShockAI.cpp`) gave every ranged archetype the *identical* flat

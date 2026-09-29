@@ -7,6 +7,7 @@
 #include "ShockPlasmid.h"
 #include "ShockPlasmidFx.h"
 #include "ShockSearchableContainer.h"
+#include "ShockSwitchActor.h"
 #include "ShockSecurityDevice.h"
 #include "ShockSecuritySubsystem.h"
 #include "ShockScriptSubsystem.h"
@@ -2468,6 +2469,14 @@ void AShockPlayer::TickInteractionTrace()
 			? TEXT("Press F to use the Health Station")
 			: TEXT("Press F to use");
 	}
+	else if (const AShockSwitchActor* Switch = Cast<AShockSwitchActor>(HitActor))
+	{
+		if (Switch->CanInteract())
+		{
+			CachedInteractActor = HitActor;
+			CachedInteractPrompt = Switch->GetInteractionPrompt();
+		}
+	}
 }
 
 void AShockPlayer::HandleInteractInput()
@@ -2493,6 +2502,13 @@ void AShockPlayer::HandleInteractInput()
 			// Trace reach (260uu) can exceed InteractRadius (200uu). Honour the looked-at station
 			// so a visible "Press F to use" prompt cannot fail silently on F.
 			if (Station->TryInteract(this))
+			{
+				return;
+			}
+		}
+		else if (AShockSwitchActor* Switch = Cast<AShockSwitchActor>(Target))
+		{
+			if (Switch->TryInteract(this))
 			{
 				return;
 			}

@@ -487,6 +487,10 @@ STEPS = [
     ("import_slice_pickups", "import_slice_pickups", "main", ()),
     # Vendors / wall health stations / Gatherer's Garden at their manifest positions.
     ("import_slice_stations", "import_slice_stations", "main", ()),
+    # Levers/switches/buttons (DoorSwitch, BathysphereSwitch, Med_MedicalGateSwitch, ...) --
+    # previously invisible, non-interactive TargetPoint stand-ins; real scripts (e.g. the
+    # Fisheries quarantine gate) gate on these actors' own labels via TriggeredBy.
+    ("import_slice_switches", "import_slice_switches", "main", ()),
     # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
     ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
     # Loose props (trash cans, ashtrays, steamer trunks, fridge doors, debris) back to rigid-body

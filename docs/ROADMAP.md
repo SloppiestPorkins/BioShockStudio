@@ -78,9 +78,13 @@ per-system sections below.
    fix and needed no change; what's unverified is everything past Medical's 23 archetypes — the
    other 20 maps' archetype rosters are unaudited, and this pass only confirmed Pistol/SMG/
    Grenadier/Melee weapon-type resolution, not Shotgun/Crossbow/ChemicalThrower on an AI archetype.
-5. **Content gaps with no system behind them yet**: switches/levers as a dedicated actor, Gene Bank
-   tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
-   inventory stacks today), quests (no quest system; Status → Goals reads a stub list).
+5. **Content gaps with no system behind them yet**: ~~switches/levers as a dedicated actor~~ **done,
+   29 Sept 2026** — `AShockSwitchActor` + `import_slice_switches.py`, all 10 of Medical's
+   DoorSwitch/Switch/IncineratorSwitch/BathysphereSwitch/Med_MedicalGateSwitch/ChompersDentalButton
+   actors are now real, interactive, message-dispatching props (see STATUS.md). Still open: Gene
+   Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
+   inventory stacks today). **Quests are not a gap** — see the "Inventory, economy, and player
+   systems" section below; the state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art
    (never located in any SWF — brass ring + name only), the HUD liquid-fill material.
 7. **Level-to-level travel at scale** — the carry-state mechanism works on one hand-built test map;

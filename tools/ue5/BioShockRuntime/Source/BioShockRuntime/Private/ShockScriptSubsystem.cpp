@@ -10,6 +10,7 @@
 #include "ShockScriptRegistry.h"
 #include "ShockScriptRunner.h"
 #include "ShockSecurityDevice.h"
+#include "ShockSwitchActor.h"
 #include "TimerManager.h"
 
 UShockScriptSubsystem* UShockScriptSubsystem::Get(const UWorld* World)
@@ -160,6 +161,13 @@ FString UShockScriptSubsystem::ResolveMessageSourceLabel(const AActor* Actor)
 		if (!Device->DeviceLabel.IsNone())
 		{
 			return Device->DeviceLabel.ToString();
+		}
+	}
+	if (const AShockSwitchActor* Switch = Cast<AShockSwitchActor>(Actor))
+	{
+		if (!Switch->SwitchLabel.IsNone())
+		{
+			return Switch->SwitchLabel.ToString();
 		}
 	}
 #if WITH_EDITOR
