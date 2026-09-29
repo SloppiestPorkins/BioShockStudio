@@ -94,6 +94,12 @@ def main(out, manifest_path=None):
     report = {"failures": [], "error": None}
     failures = report["failures"]
 
+    # The spawn-test below needs a real level open (NavMesh, ground collision) -- this script never
+    # loaded one itself, relying on whatever the editor's default/last-open map happened to be.
+    # Confirmed live 29 Sept 2026: on a fresh -run=pythonscript process (no prior script in the same
+    # run left Medical open), the spawn silently failed on the project's empty default map.
+    unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level("/Game/BioShockSlice/1-Medical")
+
     manifest_path = manifest_path or os.environ.get(
         "BIOSHOCK_LEVEL_JSON",
         r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\1-Medical\1-Medical.ue5-level.json",

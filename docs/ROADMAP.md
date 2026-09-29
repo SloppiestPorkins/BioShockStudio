@@ -71,7 +71,13 @@ per-system sections below.
    ~5.5 min to ~10s by skipping mesh/texture/cubemap writes script import never reads).
 4. **AI**: generalize the goal/ability brain (`UShockAIBrain`) past the two slice archetypes to every
    placed archetype; close the remaining `Action*` handler families (state-setters, AI-command
-   families) census-order.
+   families) census-order. **First slice landed 29 Sept 2026**: real per-archetype ranged-weapon
+   resolution (Grenadier/SMG/Pistol were all getting the same flat hitscan stand-in; also fixed a
+   melee-splicer-flagged-ranged false positive in the same heuristic) — see STATUS.md. Still open:
+   the brain/ability logic itself (`UShockAIBrain.cpp`) was already archetype-agnostic before this
+   fix and needed no change; what's unverified is everything past Medical's 23 archetypes — the
+   other 20 maps' archetype rosters are unaudited, and this pass only confirmed Pistol/SMG/
+   Grenadier/Melee weapon-type resolution, not Shotgun/Crossbow/ChemicalThrower on an AI archetype.
 5. **Content gaps with no system behind them yet**: switches/levers as a dedicated actor, Gene Bank
    tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
    inventory stacks today), quests (no quest system; Status → Goals reads a stub list).

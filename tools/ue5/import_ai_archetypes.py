@@ -89,16 +89,28 @@ def _slot_name_looks_ranged(name):
     if not name:
         return False
     lowered = str(name).lower()
+    if "melee" in lowered:
+        return False
     return any(
         token in lowered
-        for token in ("pistol", "tommy", "gun", "leadhead", "thug", "ranged")
+        for token in ("pistol", "tommy", "gun", "leadhead", "thug", "ranged", "grenad")
     )
 
 
 def _is_ranged_archetype(archetype):
-    """PLAUSIBLE heuristic from aiType / weapon-slot names (Leadhead, Thug, *Pistol*, *Tommy*)."""
+    """PLAUSIBLE heuristic from aiType / weapon-slot names (Leadhead, Thug, *Pistol*, *Tommy*,
+    *Grenad*). "Melee" is checked first and wins outright: 1-Medical's melee splicers carry aiType
+    "SpawnedMeleeThug", which also matches the "thug" token below, so without this exclusion they
+    were incorrectly flagged ranged (confirmed live 29 Sept 2026 -- all three melee archetypes in
+    1-Medical spawned holding a weapon before this fix). BioShock's own aiType naming keeps
+    "Melee"/"Ranged" mutually exclusive (SpawnedMeleeThug vs SpawnedRangedAggressor*), so this is a
+    safe, unconditional override, not a narrower heuristic. Mirrors the same fix in
+    BaseShockAI.cpp's SlotNameLooksRanged/ArchetypeHasRangedWeapon.
+    """
     ai_type = str(archetype.get("aiType") or "").lower()
-    if any(token in ai_type for token in ("leadhead", "thug", "ranged", "pistol", "tommy")):
+    if "melee" in ai_type:
+        return False
+    if any(token in ai_type for token in ("leadhead", "thug", "ranged", "pistol", "tommy", "grenad")):
         return True
     for slot in archetype.get("weaponSlots") or []:
         if _slot_name_looks_ranged(slot.get("name")):

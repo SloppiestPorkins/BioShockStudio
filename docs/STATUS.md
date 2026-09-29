@@ -10,7 +10,34 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent landed work: **roadmap priority 3, script-graph import on the 20 non-Medical
+The most recent landed work: **roadmap priority 4, AI archetype weapon resolution — a real,
+grounded first slice, not the whole priority.** Investigated `1-Medical`'s 23 placed archetypes
+(the actual bounded test surface, not the full 267-archetype census) and found
+`SpawnArchetypeWeaponIfNeeded` (`BaseShockAI.cpp`) gave every ranged archetype the *identical* flat
+20-damage/10000-range hitscan stand-in regardless of type — a Grenadier fired hitscan bullets
+instead of lobbing grenades, an SMG used the Pistol's pacing. Root cause: the archetype's real
+BioShock AI type (`aiType`, e.g. `"SpawnedGrenadier"`) was never read for weapon resolution, only
+for a boolean "is this ranged at all" gate. Fixed: `ResolveArchetypeWeaponDefName` maps `aiType` to
+a real `UShockWeaponDef::Resolve` name (Pistol/TommyGun/GrenadeLauncher/Shotgun/Crossbow), keeping
+AI ammo-infinite (`SetEnforceAmmo(false)`) since there's no AI reload behaviour. Along the way found
+a second, more severe pre-existing bug in the SAME ranged-detection heuristic (`SlotNameLooksRanged`,
+both the C++ copy and its Python mirror in `import_ai_archetypes.py`): "Thug" alone was treated as a
+ranged signal, so melee splicers (`aiType` `"SpawnedMeleeThug"`, which also contains "Thug") were
+incorrectly flagged ranged and equipped with a gun. Fixed with an explicit "Melee" exclusion checked
+first, on both the C++ and Python sides. Verified with a new dedicated headless test spawning all 3
+distinct ranged archetypes present in Medical (Grenadier/SMG/Pistol, confirmed genuinely distinct
+fire mode + damage, none matching the old flat stand-in) plus all 3 melee archetypes (confirmed none
+now equip a weapon) — 0 failures. Regression-verified clean: `verify_gameplay_fidelity`,
+`verify_scripting_movers`, `verify_vita_chamber`, `verify_import_scripts`, `verify_water`,
+`verify_ai_combat`, `verify_ai_nav`, `verify_weapon_impacts_pie` (6/6). **Not done**: the other 20
+maps' archetypes are unaudited (this pass only inspected Medical's 23), and `ArchetypeName` values
+found so far only cover Pistol/SMG/Grenadier/Melee — Shotgun/Crossbow/ChemicalThrower archetypes may
+exist elsewhere with their own naming quirks, unverified. A separate, unrelated pre-existing bug was
+found (not fixed) in `verify_ai_archetypes.py`'s own spawn test — hardcoded coordinates that don't
+correspond to real floor geometry in Medical's coordinate space, failing upstream of any archetype
+code — flagged as its own follow-up task, not blocking this fix.
+
+The prior landed work: **roadmap priority 3, script-graph import on the 20 non-Medical
 maps, done.** Previously proven on `1-Medical` only. Added `export-level-manifest`, a new CLI verb
 (`src/BioShockStudio.Cli`) that does the same scene analysis as `export-level` but writes only the
 `.ue5-level.json` handoff — no OBJ/mesh/rig/texture/cubemap writes, which `import_scripts.py` never

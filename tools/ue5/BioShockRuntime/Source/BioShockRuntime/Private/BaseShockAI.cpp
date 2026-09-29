@@ -11,6 +11,7 @@
 #include "ShockScriptReflection.h"
 #include "ShockScriptSubsystem.h"
 #include "ShockWeapon.h"
+#include "ShockWeaponDef.h"
 #include "AIController.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -56,12 +57,29 @@ bool SlotNameLooksRanged(const FString& SlotName)
 	{
 		return false;
 	}
+	// Explicit exclusion, checked first: "Thug" alone is not a reliable ranged signal -- 1-Medical's
+	// melee splicers carry aiType "SpawnedMeleeThug", which also contains "Thug", so without this
+	// check they incorrectly matched the ranged-token list below and got a weapon spawned/kept a
+	// RangedAttackAbility they should never have had (confirmed live 29 Sept 2026: all three melee
+	// archetype spawns in 1-Medical equipped a gun before this fix). BioShock's own aiType naming
+	// keeps "Melee"/"Ranged" mutually exclusive (SpawnedMeleeThug vs SpawnedRangedAggressor*), so
+	// this is a safe, unconditional override, not a narrower heuristic.
+	if (SlotName.Contains(TEXT("Melee"), ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
 	if (SlotName.Contains(TEXT("Pistol"), ESearchCase::IgnoreCase)
 		|| SlotName.Contains(TEXT("Tommy"), ESearchCase::IgnoreCase)
 		|| SlotName.Contains(TEXT("Gun"), ESearchCase::IgnoreCase)
 		|| SlotName.Contains(TEXT("Leadhead"), ESearchCase::IgnoreCase)
 		|| SlotName.Contains(TEXT("Thug"), ESearchCase::IgnoreCase)
-		|| SlotName.Contains(TEXT("Ranged"), ESearchCase::IgnoreCase))
+		|| SlotName.Contains(TEXT("Ranged"), ESearchCase::IgnoreCase)
+		// "Grenad" (not "Gun") matches Grenadier archetypes -- confirmed live 29 Sept 2026 that
+		// "SpawnedGrenadier" (1-Medical's actual aiType for its Grenadier splicers) matched none
+		// of the tokens above, so ArchetypeHasRangedWeapon returned false and
+		// SpawnArchetypeWeaponIfNeeded bailed out entirely: Grenadiers spawned with no weapon at
+		// all, not just the wrong one (the bug the weapon-def-resolution fix above addresses).
+		|| SlotName.Contains(TEXT("Grenad"), ESearchCase::IgnoreCase))
 	{
 		return true;
 	}
@@ -130,6 +148,50 @@ bool ArchetypeHasRangedWeapon(const UShockAiArchetype* Archetype)
 		}
 	}
 	return false;
+}
+
+/** Map an archetype's real BioShock AI type (e.g. "SpawnedGrenadier") to a UShockWeaponDef::Resolve
+ * name. Returns NAME_None for anything unrecognised -- callers must keep the old flat-hitscan
+ * stand-in as a fallback rather than leave the AI with no attack at all.
+ *
+ * Grounded in live manifest data, not guessed: 1-Medical's 23 archetypes carry exactly these
+ * aiType values for ranged combatants -- "SpawnedRangedAggressorPistol" (Leadhead splicers, the
+ * already-proven archetype), "SpawnedRangedAggressorSMG", "SpawnedGrenadier". Before this fix
+ * SpawnArchetypeWeaponIfNeeded gave EVERY ranged archetype the identical flat 20-damage hitscan
+ * stand-in regardless of this field, so a Grenadier fired hitscan bullets instead of lobbing
+ * grenades and an SMG-type used the Pistol's fire pacing -- the exact "AI splicers configure
+ * hitscan/ammo inline rather than through Resolve" gap the Weapons roadmap section already named.
+ */
+FName ResolveArchetypeWeaponDefName(const UShockAiArchetype* Archetype)
+{
+	if (!Archetype)
+	{
+		return NAME_None;
+	}
+	const FString& Type = Archetype->AITypeClassName;
+	if (Type.Contains(TEXT("Grenadier"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("GrenadeLauncher");
+	}
+	if (Type.Contains(TEXT("SMG"), ESearchCase::IgnoreCase)
+		|| Type.Contains(TEXT("Tommy"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("TommyGun");
+	}
+	if (Type.Contains(TEXT("Shotgun"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Shotgun");
+	}
+	if (Type.Contains(TEXT("Crossbow"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Crossbow");
+	}
+	if (Type.Contains(TEXT("Pistol"), ESearchCase::IgnoreCase)
+		|| Type.Contains(TEXT("Leadhead"), ESearchCase::IgnoreCase))
+	{
+		return TEXT("Pistol");
+	}
+	return NAME_None;
 }
 }
 
@@ -336,7 +398,24 @@ void ABaseShockAI::SpawnArchetypeWeaponIfNeeded(const UShockAiArchetype* Archety
 		return;
 	}
 
-	Weapon->ConfigureHitscan(20.0f, 10000.0f);
+	const FName ResolvedName = ResolveArchetypeWeaponDefName(Archetype);
+	UShockWeaponDef* Def = ResolvedName.IsNone() ? nullptr : UShockWeaponDef::Resolve(ResolvedName);
+	if (Def)
+	{
+		Weapon->ApplyDef(Def);
+		// ApplyDef turns ammo enforcement on for every non-melee fire mode (matching the player's
+		// own weapons, which do reload). AI has no reload/dry-fire-recovery behaviour at all, so
+		// keep it ammo-infinite regardless of the real def's magazine/reserve -- only fire mode,
+		// damage, range, and projectile/pellet/beam behaviour now come from the archetype's real
+		// weapon type; ammo enforcement stays off for AI specifically, same as before this fix.
+		Weapon->SetEnforceAmmo(false);
+	}
+	else
+	{
+		// Unrecognised or unmapped ranged archetype: preserve the original flat hitscan stand-in
+		// rather than leave the AI with no attack at all.
+		Weapon->ConfigureHitscan(20.0f, 10000.0f);
+	}
 	EquipAIWeapon(Weapon);
 }
 
