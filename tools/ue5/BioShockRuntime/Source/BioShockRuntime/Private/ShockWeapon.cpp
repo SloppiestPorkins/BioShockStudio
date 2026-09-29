@@ -1109,6 +1109,14 @@ void AShockWeapon::SpawnShellCasing(const FVector& MuzzleLocation)
 	UStaticMeshComponent* CasingComponent = Casing->GetStaticMeshComponent();
 	CasingComponent->SetMobility(EComponentMobility::Movable);
 	CasingComponent->SetStaticMesh(CasingMesh);
+	// The bare engine cylinder ships with no material of its own -- unset, it falls back to
+	// UE's flat grey default, which reads as a stray grey blob sitting on the weapon at the
+	// eject socket rather than a recognisable spent shell (reported live 29 Sept 2026).
+	if (UMaterialInterface* CasingMaterial = LoadObject<UMaterialInterface>(
+			nullptr, TEXT("/Game/BioShockFX/Weapons/M_ShellCasing_Brass.M_ShellCasing_Brass")))
+	{
+		CasingComponent->SetMaterial(0, CasingMaterial);
+	}
 	CasingComponent->SetWorldScale3D(FVector(0.015f, 0.015f, 0.04f));
 	CasingComponent->SetCollisionProfileName(TEXT("PhysicsActor"));
 	CasingComponent->SetSimulatePhysics(true);
