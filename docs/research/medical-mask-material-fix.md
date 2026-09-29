@@ -1,5 +1,12 @@
 # Medical mask-kind materials — classification gap + a second SM5 compile bug (29 Sept 2026)
 
+> **Correction, same day**: the "Verified, not assumed" section below only checked that the
+> Opacity/OpacityMask node was *structurally separate* from BaseColor, not the separate node's
+> actual `sampler_type` property value. That was incomplete — see
+> `docs/research/medical-opacity-sampler-legacy-shapes.md` for the two further legacy shapes this
+> missed (a separate node left at the wrong sampler type; a separate node missing outright) and how
+> both were found and fixed.
+
 Live report, in-editor screenshots with the Details panel open: `MI_Wall_Leak_diff_shader` and
 `..._WallTech_01_Shader`/`MI_WallTechAnim_Fan` both visibly wrong on the selected actors.
 

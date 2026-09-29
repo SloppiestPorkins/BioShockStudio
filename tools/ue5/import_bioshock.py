@@ -861,6 +861,44 @@ def _wire_opacity_mask(master, opacity_texture=None, soft=False):
     return node
 
 
+def _repair_opacity_sampler_type(master, property_id):
+    """Correct an Opacity/OpacityMask input node's `sampler_type` to MASKS when it is already a
+    separate node from BaseColor but was never actually set to MASKS.
+
+    A third legacy shape, distinct from the two `_repair_translucent_opacity_sampler`/
+    `_repair_mask_opacity_sampler` already handle (a still-shared node; a separate node pointed at
+    the wrong texture): confirmed live 29 Sept 2026 on `Wall_Leak_diff_shader`'s master via the
+    real UE5 material editor's own SM5 compile-error banner (nullrhi commandlets never trigger
+    real shader compilation, so no headless verify in this project can catch this class of bug --
+    it has to be read back from the actual node property). That master's Opacity node was already
+    a distinct `MaterialExpressionTextureSampleParameter2D` (not sharing BaseColor's plain
+    `MaterialExpressionTextureSample` node) with the correct parameter name ("Opacity") and even
+    the right texture -- `_repair_translucent_opacity_sampler`'s shared-node check and
+    `_repair_translucent_opacity_texture`'s texture check both correctly found nothing to do and
+    reported success. Its `sampler_type` was simply still the default `SAMPLERTYPE_COLOR`, left
+    over from however this specific master was first built (predates every repair pass in this
+    file -- it is the plain-`TextureSample`-BaseColor shape also seen on `glass_safety_shader`),
+    and none of the existing repairs ever checked that property directly, only node identity and
+    the node's `texture` reference.
+    """
+    if master is None:
+        return False
+    edit = unreal.MaterialEditingLibrary
+    node = edit.get_material_property_input_node(master, property_id)
+    if not isinstance(node, unreal.MaterialExpressionTextureSample):
+        return False
+    try:
+        current = node.get_editor_property("sampler_type")
+    except Exception:  # noqa: BLE001
+        return False
+    if current == unreal.MaterialSamplerType.SAMPLERTYPE_MASKS:
+        return False
+    node.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _repair_mask_opacity_sampler(master):
     """Give OpacityMask its own Masks-sampler node on a "mask" kind master built before that split
     existed in this code path (see `_load_or_create_master`'s `kind == "mask"` branch).
@@ -912,6 +950,13 @@ def _repair_translucent_opacity_texture(master, opacity_texture):
     settable `texture` property and is not the same node BaseColor reads from (that shared-node
     shape is `_repair_translucent_opacity_sampler`'s job, which must run first -- see its call
     site in `_load_or_create_master`).
+
+    A fourth shape, found live 29 Sept 2026 on `Exterior_Window_02_Glass_Shader`'s master (a
+    `WindowShader`-class material with a genuine, distinct Opacity-slot texture,
+    `Exterior_Window_02_Glass_Diffuse.png`): `MP_OPACITY` has **no node connected at all**, not a
+    wrong one -- the master predates this material ever having its Opacity wired at all. If
+    `opacity_node` is `None`, create a fresh `SAMPLERTYPE_MASKS` node from scratch (same as
+    `_load_or_create_master`'s new-master path does) rather than only repointing an existing one.
     """
     if master is None or opacity_texture is None:
         return False
@@ -923,6 +968,18 @@ def _repair_translucent_opacity_texture(master, opacity_texture):
     edit = unreal.MaterialEditingLibrary
     opacity_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY)
     base_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+
+    if opacity_node is None:
+        new_node = edit.create_material_expression(
+            master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
+        new_node.set_editor_property("parameter_name", "Opacity")
+        new_node.set_editor_property("texture", opacity_texture)
+        new_node.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+        edit.connect_material_property(new_node, "A", unreal.MaterialProperty.MP_OPACITY)
+        edit.recompile_material(master)
+        unreal.EditorAssetLibrary.save_loaded_asset(master)
+        return True
+
     if not isinstance(opacity_node, unreal.MaterialExpressionTextureSample):
         return False
     if base_node is not None and opacity_node.get_name() == base_node.get_name():
@@ -977,6 +1034,13 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # shared-node SM5 bug (see _repair_mask_opacity_sampler's docstring) -- must also run
         # before anything else touches this master's OpacityMask node.
         _repair_mask_opacity_sampler(existing)
+        # A third legacy shape neither split-repair above catches: a node that was ALREADY
+        # separate from BaseColor (so the shared-node checks above correctly found nothing to
+        # split) but whose sampler_type was simply never set to MASKS to begin with. Cheap and
+        # idempotent to check regardless of blend mode -- see _repair_opacity_sampler_type's
+        # docstring for how this was found (a live SM5 compile-error banner nullrhi cannot see).
+        _repair_opacity_sampler_type(existing, unreal.MaterialProperty.MP_OPACITY)
+        _repair_opacity_sampler_type(existing, unreal.MaterialProperty.MP_OPACITY_MASK)
         if material.get("opacity"):
             _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
         elif kind == "translucent":
