@@ -497,6 +497,10 @@ STEPS = [
     # (checked 30 Sept 2026: no script or action references any of these labels), so this is a
     # visual/collision-fidelity fix, not an "unlocks dead content" one.
     ("import_slice_reactive_props", "import_slice_reactive_props", "main", ()),
+    # Shootable/damageable reactive props (padlocks, grates, ice, oil slicks, TVs) -- unlike the
+    # pure debris above, real scripts gate on these labels (OpenSteinmanGate/GatePadlock,
+    # KureAllGrate1Damaged/KureAllGrate1, MeltedIce/IceBlockage, ...); see the script docstring.
+    ("import_slice_damageable_props", "import_slice_damageable_props", "main", ()),
     # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
     ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
     # Loose props (trash cans, ashtrays, steamer trunks, fridge doors, debris) back to rigid-body

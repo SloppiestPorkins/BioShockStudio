@@ -26,7 +26,7 @@ def main(out):
     f = report["failures"]
 
     subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    world = subsystem.get_editor_world()
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     script_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockScript")
     ai_cls = unreal.load_class(None, "/Script/BioShockRuntime.BaseShockAI")
     player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")

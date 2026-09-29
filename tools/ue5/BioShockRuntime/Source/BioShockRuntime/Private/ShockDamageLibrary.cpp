@@ -3,6 +3,7 @@
 #include "BaseShockAI.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "ShockDamageableProp.h"
 #include "ShockPawn.h"
 #include "ShockPhysicsLibrary.h"
 #include "ShockPlayer.h"
@@ -105,8 +106,21 @@ float UShockDamageLibrary::ApplyDamage(
 {
 	(void)DamageType;
 
+	if (Amount <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	// A one-shot reactive prop (grate, padlock, TV, ...), not a pawn: no health pool, just a
+	// single "something hit me" dispatch to whatever script is waiting on this actor's label.
+	if (AShockDamageableProp* Prop = Cast<AShockDamageableProp>(Target))
+	{
+		AShockPlayer* Player = ResolvePlayerFrom(Instigator);
+		return Prop->ReactToDamage(Player) ? Amount : 0.0f;
+	}
+
 	AShockPawn* Pawn = Cast<AShockPawn>(Target);
-	if (!Pawn || Amount <= 0.0f)
+	if (!Pawn)
 	{
 		return 0.0f;
 	}

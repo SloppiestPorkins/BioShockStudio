@@ -10,7 +10,39 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **54 `NonPhysicalReactiveActor` debris/set-dressing instances in
+The most recent landed work: **shootable/damageable reactive props — padlocks, grates, ice,
+oil slicks, TVs — now real actors that unlock real scripts, closing a genuine "the player cannot
+progress/experience content" gap, the same class of bug as switches.** `Padlock`, `dyn_grate64`,
+`NonPhysicalNonPathBlockingReactiveActor`, `OilSlick02_Reactive`/`OilSlick04_Reactive`, and
+`TV_WallMounted` (17 instances total in 1-Medical) never had a dedicated actor class wired, so —
+same root cause as switches and the NonPhysicalReactiveActor debris above — they fell through
+`import_level.py`'s fallback as invisible, non-collidable `TargetPoint`s. Unlike the debris, these
+ARE script-load-bearing: real Scripts gate on these exact labels (`OpenSteinmanGate` waits on
+`GatePadlock`/Reason=Shattered, `KureAllGrate1Damaged` waits on `KureAllGrate1`/Reason=Damaged,
+`TurnOffLightOnDynamicTelevision` waits on `TV_WallMountedWIthLight`/Reason=Damaged, `MeltedIce`
+waits on `IceBlockage`, `IncinerateOilSlickSpread` waits on `ScriptedOilSlick1,ScriptedOilSlick2`).
+Went deeper than the actor class itself: `UShockDamageLibrary::ApplyDamage` only ever recognized
+`AShockPawn` targets (`Cast<AShockPawn>(Target); if (!Pawn) return 0.0f;`), and — worse — each of
+`ShockWeapon.cpp`'s three real damage call sites (hitscan, shotgun, the chemical-thrower beam)
+gated on `Cast<AShockPawn>(Hit.GetActor())` *before* ever calling `ApplyDamage`, so a shot hitting
+one of these props wasn't just a no-op inside the damage library, it never reached the damage
+library at all. New `AShockDamageableProp` (mirrors `AShockSwitchActor`'s shape, but reacts to a
+weapon hit instead of a player interact-press, one-shot) is now handled at both the library choke
+point and each weapon call site's `else if`. Confirmed the Reason-based message filters (e.g.
+Reason=Damaged) don't need extra plumbing: `UShockScriptRunner::MatchesMessageFilter` only rejects
+a Want field that's *present* with the wrong value, never one that's simply absent from the
+dispatched fields, so the existing Reason-less `NotifyReactedWithActor` dispatch already satisfies
+them. New `import_slice_damageable_props.py` places all 17 with their real manifest mesh (17/17
+resolved, 0 misses). Verified end-to-end headless: unit dispatch + one-shot guard, the actual
+`UShockDamageLibrary.apply_damage` C++ path (not just the direct method call), and all 6 real
+live-slice instances (GatePadlock, KureAllGrate1, TV_WallMountedWIthLight, IceBlockage,
+ScriptedOilSlick1/2) resolved as genuine `AShockDamageableProp` actors with the correct label.
+Regression-verified clean (touched shared combat code, `ShockDamageLibrary.cpp`/`ShockWeapon.cpp`):
+`verify_ai_combat`, `verify_weapon_beam`, `verify_script_damage_exec` (also fixed a pre-existing,
+unrelated `EditorActorSubsystem.get_editor_world()` AttributeError that was blocking this check
+from ever running), `verify_script_damage_level`, `verify_gameplay_fidelity`.
+
+The prior landed work: **54 `NonPhysicalReactiveActor` debris/set-dressing instances in
 1-Medical are now real, visible, collidable level geometry — a level-fidelity gap, not an
 "unlocks dead content" one.** Same root cause as switches: `NonPhysicalReactiveActor` never had a
 dedicated actor class wired, so all 54 instances (`TunnelBlock`, `CollapsedTunnel`,

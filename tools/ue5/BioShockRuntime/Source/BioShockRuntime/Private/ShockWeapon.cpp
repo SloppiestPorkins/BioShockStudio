@@ -3,6 +3,7 @@
 #include "BaseShockAI.h"
 #include "ShockAudioLibrary.h"
 #include "Components/AudioComponent.h"
+#include "ShockDamageableProp.h"
 #include "ShockDamageLibrary.h"
 #include "ShockElectroBoltPlasmid.h"
 #include "ShockPawn.h"
@@ -1548,6 +1549,12 @@ bool AShockWeapon::FireAtHitscan(AActor* InstigatorActor, FVector Start, FVector
 			LastHitPawn = Victim;
 			bDamaged = true;
 		}
+		else if (AShockDamageableProp* Prop = Cast<AShockDamageableProp>(Hit.GetActor()))
+		{
+			UShockDamageLibrary::ApplyDamage(
+				Prop, ShotDamage, InstigatorActor, NAME_None,
+				(End - Start).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
+		}
 	}
 
 	const FVector MuzzleLoc = ResolveMuzzleLocation(Start);
@@ -1954,6 +1961,17 @@ bool AShockWeapon::FireAtBeam(AActor* InstigatorActor, FVector Start, FVector Di
 					break;
 				}
 			}
+		}
+		else if (AShockDamageableProp* Prop = Cast<AShockDamageableProp>(Hit.GetActor()))
+		{
+			// Ice/oil/padlock/grate/TV reactive props: any beam status counts as "hit" for these
+			// one-shot triggers (Freeze melting ice, Burning igniting an oil slick, ... — the
+			// manifest's own Reason filter, e.g. Reason=Damaged/Shattered, isn't checked since
+			// MatchesMessageFilter only rejects a Want field that's present with the wrong value,
+			// never one that's simply absent from the dispatched fields).
+			UShockDamageLibrary::ApplyDamage(
+				Prop, HitscanDamage, InstigatorActor, NAME_None,
+				(End - MuzzleLoc).GetSafeNormal(), Hit.ImpactPoint, Hit.BoneName);
 		}
 	}
 

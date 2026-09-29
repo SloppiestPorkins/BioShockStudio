@@ -86,8 +86,15 @@ per-system sections below.
    all 54 of Medical's instances (TunnelBlock, CollapsedTunnel, broken glass, cremation props, ...)
    are now real, visible, `BlockAll`-collidable level geometry instead of invisible TargetPoints;
    confirmed not script-load-bearing (unlike switches, nothing gates on these labels), so this was a
-   level-fidelity fix, not an unlocks-content one. Still open: Gene Bank tonics (no tonic system
-   exists at all), U-Invent crafting components (runs against generic inventory stacks today).
+   level-fidelity fix, not an unlocks-content one. Also **done, 30 Sept 2026**: ~~shootable/
+   damageable reactive props~~ — `AShockDamageableProp` + `import_slice_damageable_props.py`, all
+   17 of Medical's Padlock/dyn_grate64/NonPhysicalNonPathBlockingReactiveActor/OilSlick*_Reactive/
+   TV_WallMounted instances now really react to a weapon hit and dispatch the MessageRAReacted
+   scripts already gating on them (GatePadlock unlocks OpenSteinmanGate, KureAllGrate1 unlocks its
+   own grate script, ...) — required extending `UShockDamageLibrary::ApplyDamage` and each
+   `ShockWeapon.cpp` call site past their pawn-only assumption, not just a placement script (see
+   STATUS.md). Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting
+   components (runs against generic inventory stacks today).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art
