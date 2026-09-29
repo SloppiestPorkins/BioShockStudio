@@ -292,6 +292,42 @@ def _restore_manifest_sockets(mesh, sockets):
     return library.restore_sockets(mesh, names, bones, locations, rotations)
 
 
+def _opacity_entry_identities(rig):
+    """(material name, slot) pairs identifying the SPECIFIC textures[] entry that is a material's
+    real Opacity source.
+
+    Matching by (material, file) alone -- an earlier version of this function did -- is wrong
+    whenever Diffuse and Opacity legitimately share one file (the common, already-documented
+    "opacity-slot-same-as-diffuse-file" shape): EVERY entry with that file then matches, including
+    the Diffuse one, so both get treated as opacity intent and the plain, colour-space-correct
+    Diffuse import never actually runs. Confirmed live 29 Sept 2026 on `Wall_Leak_diff_shader`:
+    both its "Diffuse" and "Opacity" slot entries share `Wall_Leak_diff.png`, and the file-only
+    check flagged both, leaving the plain (non-"_Opacity") texture asset frozen at its stale,
+    wrong `TC_MASKS`/`srgb=False` settings from before this fix even though the Opacity node
+    itself now correctly pointed at a dedicated, correctly-configured `_Opacity` asset.
+
+    Shared between `_import_textures` (decides which file gets imported under the `_Opacity`
+    intent) and `_create_material_instances` (must resolve the SAME intent for the SAME entry, or
+    it silently hands a material's Opacity slot the colour-space-mismatched Diffuse asset again).
+    """
+    identities = set()
+    for material in rig.get("materials") or []:
+        _diffuse, _normal, opacity, by_slot = _material_texture_bindings(material, rig)
+        if not opacity:
+            continue
+        name = material.get("name")
+        if by_slot.get("Opacity") == opacity:
+            identities.add((name, "Opacity"))
+            continue
+        # opacity came from the material's own top-level "opacity" field with no "Opacity"-named
+        # slot to unambiguously prefer -- best effort, matches every entry sharing that file for
+        # this material (same limitation the old check had, only reached in this narrower case).
+        for entry in rig.get("textures") or []:
+            if entry.get("material") == name and entry.get("file") == opacity:
+                identities.add((name, entry.get("slot")))
+    return identities
+
+
 def _import_textures(rig, export_directory, destination, report=None):
     """Create UE5 Texture2D assets from the manifest's texture entries.
 
@@ -321,10 +357,7 @@ def _import_textures(rig, export_directory, destination, report=None):
     imported = []
     seen = {}
     by_file = {}
-    opacity_files = {
-        (material.get("name"), material.get("opacity"))
-        for material in (rig.get("materials") or []) if material.get("opacity")
-    }
+    opacity_identities = _opacity_entry_identities(rig)
 
     for entry in entries:
         source = os.path.join(export_directory, entry["file"].replace("/", os.sep))
@@ -332,14 +365,25 @@ def _import_textures(rig, export_directory, destination, report=None):
             _log(f"  texture missing on disk, skipped: {entry['file']}")
             continue
 
-        # The same PNG can be bound twice with different intent. Import it once per distinct
-        # intent, suffixed, so neither binding has to compromise on colour space.
-        is_opacity = (entry.get("material"), entry.get("file")) in opacity_files
+        # The same PNG can be bound twice with different intent -- e.g. Wall_Leak_diff_shader's
+        # Opacity slot points at the exact same file as its Diffuse slot (a documented, common
+        # shape -- see _material_has_opacity_slot_texture). Both intents used to import to the
+        # SAME destination path (stem alone), so whichever entry was processed second silently
+        # overwrote the first's srgb/compression -- confirmed live 29 Sept 2026: the opacity entry
+        # won the race, leaving the single resulting asset TC_MASKS/srgb=False, which is correct
+        # for the Opacity read but wrong for the BaseColor read of that SAME asset, and the real
+        # editor's own SM5 compiler flagged it (Color sampler on a Masks-compressed texture) even
+        # after the material graph's Opacity node itself was fixed to sample Masks correctly. Give
+        # the opacity-intent import its own destination name so it is a genuinely separate asset,
+        # never overwriting the colour-space-sensitive one.
+        is_opacity = (entry.get("material"), entry.get("slot")) in opacity_identities
         srgb = False if is_opacity else entry["colourSpace"] == "Srgb"
         stem = os.path.splitext(os.path.basename(source))[0]
+        if is_opacity:
+            stem = f"{stem}_Opacity"
         key = (stem, srgb)
         if key in seen:
-            by_file[entry["file"]] = seen[key]
+            by_file[(entry["file"], is_opacity)] = seen[key]
             continue
 
         existed = _existed(f"{destination}/Textures/{stem}")
@@ -348,6 +392,7 @@ def _import_textures(rig, export_directory, destination, report=None):
         task = unreal.AssetImportTask()
         task.set_editor_property("filename", source)
         task.set_editor_property("destination_path", f"{destination}/Textures")
+        task.set_editor_property("destination_name", stem)
         task.set_editor_property("automated", True)
         task.set_editor_property("replace_existing", True)
         # save=True routes through InternalPromptForCheckoutAndSave, whose Slate notification
@@ -374,12 +419,22 @@ def _import_textures(rig, export_directory, destination, report=None):
             continue
 
         texture.set_editor_property("srgb", srgb)
+        # Always set explicitly, never left to whatever the factory/re-import happened to leave
+        # in place. `replace_existing=True` re-imports the pixels but does NOT reset an existing
+        # asset's compression_settings to a default -- it preserves whatever was there before.
+        # Confirmed live 29 Sept 2026: with only the Mask/NormalMap/is_opacity branches setting it,
+        # a texture previously (wrongly) left at TC_MASKS by an earlier bug stayed TC_MASKS forever
+        # on every later re-import, even once the code decided this entry was no longer opacity
+        # intent -- nothing ever told the asset to go back to TC_DEFAULT.
         if entry["usage"] == "NormalMap":
             texture.set_editor_property("compression_settings",
                                         unreal.TextureCompressionSettings.TC_NORMALMAP)
         elif is_opacity or entry["usage"] in ("Mask", "Height"):
             texture.set_editor_property("compression_settings",
                                         unreal.TextureCompressionSettings.TC_MASKS)
+        else:
+            texture.set_editor_property("compression_settings",
+                                        unreal.TextureCompressionSettings.TC_DEFAULT)
 
         if entry.get("addressU") in address:
             texture.set_editor_property("address_x", address[entry["addressU"]])
@@ -395,7 +450,7 @@ def _import_textures(rig, export_directory, destination, report=None):
         unreal.EditorAssetLibrary.save_loaded_asset(texture)
 
         seen[key] = texture
-        by_file[entry["file"]] = texture
+        by_file[(entry["file"], is_opacity)] = texture
         imported.append(texture)
         if report is not None:
             report["updated" if existed else "created"] += 1
@@ -408,18 +463,25 @@ def _import_textures(rig, export_directory, destination, report=None):
     return imported, by_file
 
 
-def _resolve_imported_texture(entry, destination, imported_by_file):
+def _resolve_imported_texture(entry, destination, imported_by_file, is_opacity=False):
     """Prefer the Texture2D object this import pass just created over a disk reload.
 
     A concurrent editor session can lock `.uasset` files (Windows error 32) so the import task
     returns a valid texture while `save_loaded_asset` fails — reloading by path then yields None
     and every wall material falls back to the white master default.
+
+    `is_opacity` must match the value `_import_textures` used for this same entry: a shared
+    Diffuse/Opacity file imports as two distinct assets (`{stem}` and `{stem}_Opacity`, see its
+    docstring), so resolving the wrong one silently hands the caller the colour-space-mismatched
+    asset again.
     """
     if imported_by_file:
-        texture = imported_by_file.get(entry["file"])
+        texture = imported_by_file.get((entry["file"], is_opacity))
         if texture is not None:
             return texture
     stem = os.path.splitext(os.path.basename(entry["file"]))[0]
+    if is_opacity:
+        stem = f"{stem}_Opacity"
     return _load_if_exists("%s/Textures/%s" % (destination, stem))
 
 
@@ -546,6 +608,72 @@ def _repair_null_texture_parameters(master):
     return repaired
 
 
+def _masks_compressed_variant(texture):
+    """A sibling `<Name>_Mask` Texture2D asset: a Masks-compressed, non-sRGB copy of `texture`.
+
+    Needed whenever a material's Opacity/OpacityMask must read the SAME pixel data as its
+    BaseColor (no genuinely separate opacity source was ever exported for it) but the SM5 compiler
+    requires the reading node's sampler_type to match the referenced ASSET's own compression --
+    one texture asset cannot serve both a Color-sampled BaseColor read and a Masks-sampled
+    Opacity/OpacityMask read at once. Found live 29 Sept 2026 via a full sampler-vs-texture sweep,
+    after `Wall_Leak_diff_shader`'s own distinct bug (a genuinely separate Opacity-slot file
+    colliding on import with its Diffuse slot, fixed separately) turned out to have a sibling: 30
+    "mask"-kind masters whose OpacityMask node was already correctly `SAMPLERTYPE_MASKS`, but still
+    pointed at the shared, `TC_DEFAULT`/sRGB diffuse asset -- `_repair_mask_opacity_sampler` /
+    `_repair_translucent_opacity_sampler`'s structural splits, and the new-master creation paths in
+    `_load_or_create_master`, all only ever copied the shared node's EXISTING texture reference
+    across (or `diffuse_texture` directly), never converted it to a Masks-compatible asset.
+    """
+    if texture is None or not isinstance(texture, unreal.Texture2D):
+        return texture
+    src_path = texture.get_path_name().split(".")[0]
+    if src_path.endswith("_Mask"):
+        return texture  # already a dedicated masks variant -- do not chain _Mask_Mask
+    dst_path = f"{src_path}_Mask"
+    existing = _load_if_exists(dst_path)
+    if existing is not None:
+        return existing
+    duplicated = unreal.EditorAssetLibrary.duplicate_asset(src_path, dst_path)
+    if duplicated is None or not isinstance(duplicated, unreal.Texture2D):
+        return texture
+    duplicated.set_editor_property("srgb", False)
+    duplicated.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+    unreal.EditorAssetLibrary.save_loaded_asset(duplicated)
+    return duplicated
+
+
+def _repair_base_color_sampler_type(master):
+    """Correct MP_BASE_COLOR's own node back to SAMPLERTYPE_COLOR when it is stuck at MASKS.
+
+    A sixth legacy shape, found live 29 Sept 2026 on the SAME sampler-vs-texture-compression sweep
+    that found the fifth (see `_repair_opacity_texture_compression_mismatch`): 2 "opaque"-kind
+    masters (`glass_shader`, `Freezer_Ice_Translucent`) had their BaseColor node's sampler_type
+    stuck at SAMPLERTYPE_MASKS -- the inverse direction of every other repair in this file, and the
+    only one that touches BaseColor rather than Opacity/OpacityMask. Both materials' own diffuse
+    texture is a normal `TC_DEFAULT`/sRGB asset, so this is unambiguously a stale leftover (most
+    plausibly from an earlier build where the material was briefly classified "mask" kind and this
+    node started life as that branch's OpacityMask node, before a reclassification pass repointed
+    MP_BASE_COLOR at it without ever resetting its sampler_type). BaseColor never legitimately
+    needs Masks sampling, so this repair is unconditional -- no kind/blend_mode gate needed.
+    """
+    if master is None:
+        return False
+    edit = unreal.MaterialEditingLibrary
+    node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+    if not isinstance(node, unreal.MaterialExpressionTextureSample):
+        return False
+    try:
+        current = node.get_editor_property("sampler_type")
+    except Exception:  # noqa: BLE001
+        return False
+    if current != unreal.MaterialSamplerType.SAMPLERTYPE_MASKS:
+        return False
+    node.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _repair_translucent_opacity_sampler(master):
     """Give Opacity its own Masks-sampler node on a "translucent" kind master built before that
     split existed (see _load_or_create_master).
@@ -573,7 +701,7 @@ def _repair_translucent_opacity_sampler(master):
     opacity_src = edit.create_material_expression(
         master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
     opacity_src.set_editor_property("parameter_name", "Opacity")
-    opacity_src.set_editor_property("texture", texture)
+    opacity_src.set_editor_property("texture", _masks_compressed_variant(texture))
     opacity_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
     edit.connect_material_property(opacity_src, "A", unreal.MaterialProperty.MP_OPACITY)
     edit.recompile_material(master)
@@ -899,6 +1027,52 @@ def _repair_opacity_sampler_type(master, property_id):
     return True
 
 
+def _repair_opacity_texture_compression_mismatch(master, property_id):
+    """Repoint an Opacity/OpacityMask node already `SAMPLERTYPE_MASKS`, but whose texture
+    reference is NOT actually Masks-compressed, to a dedicated Masks-compressed sibling asset.
+
+    A fifth legacy shape, found live 29 Sept 2026 via a full sampler-vs-texture-compression sweep
+    run after `Wall_Leak_diff_shader`'s own distinct bug (a genuinely separate Opacity-slot file
+    colliding on import with its Diffuse slot) was fixed: 30 further "mask"-kind masters already
+    had a correctly-separate node with the correct `SAMPLERTYPE_MASKS` -- neither
+    `_repair_mask_opacity_sampler`/`_repair_translucent_opacity_sampler` (only fire on a
+    still-shared node) nor `_repair_opacity_sampler_type` (only checks the sampler_type property
+    itself, never what the texture it points at is actually compressed as) had any way to catch
+    this. Their node's TEXTURE was still the shared diffuse asset -- correctly `TC_DEFAULT`/sRGB
+    for BaseColor's own read of it, but a hard SM5 sampler/compression mismatch for this node
+    (the inverse of the `Wall_Leak_diff_shader` banner: "Sampler type is Masks, should be
+    Color" -- from the compiler's perspective the texture itself needs Masks, not the sampler).
+    See `_masks_compressed_variant`, which both the structural-split repairs above and the
+    new-master creation paths in `_load_or_create_master` also use for exactly this reason.
+    """
+    if master is None:
+        return False
+    edit = unreal.MaterialEditingLibrary
+    node = edit.get_material_property_input_node(master, property_id)
+    if not isinstance(node, unreal.MaterialExpressionTextureSample):
+        return False
+    try:
+        sampler = node.get_editor_property("sampler_type")
+        texture = node.get_editor_property("texture")
+    except Exception:  # noqa: BLE001
+        return False
+    if sampler != unreal.MaterialSamplerType.SAMPLERTYPE_MASKS or texture is None:
+        return False
+    try:
+        compression = texture.get_editor_property("compression_settings")
+    except Exception:  # noqa: BLE001
+        return False
+    if compression == unreal.TextureCompressionSettings.TC_MASKS:
+        return False
+    variant = _masks_compressed_variant(texture)
+    if variant is None or variant.get_path_name() == texture.get_path_name():
+        return False
+    node.set_editor_property("texture", variant)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _repair_mask_opacity_sampler(master):
     """Give OpacityMask its own Masks-sampler node on a "mask" kind master built before that split
     existed in this code path (see `_load_or_create_master`'s `kind == "mask"` branch).
@@ -927,7 +1101,7 @@ def _repair_mask_opacity_sampler(master):
     mask_src = edit.create_material_expression(
         master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
     mask_src.set_editor_property("parameter_name", "OpacityMask")
-    mask_src.set_editor_property("texture", texture)
+    mask_src.set_editor_property("texture", _masks_compressed_variant(texture))
     mask_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
     edit.connect_material_property(mask_src, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
     edit.recompile_material(master)
@@ -1024,6 +1198,10 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # A prior import that left NULL TextureSampleParameter2D defaults must not be reused
         # as-is — UE then falls back to Default Material in game (wall textures "broken").
         _repair_null_texture_parameters(existing)
+        # Unconditional, independent of every Opacity/OpacityMask repair below -- see
+        # _repair_base_color_sampler_type's docstring for the (rare, 2-instance) stale-leftover
+        # shape this catches.
+        _repair_base_color_sampler_type(existing)
         # Must run before _repair_translucent_opacity_texture: a master built under the
         # pre-split code still has Opacity and BaseColor sharing one node (parameter_name
         # "BaseColor", not "Opacity"), so the opacity-texture repair below would find the wrong
@@ -1041,6 +1219,13 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # docstring for how this was found (a live SM5 compile-error banner nullrhi cannot see).
         _repair_opacity_sampler_type(existing, unreal.MaterialProperty.MP_OPACITY)
         _repair_opacity_sampler_type(existing, unreal.MaterialProperty.MP_OPACITY_MASK)
+        # A fifth legacy shape neither of the above catches: a node already separate AND already
+        # SAMPLERTYPE_MASKS, but still pointed at the shared, Color-compressed diffuse asset --
+        # see _repair_opacity_texture_compression_mismatch's docstring (found via a full
+        # sampler-vs-texture-compression sweep, 30 "mask"-kind masters live 29 Sept 2026).
+        _repair_opacity_texture_compression_mismatch(existing, unreal.MaterialProperty.MP_OPACITY)
+        _repair_opacity_texture_compression_mismatch(
+            existing, unreal.MaterialProperty.MP_OPACITY_MASK)
         if material.get("opacity"):
             _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
         elif kind == "translucent":
@@ -1096,7 +1281,9 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
             mask_src = edit.create_material_expression(
                 master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
             mask_src.set_editor_property("parameter_name", "OpacityMask")
-            mask_src.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
+            mask_src.set_editor_property(
+                "texture",
+                _masks_compressed_variant(diffuse_texture) or _default_base_color_texture())
             mask_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
             edit.connect_material_property(mask_src, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
         elif kind == "translucent":
@@ -1112,7 +1299,9 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
                 master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
             opacity_src.set_editor_property("parameter_name", "Opacity")
             opacity_src.set_editor_property(
-                "texture", opacity_texture or diffuse_texture or _default_base_color_texture())
+                "texture",
+                opacity_texture or _masks_compressed_variant(diffuse_texture)
+                or _default_base_color_texture())
             opacity_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
             edit.connect_material_property(opacity_src, "A", unreal.MaterialProperty.MP_OPACITY)
 
@@ -1137,10 +1326,12 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
                                manifest_dir=None):
     """Create/update one material instance per authored material, preserving slot order."""
     imported_by_file = imported_by_file or {}
+    opacity_identities = _opacity_entry_identities(rig)
     textures = {}
     for entry in rig.get("textures") or []:
+        is_opacity = (entry.get("material"), entry.get("slot")) in opacity_identities
         textures[(entry["material"], entry["slot"])] = _resolve_imported_texture(
-            entry, destination, imported_by_file)
+            entry, destination, imported_by_file, is_opacity=is_opacity)
 
     instances = []
     for material in rig.get("materials") or []:
@@ -1158,6 +1349,14 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
 
         library = unreal.MaterialEditingLibrary
         diffuse, normal, opacity, by_slot = _material_texture_bindings(material, rig)
+        # When Diffuse and Opacity legitimately share one file (by_slot["Opacity"] == diffuse's
+        # own file -- see _opacity_entry_identities), matching opacity_texture by file alone below
+        # would also match the Diffuse slot's entry, and whichever key `textures.items()` happens
+        # to iterate last would win -- order-dependent, and silently wrong half the time. Prefer
+        # the literal "Opacity"-named slot's own texture whenever one exists; only fall back to a
+        # file match for the rarer case where opacity came from the material's own top-level
+        # field with no distinct "Opacity" slot to name.
+        has_opacity_slot = by_slot.get("Opacity") is not None
         diffuse_texture = None
         normal_texture = None
         opacity_texture = None
@@ -1171,7 +1370,7 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
                 diffuse_texture = texture
             elif file == normal:
                 normal_texture = texture
-            if file == opacity:
+            if slot == "Opacity" or (not has_opacity_slot and file == opacity):
                 opacity_texture = texture
 
         instance.set_editor_property(

@@ -10,20 +10,27 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent fix, not yet committed: two further legacy shapes of the SM5 "Sampler type is
-Color, should be Masks" opacity-node bug, found only because the user's real (non-nullrhi) editor
-session showed the live compile-error banner for `Wall_Leak_diff_shader` after the mask-material
-fix below was believed complete — proving that fix's own verification (checked node separation,
-not the separate node's actual `sampler_type` value) was incomplete. Fixed: (1) a node already
-separate from BaseColor but left at the `SAMPLERTYPE_COLOR` default
-(`_repair_opacity_sampler_type`), and (2) a node missing entirely despite a real, resolvable
-opacity texture being available (extended `_repair_translucent_opacity_texture` to create one on
-`opacity_node is None`, found on `Exterior_Window_02_Glass_Shader` via a full 88-material sweep
-done to rule out further instances). Re-swept clean (88 checked, 0 real issues — 1 pre-existing
-false positive on `M_ShockWater`'s legitimate Multiply-based opacity graph). Regression-verified
-clean: `verify_gameplay_fidelity`, `verify_scripting_movers`, `verify_vita_chamber`,
-`verify_import_scripts`, `verify_water`. See
-`docs/research/medical-opacity-sampler-legacy-shapes.md`.
+The most recent fix, not yet committed: the real root cause of the SM5 "Sampler type is Color,
+should be Masks" family of compile errors, found only because the user's real (non-nullrhi) editor
+session kept showing the live compile-error banner for `Wall_Leak_diff_shader` after TWO prior
+"complete" fixes in this same saga. The actual defect was never just a node's own `sampler_type` —
+it's that a node's `sampler_type` is checked against the TEXTURE ASSET it references, and no
+earlier pass in this saga ever verified the asset side. Three distinct root causes, all fixed:
+(1) a texture-asset naming collision — when Diffuse and Opacity slots share one source file, both
+used to import to the SAME destination asset path, so whichever ran second silently overwrote the
+first's colour-space settings (fixed: give the opacity-intent import its own `_Opacity`-suffixed
+asset, plus a slot-based identity check replacing a broken file-based one, plus always resetting
+`compression_settings` explicitly instead of leaving it inherited); (2) 30 further "mask"-kind
+masters whose OpacityMask node was already correctly separate and already `SAMPLERTYPE_MASKS`, but
+still pointed at the shared, correctly-`TC_DEFAULT` diffuse asset (fixed: `_masks_compressed_variant`
+gives them a dedicated `_Mask`-suffixed duplicate); (3) the inverse on 2 `opaque`-kind masters
+whose BaseColor node was itself stuck at `SAMPLERTYPE_MASKS` from a stale earlier build. A full
+sampler-vs-texture-compression sweep across all 427 masters actually placed in `1-Medical` — not
+just a sampler-vs-sampler one, which is exactly what missed this the first two times — now reads 0
+mismatches. Regression-verified clean: `verify_gameplay_fidelity`, `verify_scripting_movers`,
+`verify_vita_chamber`, `verify_import_scripts`, `verify_water`. See
+`docs/research/medical-opacity-sampler-texture-compression-mismatch.md` (supersedes the
+`docs/research/medical-opacity-sampler-legacy-shapes.md` fix, which was itself incomplete).
 
 The prior landed work, newest first: a second material-shader fix (`WallTechAnim_Fan` and 39
 siblings were misclassified opaque despite genuine cutout data, and a second instance of the 4

@@ -1,5 +1,15 @@
 # Opacity-node legacy shapes — sampler type + missing node (29 Sept 2026)
 
+> **Correction, same day**: this doc's "Re-swept clean" and "Standing limitation" sections were
+> also incomplete. The 88-material sweep here only ever checked a node's own `sampler_type`
+> property, never whether the TEXTURE ASSET it references is actually compressed to match that
+> sampler type — a texture asset's compression is exactly as load-bearing as a node's sampler_type,
+> and the two can independently disagree. The user's OWN editor still showed
+> `Wall_Leak_diff_shader`'s compile error after this doc's fixes were believed complete, which is
+> what surfaced this. See `docs/research/medical-opacity-sampler-texture-compression-mismatch.md`
+> for the real root cause (a texture-asset naming collision) and three further legacy shapes it
+> exposed.
+
 Follow-up to `docs/research/medical-mask-material-fix.md` and `medical-glass-opacity-fix.md`. Both
 of those passes only ever checked whether a master's Opacity/OpacityMask node was *structurally
 separate* from BaseColor (`opacityNodeName != baseNodeName`). Live evidence from the user's own
