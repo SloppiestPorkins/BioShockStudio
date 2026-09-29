@@ -10,7 +10,11 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent commits, newest first: a live-PIE lighting fix (raw BioShock light intensities
+The most recent commits, newest first: a second material-shader fix (`WallTechAnim_Fan` and 39
+siblings were misclassified opaque despite genuine cutout data, and a second instance of the 4
+Sept SM5 "Sampler type is Color, should be Masks" compile bug existed in the mask-kind code path
+the whole time, unfixed — see `docs/research/medical-mask-material-fix.md`), a live-PIE lighting
+fix (raw BioShock light intensities
 were never actually rescaled on the live slice — applied for real, all 666 lights), a Medical
 glass-material opacity wiring fix (glass read the diffuse texture's own alpha instead of a real,
 separately-exported opacity texture when one existed — `docs/research/medical-glass-opacity-fix.md`),

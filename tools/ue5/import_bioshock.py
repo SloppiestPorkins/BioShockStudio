@@ -744,16 +744,33 @@ def _material_rendering_kind(material, rig, manifest_dir=None):
         if material.get("outputBlending") in (1, 2) and not material.get("masked"):
             return "translucent_mask"
         return "mask"
-    # `bMasked` alone is NOT a reliable hard-cutout signal in this game. 35 of 1-Medical's 55
-    # masked=True materials have no Opacity struct and are SOLID surfaces -- Walltech panels,
-    # carpets, arrivals boards, concrete barriers -- whose diffuse alpha is packed spec/gloss/
-    # self-illum data, not coverage. Forcing BLEND_MASKED on those wires diffuse.A to the opacity
-    # mask and speckles the surface with holes wherever the packed alpha is low. Only trust
-    # masked=True when the NAME says cutout (foliage, grating, alpha-test).
+    # `bMasked` alone is NOT a reliable hard-cutout signal in this game. 15 of 1-Medical's 55
+    # masked=True materials (rim-shaders, corpses, security bots, a chained door) have no Opacity
+    # struct and are SOLID surfaces whose diffuse alpha is packed spec/gloss/self-illum data, not
+    # coverage. Forcing BLEND_MASKED on those wires diffuse.A to the opacity mask and speckles the
+    # surface with holes wherever the packed alpha is low.
+    #
+    # Trust masked=True when EITHER: the name says cutout (foliage, grating, alpha-test -- catches
+    # 5 of the 15 solid-vs-cutout exceptions plant/kelp materials would otherwise miss without
+    # this), OR the exporter itself declared a texture slot for this material with
+    # `usage == "Mask"` -- a real, explicit exporter-asserted signal, not a name guess. Measured
+    # 29 Sept 2026: of Medical's 55 masked=True materials, exactly 40 have a usage=="Mask" texture
+    # entry, and that list is a clean, plausible "needs a cutout" set (Walltech_01/03,
+    # WallTechAnim_Fan/Cog/Lattice/Wheel/Cam/ShaftB, wallHole_*/Grate_Flat, Broken_Stairs, carpets,
+    # dripping stains, debris/trash, torn-paper signs/newspapers, oil slicks, ice patches) while
+    # the 15 without it are exactly the rim-shader/corpse/security-bot solid-surface set the
+    # original name-only heuristic was built to protect. `WallTechAnim_Fan` specifically -- a
+    # spinning fan blade needs real gaps between blades to not render as a solid disc -- was
+    # missed by the name-only heuristic (no "fan" pattern in the cutout list) despite genuinely
+    # varying 0-255 diffuse alpha (confirmed via `_diffuse_png_alpha_extrema`); this usage=="Mask"
+    # check catches it without widening the name list to something less precise.
     cutout_name = any(t in name_lower for t in (
         "alphatest", "alpha_test", "leaf", "leaves", "foliage", "plant", "ivy", "vine", "kelp",
         "grate", "grating", "fence", "chain", "mesh_wire", "wire_mesh", "net", "lattice"))
-    if material.get("masked") and cutout_name:
+    has_mask_usage_texture = any(
+        entry.get("material") == material.get("name") and entry.get("usage") == "Mask"
+        for entry in rig.get("textures") or [])
+    if material.get("masked") and (cutout_name or has_mask_usage_texture):
         return "mask"
     def _has_usable_transparency():
         """Real coverage data exists somewhere for this material -- a dedicated Opacity-slot
@@ -844,6 +861,42 @@ def _wire_opacity_mask(master, opacity_texture=None, soft=False):
     return node
 
 
+def _repair_mask_opacity_sampler(master):
+    """Give OpacityMask its own Masks-sampler node on a "mask" kind master built before that split
+    existed in this code path (see `_load_or_create_master`'s `kind == "mask"` branch).
+
+    Mirrors `_repair_translucent_opacity_sampler` exactly, gated on `BLEND_MASKED`/
+    `MP_OPACITY_MASK` instead of `BLEND_TRANSLUCENT`/`MP_OPACITY` -- the "mask" branch had the
+    identical shared-Color-sampler-node SM5 compile bug the translucent branch was fixed for on
+    4 Sept 2026, just never got the same fix. Every "mask" kind master that predates 29 Sept 2026
+    was built with this bug (the split never existed for this branch until then), so this repairs
+    potentially many masters, not just the one (`WallTechAnim_Fan`) that surfaced it live.
+    """
+    if master is None or not isinstance(master, unreal.Material):
+        return False
+    try:
+        if master.get_editor_property("blend_mode") != unreal.BlendMode.BLEND_MASKED:
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    edit = unreal.MaterialEditingLibrary
+    mask_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_OPACITY_MASK)
+    base_node = edit.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+    if (not isinstance(mask_node, unreal.MaterialExpressionTextureSampleParameter2D)
+            or base_node is None or mask_node.get_name() != base_node.get_name()):
+        return False
+    texture = mask_node.get_editor_property("texture")
+    mask_src = edit.create_material_expression(
+        master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
+    mask_src.set_editor_property("parameter_name", "OpacityMask")
+    mask_src.set_editor_property("texture", texture)
+    mask_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+    edit.connect_material_property(mask_src, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+    edit.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    return True
+
+
 def _repair_translucent_opacity_texture(master, opacity_texture):
     """A "translucent"-kind master's Opacity sampler defaulted to the diffuse texture (the only
     source `_load_or_create_master` used to read for it, see the git history around 29 Sept 2026).
@@ -920,6 +973,10 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
         # node shape and silently no-op, then this split would recreate the diffuse-as-opacity
         # bug it exists to fix -- copying whatever texture the shared node already had.
         _repair_translucent_opacity_sampler(existing)
+        # Same reasoning as the translucent split above, mirrored for "mask" kind's identical
+        # shared-node SM5 bug (see _repair_mask_opacity_sampler's docstring) -- must also run
+        # before anything else touches this master's OpacityMask node.
+        _repair_mask_opacity_sampler(existing)
         if material.get("opacity"):
             _wire_opacity_mask(existing, opacity_texture, soft=(kind == "translucent_mask"))
         elif kind == "translucent":
@@ -963,7 +1020,21 @@ def _load_or_create_master(material, content_root, diffuse_texture=None, normal_
     else:
         edit.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
         if kind == "mask":
-            edit.connect_material_property(base, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+            # Same "Sampler type is Color, should be Masks" SM5 compile error as the translucent
+            # branch below, on the exact same shared-node pattern -- BaseColor's node defaults to
+            # a Color-type sampler, and MP_OPACITY_MASK needs a Masks-type one. This branch never
+            # got the same fix when the translucent one did (4 Sept 2026): confirmed live 29 Sept
+            # 2026 on `WallTechAnim_Fan` (reclassified from "opaque" to "mask" the same day, see
+            # this function's masked=True/usage=="Mask" comment -- it would have hit this compile
+            # failure and fallen back to the default checkerboard regardless of that fix). Give
+            # OpacityMask its own Masks-sampler node instead of reading BaseColor's Color-sampler
+            # alpha directly.
+            mask_src = edit.create_material_expression(
+                master, unreal.MaterialExpressionTextureSampleParameter2D, -500, 150)
+            mask_src.set_editor_property("parameter_name", "OpacityMask")
+            mask_src.set_editor_property("texture", diffuse_texture or _default_base_color_texture())
+            mask_src.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+            edit.connect_material_property(mask_src, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
         elif kind == "translucent":
             # Sampling BaseColor's own Alpha output for Opacity reuses a Color-sampler node for a
             # mask read -- a hard SM5 compile error in this project ("Sampler type is Color,
