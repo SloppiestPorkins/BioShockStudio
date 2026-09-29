@@ -38,7 +38,26 @@ public enum LevelExportFormats
     /// </remarks>
     AssetMeshes = 8,
 
-    All = SceneJson | Obj | Ue5Manifest | AssetMeshes,
+    /// <summary>
+    /// Decode and write each unique cubemap actor references as 6 face PNGs. Genuinely slow (a
+    /// per-face image decode, not just a file copy) and irrelevant to a script-graph-only pass --
+    /// scripts never reference reflection captures. Bundled into every other format's write via
+    /// <see cref="SceneJson"/>/<see cref="Ue5Manifest"/> below for source compatibility; a caller
+    /// that wants the manifest without this cost passes <see cref="Ue5Manifest"/> alone.
+    /// </summary>
+    Cubemaps = 16,
+
+    /// <summary>
+    /// Resolve and write every material's texture files (diffuse/normal/specular/…). The dominant
+    /// per-map cost for a real story map (dozens to hundreds of unique textures, each a genuine
+    /// pixel decode) and irrelevant to a script-graph-only pass -- <c>import_scripts.py</c> reads
+    /// only the manifest's <c>actors</c> array filtered to Script-class, never <c>materials</c>/
+    /// <c>textures</c>. Bundled into every other format for source compatibility, same as
+    /// <see cref="Cubemaps"/>.
+    /// </summary>
+    Materials = 32,
+
+    All = SceneJson | Obj | Ue5Manifest | AssetMeshes | Cubemaps | Materials,
 }
 
 /// <summary>
@@ -97,8 +116,24 @@ public static class LevelSceneExporter
         if (package is not null
             && (formats.HasFlag(LevelExportFormats.SceneJson) || formats.HasFlag(LevelExportFormats.Ue5Manifest)))
         {
-            (materials, textures) = WriteMaterials(package, scene, directory, written, bulk);
-            cubemaps = WriteCubemaps(package, scene.Actors, directory, written, bulk);
+            // SceneJson is the lossless full hand-off and has always included materials/cubemaps
+            // unconditionally, regardless of the dedicated flags below -- only a Ue5Manifest-only
+            // caller (no SceneJson) can opt out of them, via ExportLevelManifest in Program.cs.
+            // Pinned by LevelSceneTests.MaterialsResolveAndTheirTexturesAreWrittenForAPlacedLevel,
+            // which requests SceneJson | Ue5Manifest without either dedicated flag and still
+            // expects materials/textures on disk.
+            bool wantMaterials = formats.HasFlag(LevelExportFormats.SceneJson)
+                || formats.HasFlag(LevelExportFormats.Materials);
+            bool wantCubemaps = formats.HasFlag(LevelExportFormats.SceneJson)
+                || formats.HasFlag(LevelExportFormats.Cubemaps);
+            if (wantMaterials)
+            {
+                (materials, textures) = WriteMaterials(package, scene, directory, written, bulk);
+            }
+            if (wantCubemaps)
+            {
+                cubemaps = WriteCubemaps(package, scene.Actors, directory, written, bulk);
+            }
         }
 
         if (formats.HasFlag(LevelExportFormats.SceneJson))

@@ -52,6 +52,7 @@ try
         "context" => Context(root, args),
         "level-audit" => LevelAudit(root, args),
         "export-level" => ExportLevel(root, args),
+        "export-level-manifest" => ExportLevelManifest(root, args),
         "export-cubemaps" => ExportCubemaps(root, args),
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
@@ -109,6 +110,9 @@ static int Usage()
           context <package> <group>     Show an asset group and everything it owns.
           level-audit <map>              Account for every placed UE2 actor and its UE5 decode status.
           export-level <map> <out-dir>   Write a versioned level JSON plus OBJ for the UE5 pipeline.
+          export-level-manifest <map> <out-dir>
+                                        Same scene analysis, .ue5-level.json only -- no OBJ/mesh/rig
+                                        writes. For script-graph-only import passes.
           export-cubemaps <map> <out-dir>
                                         Face PNGs + a probe-only UE5 manifest. Does not assemble
                                         a TextureCube (face order UNKNOWN).
@@ -392,6 +396,26 @@ static int ExportLevel(string root, string[] args)
         }
     }
 
+    return 0;
+}
+
+static int ExportLevelManifest(string root, string[] args)
+{
+    if (args.Length < 3) { Console.Error.WriteLine("usage: export-level-manifest <map> <out-dir>"); return 1; }
+
+    // Same scene analysis as export-level, but writes only the .ue5-level.json handoff -- no OBJ,
+    // no per-asset local-space OBJ, no per-character FBX rig/animation export. Script-graph import
+    // only reads actor placement, script data, and material identities from that JSON; the mesh
+    // formats exist for geometry import, which a script-only pass across every non-Medical map
+    // does not need. Skipping them is the difference between exporting a whole map's meshes/rigs
+    // (slow, heavy) and just reading its actor graph (fast) -- see prepare_script_import_exports.py,
+    // which originally planned a whole separate tool for this before this flag existed.
+    string package = ResolvePackage(root, args[1]);
+    var progress = new Progress<string>(message => Console.Error.WriteLine(message));
+    var bulk = BulkTextureCatalog.Load(root);
+    var files = new LevelService().Extract(
+        package, args[2], LevelExportFormats.Ue5Manifest, readable: true, progress, bulk);
+    foreach (string file in files) Console.WriteLine(file);
     return 0;
 }
 
