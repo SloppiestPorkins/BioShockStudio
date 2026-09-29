@@ -75,4 +75,15 @@ public:
 
 	static FString MakeSlotName(int32 SlotIndex);
 	static constexpr int32 MaxSlots = 8;
+
+	/**
+	 * Capture Player's current carry state and write it to a named slot, widget-free. The core of
+	 * UShockSaveLoadMenu::SaveToSlot, extracted so a script action (ActionSaveGame -- a name-based
+	 * scripted checkpoint save, distinct from the player's own numbered menu slots) can trigger a
+	 * real save without a live save/load menu instance. SlotName is prefixed to keep this save
+	 * family out of MakeSlotName's numbered-slot namespace.
+	 */
+	static bool SaveScripted(class AShockPlayer* Player, const FString& SlotName);
+
+	static FString MakeScriptedSlotName(const FString& SlotName);
 };

@@ -49,17 +49,26 @@ per-system sections below.
 
 1. **Close out the w18 live-PIE bug list** — see STATUS.md's bug table. Concrete, scoped, blocking a
    clean human playtest.
-2. **The scripting VM's remaining stubs** — watchers (`ActionCreateWatcher`, entirely unbuilt),
-   critical/immediate execution mode on level travel (entirely unbuilt), `TestFact`'s boolean
-   evaluation (hardcoded `return false`, so fact-gated `ActionIf` branches can never pass — the
-   assert/retract side is real, only the read side is stubbed), and training-message HUD display
-   (`SetTrainingMessage` stores a name, nothing renders it). **Not a gap, contrary to earlier
-   wording here**: the quest state machine (`InitiateQuest`/`CompleteQuestObjective`/
-   `CompleteQuest`/`FailQuest`/`GetActiveQuestNames`, `ShockPlayer.cpp` ~3112–3188) is real —
+2. **The scripting VM's remaining stubs — done, 29 Sept 2026.** Watchers, critical/immediate
+   execution mode on level travel, `TestFact`'s boolean evaluation, and training-message HUD
+   display all landed (`w20`, 28 Sept); `ActionEnableOrDisableTrainingMessages`'s mute gate — the
+   one piece `w20` left out — landed 29 Sept (`verify_scripting_vm_stubs.py` 37/37). Only remaining
+   item in this family: nested-loop critical-sub-action expansion during a travel flush (the flush
+   walks the flat remaining run queue only; a real fix means simulating `ActionLoop`'s up-to-1000-
+   iteration exit-condition semantics synchronously, which is materially bigger scope than the rest
+   of this list — deliberately not attempted blind). **Not a gap, contrary to earlier wording
+   here**: the quest state machine (`InitiateQuest`/`CompleteQuestObjective`/`CompleteQuest`/
+   `FailQuest`/`GetActiveQuestNames`, `ShockPlayer.cpp` ~3112–3188) is real —
    `ShockStatusMenu.cpp:412` reads live state, not a stub list. Corrected 28 Sept 2026 after
    checking current code before dispatching w20.
-3. **Script-graph import on the 20 non-Medical maps** — the exporter already runs clean on all 21;
-   only Medical has been *imported* and had its per-map `nested_unmapped` gaps fixed.
+3. **Script-graph import on the 20 non-Medical maps — done, 29 Sept 2026.** Ran
+   `import_scripts_all_maps.py` for real (never dispatched before): 20/20 succeeded, 0 unmapped
+   top-level actions, 100 nested actions unmapped across 3 distinct classes out of many thousands
+   mapped. Built `ActionSaveGame` (the best-scoped of the three, 3 occurrences); the other two need
+   real systems priority 4/6 haven't built yet (an `Assassin` AI archetype;
+   Research Camera photo storage) — see STATUS.md for the full breakdown. A new CLI verb,
+   `export-level-manifest`, made running this batch practical at all (cut a real map's export from
+   ~5.5 min to ~10s by skipping mesh/texture/cubemap writes script import never reads).
 4. **AI**: generalize the goal/ability brain (`UShockAIBrain`) past the two slice archetypes to every
    placed archetype; close the remaining `Action*` handler families (state-setters, AI-command
    families) census-order.

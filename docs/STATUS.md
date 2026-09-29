@@ -10,7 +10,31 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (29 Sept 2026)
 
-The most recent landed work, newest first: `ActionEnableOrDisableTrainingMessages`'s mute gate
+The most recent landed work: **roadmap priority 3, script-graph import on the 20 non-Medical
+maps, done.** Previously proven on `1-Medical` only. Added `export-level-manifest`, a new CLI verb
+(`src/BioShockStudio.Cli`) that does the same scene analysis as `export-level` but writes only the
+`.ue5-level.json` handoff — no OBJ/mesh/rig/texture/cubemap writes, which `import_scripts.py` never
+reads anyway (it only touches the manifest's `actors` array filtered to Script-class). Cut a real
+story map's export from ~5.5 minutes to ~10 seconds, which is what actually made running this
+batch across 20 maps practical instead of needing a whole separate tool (see commit `187dbab`
+and `docs/research/` — the backward-compat regression this briefly caused,
+`LevelSceneTests.MaterialsResolveAndTheirTexturesAreWrittenForAPlacedLevel`, was caught and fixed
+before landing; 15/15 C# tests pass). Ran `import_scripts_all_maps.py` for real against all 20
+maps (never dispatched before): **20/20 succeeded, 0 unmapped top-level actions, only 100 nested
+actions unmapped across 3 distinct classes out of many thousands mapped** (4-Recreation: 88,
+ChallengeRoomCombat: 12). Built the best-scoped of the three, `ActionSaveGame` (3 occurrences) —
+a name-based scripted checkpoint save, extracted a widget-free `UShockSaveGame::SaveScripted`
+helper from `UShockSaveLoadMenu::SaveToSlot`'s core logic (menu itself untouched, no regression
+risk) and wired a new `UShockActionSaveGame` through it; re-ran the batch, confirmed closed. The
+other two are deliberately NOT built here, each needing a real system this task's scope does not
+cover: `ActionSetNextAssassinTeleportInRunDestination` (29 occurrences, 2 maps) needs an `Assassin`
+AI archetype that does not exist at all yet (roadmap priority 4's job); `ActionChangeSkinToPhoto`
+(68 occurrences, 1 map) needs Research Camera photo storage that isn't built (tracked separately
+under Weapons' "Research Camera rewards" gap). Regression-verified clean: `verify_gameplay_fidelity`,
+`verify_scripting_movers`, `verify_vita_chamber`, `verify_import_scripts`, `verify_water`,
+`verify_weapon_impacts_pie` (6/6).
+
+The prior landed work, newest first: `ActionEnableOrDisableTrainingMessages`'s mute gate
 (roadmap priority 2's last remaining scripting-VM stub — see "Known-missing features" below for
 detail; `verify_scripting_vm_stubs.py` now 37/37), a live-PIE weapon fix (ejected Tommy Gun shell
 casings used the engine's bare default `Cylinder` mesh with no material ever assigned, rendering as

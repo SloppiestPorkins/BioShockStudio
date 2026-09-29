@@ -32,6 +32,7 @@
 #include "ShockActionPlayMovie.h"
 #include "ShockActionSetAIRangedWeaponAccuracy.h"
 #include "ShockActionEnableOrDisableTrainingMessages.h"
+#include "ShockActionSaveGame.h"
 #include "ShockActionHackTurret.h"
 #include "ShockActionControlPlant.h"
 #include "ShockActionSetEffectsSystemContext.h"
@@ -2722,6 +2723,15 @@ FString UShockSchemaLibrary::ApplyActionDefaults(UShockAction* Action, const FSt
 				{
 					Train->bEnableTrainingMessages = Text.Equals(TEXT("true"), ESearchCase::IgnoreCase);
 					Applied.Add(TEXT("EnableTrainingMessages"));
+				}
+			}
+			if (UShockActionSaveGame* Save = Cast<UShockActionSaveGame>(Action))
+			{
+				FString Text;
+				if (Lookup(Classes, ClassName, TEXT("SaveGameName"), Text) && !Text.StartsWith(TEXT("<")))
+				{
+					Save->Configure(Unquote(Text));
+					Applied.Add(TEXT("SaveGameName"));
 				}
 			}
 			if (UShockActionHackTurret* Hack = Cast<UShockActionHackTurret>(Action))
