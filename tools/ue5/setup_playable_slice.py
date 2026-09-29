@@ -449,6 +449,10 @@ STEPS = [
     ("travel_dest_map", None, _ensure_travel_dest_map, ()),
     ("repair_null_master_textures", "repair_null_master_textures", "main", ()),
     ("repair_null_slot_materials", "repair_null_slot_materials", "main", ()),
+    # The compiled-world shell's one material-less section (repair_null_slot_materials
+    # deliberately skips it, "zoning face, intentionally null") -- hides it instead of leaving it
+    # as UE5's visible grey checkerboard fallback. See the module docstring for why.
+    ("repair_compiled_world_null_material", "repair_compiled_world_null_material", "main", ()),
     ("repair_placeholder_base_colours", "repair_placeholder_base_colours", "main",
      (SLICE_MANIFEST,)),
     ("fix_clobbered_diffuse_textures", "fix_clobbered_diffuse_textures", "main",

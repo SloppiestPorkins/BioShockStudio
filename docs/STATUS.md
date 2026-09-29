@@ -8,9 +8,19 @@ confirmed by the user in a live PIE session, what's an open bug, and what's a kn
 Where a claim below could not be confirmed against the repository (commits, task files, source), it
 says **STATUS UNCLEAR — verify** rather than guessing.
 
-## Most recent landed work (28 Sept 2026)
+## Most recent landed work (29 Sept 2026)
 
-The most recent commits, newest first: `w20` (watchers, critical/immediate execution flush,
+The most recent commits, newest first: a live-PIE lighting fix (raw BioShock light intensities
+were never actually rescaled on the live slice — applied for real, all 666 lights), a Medical
+glass-material opacity wiring fix (glass read the diffuse texture's own alpha instead of a real,
+separately-exported opacity texture when one existed — `docs/research/medical-glass-opacity-fix.md`),
+a weapon tracer visual fix (the debug-line tracer started inside the viewmodel's own close-range
+render space and visually sliced through the gun), and the compiled-world mesh's one null material
+slot (a genuine exporter-side gap, read as scattered "broken texture" checkerboard patches
+level-wide — hidden rather than textured with an unverified guess, see
+`docs/research/compiled-world-zoning-face.md`). All 29 Sept, all live-PIE-report-driven, all
+regression-verified clean. Prior day's landings, newest first: `w20` (watchers, critical/immediate
+execution flush,
 `TestFact`, training-message HUD, `d9e8830`), `z1` (Medical's 19 per-instance water materials,
 `ffa4f5a`/`b8b6777`), `w19` (interact-trace pipeline bugs fixed + real aim-point root-cause fix,
 46→36 failures, `5b6eb43`), a light-shape/rotation fix and a same-day regression fix for it
