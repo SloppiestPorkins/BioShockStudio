@@ -2788,6 +2788,15 @@ void AShockGameMode::BeginVerifyInteractTrace(AShockPlayer* Player)
 		FVector BestReachedStand = FVector::ZeroVector;
 		bool bFoundReachesTarget = false;
 
+		// Tried (29 Sept 2026): snapping each ring candidate's ground point to the navmesh via
+		// UNavigationSystemV1::ProjectPointToNavigation before testing it, on the theory (w21) that
+		// an un-nav-checked candidate can sit inside a wall or float in the next room, making the
+		// ring's choice close to arbitrary. Measured, not assumed: promptFail went 36 -> 39
+		// (wrong_mesh_or_blocker 20 -> 28) against the live 1-Medical interact-trace verify -- the
+		// tight query extent skipped viable candidates the old unconstrained search still found,
+		// for net negative. Reverted; the ring-probe below is the original, measured-36 version. See
+		// docs/research/w19-remaining-interact-fails.md and w21-interact-trace-placement-nudge.md
+		// for the full history of what has and hasn't moved this number.
 		for (float Distance : Distances)
 		{
 			for (const FVector2D& Dir : Rings)
