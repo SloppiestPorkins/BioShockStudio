@@ -93,7 +93,13 @@ per-system sections below.
    scripts already gating on them (GatePadlock unlocks OpenSteinmanGate, KureAllGrate1 unlocks its
    own grate script, ...) — required extending `UShockDamageLibrary::ApplyDamage` and each
    `ShockWeapon.cpp` call site past their pawn-only assumption, not just a placement script (see
-   STATUS.md). Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting
+   STATUS.md). Also **done, 30 Sept 2026**: ~~InPlayerViewTrigger (look-at cutscene/tutorial
+   gates)~~ — `AShockInPlayerViewTrigger` + `import_slice_in_player_view_triggers.py`, all 14 of
+   Medical's instances now really detect the player looking at (or away from) them and dispatch
+   the Scripts already gating on them (SteinmanIntro, Quarantine_PistolIntro, Ghost_TwoTwo,
+   TrainingHackTurret, ...) — these had no line-of-sight/FOV logic behind them at all, so several
+   of Medical's scripted narrative/tutorial beats were entirely dead, not degraded (see STATUS.md).
+   Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting
    components (runs against generic inventory stacks today).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.

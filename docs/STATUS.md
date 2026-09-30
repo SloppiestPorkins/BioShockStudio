@@ -10,7 +10,39 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **shootable/damageable reactive props — padlocks, grates, ice,
+The most recent landed work: **`InPlayerViewTrigger` (look-at cutscene/tutorial gates) — all 14
+instances in 1-Medical are real `TriggeredBy` targets for real Scripts, and every one of them was
+completely dead.** `SteinmanIntro`, `Quarantine_PistolIntro`, `Ghost_TwoTwo` (the first ghost
+sequence), `EternalFlameBlast`, `QuarSwitch_UnlockMaintenanceHall`, `TrainingHackTurret`, and 8
+more all gate on one of these labels via `TriggeredBy`, and every one of those Scripts'
+`scriptMessageClass` resolves to UE2's base `Message` class, which `MatchesMessageClass` accepts
+from any dispatched class — so only the label needed to exist and fire, and it never did.
+`InPlayerViewTrigger` never had a dedicated actor class wired (`import_level.py`'s fallback), so
+these imported as inert `TargetPoint`s with no line-of-sight/FOV logic behind them at all. New
+`AShockInPlayerViewTrigger`: a location-only actor (no mesh, no collision) that ticks a few times
+a second, checks whether the player's own camera has an unoccluded line of sight to it within a
+view cone, and dispatches once it does — or, for `TriggerWhenNotSeen` (2 of the 14: a "look at the
+present, then look away" pair and a patient-body-swap cutscene gimmick), once the player looks away
+*after* having seen it, never immediately just because it was never looked at (would make no
+narrative sense for a look-away trigger to fire before ever being looked at). PLAUSIBLE stand-ins
+where the original UE2 class isn't decoded anywhere available: a 60-degree view cone, and
+`MinimumDistance` read as a maximum range gate (2 of the 14 use it — the ghost sequence and the
+hacking-turret tutorial). Also deliberately does NOT read the manifest's own `enabled` property:
+this exporter only serializes non-default values, so a bare bool's presence is ambiguous about
+which direction is default, and there's no `ActionEnableOrDisable...`-style action anywhere in the
+plugin that could ever turn one on later if it started disabled — so importing every instance
+active is both the safer and the more narratively plausible reading. Caught and fixed a real bug
+during verification, not just a design guess: the actor had no `RootComponent` (no mesh, so none
+was ever created), which silently means `SetActorLocation`/spawn-with-location is a no-op in UE5 —
+every placed instance was sitting at world origin (0,0,0) until a plain `USceneComponent` root was
+added. Verified end-to-end headless (16 checks): view-cone fire/no-fire, the one-shot guard, the
+seen→not-seen edge semantics (including the "never fires before ever being seen" case), the
+distance gate, the real dispatch reaching a listening script, and 4 of the real live-slice
+instances (including the two with a distance gate) resolving as genuine
+`AShockInPlayerViewTrigger` actors. Regression-verified clean: `verify_import_scripts`,
+`verify_gameplay_fidelity`, `verify_scripting_movers`.
+
+The prior landed work: **shootable/damageable reactive props — padlocks, grates, ice,
 oil slicks, TVs — now real actors that unlock real scripts, closing a genuine "the player cannot
 progress/experience content" gap, the same class of bug as switches.** `Padlock`, `dyn_grate64`,
 `NonPhysicalNonPathBlockingReactiveActor`, `OilSlick02_Reactive`/`OilSlick04_Reactive`, and
