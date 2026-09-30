@@ -10,7 +10,30 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **Brigid Tenenbaum's 200-ADAM gift (`TenenbaumPresent`) can now
+The most recent landed work: **`verify_ai_archetypes.py`'s false `spawn Agg_BabyJane failed`
+cleared.** The spawn probe was hardcoded to `unreal.Vector(500.0, 0.0, 100.0)` since the original
+Phase-3 commit (`27bc69e`, 30 Aug 2026) — world origin, with no Medical floor under it.
+`ActionSpawnAI::SpawnAtLocation` calls `FindGroundedSpawnLocation` (Visibility line-trace) *before*
+any archetype lookup, so the failure was a bad test fixture, not an archetype bug (already flagged
+as a follow-up under the 29 Sept weapon-resolution slice). Also fixed a separate, pre-existing bug this same pass:
+`verify_ai_archetypes.py` was missing the `sys.path.append(os.path.dirname(os.path.abspath(__file__)))`
+line every other script in this project has before importing a sibling module (`import
+import_ai_archetypes`) — without it, `-run=pythonscript -script=<abs path>` (this project's own
+standard headless invocation) fails with `ModuleNotFoundError` before the script body ever runs.
+
+Measured further while fixing: simply moving the probe into Medical space is **not** enough in this
+headless editor commandlet — Visibility traces against Medical's compiled-world mesh return no hit
+at MedicalStart, the pavilion movement start (`-18096, 2480, 7794`), authored AggressorSpawner
+markers, *and* world origin. (MedicalStart also sits inside BlockingVolumes that would fail the
+subsequent `AdjustIfPossibleButDontSpawnIfColliding` capsule spawn even if a floor were found —
+same landmine `ShockGameMode::SpawnDefaultPawn` works around with `AlwaysSpawn`.) Fix: probe at
+the pavilion movement-start XY (Medical playable space), place a temporary BlockAll
+`/Engine/BasicShapes/Cube` slab under it so `FindGroundedSpawnLocation` can succeed, assert
+archetype-applied spawn health, destroy both. Headless `verify_ai_archetypes` now PASSes
+(`spawnedHealth` 80.0 == `expectedBabyJaneHealth` 80.0). Regression-clean:
+`verify_gameplay_fidelity` (27/27), `verify_import_scripts` (0 failures).
+
+The prior landed work: **Brigid Tenenbaum's 200-ADAM gift (`TenenbaumPresent`) can now
 actually be received — and fixed a real bug in the container-loot path that would have silently
 swallowed it even after placement.** Systematically re-swept every Medical className with zero
 import-script references (220 candidates after fixing a CRLF bug in the sweep itself) against
@@ -249,7 +272,8 @@ found so far only cover Pistol/SMG/Grenadier/Melee — Shotgun/Crossbow/Chemical
 exist elsewhere with their own naming quirks, unverified. A separate, unrelated pre-existing bug was
 found (not fixed) in `verify_ai_archetypes.py`'s own spawn test — hardcoded coordinates that don't
 correspond to real floor geometry in Medical's coordinate space, failing upstream of any archetype
-code — flagged as its own follow-up task, not blocking this fix.
+code — **fixed 30 Sept 2026** (see "Most recent landed work" above): Medical-space probe + temporary
+BlockAll ground slab; headless verify now PASSes with `spawnedHealth` 80.0.
 
 The prior landed work: **roadmap priority 3, script-graph import on the 20 non-Medical
 maps, done.** Previously proven on `1-Medical` only. Added `export-level-manifest`, a new CLI verb
@@ -327,8 +351,8 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 
 ## Active work
 
-Nothing in flight — `task_977a74fe` (stations/movers duplicate-collider audit) closed 30 Sept 2026;
-see "Most recent landed work" above. If picking up new work, update this section rather than
+Nothing in flight — `verify_ai_archetypes.py` false `spawn Agg_BabyJane failed` cleared 30 Sept 2026
+(see "Most recent landed work" above). If picking up new work, update this section rather than
 trusting an old claim table.
 
 

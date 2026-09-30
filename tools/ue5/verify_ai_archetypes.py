@@ -9,7 +9,8 @@ import sys
 
 import unreal
 
-import import_ai_archetypes
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import import_ai_archetypes  # noqa: E402
 
 
 def _log(message):
@@ -90,6 +91,47 @@ def _expected_health_for_mesh(manifest, mesh_name):
     return float(matches[0]["health"])
 
 
+def _spawn_probe_in_medical_space():
+    """Medical-space XY for the ActionSpawnAI probe (not world origin).
+
+    The original fixture (500, 0, 100) sits near world origin; 1-Medical's playable geometry
+    is around MedicalStart (~-17k X / ~7.7k Z). Coordinate is verify_enemies'
+    bathysphere-pavilion movement start.
+    """
+    return unreal.Vector(-18096.0, 2480.0, 7900.0)
+
+
+def _place_temp_ground_slab(probe):
+    """Place a BlockAll cube under probe so FindGroundedSpawnLocation can succeed.
+
+    Measured 30 Sept 2026: in this headless editor commandlet, Visibility line traces against
+    Medical's compiled-world mesh return no hit at MedicalStart, the pavilion movement start,
+    authored AggressorSpawner markers, *and* world origin — so ActionSpawnAI's ground probe
+    fails before archetype lookup regardless of XY. A temporary BlockAll BasicShapes/Cube
+    under the probe is the fixture that makes FindGroundedSpawnLocation (+ the subsequent
+    capsule spawn) succeed; the assert under test is still archetype-applied spawn health.
+    """
+    cube = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube")
+    if cube is None:
+        raise RuntimeError("missing /Engine/BasicShapes/Cube")
+    subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    floor = subsystem.spawn_actor_from_class(
+        unreal.StaticMeshActor,
+        unreal.Vector(probe.x, probe.y, probe.z - 100.0),
+        unreal.Rotator(),
+    )
+    if floor is None:
+        raise RuntimeError("could not place temp ground slab")
+    floor.set_actor_label("VerifyAiArchetypeGround")
+    floor.static_mesh_component.set_editor_property("static_mesh", cube)
+    floor.set_actor_scale3d(unreal.Vector(20.0, 20.0, 1.0))
+    floor.static_mesh_component.set_collision_profile_name("BlockAll")
+    floor.static_mesh_component.set_collision_enabled(
+        unreal.CollisionEnabled.QUERY_AND_PHYSICS
+    )
+    return floor
+
+
 def main(out, manifest_path=None):
     report = {"failures": [], "error": None}
     failures = report["failures"]
@@ -157,14 +199,29 @@ def main(out, manifest_path=None):
         spawn = unreal.new_object(spawn_cls)
         spawn.configure("Agg_BabyJane", "SpawnMarker", "VerifyBabyJane", 0.0, 0.0, True)
         world = unreal.EditorLevelLibrary.get_editor_world()
-        spawned = spawn.spawn_at_location(world, unreal.Vector(500.0, 0.0, 100.0))
-        if not spawned:
-            failures.append("spawn Agg_BabyJane failed")
-        else:
-            health = float(spawned.get_current_health())
-            report["spawnedHealth"] = health
-            if expected_health is not None and abs(health - expected_health) > 0.01:
-                failures.append("spawn health %.2f != %.2f" % (health, expected_health))
+        probe = _spawn_probe_in_medical_space()
+        report["spawnProbe"] = [float(probe.x), float(probe.y), float(probe.z)]
+        subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        floor = None
+        spawned = None
+        try:
+            floor = _place_temp_ground_slab(probe)
+            report["tempGroundSlab"] = True
+            spawned = spawn.spawn_at_location(world, probe)
+            if not spawned:
+                failures.append("spawn Agg_BabyJane failed")
+            else:
+                health = float(spawned.get_current_health())
+                report["spawnedHealth"] = health
+                if expected_health is not None and abs(health - expected_health) > 0.01:
+                    failures.append("spawn health %.2f != %.2f" % (health, expected_health))
+        except Exception as exc:  # noqa: BLE001 -- surface fixture errors as verify failures
+            failures.append("spawn fixture: %s" % exc)
+        finally:
+            if spawned is not None:
+                subsystem.destroy_actor(spawned)
+            if floor is not None:
+                subsystem.destroy_actor(floor)
 
     _write_report(out, report)
     if failures:
