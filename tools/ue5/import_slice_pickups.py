@@ -80,22 +80,34 @@ PICKUPS = {
     "ChompersDentalKeyPickup": _p(K_ITEM, 1, item="ChompersDentalKey", interact=True),
 }
 
-# className -> (moneyMin, moneyMax, item)
+# className -> (moneyMin, moneyMax, item, itemAmount)
 CONTAINERS = {
-    "DeadBodyContainer": (1, 30, ""),
-    "KeyframedDeadBodyContainer": (1, 30, ""),
-    "CorpseMaleBooty": (1, 24, ""),
-    "AggBabyJaneBooty": (2, 26, ""),
-    "AggDoctorBooty": (4, 34, ""),
-    "AggToastyBooty": (2, 22, ""),
-    "CashRegister": (5, 45, ""),
-    "FlowerVaseContainer": (1, 12, ""),
+    "DeadBodyContainer": (1, 30, "", 1),
+    "KeyframedDeadBodyContainer": (1, 30, "", 1),
+    "CorpseMaleBooty": (1, 24, "", 1),
+    "AggBabyJaneBooty": (2, 26, "", 1),
+    "AggDoctorBooty": (4, 34, "", 1),
+    "AggToastyBooty": (2, 22, "", 1),
+    "CashRegister": (5, 45, "", 1),
+    "FlowerVaseContainer": (1, 12, "", 1),
     # 5 instances in Medical (3 WallSafe + 2 Safe) never matched the "Pickup"/"Container"/"Booty"
     # substring fallback below, so they fell all the way through to an invisible, non-searchable
     # TargetPoint -- a real safe the player could never open. PLAUSIBLE range: higher than
     # CashRegister since a safe is the better-hidden container in BioShock's own loot tiering.
-    "SecurityCrate_WallSafe": (10, 60, ""),
-    "SecurityCrate_Safe": (10, 60, ""),
+    "SecurityCrate_WallSafe": (10, 60, "", 1),
+    "SecurityCrate_Safe": (10, 60, "", 1),
+    # 1 instance ("TenenbaumGift"): a Brigid Tenenbaum quest reward. Never matched the
+    # "Pickup"/"Container"/"Booty" fallback either -- fell straight to an invisible TargetPoint,
+    # so the player could never receive it. The manifest's own "Present_PickedUp" script (its
+    # messageFilter names ContainerLabel=TenenbaumGift, ItemClass=ADAM, ItemCount=200) is the
+    # source for the exact amount, even though that script itself can't currently fire --
+    # ShockSearchableContainer's take-loot path never dispatches the
+    # MessagePlayerRemovedItemFromContainer message it listens for (no code anywhere dispatches
+    # that class), and its own TriggeredBy is empty in the export, so wiring that script is a
+    # separate, deeper gap. The actual reward -- 200 ADAM -- does not depend on that script firing;
+    # it's granted directly by AddStackToInventory the moment the container is searched, same as
+    # every other container here.
+    "TenenbaumPresent": (0, 0, "Adam", 200),
 }
 
 
@@ -207,14 +219,14 @@ def main(manifest_path=None, map_path=SLICE_MAP, save=True):
             report["pickups"] += 1
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1
         elif cn in CONTAINERS:
-            money_min, money_max, item = CONTAINERS[cn]
+            money_min, money_max, item, item_amount = CONTAINERS[cn]
             actor, _created = _place(container_cls, entry, existing)
             if actor is None:
                 continue
             actor.configure_container(
                 unreal.Name(str(entry.get("label") or entry.get("name") or entry["key"])),
                 money_min, money_max,
-                unreal.Name(item) if item else unreal.Name(), 1)
+                unreal.Name(item) if item else unreal.Name(), item_amount)
             actor.set_container_mesh(_load_mesh(entry.get("staticMesh")))
             report["containers"] += 1
             report["byClass"][cn] = report["byClass"].get(cn, 0) + 1

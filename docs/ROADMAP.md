@@ -107,9 +107,19 @@ per-system sections below.
    duplicate-collider audit) **closed 30 Sept 2026**: Placeable* stations already inherited the
    fix via shared `import_slice_pickups._place`; ScriptableMovers were never affected (already
    denylisted); ResurrectionStation/VitaChamber *was* affected and is now denylisted + cleaned
-   in `_import_vita_chambers` (see STATUS.md). Still open:
+   in `_import_vita_chambers` (see STATUS.md). Also **done, 30 Sept 2026**: ~~TenenbaumPresent
+   (200-ADAM gift) unreachable~~ — a systematic re-sweep of every Medical class with zero
+   import-script coverage against every Script's TriggeredBy/messageFilter turned up only two
+   remaining real hits: `TenenbaumGift` (now a real container, fixed a real bug in
+   `AShockSearchableContainer::Search()` along the way — it couldn't actually grant ADAM at all,
+   only generic inventory stacks) and `DoorKeypadControl` (still open, see next). Still open:
    Gene Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against
-   generic inventory stacks today).
+   generic inventory stacks today), `DoorKeypadControl` (1 instance, `TwilightFieldsKeypad` ->
+   `MorgueClosetDoor` — needs a real keypad code-entry UI, not just placement;
+   `ShockActionDoorKeypadUsed::ApplyInWorld` already has its own comment admitting "Success cannot
+   be delivered to a control" since no keypad-control actor class exists yet), and `TrainingScript`
+   (26 instances, a proximity/ambience-concept system with no `scriptActions` at all — a
+   genuinely different, unclear-spec mechanism, not a placement gap).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art

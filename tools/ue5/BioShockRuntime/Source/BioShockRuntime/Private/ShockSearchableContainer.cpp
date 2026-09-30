@@ -135,7 +135,20 @@ bool AShockSearchableContainer::Search(AShockPlayer* Player)
 	}
 	if (!LootItemClass.IsNone())
 	{
-		Player->AddStackToInventory(LootItemClass, LootItemAmount);
+		// AddStackToInventory treats every ItemClass as a generic inventory stack -- "Adam" would
+		// silently land as a meaningless InventoryStacks["Adam"] entry instead of real ADAM
+		// currency, which only AddAdam/PlayerAdam tracks. AShockConsumablePickup's own K_ADAM kind
+		// already special-cases this the same way (ShockConsumablePickup.cpp); a container with
+		// LootItemClass="Adam" (e.g. Medical's TenenbaumPresent gift, 200 Adam) needs the same
+		// branch or the reward is simply never delivered.
+		if (LootItemClass == FName(TEXT("Adam")))
+		{
+			Player->AddAdam(LootItemAmount);
+		}
+		else
+		{
+			Player->AddStackToInventory(LootItemClass, LootItemAmount);
+		}
 	}
 	TArray<int32> SlotNumbers;
 	ScriptedSlots.GetKeys(SlotNumbers);

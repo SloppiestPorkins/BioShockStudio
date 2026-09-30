@@ -10,7 +10,38 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **stations/movers duplicate-collider audit (`task_977a74fe`) —
+The most recent landed work: **Brigid Tenenbaum's 200-ADAM gift (`TenenbaumPresent`) can now
+actually be received — and fixed a real bug in the container-loot path that would have silently
+swallowed it even after placement.** Systematically re-swept every Medical className with zero
+import-script references (220 candidates after fixing a CRLF bug in the sweep itself) against
+every Script's `TriggeredBy`/`messageFilter` target, to catch anything the earlier one-class-at-a-
+time hunt missed. Only two real hits survived: the already-known, already-deferred
+`DoorKeypadControl` (needs a whole keypad-UI system, see below), and `TenenbaumPresent` — 1
+instance, labeled `TenenbaumGift`, holding a scripted reward two Scripts key off
+(`Present_PickedUp`/`Present_PickedUpBackup`, `ContainerLabel=TenenbaumGift, ItemClass=ADAM,
+ItemCount=200`). It never matched `import_slice_pickups.py`'s "Pickup"/"Container"/"Booty"
+substring fallback either, so it fell straight to an invisible `TargetPoint`, same as the safes.
+
+Added it to `CONTAINERS` (extended the dict's tuple shape to carry an item amount, not just money,
+since every existing entry defaults to `1` and this one genuinely needs `200`) — but configuring
+`LootItemClass="Adam"` alone would NOT have worked: `AShockSearchableContainer::Search()`
+unconditionally routed every item class through `AddStackToInventory`, which treats `"Adam"` as
+just another generic inventory stack key, not real ADAM currency (`PlayerAdam`/`AddAdam`/
+`GetAdam()` are a separate system entirely). `AShockConsumablePickup`'s own `K_ADAM` kind already
+special-cases this correctly for world pickups; `Search()` had no equivalent branch, so a
+container promising ADAM would have silently handed the player a meaningless, unrecognized
+`InventoryStacks["Adam"]` entry instead — worse than the TargetPoint it replaced, since it would
+have looked fixed while still not delivering the reward. Added the same special case to `Search()`.
+The two `Present_PickedUp*` scripts still can't fire (their own `TriggeredBy` is empty in this
+export, and nothing anywhere dispatches `MessagePlayerRemovedItemFromContainer` — a separate,
+deeper gap, not blocking here since the actual ADAM grant never depended on those scripts firing
+in the first place, exactly like every other container in this project). Verified end-to-end
+headless: the real live `TenenbaumGift` instance resolves as a real `AShockSearchableContainer`
+configured with the correct item/amount, and — on a disposable scratch container, not the real
+one-shot live instance — searching it actually adds 200 to `GetAdam()`. Regression-verified:
+`verify_pickups` (9/9), `verify_stations`, `verify_gameplay_fidelity` (27/27).
+
+The prior landed work: **stations/movers duplicate-collider audit (`task_977a74fe`) —
 closed.** Manifest-audited Medical against the same `instance:<actorKey>:<asset>` overlap that
 hit switches/pickups:
 
