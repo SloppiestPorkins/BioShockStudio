@@ -85,17 +85,23 @@ def destroy_instance_duplicates(existing, actor_key):
     actorKey (tagged `BioShockKey=instance:<actorKey>:<asset>`).
 
     Confirmed live 30 Sept 2026: most gameplay classes that later get a dedicated actor (switches,
-    NonPhysicalReactiveActor, Padlock/dyn_grate64/TV_WallMounted, ...) ALSO have a plain geometry
-    instance entry in the manifest's own `instances[]` list -- `_should_place_mesh_instance` has no
-    class denylist for them, so `_import_instances` places a real, visible mesh for every one of
-    them regardless (this is why some of these were never actually "invisible" in the base import
-    -- only non-interactive). A dedicated import script that spawns its own actor at the same
-    key/location without removing that generic duplicate leaves two overlapping BlockAll colliders
-    at the identical transform: `LineTraceSingleByObjectType` returns whichever one the physics
-    engine happens to resolve first, not necessarily the gameplay actor, so a weapon hit can
-    silently land on the dead duplicate instead of the actor that's supposed to react to it -- a
-    bug a headless test that calls the reaction method directly (bypassing the real trace) cannot
-    catch. Callers should invoke this right before/when placing their own actor for `actor_key`.
+    NonPhysicalReactiveActor, Padlock/dyn_grate64/TV_WallMounted, pickups/containers, Placeable*
+    stations, ...) ALSO have a plain geometry instance entry in the manifest's own `instances[]`
+    list -- `_should_place_mesh_instance` has no class denylist for them, so `_import_instances`
+    places a real, visible mesh for every one of them regardless (this is why some of these were
+    never actually "invisible" in the base import -- only non-interactive). A dedicated import
+    script that spawns its own actor at the same key/location without removing that generic
+    duplicate leaves two overlapping BlockAll colliders at the identical transform:
+    `LineTraceSingleByObjectType` / Visibility interact-trace returns whichever one the physics
+    engine happens to resolve first, not necessarily the gameplay actor, so a weapon hit or
+    interact can silently land on the dead duplicate instead of the actor that's supposed to
+    react to it -- a bug a headless test that calls the reaction method directly (bypassing the
+    real trace) cannot catch. Callers should invoke this right before/when placing their own
+    actor for `actor_key`.
+
+    Not needed for ScriptableMover/Fan/Mover or ResurrectionStation: those are denylisted in
+    `_should_place_mesh_instance` and placed by `_import_animated_props` / `_import_vita_chambers`
+    respectively (30 Sept 2026 stations-duplicate audit).
     """
     prefix = "instance:" + actor_key + ":"
     destroyed = 0
@@ -536,6 +542,12 @@ def _import_vita_chambers(manifest, meshes, existing, report, handled):
 
         existing[key] = actor
         _place(actor, entry, key)
+        # Same duplicate-collider cleanup as dedicated slice scripts: a prior import_level run
+        # may have left instance:<key>:<asset> StaticMeshActors (ResurrectionStation was not
+        # denylisted until the stations-duplicate audit). Destroy them here so a vita-only
+        # re-import also cleans the map; _should_place_mesh_instance now denylists the class so
+        # a full import_level won't recreate them.
+        destroy_instance_duplicates(existing, key)
         actor.configure_identity(
             unreal.Name(entry.get("label") or entry.get("name") or key), key)
         mesh_ref = entry.get("staticMeshReference") or {}
@@ -938,6 +950,11 @@ def _is_animated_prop_class(actor_class):
     return actor_class in ("ScriptableMover", "Fan", "Mover")
 
 
+def _is_vita_chamber_class(actor_class):
+    """ResurrectionStation — placed as AShockVitaChamber with its own mesh by `_import_vita_chambers`."""
+    return actor_class == "ResurrectionStation"
+
+
 def _is_fan_mesh_name(name):
     """Medical has no Fan class; spinning props ship as StaticMeshActors named *fan*."""
     return bool(name) and "fan" in name.lower()
@@ -948,13 +965,19 @@ def _should_place_mesh_instance(actor_class, asset_kind, asset_name=""):
 
     Gameplay volumes are placed separately by `_import_region_volumes`. Source CSG brushes are never
     drawn in the shipped game — the compiled world already contains them. Animated props
-    (ScriptableMover / Fan / fan meshes) are placed by `_import_animated_props`.
+    (ScriptableMover / Fan / fan meshes) are placed by `_import_animated_props`. Vita chambers are
+    placed by `_import_vita_chambers` with `set_station_mesh` — leaving a generic StaticMeshActor
+    at the same transform makes `GetPlayerStartTransform`'s Visibility clearance probe (which
+    ignores only `this`, not a co-located duplicate) report near-zero clearance through the
+    machine body.
     """
     if asset_kind == "Brush" and not _is_non_drawn_volume(actor_class):
         return False
     if _is_non_drawn_volume(actor_class):
         return False
     if _is_animated_prop_class(actor_class) or _is_fan_mesh_name(asset_name):
+        return False
+    if _is_vita_chamber_class(actor_class):
         return False
     return True
 
@@ -1500,6 +1523,8 @@ def _import_instances(manifest, meshes, skeletal_meshes, existing, report, handl
             _remove_owned_mesh(key, existing, report)
             if _is_animated_prop_class(actor_class_name) or _is_fan_mesh_name(asset_name):
                 report["animatedPropMeshDeferred"] = report.get("animatedPropMeshDeferred", 0) + 1
+            elif _is_vita_chamber_class(actor_class_name):
+                report["vitaChamberMeshDeferred"] = report.get("vitaChamberMeshDeferred", 0) + 1
             else:
                 report["meshInstancesSkipped"] = report.get("meshInstancesSkipped", 0) + 1
             continue

@@ -94,6 +94,30 @@ def main(out_path=None, manifest_path=MANIFEST):
         manifest, meshes, existing, import_report, handled)
     report["import"] = import_report
 
+    # Policy gate (stations-duplicate audit, 30 Sept 2026): Vita chambers own their mesh via
+    # set_station_mesh. A generic instance StaticMeshActor at the same transform makes
+    # GetPlayerStartTransform's Visibility clearance probe (ignores only `this`) report
+    # near-zero clearance through the co-located duplicate. Denylist must stick.
+    if import_level._should_place_mesh_instance("ResurrectionStation", "StaticMesh"):
+        failures.append(
+            "ResurrectionStation must not get a generic instance mesh "
+            "(AShockVitaChamber owns it; see _should_place_mesh_instance)")
+    # Live-map cleanup: any leftover instance: mesh under a chamber key is the same bug,
+    # still sitting from an older import. Flag it so re-running import_level (which now
+    # _remove_owned_mesh's the denylisted keys) is the required follow-up, not optional.
+    leftover = []
+    for entry in expected:
+        prefix = "instance:" + entry["key"] + ":"
+        for key, actor in existing.items():
+            if key.startswith(prefix) and isinstance(
+                    actor, (unreal.StaticMeshActor, unreal.SkeletalMeshActor)):
+                leftover.append(key)
+    report["leftoverInstanceMeshes"] = leftover
+    if leftover:
+        failures.append(
+            "vita chamber still has generic instance mesh duplicate(s): %s"
+            % leftover)
+
     chamber_cls = unreal.load_class(
         None, "/Script/BioShockRuntime.ShockVitaChamber")
     player_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockPlayer")

@@ -10,6 +10,13 @@ authored `KeyPos` / `KeyRot` as the target key. `PropLabel` = the manifest label
 `PlayScriptedMotion`. Idempotent (`BioShockKey=`), wired into `setup_playable_slice`.
 
 BioShock rotation units: 65536 = 360 degrees. KeyPos is a component-relative offset.
+
+Duplicate-collider note (30 Sept 2026 audit, `task_977a74fe`): ScriptableMover / Fan / Mover are
+already denylisted by `import_level._should_place_mesh_instance` (deferred to
+`_import_animated_props`, which also destroys any leftover `instance:` mesh). So unlike
+stations/pickups/switches, movers do not get a second BlockAll StaticMeshActor from the generic
+pipeline. Reusing `import_slice_pickups._place` still calls `destroy_instance_duplicates` — a
+no-op here, kept for consistency.
 """
 from __future__ import annotations
 

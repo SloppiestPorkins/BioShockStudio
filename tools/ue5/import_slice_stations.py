@@ -7,6 +7,15 @@ them. Interact (F) opens the matching menu (or, for a Health Station, heals for 
 
 Idempotent (`BioShockKey=`), wired into `setup_playable_slice`. ResurrectionStation is handled
 by import_level (`AShockVitaChamber`, w16), not here.
+
+Duplicate-collider note (30 Sept 2026 audit, `task_977a74fe`): 7 of Medical's 10 Placeable*
+stations also have an `instances[]` entry, and `_should_place_mesh_instance` does not denylist
+them — so `_import_instances` leaves a generic `StaticMeshActor` under each. This script reuses
+`import_slice_pickups._place`, which calls `import_level.destroy_instance_duplicates` (landed for
+pickups in b0466aa), so re-running this import removes those duplicates. Stations are on the
+player interact Visibility trace (`TickInteractionTrace` → `AShockStationBase`); a leftover
+duplicate steals the prompt even though `HandleInteractInput` has a distance-based
+`TryInteractNearbyStation` fallback.
 """
 from __future__ import annotations
 
@@ -19,7 +28,7 @@ import unreal
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import clear_interactable_placement as clear_place  # noqa: E402
 import import_level  # noqa: E402
-import import_slice_pickups as pk  # noqa: E402  (reuse _place / _load_mesh)
+import import_slice_pickups as pk  # noqa: E402  (reuse _place / _load_mesh; destroys instance: duplicates)
 
 SLICE_MAP = "/Game/BioShockSlice/1-Medical"
 DEFAULT_MANIFEST = pk.DEFAULT_MANIFEST

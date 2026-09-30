@@ -103,8 +103,11 @@ per-system sections below.
    safes in Medical never matched `import_slice_pickups.py`'s own class-routing at all (not even as
    "unmapped"), now real `AShockSearchableContainer`s with real loot. Same pass also fixed the
    duplicate-collider bug (see the correctness-fix entry in STATUS.md) retroactively across the
-   entire ~230-instance pickup/container economy. A follow-up task (`task_977a74fe`) is open to
-   check whether stations/movers (doors, lifts) have the same duplicate-collider gap. Still open:
+   entire ~230-instance pickup/container economy. Follow-up `task_977a74fe` (stations/movers
+   duplicate-collider audit) **closed 30 Sept 2026**: Placeable* stations already inherited the
+   fix via shared `import_slice_pickups._place`; ScriptableMovers were never affected (already
+   denylisted); ResurrectionStation/VitaChamber *was* affected and is now denylisted + cleaned
+   in `_import_vita_chambers` (see STATUS.md). Still open:
    Gene Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against
    generic inventory stacks today).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the

@@ -10,7 +10,36 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **5 real safes (`SecurityCrate_WallSafe`/`SecurityCrate_Safe`) can
+The most recent landed work: **stations/movers duplicate-collider audit (`task_977a74fe`) —
+closed.** Manifest-audited Medical against the same `instance:<actorKey>:<asset>` overlap that
+hit switches/pickups:
+
+| Class family | Has `instances[]`? | Generic mesh placed by `_import_instances`? | Interact-trace risk? | Verdict |
+|---|---|---|---|---|
+| PlaceableHealth/Growth/Vending stations (10) | 7/10 yes (all Health + Growth; Vendings meshless) | **Yes** — not denylisted | **Yes** — `TickInteractionTrace` casts to `AShockStationBase` | **Already fixed** as a side effect of `import_slice_stations` reusing `import_slice_pickups._place` (which gained `destroy_instance_duplicates` in b0466aa). |
+| ScriptableMover (8) | 8/8 yes | **No** — denylisted via `_is_animated_prop_class`; deferred to `_import_animated_props` (which already destroys leftover `instance:` meshes) | No — movers are script-driven, not on the F-interact Visibility cast list (the spin-off note overstated this) | **Not affected** |
+| ResurrectionStation / VitaChamber (2) | 2/2 yes | **Was yes** — `_import_vita_chambers` placed the chamber, then `_import_instances` still stacked a `StaticMeshActor` on top (`handled` only stops the TargetPoint fallback, not instance meshes) | **Yes** — `GetPlayerStartTransform`'s Visibility clearance probe ignores only `this`, so a co-located duplicate reports near-zero clearance through the machine body | **Fixed this pass**: denylist in `_should_place_mesh_instance` + `destroy_instance_duplicates` inside `_import_vita_chambers`; `verify_vita_chamber` now asserts the policy and flags leftover instance meshes |
+
+This pass was produced by `cursor-agent` (dispatched to an isolated worktree) and reviewed/merged
+by hand, not run directly against the live editor by the agent itself — its own check was a
+C#/.NET "fast tier" (288/290, see below), not a UE5 headless verify. So the actual live-slice
+confirmation was done separately after merging: re-ran `import_slice_stations` (0 errors) and
+found both real `ResurrectionStation` instances in `1-Medical` still carrying the pre-fix leftover
+`StaticMeshActor` (the denylist only prevents a *future* `_import_instances` pass from recreating
+it, it does not retroactively clean an already-saved map) — a small one-off script called
+`destroy_instance_duplicates` directly on both keys rather than re-running the full, heavy
+`import_level.main()` pipeline. Confirmed live afterward: 0 leftover duplicates anywhere across
+all 10 stations and both vita chambers, `verify_vita_chamber`/`verify_stations` PASS, and the
+broader regression subset (`verify_gameplay_fidelity`, `verify_import_scripts`,
+`verify_scripting_movers`) clean.
+
+Documented the stations/movers findings in those scripts' module docs. Fast tier on this
+worktree (cursor-agent's own C#/.NET check, not a UE5 run): 288/290 passed; the 2 failures
+(`CubemapTests` / `MaterialAnimatorTests` Lighthouse probes) are empty-collection asserts against
+a missing Lighthouse install path in that worktree — unrelated to this Python/import-policy
+change (no C# diff).
+
+The prior landed work: **5 real safes (`SecurityCrate_WallSafe`/`SecurityCrate_Safe`) can
 now be opened for loot, and the same duplicate-collider bug (see below) is fixed retroactively
 across the entire ~230-instance pickup/container economy, not just the 3 fixes it was caught in.**
 `import_slice_pickups.py`'s own class-routing only ever had a *reporting* catch-all for anything
@@ -19,7 +48,7 @@ containing "Pickup"/"Container"/"Booty" in its className — `SecurityCrate_Wall
 "unmapped," they silently never reached this script at all and fell straight to `import_level`'s
 bare `TargetPoint` fallback: 5 real containers a player could never search. Added both classes to
 the existing `CONTAINERS` dict (reusing `AShockSearchableContainer`, no new class needed) with a
-higher loot range than `CashRegister` (safes are the better-hidden tier in BioShock's own loot
+higher loot range than `CashRegister` (safes are the better-hidden loot tier in BioShock's own loot
 design). Neither has a resolvable mesh in this level's export, so both land invisible-but-
 searchable — the same honest-degradation convention already used for other meshless containers.
 While touching `_place()` here, also applied `import_level.destroy_instance_duplicates` (see
@@ -28,9 +57,8 @@ every one is now a single actor per key, where before this same script (like swi
 props/damageable-props) was quietly leaving a duplicate `StaticMeshActor` under nearly every
 pickup and container in the slice. Verified: `verify_pickups` (9/9 checks), `verify_gameplay_fidelity`
 (27/27). Spun off a task (`task_977a74fe`) to audit whether `import_slice_stations.py` and
-`import_slice_animated_props.py` (doors/lifts) have the same gap — `ScriptableMover` in particular
-uses the same `ECC_Visibility` interact-trace mechanism as switches, so it's a real risk, not just
-a pickups-only issue.
+`import_slice_animated_props.py` (doors/lifts) have the same gap — **closed by the most-recent
+entry above**.
 
 The prior landed work: **fixed a real correctness bug in the last three fixes below —
 duplicate overlapping colliders at every switch/reactive-prop/damageable-prop's own location.**
@@ -268,9 +296,10 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 
 ## Active work
 
-Nothing in flight as of this writing (28 Sept 2026, after `w20` landed) — see `docs/ROADMAP.md`
-"Priority order" for what's next. If picking up new work, update this section rather than trusting
-an old claim table.
+Nothing in flight — `task_977a74fe` (stations/movers duplicate-collider audit) closed 30 Sept 2026;
+see "Most recent landed work" above. If picking up new work, update this section rather than
+trusting an old claim table.
+
 
 ---
 
