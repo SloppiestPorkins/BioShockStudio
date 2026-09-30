@@ -115,17 +115,19 @@ per-system sections below.
    only generic inventory stacks) and `DoorKeypadControl` (below). Also **done, 30 Sept 2026**:
    ~~DoorKeypadControl unplaced~~ — `AShockDoorKeypadControl` unlocks the door it controls and
    dispatches `MessageDoorKeypadUsed`, without a real code-entry minigame (none exists in this
-   project, no decoded keycode data available — see STATUS.md). Found a second, separate gap while
-   verifying it: `MorgueClosetDoor` itself (the door this keypad controls) isn't placed as a
-   functional door at all — none of Medical's 3 `LowRentDoorsWide` instances have manifest
-   placement data (`instances[]` entry or a raw `transform` field), so `import_level` skips all
-   three. The keypad mechanism is fully verified working end-to-end against a scratch door; the
-   real payoff needs that separate door-placement gap fixed first. Still open: Gene Bank tonics (no
-   tonic system exists at all), U-Invent crafting components (runs against generic inventory
-   stacks today), the 3 unplaced `LowRentDoorsWide` doors (missing manifest transform data — an
-   export/pipeline gap, not something a slice script can work around), and `TrainingScript`
-   (26 instances, a proximity/ambience-concept system with no `scriptActions` at all — a
-   genuinely different, unclear-spec mechanism, not a placement gap).
+   project, no decoded keycode data available — see STATUS.md). Found and fixed a second, separate
+   gap in the same pass: `MorgueClosetDoor` itself (the door this keypad controls) wasn't placed as
+   a functional door at all — `import_level._import_door_attachments` only resolved a transform
+   from an `instances[]` entry or a raw `transform` field, with no fallback to the actor's own
+   ordinary `location`/`rotation` fields every other placement function already uses; all 3 of
+   Medical's `LowRentDoorsWide` instances hit exactly that gap. Added the fallback — all 3 now
+   place as real `AShockDoor`s (see STATUS.md); keypad → door → script is verified genuinely
+   end-to-end against the real live instances now, not just a scratch stand-in. Still open: Gene
+   Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
+   inventory stacks today), and `TrainingScript` (26 instances, a proximity/ambience-concept system
+   with no `scriptActions` at all — a genuinely different, unclear-spec mechanism, not a placement
+   gap). 31 other doors are still skipped by `_import_door_attachments` for unrelated reasons, not
+   investigated.
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art

@@ -10,7 +10,24 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **`DoorKeypadControl` is now a real, interactive actor — Medical's
+The most recent landed work: **Fixed the `LowRentDoorsWide` placement gap the keypad fix below
+found — `MorgueClosetDoor` (and its 2 siblings) are now real, functional `AShockDoor`s.**
+`import_level._import_door_attachments` only ever resolved a door's transform from an
+`instances[]` entry's matrix or a raw `"transform"` field on the actor — and silently skipped the
+door entirely (`doorAttachmentsSkipped`) when neither existed, with no fallback to the actor's own
+perfectly ordinary `location`/`rotation` fields that every *other* actor-placement function in this
+pipeline already uses directly. All 3 of Medical's `LowRentDoorsWide` instances hit exactly this
+case — they have real `location`/`rotation` data, just not in either of the two matrix-shaped forms
+the function checked for. Added the fallback (`_rotation()` needs no `GameBasis` reversal for this
+field, unlike `_decompose`'s matrix case — confirmed via its own docstring — so this is the same
+plain path every non-door actor already takes). Re-ran `_import_door_attachments` live against
+`1-Medical`: all 3 previously-skipped doors (`LowRentDoorsWide0`, `MorgueClosetDoor`,
+`MorgueClosetTurretDoor`) now exist as real `ShockDoor` actors with the correct locked state.
+31 other doors are still skipped for unrelated reasons (not investigated — a separate, larger
+question, not chased here). Regression-verified: `verify_scripting_movers` (29/29),
+`verify_gameplay_fidelity` (27/27), `verify_import_scripts`, `verify_stations`.
+
+The prior landed work: **`DoorKeypadControl` is now a real, interactive actor — Medical's
 one keypad (`TwilightFieldsKeypad`) unlocks its door and fires the script gating on it.** Found via
 the systematic class sweep two entries down: `TwilightFieldsKeypadScript`
 (`TriggeredBy=TwilightFieldsKeypad`, `scriptMessageClass=MessageDoorKeypadUsed`) was one of only
@@ -33,10 +50,11 @@ Found a second, separate, pre-existing gap while verifying: `MorgueClosetDoor` (
 keypad controls) is not actually placed as a functional `AShockDoor` in the live slice at all —
 none of Medical's 3 `LowRentDoorsWide` instances (including this one) have a manifest `instances[]`
 entry or a raw `transform` field, so `import_level._import_door_attachments` skips all three
-entirely (`doorAttachmentsSkipped`, not a bug in this fix). The keypad mechanism itself is fully
+entirely (`doorAttachmentsSkipped`, not a bug in this fix). **Fixed in the entry above this one**
+(same session, right after landing the keypad). The keypad mechanism itself is fully
 verified working end-to-end (interact → unlock → dispatch → script fires) against a fresh scratch
-door; the real payoff is currently blocked on this separate door-placement gap, which is not fixed
-here — flagged, not forced. Verified end-to-end headless (11 checks): the interact/one-shot/unlock/
+door; the real live `MorgueClosetDoor` now resolves the same way. Verified end-to-end headless
+(11 checks): the interact/one-shot/unlock/
 dispatch mechanism on a scratch door+script, and the real live `TwilightFieldsKeypad` instance
 resolving as a real `AShockDoorKeypadControl` with the correct `DoorLabel`. Regression-verified:
 `verify_scripting_movers` (29/29), `verify_gameplay_fidelity` (27/27), `verify_import_scripts`.

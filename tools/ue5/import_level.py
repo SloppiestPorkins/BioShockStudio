@@ -1931,11 +1931,24 @@ def _import_door_attachments(
         attachments = door_data.get("attachments") or []
         actor_instances = instances.get(entry["key"]) or []
         transform = actor_instances[0].get("transform") if actor_instances else entry.get("transform")
-        if transform is None:
+        if transform is not None:
+            location, rotation, scale = _decompose(transform)
+        elif entry.get("location") is not None:
+            # Neither an instances[] entry nor a raw "transform" matrix -- confirmed live 30 Sept
+            # 2026 this is not "no placement data at all", it's just not in either of the two
+            # matrix-shaped forms _decompose expects. All 3 of Medical's LowRentDoorsWide
+            # instances (including MorgueClosetDoor) hit exactly this case and were being skipped
+            # entirely (doorAttachmentsSkipped) despite having a perfectly ordinary location/
+            # rotation pair, same as every other actor this pipeline places. _rotation() needs no
+            # GameBasis reversal for this field (see its own docstring) unlike _decompose's matrix
+            # case, so this is the same plain path every non-door actor placement already uses.
+            location = unreal.Vector(*entry["location"])
+            rotation = _rotation(entry.get("rotation") or [0, 0, 0])
+            scale = unreal.Vector(*(entry.get("drawScale3D") or [1.0, 1.0, 1.0]))
+            scale = scale * float(entry.get("drawScale") or 1.0)
+        else:
             report["doorAttachmentsSkipped"] = report.get("doorAttachmentsSkipped", 0) + 1
             continue
-
-        location, rotation, scale = _decompose(transform)
         door_label = entry.get("label") or entry.get("name") or entry["key"]
         dkey = "door:" + entry["key"]
         actor = existing.get(dkey)
