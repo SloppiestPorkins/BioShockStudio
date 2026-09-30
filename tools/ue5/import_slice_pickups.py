@@ -90,6 +90,12 @@ CONTAINERS = {
     "AggToastyBooty": (2, 22, ""),
     "CashRegister": (5, 45, ""),
     "FlowerVaseContainer": (1, 12, ""),
+    # 5 instances in Medical (3 WallSafe + 2 Safe) never matched the "Pickup"/"Container"/"Booty"
+    # substring fallback below, so they fell all the way through to an invisible, non-searchable
+    # TargetPoint -- a real safe the player could never open. PLAUSIBLE range: higher than
+    # CashRegister since a safe is the better-hidden container in BioShock's own loot tiering.
+    "SecurityCrate_WallSafe": (10, 60, ""),
+    "SecurityCrate_Safe": (10, 60, ""),
 }
 
 
@@ -132,6 +138,13 @@ def _marker_mesh():
 
 def _place(actor_cls, entry, existing):
     key = entry["key"]
+    # _import_instances places a real, visible geometry-instance mesh for most of these keys
+    # regardless of class (no denylist for pickup/container classes) -- remove it so this
+    # dedicated pickup/container actor's own collider doesn't overlap a second one at the same
+    # transform. Confirmed live 30 Sept 2026 for the switches/reactive-props/damageable-props
+    # fixes (see import_level.destroy_instance_duplicates' docstring): a duplicate collider means
+    # a search/interact trace can resolve to the dead duplicate instead of this actor.
+    import_level.destroy_instance_duplicates(existing, key)
     actor = existing.get(key)
     if actor is not None and actor.get_class() != actor_cls:
         import_level._actor_subsystem().destroy_actor(actor)

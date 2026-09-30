@@ -99,8 +99,14 @@ per-system sections below.
    the Scripts already gating on them (SteinmanIntro, Quarantine_PistolIntro, Ghost_TwoTwo,
    TrainingHackTurret, ...) — these had no line-of-sight/FOV logic behind them at all, so several
    of Medical's scripted narrative/tutorial beats were entirely dead, not degraded (see STATUS.md).
-   Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting
-   components (runs against generic inventory stacks today).
+   Also **done, 30 Sept 2026**: ~~SecurityCrate_WallSafe/SecurityCrate_Safe unsearchable~~ — 5 real
+   safes in Medical never matched `import_slice_pickups.py`'s own class-routing at all (not even as
+   "unmapped"), now real `AShockSearchableContainer`s with real loot. Same pass also fixed the
+   duplicate-collider bug (see the correctness-fix entry in STATUS.md) retroactively across the
+   entire ~230-instance pickup/container economy. A follow-up task (`task_977a74fe`) is open to
+   check whether stations/movers (doors, lifts) have the same duplicate-collider gap. Still open:
+   Gene Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against
+   generic inventory stacks today).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art

@@ -10,7 +10,29 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **fixed a real correctness bug in the last three fixes below —
+The most recent landed work: **5 real safes (`SecurityCrate_WallSafe`/`SecurityCrate_Safe`) can
+now be opened for loot, and the same duplicate-collider bug (see below) is fixed retroactively
+across the entire ~230-instance pickup/container economy, not just the 3 fixes it was caught in.**
+`import_slice_pickups.py`'s own class-routing only ever had a *reporting* catch-all for anything
+containing "Pickup"/"Container"/"Booty" in its className — `SecurityCrate_WallSafe`/
+`SecurityCrate_Safe` don't contain any of those substrings, so they weren't even counted as
+"unmapped," they silently never reached this script at all and fell straight to `import_level`'s
+bare `TargetPoint` fallback: 5 real containers a player could never search. Added both classes to
+the existing `CONTAINERS` dict (reusing `AShockSearchableContainer`, no new class needed) with a
+higher loot range than `CashRegister` (safes are the better-hidden tier in BioShock's own loot
+design). Neither has a resolvable mesh in this level's export, so both land invisible-but-
+searchable — the same honest-degradation convention already used for other meshless containers.
+While touching `_place()` here, also applied `import_level.destroy_instance_duplicates` (see
+below) to this script — confirmed via live spot-check across ~30 pickups/containers/safes that
+every one is now a single actor per key, where before this same script (like switches/reactive-
+props/damageable-props) was quietly leaving a duplicate `StaticMeshActor` under nearly every
+pickup and container in the slice. Verified: `verify_pickups` (9/9 checks), `verify_gameplay_fidelity`
+(27/27). Spun off a task (`task_977a74fe`) to audit whether `import_slice_stations.py` and
+`import_slice_animated_props.py` (doors/lifts) have the same gap — `ScriptableMover` in particular
+uses the same `ECC_Visibility` interact-trace mechanism as switches, so it's a real risk, not just
+a pickups-only issue.
+
+The prior landed work: **fixed a real correctness bug in the last three fixes below —
 duplicate overlapping colliders at every switch/reactive-prop/damageable-prop's own location.**
 While auditing whether any other Medical classes had the same "invisible TargetPoint" problem
 (they didn't — `OilSlick_Reactive`, `IcicleMeltable`, `PhysicalReactiveActor`,
