@@ -69,6 +69,10 @@ def _load_mesh_reference(ref, expected_unreal_class):
 
 def _place(actor_cls, entry, existing):
     key = entry["key"]
+    # _import_instances already placed a real, visible mesh for most of these keys (see
+    # destroy_instance_duplicates' docstring) -- remove it so this dedicated actor's own mesh
+    # doesn't overlap a second, non-interactive collider at the same transform.
+    import_level.destroy_instance_duplicates(existing, key)
     actor = existing.get(key)
     if actor is not None and actor.get_class() != actor_cls:
         import_level._actor_subsystem().destroy_actor(actor)

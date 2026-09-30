@@ -10,7 +10,33 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **`InPlayerViewTrigger` (look-at cutscene/tutorial gates) — all 14
+The most recent landed work: **fixed a real correctness bug in the last three fixes below —
+duplicate overlapping colliders at every switch/reactive-prop/damageable-prop's own location.**
+While auditing whether any other Medical classes had the same "invisible TargetPoint" problem
+(they didn't — `OilSlick_Reactive`, `IcicleMeltable`, `PhysicalReactiveActor`,
+`VisualFXProxyReactiveActor` all turned out to already be placed by `_import_instances`, the
+generic geometry-instance pipeline, so they were never actually invisible), found that
+`_should_place_mesh_instance` has no class denylist for most gameplay classes either — meaning
+switches, `NonPhysicalReactiveActor`, and the damageable props (`Padlock`, `dyn_grate64`,
+`TV_WallMounted`, ...) were *also* already getting a plain, real, visible `StaticMeshActor` from
+that same generic pipeline, in parallel with the dedicated gameplay actor each of the last three
+fixes spawned at the identical location. Confirmed live: `GatePadlock` had two actors stacked at
+the exact same transform — a `StaticMeshActor` from `_import_instances` and the new
+`AShockDamageableProp`, each with its own `BlockAll` collider. This is not just cosmetic
+z-fighting: `LineTraceSingleByObjectType` returns whichever blocking primitive the physics engine
+resolves first among two identical-transform colliders, not necessarily the gameplay actor, so a
+weapon shot at a padlock/grate/TV could silently resolve to the dead duplicate instead of the
+`AShockDamageableProp` that's supposed to react — a real-play failure mode a headless unit test
+that calls `ReactToDamage`/`TryInteract` directly (bypassing the actual trace) can never catch.
+New `import_level.destroy_instance_duplicates(existing, actor_key)`, called from all three
+scripts' `_place()` right when placing the dedicated actor. Re-ran all three import passes and
+confirmed live: the duplicate `StaticMeshActor` is gone at every spot-checked key (the padlock,
+all 4 checked `DoorSwitch`/`Switch` instances, 7 `TV_WallMounted` instances, all 4 `dyn_grate64`
+grates) — exactly one actor per key now. Re-ran all four feature verify scripts plus the combat/
+import regression subset (`verify_import_scripts`, `verify_gameplay_fidelity`,
+`verify_scripting_movers`, `verify_ai_combat`, `verify_weapon_beam`) clean.
+
+The prior landed work: **`InPlayerViewTrigger` (look-at cutscene/tutorial gates) — all 14
 instances in 1-Medical are real `TriggeredBy` targets for real Scripts, and every one of them was
 completely dead.** `SteinmanIntro`, `Quarantine_PistolIntro`, `Ghost_TwoTwo` (the first ghost
 sequence), `EternalFlameBlast`, `QuarSwitch_UnlockMaintenanceHall`, `TrainingHackTurret`, and 8

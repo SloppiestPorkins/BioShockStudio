@@ -80,6 +80,33 @@ def _existing_by_key():
     return found
 
 
+def destroy_instance_duplicates(existing, actor_key):
+    """Destroy any generic StaticMeshActor `_import_instances` already placed for this manifest
+    actorKey (tagged `BioShockKey=instance:<actorKey>:<asset>`).
+
+    Confirmed live 30 Sept 2026: most gameplay classes that later get a dedicated actor (switches,
+    NonPhysicalReactiveActor, Padlock/dyn_grate64/TV_WallMounted, ...) ALSO have a plain geometry
+    instance entry in the manifest's own `instances[]` list -- `_should_place_mesh_instance` has no
+    class denylist for them, so `_import_instances` places a real, visible mesh for every one of
+    them regardless (this is why some of these were never actually "invisible" in the base import
+    -- only non-interactive). A dedicated import script that spawns its own actor at the same
+    key/location without removing that generic duplicate leaves two overlapping BlockAll colliders
+    at the identical transform: `LineTraceSingleByObjectType` returns whichever one the physics
+    engine happens to resolve first, not necessarily the gameplay actor, so a weapon hit can
+    silently land on the dead duplicate instead of the actor that's supposed to react to it -- a
+    bug a headless test that calls the reaction method directly (bypassing the real trace) cannot
+    catch. Callers should invoke this right before/when placing their own actor for `actor_key`.
+    """
+    prefix = "instance:" + actor_key + ":"
+    destroyed = 0
+    for key in [k for k in existing if k.startswith(prefix)]:
+        actor = existing.pop(key)
+        if actor is not None:
+            _actor_subsystem().destroy_actor(actor)
+            destroyed += 1
+    return destroyed
+
+
 def _rotation(rotation):
     """The manifest's integer rotator triple as a UE5 rotator in degrees.
 
