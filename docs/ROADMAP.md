@@ -112,12 +112,18 @@ per-system sections below.
    import-script coverage against every Script's TriggeredBy/messageFilter turned up only two
    remaining real hits: `TenenbaumGift` (now a real container, fixed a real bug in
    `AShockSearchableContainer::Search()` along the way — it couldn't actually grant ADAM at all,
-   only generic inventory stacks) and `DoorKeypadControl` (still open, see next). Still open:
-   Gene Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against
-   generic inventory stacks today), `DoorKeypadControl` (1 instance, `TwilightFieldsKeypad` ->
-   `MorgueClosetDoor` — needs a real keypad code-entry UI, not just placement;
-   `ShockActionDoorKeypadUsed::ApplyInWorld` already has its own comment admitting "Success cannot
-   be delivered to a control" since no keypad-control actor class exists yet), and `TrainingScript`
+   only generic inventory stacks) and `DoorKeypadControl` (below). Also **done, 30 Sept 2026**:
+   ~~DoorKeypadControl unplaced~~ — `AShockDoorKeypadControl` unlocks the door it controls and
+   dispatches `MessageDoorKeypadUsed`, without a real code-entry minigame (none exists in this
+   project, no decoded keycode data available — see STATUS.md). Found a second, separate gap while
+   verifying it: `MorgueClosetDoor` itself (the door this keypad controls) isn't placed as a
+   functional door at all — none of Medical's 3 `LowRentDoorsWide` instances have manifest
+   placement data (`instances[]` entry or a raw `transform` field), so `import_level` skips all
+   three. The keypad mechanism is fully verified working end-to-end against a scratch door; the
+   real payoff needs that separate door-placement gap fixed first. Still open: Gene Bank tonics (no
+   tonic system exists at all), U-Invent crafting components (runs against generic inventory
+   stacks today), the 3 unplaced `LowRentDoorsWide` doors (missing manifest transform data — an
+   export/pipeline gap, not something a slice script can work around), and `TrainingScript`
    (26 instances, a proximity/ambience-concept system with no `scriptActions` at all — a
    genuinely different, unclear-spec mechanism, not a placement gap).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the

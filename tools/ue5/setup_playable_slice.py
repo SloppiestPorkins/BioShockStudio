@@ -505,6 +505,10 @@ STEPS = [
     # TriggeredBy targets for real Scripts (SteinmanIntro, Ghost_TwoTwo, TrainingHackTurret, ...);
     # see the script docstring.
     ("import_slice_in_player_view_triggers", "import_slice_in_player_view_triggers", "main", ()),
+    # DoorKeypadControl -- Medical's one instance ("TwilightFieldsKeypad") unlocks
+    # "MorgueClosetDoor" and fires TwilightFieldsKeypadScript; no code-entry minigame, see the
+    # script docstring for why.
+    ("import_slice_door_keypads", "import_slice_door_keypads", "main", ()),
     # Script-driven animated props (meat-locker door, morgue door, curtains, turret traps).
     ("import_slice_animated_props", "import_slice_animated_props", "main", ()),
     # Loose props (trash cans, ashtrays, steamer trunks, fridge doors, debris) back to rigid-body

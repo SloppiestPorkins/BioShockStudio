@@ -1,6 +1,7 @@
 #include "ShockPlayer.h"
 
 #include "ShockAudioLibrary.h"
+#include "ShockDoorKeypadControl.h"
 #include "ShockGameMode.h"
 #include "ShockHackingMinigame.h"
 #include "ShockConsumablePickup.h"
@@ -2477,6 +2478,14 @@ void AShockPlayer::TickInteractionTrace()
 			CachedInteractPrompt = Switch->GetInteractionPrompt();
 		}
 	}
+	else if (const AShockDoorKeypadControl* Keypad = Cast<AShockDoorKeypadControl>(HitActor))
+	{
+		if (Keypad->CanInteract())
+		{
+			CachedInteractActor = HitActor;
+			CachedInteractPrompt = Keypad->GetInteractionPrompt();
+		}
+	}
 }
 
 void AShockPlayer::HandleInteractInput()
@@ -2509,6 +2518,13 @@ void AShockPlayer::HandleInteractInput()
 		else if (AShockSwitchActor* Switch = Cast<AShockSwitchActor>(Target))
 		{
 			if (Switch->TryInteract(this))
+			{
+				return;
+			}
+		}
+		else if (AShockDoorKeypadControl* Keypad = Cast<AShockDoorKeypadControl>(Target))
+		{
+			if (Keypad->TryInteract(this))
 			{
 				return;
 			}

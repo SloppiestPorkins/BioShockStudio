@@ -10,7 +10,38 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **`verify_ai_archetypes.py`'s false `spawn Agg_BabyJane failed`
+The most recent landed work: **`DoorKeypadControl` is now a real, interactive actor — Medical's
+one keypad (`TwilightFieldsKeypad`) unlocks its door and fires the script gating on it.** Found via
+the systematic class sweep two entries down: `TwilightFieldsKeypadScript`
+(`TriggeredBy=TwilightFieldsKeypad`, `scriptMessageClass=MessageDoorKeypadUsed`) was one of only
+two real hits, deliberately deferred at the time because the consuming action,
+`ShockActionDoorKeypadUsed::ApplyInWorld`, has its own long-standing comment admitting "no
+DoorKeypad / keypad-control actor class exists in BioShockRuntime yet, so Success cannot be
+delivered to a control." Built the missing actor class instead of touching that stub: new
+`AShockDoorKeypadControl` (mirrors `AShockSwitchActor`'s shape — mesh optional, `Press F to use`,
+one-shot) — on interact, unlocks every `AShockDoor` matching its configured `DoorLabel` via
+`AShockDoor::CollectByLabel` (the same pattern `ActionUnlockDoor` already uses) and dispatches
+`MessageDoorKeypadUsed` via the existing `DispatchDoorKeypadUsed` path, so the associated Script's
+own action list still runs exactly as authored. Deliberately does NOT implement a real numeric
+code-entry minigame — no such UI exists in this project and no decoded keycode value is available
+anywhere in the pipeline, so interacting always succeeds; documented clearly in the class comment
+rather than pretending otherwise. Wired into `ShockPlayer.cpp`'s interact-trace and input handling
+exactly like switches. New `import_slice_door_keypads.py` places the one instance (no mesh data in
+this export, same invisible-but-functional degradation as other meshless props).
+
+Found a second, separate, pre-existing gap while verifying: `MorgueClosetDoor` (the door this
+keypad controls) is not actually placed as a functional `AShockDoor` in the live slice at all —
+none of Medical's 3 `LowRentDoorsWide` instances (including this one) have a manifest `instances[]`
+entry or a raw `transform` field, so `import_level._import_door_attachments` skips all three
+entirely (`doorAttachmentsSkipped`, not a bug in this fix). The keypad mechanism itself is fully
+verified working end-to-end (interact → unlock → dispatch → script fires) against a fresh scratch
+door; the real payoff is currently blocked on this separate door-placement gap, which is not fixed
+here — flagged, not forced. Verified end-to-end headless (11 checks): the interact/one-shot/unlock/
+dispatch mechanism on a scratch door+script, and the real live `TwilightFieldsKeypad` instance
+resolving as a real `AShockDoorKeypadControl` with the correct `DoorLabel`. Regression-verified:
+`verify_scripting_movers` (29/29), `verify_gameplay_fidelity` (27/27), `verify_import_scripts`.
+
+The prior landed work: **`verify_ai_archetypes.py`'s false `spawn Agg_BabyJane failed`
 cleared.** The spawn probe was hardcoded to `unreal.Vector(500.0, 0.0, 100.0)` since the original
 Phase-3 commit (`27bc69e`, 30 Aug 2026) — world origin, with no Medical floor under it.
 `ActionSpawnAI::SpawnAtLocation` calls `FindGroundedSpawnLocation` (Visibility line-trace) *before*
