@@ -120,14 +120,17 @@ per-system sections below.
    a functional door at all — `import_level._import_door_attachments` only resolved a transform
    from an `instances[]` entry or a raw `transform` field, with no fallback to the actor's own
    ordinary `location`/`rotation` fields every other placement function already uses; all 3 of
-   Medical's `LowRentDoorsWide` instances hit exactly that gap. Added the fallback — all 3 now
-   place as real `AShockDoor`s (see STATUS.md); keypad → door → script is verified genuinely
-   end-to-end against the real live instances now, not just a scratch stand-in. Still open: Gene
-   Bank tonics (no tonic system exists at all), U-Invent crafting components (runs against generic
-   inventory stacks today), and `TrainingScript` (26 instances, a proximity/ambience-concept system
-   with no `scriptActions` at all — a genuinely different, unclear-spec mechanism, not a placement
-   gap). 31 other doors are still skipped by `_import_door_attachments` for unrelated reasons, not
-   investigated.
+   Medical's `LowRentDoorsWide` instances hit exactly that gap (and so did `HighRentDoorWide0`,
+   same gap). Added the fallback — all 4 now place as real `AShockDoor`s (see STATUS.md); keypad →
+   door → script is verified genuinely end-to-end against the real live instances now, not just a
+   scratch stand-in. Follow-up census 30 Sept 2026 (`audit_remaining_doors.py`): Medical has 44
+   door-field actors and **all 44 place** (`doorsPlaced=44`, `doorAttachmentsSkipped=0`); the
+   earlier "31 other doors still skipped" wording was wrong. Residual is visual only on the 4
+   `LowRentDoor_Mesh` doors (permanent undecoded skeletal mesh — cut line below), not a placement
+   skip. Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting components
+   (runs against generic inventory stacks today), and `TrainingScript` (26 instances, a
+   proximity/ambience-concept system with no `scriptActions` at all — a genuinely different,
+   unclear-spec mechanism, not a placement gap).
    **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
    state machine is real, only quest hint/objective text is missing.
 6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art

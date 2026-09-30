@@ -10,7 +10,25 @@ says **STATUS UNCLEAR — verify** rather than guessing.
 
 ## Most recent landed work (30 Sept 2026)
 
-The most recent landed work: **Fixed the `LowRentDoorsWide` placement gap the keypad fix below
+The most recent landed work: **Census of Medical's remaining `_import_door_attachments` skips —
+the "31 other doors still skipped" claim from the entry below was wrong.** Measured against the
+live `1-Medical` manifest + slice (new `tools/ue5/audit_remaining_doors.py`, and a fresh
+`import_slice_doors` run after the location/rotation fallback): Medical has **44** actors with a
+`door` field; **all 44 place as `AShockDoor`** (`doorsPlaced=44`, `doorAttachmentsPlaced=62`,
+`doorAttachmentsSkipped=0`). Pre-fallback there were exactly **4** whole-door skips — the three
+`LowRentDoorsWide` instances *and* `HighRentDoorWide0` (same gap, missed in the writeup below) —
+all of which hit the new `location`/`rotation` path. The other 40 already placed via matrix
+transforms. Residual that is *not* a placement skip: the same 4 doors reference
+`LowRentDoor_Mesh`, one of the four permanently-undecoded door skeletal meshes (ROADMAP cut line /
+Claude's decode lane), so they are real, label-addressable, lock/unlock-correct `AShockDoor`s with
+no skeletal visual. The 9 other no-attachment doors (`AccordianGateDoor` ×6, `BulkheadDoors` ×3)
+resolve `AccGateAnim` / `BulkheadDoor` proxies fine. No further importer fix in this lane.
+(Made `audit_remaining_doors.py` runnable standalone like every other script here — it was
+missing the `sys.path.append(...)` line before `import import_level` and originally shipped with
+a separate `run_audit_remaining_doors.py` wrapper to work around that; removed the wrapper now
+that the main script carries its own fix.)
+
+The prior landed work: **Fixed the `LowRentDoorsWide` placement gap the keypad fix below
 found — `MorgueClosetDoor` (and its 2 siblings) are now real, functional `AShockDoor`s.**
 `import_level._import_door_attachments` only ever resolved a door's transform from an
 `instances[]` entry's matrix or a raw `"transform"` field on the actor — and silently skipped the
@@ -23,8 +41,9 @@ field, unlike `_decompose`'s matrix case — confirmed via its own docstring —
 plain path every non-door actor already takes). Re-ran `_import_door_attachments` live against
 `1-Medical`: all 3 previously-skipped doors (`LowRentDoorsWide0`, `MorgueClosetDoor`,
 `MorgueClosetTurretDoor`) now exist as real `ShockDoor` actors with the correct locked state.
-31 other doors are still skipped for unrelated reasons (not investigated — a separate, larger
-question, not chased here). Regression-verified: `verify_scripting_movers` (29/29),
+(The contemporaneous "31 other doors are still skipped" note was a misread of the remaining
+population — corrected in the entry above; only `HighRentDoorWide0` shared the same gap, and
+there are zero whole-door skips left.) Regression-verified: `verify_scripting_movers` (29/29),
 `verify_gameplay_fidelity` (27/27), `verify_import_scripts`, `verify_stations`.
 
 The prior landed work: **`DoorKeypadControl` is now a real, interactive actor — Medical's
@@ -50,8 +69,10 @@ Found a second, separate, pre-existing gap while verifying: `MorgueClosetDoor` (
 keypad controls) is not actually placed as a functional `AShockDoor` in the live slice at all —
 none of Medical's 3 `LowRentDoorsWide` instances (including this one) have a manifest `instances[]`
 entry or a raw `transform` field, so `import_level._import_door_attachments` skips all three
-entirely (`doorAttachmentsSkipped`, not a bug in this fix). **Fixed in the entry above this one**
-(same session, right after landing the keypad). The keypad mechanism itself is fully
+entirely (`doorAttachmentsSkipped`, not a bug in this fix). **Fixed in the LowRentDoorsWide
+placement entry above** (same session, right after landing the keypad); the subsequent census
+also caught `HighRentDoorWide0` in the same gap and confirmed 44/44 Medical door-field actors
+now place. The keypad mechanism itself is fully
 verified working end-to-end (interact → unlock → dispatch → script fires) against a fresh scratch
 door; the real live `MorgueClosetDoor` now resolves the same way. Verified end-to-end headless
 (11 checks): the interact/one-shot/unlock/
@@ -400,9 +421,9 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 
 ## Active work
 
-Nothing in flight — `verify_ai_archetypes.py` false `spawn Agg_BabyJane failed` cleared 30 Sept 2026
-(see "Most recent landed work" above). If picking up new work, update this section rather than
-trusting an old claim table.
+Nothing in flight — Medical remaining-door-skip census closed 30 Sept 2026 (see "Most recent
+landed work" above: 44/44 place; residual is `LowRentDoor_Mesh` decode, Claude lane / permanent
+cut line). If picking up new work, update this section rather than trusting an old claim table.
 
 
 ---
