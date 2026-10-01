@@ -44,102 +44,85 @@ stays declined), the 3–4 door meshes that don't decode, exact original balance
 
 ## Priority order, top to bottom
 
-This list is deliberately short — one line of "what's next" per system. Detail follows in the
-per-system sections below.
+Rewritten 30 Sept 2026 after a whole-project review. The previous list pushed breadth (more systems,
+more content classes) while the one thing the project is for — a human playing `1-Medical` start to
+finish — had never been checked end to end, and almost every verification was headless with rendering
+off (`-nullrhi`), which cannot see the bugs a player actually hits. The new order is: protect the
+work, make verification see what a player sees, finish Medical properly, and only then widen.
+Take items in order; finish one before starting the next (§60 "Roadmap discipline").
 
-1. **Close out the w18 live-PIE bug list** — see STATUS.md's bug table. Concrete, scoped, blocking a
-   clean human playtest.
-2. **The scripting VM's remaining stubs — done, 29 Sept 2026.** Watchers, critical/immediate
-   execution mode on level travel, `TestFact`'s boolean evaluation, and training-message HUD
-   display all landed (`w20`, 28 Sept); `ActionEnableOrDisableTrainingMessages`'s mute gate — the
-   one piece `w20` left out — landed 29 Sept (`verify_scripting_vm_stubs.py` 37/37). Only remaining
-   item in this family: nested-loop critical-sub-action expansion during a travel flush (the flush
-   walks the flat remaining run queue only; a real fix means simulating `ActionLoop`'s up-to-1000-
-   iteration exit-condition semantics synchronously, which is materially bigger scope than the rest
-   of this list — deliberately not attempted blind). **Not a gap, contrary to earlier wording
-   here**: the quest state machine (`InitiateQuest`/`CompleteQuestObjective`/`CompleteQuest`/
-   `FailQuest`/`GetActiveQuestNames`, `ShockPlayer.cpp` ~3112–3188) is real —
-   `ShockStatusMenu.cpp:412` reads live state, not a stub list. Corrected 28 Sept 2026 after
-   checking current code before dispatching w20.
-3. **Script-graph import on the 20 non-Medical maps — done, 29 Sept 2026.** Ran
-   `import_scripts_all_maps.py` for real (never dispatched before): 20/20 succeeded, 0 unmapped
-   top-level actions, 100 nested actions unmapped across 3 distinct classes out of many thousands
-   mapped. Built `ActionSaveGame` (the best-scoped of the three, 3 occurrences); the other two need
-   real systems priority 4/6 haven't built yet (an `Assassin` AI archetype;
-   Research Camera photo storage) — see STATUS.md for the full breakdown. A new CLI verb,
-   `export-level-manifest`, made running this batch practical at all (cut a real map's export from
-   ~5.5 min to ~10s by skipping mesh/texture/cubemap writes script import never reads).
-4. **AI**: generalize the goal/ability brain (`UShockAIBrain`) past the two slice archetypes to every
-   placed archetype; close the remaining `Action*` handler families (state-setters, AI-command
-   families) census-order. **First slice landed 29 Sept 2026**: real per-archetype ranged-weapon
-   resolution (Grenadier/SMG/Pistol were all getting the same flat hitscan stand-in; also fixed a
-   melee-splicer-flagged-ranged false positive in the same heuristic) — see STATUS.md. Still open:
-   the brain/ability logic itself (`UShockAIBrain.cpp`) was already archetype-agnostic before this
-   fix and needed no change; what's unverified is everything past Medical's 23 archetypes — the
-   other 20 maps' archetype rosters are unaudited, and this pass only confirmed Pistol/SMG/
-   Grenadier/Melee weapon-type resolution, not Shotgun/Crossbow/ChemicalThrower on an AI archetype.
-5. **Content gaps with no system behind them yet**: ~~switches/levers as a dedicated actor~~ **done,
-   29 Sept 2026** — `AShockSwitchActor` + `import_slice_switches.py`, all 10 of Medical's
-   DoorSwitch/Switch/IncineratorSwitch/BathysphereSwitch/Med_MedicalGateSwitch/ChompersDentalButton
-   actors are now real, interactive, message-dispatching props (see STATUS.md). Also **done, 30
-   Sept 2026**: ~~NonPhysicalReactiveActor debris/set-dressing~~ — `import_slice_reactive_props.py`,
-   all 54 of Medical's instances (TunnelBlock, CollapsedTunnel, broken glass, cremation props, ...)
-   are now real, visible, `BlockAll`-collidable level geometry instead of invisible TargetPoints;
-   confirmed not script-load-bearing (unlike switches, nothing gates on these labels), so this was a
-   level-fidelity fix, not an unlocks-content one. Also **done, 30 Sept 2026**: ~~shootable/
-   damageable reactive props~~ — `AShockDamageableProp` + `import_slice_damageable_props.py`, all
-   17 of Medical's Padlock/dyn_grate64/NonPhysicalNonPathBlockingReactiveActor/OilSlick*_Reactive/
-   TV_WallMounted instances now really react to a weapon hit and dispatch the MessageRAReacted
-   scripts already gating on them (GatePadlock unlocks OpenSteinmanGate, KureAllGrate1 unlocks its
-   own grate script, ...) — required extending `UShockDamageLibrary::ApplyDamage` and each
-   `ShockWeapon.cpp` call site past their pawn-only assumption, not just a placement script (see
-   STATUS.md). Also **done, 30 Sept 2026**: ~~InPlayerViewTrigger (look-at cutscene/tutorial
-   gates)~~ — `AShockInPlayerViewTrigger` + `import_slice_in_player_view_triggers.py`, all 14 of
-   Medical's instances now really detect the player looking at (or away from) them and dispatch
-   the Scripts already gating on them (SteinmanIntro, Quarantine_PistolIntro, Ghost_TwoTwo,
-   TrainingHackTurret, ...) — these had no line-of-sight/FOV logic behind them at all, so several
-   of Medical's scripted narrative/tutorial beats were entirely dead, not degraded (see STATUS.md).
-   Also **done, 30 Sept 2026**: ~~SecurityCrate_WallSafe/SecurityCrate_Safe unsearchable~~ — 5 real
-   safes in Medical never matched `import_slice_pickups.py`'s own class-routing at all (not even as
-   "unmapped"), now real `AShockSearchableContainer`s with real loot. Same pass also fixed the
-   duplicate-collider bug (see the correctness-fix entry in STATUS.md) retroactively across the
-   entire ~230-instance pickup/container economy. Follow-up `task_977a74fe` (stations/movers
-   duplicate-collider audit) **closed 30 Sept 2026**: Placeable* stations already inherited the
-   fix via shared `import_slice_pickups._place`; ScriptableMovers were never affected (already
-   denylisted); ResurrectionStation/VitaChamber *was* affected and is now denylisted + cleaned
-   in `_import_vita_chambers` (see STATUS.md). Also **done, 30 Sept 2026**: ~~TenenbaumPresent
-   (200-ADAM gift) unreachable~~ — a systematic re-sweep of every Medical class with zero
-   import-script coverage against every Script's TriggeredBy/messageFilter turned up only two
-   remaining real hits: `TenenbaumGift` (now a real container, fixed a real bug in
-   `AShockSearchableContainer::Search()` along the way — it couldn't actually grant ADAM at all,
-   only generic inventory stacks) and `DoorKeypadControl` (below). Also **done, 30 Sept 2026**:
-   ~~DoorKeypadControl unplaced~~ — `AShockDoorKeypadControl` unlocks the door it controls and
-   dispatches `MessageDoorKeypadUsed`, without a real code-entry minigame (none exists in this
-   project, no decoded keycode data available — see STATUS.md). Found and fixed a second, separate
-   gap in the same pass: `MorgueClosetDoor` itself (the door this keypad controls) wasn't placed as
-   a functional door at all — `import_level._import_door_attachments` only resolved a transform
-   from an `instances[]` entry or a raw `transform` field, with no fallback to the actor's own
-   ordinary `location`/`rotation` fields every other placement function already uses; all 3 of
-   Medical's `LowRentDoorsWide` instances hit exactly that gap (and so did `HighRentDoorWide0`,
-   same gap). Added the fallback — all 4 now place as real `AShockDoor`s (see STATUS.md); keypad →
-   door → script is verified genuinely end-to-end against the real live instances now, not just a
-   scratch stand-in. Follow-up census 30 Sept 2026 (`audit_remaining_doors.py`): Medical has 44
-   door-field actors and **all 44 place** (`doorsPlaced=44`, `doorAttachmentsSkipped=0`); the
-   earlier "31 other doors still skipped" wording was wrong. Residual is visual only on the 4
-   `LowRentDoor_Mesh` doors (permanent undecoded skeletal mesh — cut line below), not a placement
-   skip. Still open: Gene Bank tonics (no tonic system exists at all), U-Invent crafting components
-   (runs against generic inventory stacks today), and `TrainingScript` (26 instances, a
-   proximity/ambience-concept system with no `scriptActions` at all — a genuinely different,
-   unclear-spec mechanism, not a placement gap).
-   **Quests are not a gap** — see the "Inventory, economy, and player systems" section below; the
-   state machine is real, only quest hint/objective text is missing.
-6. **Fidelity pass**: water materials, glass, god rays, decal/particle gaps, weapon/plasmid icon art
-   (never located in any SWF — brass ring + name only), the HUD liquid-fill material.
-7. **Level-to-level travel at scale** — the carry-state mechanism works on one hand-built test map;
-   the real 21-map bathysphere/load-trigger travel graph is unbuilt.
-8. **The Gatherer/Protector ecology** (Little Sister harvest, Big Daddy protect/patrol/rage, the ADAM
-   choice) — explicitly out of scope until the above lands; it is its own project-sized piece.
-9. **Menus that are still stubs**: Options, Credits, Director's Commentary, Museum, Challenge Rooms.
+### Phase 0 — Safety
+
+1. **Version control for the UE project — done 30 Sept 2026.** `C:/Users/Jack/Documents/BioShockUE5`
+   (25 GB of `Content/`, the slice map, every imported asset) had no version control at all; the only
+   history was hand-copied `1-Medical.umap.bak-pre-<task>` files. It is now a local git repo with Git
+   LFS for binary assets (`Exports/`, `PluginBuild/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`,
+   `Binaries/` ignored — all regenerable). Local only: 25 GB exceeds free GitHub LFS storage, so
+   off-machine backup is a separate, periodic copy to another drive. Rule: §61.
+2. **Clean the workspace.** 16 stale agent worktrees (`BioShockHavok-agents/*`), `tmp/`,
+   `artifacts/` (4.5 GB — keep what `docs/` cites, drop the rest), the retired `.bak-pre-*` map copies
+   (safe to delete once item 1's baseline commit exists).
+
+### Phase 1 — Verification that sees what the player sees
+
+3. **Visual capture pass.** Launch with rendering on, teleport to ~20 named viewpoints across
+   `1-Medical` (arrival, Steinman's waiting room, Fisheries gate, bathysphere, …), capture each, and
+   diff against committed reference captures; a large change flags for a human look. Build on
+   `tools/ue5/capture_shot.ps1`. This is the check that would have caught the 30 Sept screenshot bugs.
+4. **Medical critical-path test.** An ordered list of Medical's progression gates (arrival → Steinman
+   → Fisheries quarantine gate → … → bathysphere departure); fire each gate's real trigger in order
+   and assert it opens/advances. This is the executable definition of "Medical is playable".
+5. **One-process suite runner.** One editor boot runs a named list of `verify_*.py` scripts and
+   writes one report, replacing the pattern of ~170 `run_*.py` wrappers each booting its own editor.
+6. **Rebuild-from-scratch diff.** Clean base import → `setup_playable_slice.py` → compare actor
+   classes/counts/labels against the committed slice. Proves the slice is still reproducible from the
+   pipeline rather than only from one-off repairs.
+
+### Phase 2 — Finish `1-Medical` as a human-playable slice
+
+7. **The live-PIE bug list** (`docs/STATUS.md` "Open bugs"), including the three found in the user's
+   30 Sept screenshots: a black octagonal shape on the Machine Gun viewmodel, a white translucent
+   wedge across the view near the arrival porthole, and a saturated red light wash in the lobby.
+8. **Interaction, measured the way a player does it.** Replace the ring-probe interact harness (36
+   residual failures after two attempts) with a test that walks the player along the navmesh to each
+   pickup/switch/container and presses Interact.
+9. **Content Medical actually contains but doesn't yet play:** the Dr. Steinman encounter
+   (`DoctorSteinman` / `DoctorSteinmanGrenadier` archetypes and his scripted beats); Medical's own
+   Gatherer/Protector beats — the Tenenbaum scene (`Med_Gatherer_Ten`), 4 `ProtectorSpawner`s,
+   7 `PlacedGathererVent`s — at the minimum needed to play through (the full ecology is Phase 3);
+   quest objective text; a clean "slice complete" at the bathysphere. Tonics are not needed for
+   Medical (its manifest places no tonic pickup or Gene Bank).
+10. **A full human playthrough.** The user plays Medical start to finish; every report goes on the
+    STATUS bug list; Phase 3 doesn't start until that list is empty.
+
+### Phase 3 — Breadth
+
+11. **Level-to-level travel** — the real bathysphere/load-trigger graph (carry-state already works on
+    a hand-built test map).
+12. **A second map** (`2-Fisheries`, the natural next stop) taken through Phases 1–2's checks.
+13. **AI past Medical's archetypes** — the other 20 maps' rosters; Shotgun/Crossbow/ChemicalThrower
+    weapon resolution on an AI archetype; the remaining AI-facing `Action*` families.
+14. **Fidelity passes** — water, glass, god rays, decals/particles, weapon/plasmid icon art (never
+    located in any SWF — brass ring + name only), the HUD liquid-fill material.
+15. **The full Gatherer/Protector ecology** (harvest choice, Big Daddy protect/patrol/rage), tonics
+    and the Gene Bank, U-Invent, upgrade stations.
+16. **Menus that are still stubs** — Options, Credits, Director's Commentary, Museum, Challenge Rooms.
+
+Known and deliberately not scheduled: `TrainingScript` (26 Medical instances — its `trainingConcepts`
+would feed `AShockPlayer::SetConceptEnabled`, which nothing in the runtime reads; building it is
+unobservable bookkeeping until a consumer exists), a real keypad code-entry minigame (no decoded
+keycode data exists), nested-loop critical-sub-action expansion during a level-travel flush.
+
+### Done under the previous priority list (detail in `docs/STATUS.md` and git history)
+
+The scripting VM's remaining stubs (watchers, critical/immediate mode, `TestFact`, training-message
+display and mute gate — 29 Sept); script-graph import on the 20 non-Medical maps (29 Sept, with the
+new `export-level-manifest` CLI verb); first AI slice (per-archetype ranged-weapon resolution, 29
+Sept); Medical content gaps closed 29–30 Sept — switches/levers, `NonPhysicalReactiveActor` debris,
+shootable reactive props (padlocks/grates/ice/oil/TVs), `InPlayerViewTrigger` look-at gates, safes,
+Tenenbaum's ADAM gift, `DoorKeypadControl`, the door-placement fallback (44/44 Medical doors place),
+and a duplicate-collider correctness fix across switches, props, pickups, stations and vita chambers.
+The quest state machine was confirmed real (28 Sept) — only hint/objective text is missing.
 
 ---
 

@@ -13,11 +13,11 @@ Full rule: `ENGINEERING_RULES.md` §60 "Cursor session start" (the pattern used 
 `docs/archive/NEXT_SESSION.md` §"How to start in Cursor" — archived 28 Sept 2026, see
 `docs/STATUS.md`).
 
-**Two agents, split by file.** `ENGINEERING_RULES.md` §61 (canonical text now there; it used to
-point at `docs/archive/DUAL_AGENT_ROADMAP.md`, superseded): Cursor owns `tools/ue5/**` and the UE5
-runtime; Claude Code owns `src/**` / `tests/**` and the C# tool. Stay in your lane; the
-`docs/STATUS.md` "Active work" claim table (formerly `docs/HANDOFF.md`'s) still governs any shared
-file.
+**One integrator, several workers.** `ENGINEERING_RULES.md` §61 (rewritten 30 Sept 2026): Claude Code
+plans, reviews and merges; `cursor-agent` / `codex` / the `tools/fleet/` local models do scoped tasks
+in isolated worktrees; nothing merges until the integrator has re-verified it. Only one Unreal
+process at a time against the UE project, and the UE project (`C:/Users/Jack/Documents/BioShockUE5`)
+has its own local git repo — commit there after any map/asset change.
 
 ## The rules that get broken most often
 

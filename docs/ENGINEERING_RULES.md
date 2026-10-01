@@ -684,34 +684,38 @@ start wiring runtime audio unless the user asks.
 
 ---
 
-## 61. Two-agent lane split — added 28 Aug 2026
+## 61. Integrator and workers — rewritten 30 Sept 2026 (was "Two-agent lane split", 28 Aug 2026)
 
-**This section is now the canonical text.** It used to point at
-[`docs/DUAL_AGENT_ROADMAP.md`](DUAL_AGENT_ROADMAP.md), archived 28 Sept 2026 into
-[`docs/archive/DUAL_AGENT_ROADMAP.md`](archive/DUAL_AGENT_ROADMAP.md) (kept for its coordination-
-protocol detail and the lane interface contract) — see `docs/STATUS.md` for the archive note.
+The original split (Cursor owns `tools/ue5/**`, Claude Code owns `src/**`) stopped describing how
+this repo actually works once the C# tool was essentially finished. The old text is in git history
+and in [`docs/archive/DUAL_AGENT_ROADMAP.md`](archive/DUAL_AGENT_ROADMAP.md).
 
-Cursor and Claude Code both work `main` with the `docs/STATUS.md` "Active work" claim table (formerly
-`docs/HANDOFF.md`'s) as the only lock, so the two are kept apart by **file ownership**, not by
-turn-taking:
-
-- **Cursor owns `tools/ue5/**`** — the Python import/verify scripts and the `BioShockRuntime/` C++
-  plugin. It drives the UE5 runtime and the playable slice (UE5 plan Phases 0, 3, 4-execution).
-- **Claude Code owns `src/**`, `tests/**`, `docs/research/**`, `docs/QUALITY.md`** — the C#
-  extraction tool. It finishes the asset layer and builds the data layer the runtime consumes
-  (UE5 plan Phases 1–2, ROADMAP Gate residuals).
+- **Claude Code is the integrator.** It owns the plan (`docs/ROADMAP.md`), decides what gets
+  dispatched, reviews every worker's diff, and is the only one that merges to `main`.
+- **Workers** — `cursor-agent`, `codex`, and the local Ollama models via `tools/fleet/` — each take
+  one scoped task, in an **isolated git worktree**, and hand back a diff plus what they verified.
+- **Nothing merges until the integrator has re-checked it.** Re-run the worker's verification under
+  this project's standard invocation (`UnrealEditor-Cmd.exe <uproject> -run=pythonscript
+  -script=<abs path> -nullrhi ...`), and for anything visual, look at a real capture or PIE session.
+  This rule exists because it caught real problems on 30 Sept 2026: a worker's reported PASS that
+  didn't reproduce under the standard invocation (a missing `sys.path` import), an audit that
+  claimed a fix without ever running the engine, and a wrong "31 doors skipped" figure.
+- **One Unreal process at a time against `BioShockUE5`.** Workers and integrator alike check
+  `tasklist` for `UnrealEditor*.exe` before every headless run. A worker that can't get the engine
+  does code/data investigation only.
+- **The UE project has its own git repo** (`C:/Users/Jack/Documents/BioShockUE5`, local, Git LFS for
+  `Content/**`). Any change to a saved map or asset gets a commit there, with a message that names
+  the BioshockHavok commit or script that produced it. The old habit of hand-copying
+  `1-Medical.umap.bak-pre-<task>` files is retired; `git log` / `git checkout` replace it.
 
 **The export format is a contract.** Changing a manifest or script-action sidecar schema is a
 breaking change for the other lane: announce it in `docs/STATUS.md`, bump the manifest version,
 keep the old reader working until the consuming lane has migrated.
 
-**Status docs are lane-scoped.** Cursor and Claude both now update the shared `docs/ROADMAP.md`
-(forward plan) and `docs/STATUS.md` (current state) in their own sections rather than maintaining
-separate per-lane status files — the old split (Cursor: `docs/UE5_FULL_PORT_PLAN.md` §9 +
-`docs/NEXT_SESSION.md`; Claude: the old `docs/ROADMAP.md` Parts 1–2 + `docs/QUALITY.md`) was
-retired when those docs were archived 28 Sept 2026. `docs/QUALITY.md` stays Claude's own evidence
-record, unchanged. Neither agent edits the other's entries in the shared docs. §60 "Roadmap
-discipline", "Cursor session start" and "Test-run economy" apply to both agents unchanged.
+**Status docs have one owner.** Workers may draft a `docs/STATUS.md` entry in their worktree; the
+integrator edits it for accuracy when merging and owns `docs/ROADMAP.md`. `docs/QUALITY.md` stays the
+C# tool's evidence record, unchanged. §60 "Roadmap discipline", "Cursor session start" and
+"Test-run economy" apply to every agent unchanged.
 
 ---
 
