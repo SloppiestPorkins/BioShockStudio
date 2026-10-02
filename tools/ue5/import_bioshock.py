@@ -1347,6 +1347,18 @@ def _create_material_instances(rig, destination, content_root, imported_by_file=
         if instance is None:
             raise RuntimeError("could not create material instance %s" % path)
 
+        # repair_light_beams.py moves LightBeamShader instances onto its own authored master
+        # (falloff x panning dust, tint, depth fade). Re-running this generic pass used to put them
+        # back on a raw-texture additive master -- white, untinted, no depth fade. It happened after
+        # the 28 Sept glass-material rerun and showed up live (30 Sept) as a white sheet across the
+        # view at the arrival porthole: 11 of Medical's 14 beam actors use MI_Light_Beam_01. Leave
+        # an already-repaired beam instance alone.
+        current_parent = instance.get_editor_property("parent")
+        if (material.get("className") == "LightBeamShader" and current_parent is not None
+                and current_parent.get_name() == "M_BioShock_LightBeam_Repaired_V1"):
+            instances.append(instance)
+            continue
+
         library = unreal.MaterialEditingLibrary
         diffuse, normal, opacity, by_slot = _material_texture_bindings(material, rig)
         # When Diffuse and Opacity legitimately share one file (by_slot["Opacity"] == diffuse's

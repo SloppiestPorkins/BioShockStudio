@@ -122,12 +122,34 @@ def _author_master(destination, falloff, dust):
     edit.connect_material_expressions(intensity, "", bright, "B")
     depth = _create_expression(edit, material, unreal.MaterialExpressionDepthFade, 410, 120)
     depth.set_editor_property("fade_distance_default", 120.0)
+    # Fade a beam surface out as it nears the camera. Medical's beams are open two-sided tubes
+    # (Light_Beams at drawScale 0.5 is ~250 cm wide) and the loadroom puts the player inside one,
+    # so without this a face centimetres from the eye drew over the whole view, viewmodel
+    # included. PLAUSIBLE stand-in: the original LightBeamShader's own near-view behaviour isn't
+    # decoded; 40 uu fully hidden, fading in over the next 200 uu. Built from PixelDepth because
+    # MaterialExpressionCameraDepthFade isn't exposed to Python: saturate((depth - 40) / 200).
+    pixel_depth = _create_expression(edit, material, unreal.MaterialExpressionPixelDepth, 0, 420)
+    near_offset = _create_expression(edit, material, unreal.MaterialExpressionConstant, 0, 500)
+    near_offset.set_editor_property("r", 40.0)
+    near_length = _create_expression(edit, material, unreal.MaterialExpressionConstant, 0, 580)
+    near_length.set_editor_property("r", 200.0)
+    past_offset = _create_expression(edit, material, unreal.MaterialExpressionSubtract, 210, 440)
+    edit.connect_material_expressions(pixel_depth, "", past_offset, "A")
+    edit.connect_material_expressions(near_offset, "", past_offset, "B")
+    ramp = _create_expression(edit, material, unreal.MaterialExpressionDivide, 390, 460)
+    edit.connect_material_expressions(past_offset, "", ramp, "A")
+    edit.connect_material_expressions(near_length, "", ramp, "B")
+    near = _create_expression(edit, material, unreal.MaterialExpressionSaturate, 570, 460)
+    edit.connect_material_expressions(ramp, "", near, "")
+    fade = _create_expression(edit, material, unreal.MaterialExpressionMultiply, 600, 200)
+    edit.connect_material_expressions(depth, "", fade, "A")
+    edit.connect_material_expressions(near, "", fade, "B")
     softened = _create_expression(edit, material, unreal.MaterialExpressionMultiply, 790, -60)
     edit.connect_material_expressions(bright, "", softened, "A")
-    edit.connect_material_expressions(depth, "", softened, "B")
-    opacity = _create_expression(edit, material, unreal.MaterialExpressionMultiply, 600, 100)
+    edit.connect_material_expressions(fade, "", softened, "B")
+    opacity = _create_expression(edit, material, unreal.MaterialExpressionMultiply, 790, 100)
     edit.connect_material_expressions(falloff_node, "R", opacity, "A")
-    edit.connect_material_expressions(depth, "", opacity, "B")
+    edit.connect_material_expressions(fade, "", opacity, "B")
     edit.connect_material_property(softened, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     edit.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
     edit.recompile_material(material)
