@@ -144,7 +144,7 @@ public sealed class CubemapTests(GameFixture game)
         string directory = Path.Combine(Path.GetTempPath(), "bioshock-cubemap-faces-" + Guid.NewGuid().ToString("N"));
         try
         {
-            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest, readable: false, package);
+            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest | LevelExportFormats.Cubemaps, readable: false, package);
             string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".ue5-level.json"));
             var document = JsonSerializer.Deserialize<LevelDocument>(
                 json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;

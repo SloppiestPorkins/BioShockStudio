@@ -150,7 +150,7 @@ public sealed class MaterialAnimatorTests(GameFixture game)
         string directory = Path.Combine(Path.GetTempPath(), "bioshock-level-animators-" + Guid.NewGuid().ToString("N"));
         try
         {
-            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest, readable: false, package);
+            LevelSceneExporter.Write(scene, directory, LevelExportFormats.Ue5Manifest | LevelExportFormats.Materials, readable: false, package);
             string json = File.ReadAllText(Path.Combine(directory, scene.PackageName + ".ue5-level.json"));
             var document = JsonSerializer.Deserialize<LevelDocument>(
                 json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;

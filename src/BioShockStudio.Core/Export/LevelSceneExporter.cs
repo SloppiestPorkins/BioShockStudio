@@ -41,9 +41,9 @@ public enum LevelExportFormats
     /// <summary>
     /// Decode and write each unique cubemap actor references as 6 face PNGs. Genuinely slow (a
     /// per-face image decode, not just a file copy) and irrelevant to a script-graph-only pass --
-    /// scripts never reference reflection captures. Bundled into every other format's write via
-    /// <see cref="SceneJson"/>/<see cref="Ue5Manifest"/> below for source compatibility; a caller
-    /// that wants the manifest without this cost passes <see cref="Ue5Manifest"/> alone.
+    /// scripts never reference reflection captures. Always written with <see cref="SceneJson"/>;
+    /// a <see cref="Ue5Manifest"/>-only caller gets cubemaps only if it also passes this flag
+    /// (<see cref="All"/> includes it).
     /// </summary>
     Cubemaps = 16,
 
@@ -52,8 +52,8 @@ public enum LevelExportFormats
     /// per-map cost for a real story map (dozens to hundreds of unique textures, each a genuine
     /// pixel decode) and irrelevant to a script-graph-only pass -- <c>import_scripts.py</c> reads
     /// only the manifest's <c>actors</c> array filtered to Script-class, never <c>materials</c>/
-    /// <c>textures</c>. Bundled into every other format for source compatibility, same as
-    /// <see cref="Cubemaps"/>.
+    /// <c>textures</c>. Same rule as <see cref="Cubemaps"/>: always written with
+    /// <see cref="SceneJson"/>, opt-in for a <see cref="Ue5Manifest"/>-only caller.
     /// </summary>
     Materials = 32,
 
