@@ -1,12 +1,38 @@
 Supersedes docs/archive/HANDOFF.md, docs/archive/NEXT_SESSION.md, docs/archive/AUDIT_2026-09-06.md.
 
-# Status — as of 30 Sept 2026
+# Status — as of 2 Oct 2026
 
 For the forward plan (systems, priority order, what's still unbuilt), see **[`docs/ROADMAP.md`](ROADMAP.md)**.
 This file is the current-state snapshot: what's done and verified, what's landed but not yet
 confirmed by the user in a live PIE session, what's an open bug, and what's a known-missing feature.
 Where a claim below could not be confirmed against the repository (commits, task files, source), it
 says **STATUS UNCLEAR — verify** rather than guessing.
+
+## Repo lost and rebuilt (1–2 Oct 2026)
+
+Between 30 Sept 22:57 and 1 Oct 03:02 the whole `C:\Users\Jack\Documents\BioshockHavok` folder
+disappeared: not moved, not in the Recycle Bin, and no Claude tool call in any session removed it
+(cause unknown). GitHub had everything up to `60c6d3b` (29 Sept 16:12). Rebuilt 2 Oct from the
+Claude session logs:
+
+- **The 20 unpushed commits** (`d796872` … `fe31834`) were replayed at their original times with
+  their original messages. They have new hashes; each message ends with `original commit <sha>`, so
+  an old hash cited in these docs resolves with `git log --grep "original commit e51e8cb"`. Every
+  rebuilt commit matches its original's recorded file count and +/− line counts exactly, and the
+  plugin C++ is byte-identical (612/612 files) to the copy in `BioShockUE5/Plugins` (UE baseline
+  `2d528550`). Cursor-agent changes, which were copied in with `cp` rather than edited, came from
+  the `git diff main` output printed before each copy.
+- **The uncommitted 30 Sept doc rewrite** (ROADMAP Phase 0–3, §61, CLAUDE.md, this file) was
+  restored and committed.
+- **`tools/fmod-x86/FmodFsbDecoder.cpp`** was gitignored with its folder and lost; rebuilt from
+  Codex's patch log, verified decoding a real FSB, and now tracked.
+- **Gone, never in git:** `artifacts/` (4.5 GB of build output and local evidence;
+  `artifacts/tools/FmodFsbDecoder.exe` rebuilt), `external/` (Unreal-Library-master and
+  UModel-master, which `tools/uelib-bridge` needs, plus Nyko's SDK and the Havok 2012.2 SDK — must
+  be re-fetched), `tmp/`, `tools/ue5/_reports|_shots/`, `tools/agents/runs/`. The 15 worktrees in
+  `../BioShockHavok-agents/` are orphaned (their gitdir went with the old `.git`).
+- Verification also turned up 2 fast-tier tests broken since `export-level-manifest` (only
+  `LevelSceneTests` was run when it landed); fixed.
 
 ## Most recent landed work (30 Sept 2026)
 
