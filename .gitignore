@@ -16,9 +16,12 @@ obj/
 #   source directly against this repo's own target framework.
 /external/
 
-# Downloaded FMOD helper binaries are used locally to interrogate the game's streamed-audio banks.
-# They are not part of this project's source or redistribution set.
-/tools/fmod-x86/
+# tools/fmod-x86/ holds this project's own x86 FMOD bridge (FmodFsbDecoder.cpp + README) -- tracked.
+# Only its build output is ignored. The source used to be ignored with the whole folder and was lost
+# with the 1 Oct 2026 repo deletion; it was rebuilt from Codex's patch log (2 Oct 2026).
+/tools/fmod-x86/*.exe
+/tools/fmod-x86/*.obj
+/tools/fmod-x86/*.wav
 
 # Interpreter caches are local build by-products.
 __pycache__/
