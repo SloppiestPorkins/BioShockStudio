@@ -65,14 +65,17 @@ Take items in order; finish one before starting the next (§60 "Roadmap discipli
 
 ### Phase 1 — Verification that sees what the player sees
 
-3. **Visual capture pass.** Launch with rendering on, teleport to ~20 named viewpoints across
+3. **Visual capture pass — done 3 Oct 2026** (`tools/ue5/capture_set.ps1 -Set medical`: 12 validated
+   viewpoints, contact sheet, whole-frame + worst-tile diff against baselines kept in the UE repo;
+   it caught the white wedge and the Machine Gun octagon). Original scope: Launch with rendering on, teleport to ~20 named viewpoints across
    `1-Medical` (arrival, Steinman's waiting room, Fisheries gate, bathysphere, …), capture each, and
    diff against committed reference captures; a large change flags for a human look. Build on
    `tools/ue5/capture_shot.ps1`. This is the check that would have caught the 30 Sept screenshot bugs.
 4. **Medical critical-path test.** An ordered list of Medical's progression gates (arrival → Steinman
    → Fisheries quarantine gate → … → bathysphere departure); fire each gate's real trigger in order
    and assert it opens/advances. This is the executable definition of "Medical is playable".
-5. **One-process suite runner.** One editor boot runs a named list of `verify_*.py` scripts and
+5. **One-process suite runner — done 3 Oct 2026** (`tools/ue5/ue_run.py --suite medical-core`: 5
+   scripts in one 30 s boot vs ~5 min separately). Original scope: One editor boot runs a named list of `verify_*.py` scripts and
    writes one report, replacing the pattern of ~170 `run_*.py` wrappers each booting its own editor.
 6. **Rebuild-from-scratch diff.** Clean base import → `setup_playable_slice.py` → compare actor
    classes/counts/labels against the committed slice. Proves the slice is still reproducible from the
