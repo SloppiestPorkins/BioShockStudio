@@ -22,6 +22,8 @@ Env:
   BIOSHOCK_SKELMAT_MANIFEST      path to <map>.ue5-level.json (required)
   BIOSHOCK_SKELMAT_CONTENT_ROOT  content root the meshes were imported under
   BIOSHOCK_SKELMAT_DRY           "1" to report what it would bind and change nothing
+
+Pipeline: retired -- an audit that found nothing to fix on 1-Medical; kept for the record only.
 """
 
 from __future__ import annotations

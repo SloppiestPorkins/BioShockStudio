@@ -11,6 +11,9 @@ Run headless (editor CLOSED):
 Env: BIOSHOCK_WATER_MAP (default /Game/BioShockSlice/1-Medical)
      BIOSHOCK_WATER_DRY=1 to report without saving
      BIOSHOCK_ACTION_OUT (JSON report; default %TEMP%/repair_water_surfaces.json)
+
+Pipeline: one-off -- import_level now spawns AShockWaterVolume directly; this converted maps
+imported before that.
 """
 
 from __future__ import annotations

@@ -18,6 +18,9 @@ Env:
   BIOSHOCK_REPAIR_MAPS   comma-separated /Game map paths
                          (default: every /Game/BioShockLevel/* map that exists)
   BIOSHOCK_REPAIR_OUT    report JSON (default %TEMP%/repair_imported_levels.json)
+
+Pipeline: entry-point -- the batch driver that runs the post-import repairs on the other 20
+story maps; a top-level entry point itself, not a step of the 1-Medical slice rebuild.
 """
 
 from __future__ import annotations

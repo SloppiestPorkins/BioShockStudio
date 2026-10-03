@@ -10,6 +10,9 @@ see verify_collision.py's docstring for the original incident this fix pattern c
     -unattended -nopause -nosplash
 Env:
   BIOSHOCK_COLLISION_MAPS   comma-separated /Game map paths (default /Game/BioShockSlice/1-Medical)
+
+Pipeline: retired -- superseded by fix_all_complex_collision (in STEPS); the compiled-world
+shell already traces complex-as-simple.
 """
 import json, os, re
 import unreal

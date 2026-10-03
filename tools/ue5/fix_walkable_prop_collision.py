@@ -20,6 +20,9 @@ Env:
   BIOSHOCK_WALKABLE_MAPS   comma-separated /Game map paths (default /Game/BioShockSlice/1-Medical)
   BIOSHOCK_WALKABLE_DRY    "1" to report candidates without changing anything
   BIOSHOCK_WALKABLE_MIN_SIZE   minimum bounding-box largest dimension in uu (default 300 = 3m)
+
+Pipeline: retired -- superseded by fix_all_complex_collision (in STEPS), which applies complex-
+as-simple to every slice mesh.
 """
 import json, os, re, sys
 import unreal

@@ -14,6 +14,9 @@ folder, not just one map's materials.
     -unattended -nopause -nosplash
 Env:
   BIOSHOCK_OPACITY_ROOT   content root the masters live under (default /Game/BioShockSlice/Content)
+
+Pipeline: one-off -- import_bioshock now repairs the Opacity sampler inline on every import
+(_repair_translucent_opacity_*).
 """
 import json, os, sys
 import unreal

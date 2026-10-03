@@ -22,6 +22,9 @@ Env:
   BIOSHOCK_PS_MAPS             comma-separated /Game map paths (default: /Game/BioShockLevel/1-Medical)
   BIOSHOCK_PS_DRY              "1" to report without changing anything
   BIOSHOCK_PS_SNAP_THRESHOLD   uu; a start further than this from any path node is snapped (default 180)
+
+Pipeline: one-off -- import_level now places real PlayerStart actors; this promoted TargetPoint
+placeholders in older imports.
 """
 
 from __future__ import annotations

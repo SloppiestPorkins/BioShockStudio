@@ -5,6 +5,9 @@ BLEND_MASKED, blood onto translucent_mask). Loads textures off disk -- no re-imp
 Run:
   UnrealEditor-Cmd <proj> -run=pythonscript -script=tools/ue5/repair_walls_and_materials.py \
     -unattended -nopause -nosplash
+
+Pipeline: one-off -- combines repair_compiled_world_uvs and repair_reparent_materials, both now
+done by a normal import.
 """
 import os, sys, json, traceback
 sys.path.append(r"C:\Users\Jack\Documents\BioshockHavok\tools\ue5")

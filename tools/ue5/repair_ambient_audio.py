@@ -1,4 +1,8 @@
-"""Repair ambient cues and placed actors without rebuilding unrelated audio."""
+"""Repair ambient cues and placed actors without rebuilding unrelated audio.
+
+Pipeline: one-off -- a focused re-run of ambient audio; import_audio runs in every rebuild
+(STEPS).
+"""
 
 from __future__ import annotations
 

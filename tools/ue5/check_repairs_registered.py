@@ -24,6 +24,8 @@ A script may opt out with a line in its module docstring:
     Pipeline: one-off    a migration/cleanup that has done its job and must not re-run on every
                          rebuild (e.g. it deletes or renames assets once)
     Pipeline: retired    superseded; kept for the record (say by what in the same docstring)
+    Pipeline: entry-point  a top-level driver in its own right (e.g. the batch repair for the
+                         other story maps), not a step the 1-Medical slice rebuild should run
 
 Exit 0 when nothing is unregistered, 1 when something is (they are printed), 2 when STEPS
 cannot be read. Standalone Python (no Unreal):
@@ -45,7 +47,7 @@ PIPELINE_FILE = "setup_playable_slice.py"
 CANDIDATE_GLOBS = ("fix_*.py", "repair_*.py")
 # Referrers that never make a script part of the rebuild (see the docstring).
 NON_PIPELINE_PREFIXES = ("run_", "verify_", "probe_", "audit_")
-OPT_OUT = re.compile(r"^\s*Pipeline:\s*(one-off|retired)\b", re.IGNORECASE | re.MULTILINE)
+OPT_OUT = re.compile(r"^\s*Pipeline:\s*(one-off|retired|entry-point)\b", re.IGNORECASE | re.MULTILINE)
 
 
 def parse(path: Path):
@@ -242,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
             for name in bad:
                 print("  " + name)
             print("Register each in %s STEPS (or call it from a registered script), or add "
-                  "'Pipeline: one-off' / 'Pipeline: retired' to its docstring." % PIPELINE_FILE)
+                  "'Pipeline: one-off' / 'retired' / 'entry-point' to its docstring." % PIPELINE_FILE)
         else:
             print("all %d fix_/repair_ scripts are registered or opted out" % total)
     return 1 if report["unregistered"] else 0

@@ -25,6 +25,9 @@ currently exist on disk.
     -unattended -nopause -nosplash
 Env:
   BIOSHOCK_MASK_FIX_ROOT   content root the masters live under (default /Game/BioShockSlice/Content)
+
+Pipeline: one-off -- the Diffuse/Opacity texture naming collision was fixed at its source in
+import_bioshock (c22dcd7 original, 29 Sept).
 """
 import json, os, sys
 import unreal

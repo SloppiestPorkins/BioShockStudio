@@ -31,6 +31,9 @@ Env:
   BIOSHOCK_PROP_REPAIR_CONTENT    content root (default /Game/BioShockSlice/Content)
   BIOSHOCK_PROP_REPAIR_DRY        "1" to report mismatches and change nothing
   BIOSHOCK_PROP_REPAIR_LIMIT      max assets to reimport (0 = no limit; useful for a smoke pass)
+
+Pipeline: one-off -- import_level now detects and reimports section-count mismatches itself
+(_mesh_section_count_mismatch).
 """
 
 from __future__ import annotations

@@ -1,6 +1,9 @@
 """Re-import ONLY the compiled-world OBJ (corrected BSP UVs) and re-bind its material slots
 from the MI_ assets already on disk. No texture / rig / actor / cubemap import -- none of the
 headless-hang paths. Use after re-exporting a level with BIOSHOCK_ORIGINAL_TEXTURE_DIR set.
+
+Pipeline: one-off -- the exporter now writes corrected BSP UVs, so a normal re-import is right;
+this patched an earlier import.
 """
 import os, sys, json, traceback
 sys.path.append(r"C:\Users\Jack\Documents\BioshockHavok\tools\ue5")

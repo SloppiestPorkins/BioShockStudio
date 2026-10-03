@@ -17,6 +17,9 @@ Run headless:
     -unattended -nopause -nosplash
 Env: BIOSHOCK_VOLSCALE_MAP (default /Game/BioShockSlice/1-Medical)
      BIOSHOCK_VOLSCALE_DRY=1 to report without saving
+
+Pipeline: one-off -- import_level now sizes volumes without the 100x scale bug (brush_scale
+path); this fixed maps saved before that.
 """
 
 from __future__ import annotations

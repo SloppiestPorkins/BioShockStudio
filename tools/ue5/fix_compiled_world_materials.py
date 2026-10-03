@@ -24,6 +24,9 @@ Env:
   BIOSHOCK_CWFIX_MANIFEST   path to <map>.ue5-level.json (required)
   BIOSHOCK_CWFIX_MAPS       comma-sep /Game map paths to re-save (optional)
   BIOSHOCK_CWFIX_DRY        "1" to rewrite the obj/mtl and report but not touch UE
+
+Pipeline: one-off -- the exporter now writes one usemtl group per section (BuildAssetObj) and
+import_level imports them; this patched maps imported before that.
 """
 
 from __future__ import annotations

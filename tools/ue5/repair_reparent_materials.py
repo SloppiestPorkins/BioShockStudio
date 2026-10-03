@@ -9,6 +9,9 @@ re-parents. Idempotent.
 Run headless:
   UnrealEditor-Cmd <proj> -run=pythonscript -script=tools/ue5/repair_reparent_materials.py \n    -unattended -nopause -nosplash
 Env: BIOSHOCK_REPARENT_MANIFEST, BIOSHOCK_REPARENT_CONTENT_ROOT (defaults target the slice)
+
+Pipeline: one-off -- import_bioshock re-parents every material instance to its current kind on
+each import (_create_material_instances).
 """
 import os, sys, json, traceback
 sys.path.append(r"C:\Users\Jack\Documents\BioshockHavok\tools\ue5")

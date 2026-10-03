@@ -19,6 +19,9 @@ Env:
   BIOSHOCK_PROP_MAPS        comma-separated maps (default /Game/BioShockSlice/1-Medical)
   BIOSHOCK_PROP_DRY         "1" to classify only
   BIOSHOCK_PROP_MIN_SIZE    simple-prop cutoff in uu (default 80)
+
+Pipeline: retired -- superseded by fix_all_complex_collision (in setup_playable_slice STEPS;
+user decision 8 Sept 2026: complex-as-simple for everything).
 """
 from __future__ import annotations
 

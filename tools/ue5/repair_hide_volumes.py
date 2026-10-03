@@ -18,6 +18,9 @@ Run headless:
     -unattended -nopause -nosplash
 Env: BIOSHOCK_HIDEVOL_MAP (default /Game/BioShockSlice/1-Medical)
      BIOSHOCK_HIDEVOL_DRY=1 to report without saving
+
+Pipeline: one-off -- import_level now sets hidden_in_game/visible on spawned volumes; this
+fixed maps saved before that.
 """
 
 from __future__ import annotations

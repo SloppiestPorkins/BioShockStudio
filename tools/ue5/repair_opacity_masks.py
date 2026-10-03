@@ -7,6 +7,9 @@ Env:
   BIOSHOCK_OPACITY_MANIFEST      path to <map>.ue5-level.json (required)
   BIOSHOCK_OPACITY_CONTENT_ROOT  content root the level was imported under
   BIOSHOCK_OPACITY_DRY           "1" to report without changing anything
+
+Pipeline: one-off -- import_bioshock binds the OpacityMask texture parameter on each import
+(_create_material_instances).
 """
 
 from __future__ import annotations
