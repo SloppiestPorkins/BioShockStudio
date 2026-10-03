@@ -512,6 +512,21 @@ these as provisional until someone plays them:
   only.
 - The 28 Sept light-shape/rotation import — headless only; the regression it introduced and its
   fix were both also caught and re-verified headlessly, not by a human looking at the result in PIE.
+- **The user's 30 Sept screenshot bugs (3 Oct 2026).** Rendered captures confirm each fix; neither
+  has been seen in PIE yet.
+  - White translucent wedge at the arrival porthole: 11 of 14 beam actors had been put back on a
+    raw white additive material by an importer rerun. import_bioshock now leaves repaired beam
+    instances alone; the beam master fades out near the camera (you stand inside one beam tube there).
+    Capture: viewpoint `arrival-porthole-steinman`.
+  - Black octagon on the Machine Gun: debug-draw stand-ins for unrecovered weapon FX (grey impact
+    puff, grey smoke sphere every 6th round, hit-marker spheres) drawn in the player's view. Now off
+    unless `bioshock.FxStandIns 1`. The capture harness doesn't render the viewmodel, so the
+    "on the receiver" part still needs a PIE look.
+  - Saturated red light wash: **open, not a decode bug.** Light609 (194,37,20, radius 2000,
+    LightType 7 SubtlePulse) and Light90 are authored deep red around the Neptune's Bounty
+    quarantine gate. Candidates: Unreal mixes lights in linear space where the 2007 renderer
+    mixed in gamma (overlaps stay redder), and LightPeriod (93) is treated as 93 s so the pulse is
+    effectively frozen. Needs a reference screenshot from the real game to decide.
 - The w18 fixes below **were** re-verified against the real Medical slice by the landing session
   (not just the sandboxed worker pass) — see the w18 entry for what was actually re-checked and what
   wasn't.

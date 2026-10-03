@@ -19,6 +19,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -33,6 +34,19 @@
 #include "Engine/World.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
+
+// Debug-draw stand-ins for the Cascade systems that are not recovered yet (muzzle point, impact
+// sparks/puffs, hit-marker spheres). Off by default: drawn in the player's view they read as
+// broken geometry -- the 30 Sept live report of a "black octagon" on the Machine Gun was the grey
+// impact puff and smoke spheres. `bioshock.FxStandIns 1` brings them back for debugging.
+static TAutoConsoleVariable<int32> CVarShockFxStandIns(
+	TEXT("bioshock.FxStandIns"), 0,
+	TEXT("Draw debug stand-ins for unrecovered weapon FX (0 = off, 1 = on)."));
+
+static bool ShockFxStandInsEnabled()
+{
+	return CVarShockFxStandIns.GetValueOnGameThread() != 0;
+}
 
 namespace
 {
@@ -1030,7 +1044,7 @@ void AShockWeapon::SpawnMuzzleParticle(const FVector& WorldLocation)
 		Component->SetTemplate(Template);
 		Component->ActivateSystem(true);
 	}
-	else
+	else if (ShockFxStandInsEnabled())
 	{
 		// The shipped Cascade templates are not recovered yet. This short bright stand-in keeps
 		// the muzzle visibly alive while preserving the final /Game asset contract above.
@@ -1044,8 +1058,12 @@ void AShockWeapon::SpawnMuzzleParticle(const FVector& WorldLocation)
 		static const TCHAR* SmokePath =
 			TEXT("/Game/BioShockFX/Weapons/P_AutomaticSmoke.P_AutomaticSmoke");
 		UParticleSystem* SmokeTemplate = LoadObject<UParticleSystem>(nullptr, SmokePath);
-		UParticleSystemComponent* Smoke =
-			NewObject<UParticleSystemComponent>(this, NAME_None, RF_Transient);
+		// No stand-in when the template is missing (it isn't recovered yet): the old grey 6-segment
+		// debug sphere drew inside the viewmodel and was reported live (30 Sept) as a dark octagon
+		// floating on the Machine Gun's receiver every sixth round.
+		UParticleSystemComponent* Smoke = SmokeTemplate
+			? NewObject<UParticleSystemComponent>(this, NAME_None, RF_Transient)
+			: nullptr;
 		if (Smoke)
 		{
 			AddInstanceComponent(Smoke);
@@ -1053,17 +1071,8 @@ void AShockWeapon::SpawnMuzzleParticle(const FVector& WorldLocation)
 			Smoke->SetAutoActivate(false);
 			Smoke->RegisterComponent();
 			Smoke->SetWorldLocation(WorldLocation);
-			if (SmokeTemplate)
-			{
-				Smoke->SetTemplate(SmokeTemplate);
-				Smoke->ActivateSystem(true);
-			}
-			else
-			{
-				DrawDebugSphere(
-					World, WorldLocation + FVector(0.0f, 0.0f, 3.0f),
-					5.0f, 6, FColor(105, 105, 105), false, 0.22f, 0, 0.8f);
-			}
+			Smoke->SetTemplate(SmokeTemplate);
+			Smoke->ActivateSystem(true);
 		}
 	}
 }
@@ -1233,7 +1242,7 @@ void AShockWeapon::SpawnResolvedWorldImpact(
 
 	// Visible stand-ins for the not-yet-recovered Cascade systems. Metal reads as a spark fan,
 	// water as a splash cross, and solids as a compact debris puff.
-	if (!FxTemplate)
+	if (!FxTemplate && ShockFxStandInsEnabled())
 	{
 		const FVector Tangent = FVector::CrossProduct(
 			SafeNormal,
@@ -1436,11 +1445,17 @@ void AShockWeapon::PlayFireFeedback(
 
 	if (bPawnHit)
 	{
-		DrawDebugSphere(World, VisualEnd, 4.0f, 8, FColor(255, 40, 40), false, 0.15f);
+		if (ShockFxStandInsEnabled())
+		{
+			DrawDebugSphere(World, VisualEnd, 4.0f, 8, FColor(255, 40, 40), false, 0.15f);
+		}
 	}
 	else if (bWorldHit)
 	{
-		DrawDebugSphere(World, VisualEnd, 3.0f, 6, FColor(255, 220, 50), false, 0.15f);
+		if (ShockFxStandInsEnabled())
+		{
+			DrawDebugSphere(World, VisualEnd, 3.0f, 6, FColor(255, 220, 50), false, 0.15f);
+		}
 		if (WorldHit)
 		{
 			SpawnWorldImpact(*WorldHit, bBeamImpact);
