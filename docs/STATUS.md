@@ -526,7 +526,12 @@ these as provisional until someone plays them:
     LightType 7 SubtlePulse) and Light90 are authored deep red around the Neptune's Bounty
     quarantine gate. Candidates: Unreal mixes lights in linear space where the 2007 renderer
     mixed in gamma (overlaps stay redder), and LightPeriod (93) is treated as 93 s so the pulse is
-    effectively frozen. Needs a reference screenshot from the real game to decide.
+    effectively frozen. 4 Oct: no reference screenshot is available. Walkthroughs place it at the
+    Emergency Access lever, where an alarm sounds, so the red reads as authored alarm lighting.
+    Fixed the one clear defect: LightPeriod is now LightPeriod/35 s per cycle (UE1/UE2's
+    `time * 35 / LightPeriod`, PLAUSIBLE), applied by import_level and, for the saved slice, by
+    repair_light_periods.py (30 lights; Light609 93 s -> 2.66 s). Still open, low priority: linear
+    vs gamma-space light mixing keeps overlaps redder than the 2007 renderer would.
 - The w18 fixes below **were** re-verified against the real Medical slice by the landing session
   (not just the sandboxed worker pass) — see the w18 entry for what was actually re-checked and what
   wasn't.

@@ -266,6 +266,20 @@ def _with_light_rotation(light, actors_by_key):
     return light
 
 
+def light_period_seconds(period_raw):
+    """UE2 LightPeriod byte -> seconds per animation cycle.
+
+    PLAUSIBLE, not decoded from BioShock: UE1's light animation (which UE2 inherits) advances the
+    cycle by `TimeSeconds * 35 / LightPeriod`, so one cycle lasts LightPeriod / 35 s. Reading the
+    byte as seconds instead (the old behaviour) turned Medical's red quarantine pulse
+    (Light609, LightPeriod 93) into a 93 s cycle -- effectively frozen -- instead of ~2.7 s.
+    Absent or zero falls back to 1 s, the old default.
+    """
+    if not period_raw:
+        return 1.0
+    return float(period_raw) / 35.0
+
+
 def _apply_light_effect(actor, light, component):
     """SCR-G07 / W-BUG-03: animate LightType via UShockLightEffectComponent; steady is untouched.
 
@@ -292,10 +306,7 @@ def _apply_light_effect(actor, light, component):
     effect_component = unreal.ShockLightEffectComponent.ensure_on_actor(actor)
     if effect_component is None:
         return
-    period_raw = light.get("period")
-    # LightPeriod's authored unit is UNKNOWN (byte/scale APPROXIMATED per the component's own
-    # comment); treat it as already-seconds rather than invent a conversion factor.
-    period_seconds = float(period_raw) if period_raw else 1.0
+    period_seconds = light_period_seconds(light.get("period"))
     base_intensity = float(component.get_editor_property("intensity"))
     # LightPhase is not exported (UNKNOWN offset) — start every cycle at 0 rather than guess.
     effect_component.configure_from_int(effect_ordinal, base_intensity, max(period_seconds, 0.1), 0.0)
