@@ -71,3 +71,13 @@ does not, so nothing can fall out of both tiers and stop running.
 Tests read the installed game. Close the app before `dotnet publish` — a running instance locks the
 DLLs. Commit small and often, by filename (never `git add -A`) — see `docs/EFFICIENCY_RULES.md` and
 `docs/ENGINEERING_RULES.md` §60's "Do not commit unless asked" entry, superseded 4 Sept 2026.
+
+**Tools for the repetitive steps (3 Oct 2026) — use them instead of hand-typed commands:**
+`tools/ue5/ue_run.py` runs any UE-Python script or `--suite` headless (one Unreal process at a
+time via `tools/ue5/ue_guard.py`; its verdict, not UE's exit code, decides pass/fail; a `-nullrhi`
+pass is render-blind). `tools/ue5/capture_set.ps1 -Set medical` renders the validated viewpoints in
+`tools/ue5/viewpoints/` and diffs them against baselines kept in the UE repo — a visual bug is done
+only when a capture from the reported spot shows it fixed. `tools/manifest_query.py` queries level
+manifests. `tools/git/ship.py` commits by filename (both repos), runs `tools/verify_changed.py`
+for C# changes, and pushes. `tools/ue5/check_repairs_registered.py` lists repairs a rebuild would
+not re-run. Matching Claude Code skills and the repo-guard hook live in `tools/claude/`.

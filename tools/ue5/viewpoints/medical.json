@@ -1,0 +1,248 @@
+{
+  "set": "medical",
+  "map": "/Game/BioShockSlice/1-Medical",
+  "coordinateSpace": "UE world (cm)",
+  "manifestMapping": {
+    "source": "C:/Users/Jack/Documents/BioShockUE5/Exports/slice/1-Medical/1-Medical.ue5-level.json",
+    "derivedFrom": "The 8 Light_Beams StaticMeshActor positions measured in the UE slice on 2 Oct 2026, matched to the manifest's 11 StaticMesh_Light_Beams_4400 instances by trying all 48 axis permutations and sign flips and keeping the one with the smallest worst-case residual.",
+    "instancesTransform": "instances[].transform[12..14] (and lights[].location) use the manifest basis (right-handed, +Y left): UE = (x, -y, z). Scale 1 (least-squares fit 0.99999), offset 0 (fit within 0.25 cm). Worst residual 0.68 cm over all 8 beams; the next-best axis mapping misses by 4314 cm.",
+    "actorsLocation": "actors[].location is already in UE axes: UE = (x, y, z), same 0.68 cm worst residual. All positions below come from actors[].location unless noted.",
+    "measuredBeams": [
+      [
+        -17018,
+        1322,
+        7508
+      ],
+      [
+        -17289,
+        1246,
+        7687
+      ],
+      [
+        -17277,
+        1465,
+        7699
+      ],
+      [
+        -25232,
+        1120,
+        8064
+      ],
+      [
+        -31896,
+        1887,
+        8356
+      ],
+      [
+        -19768,
+        2260,
+        8106
+      ],
+      [
+        -23518,
+        2260,
+        7852
+      ],
+      [
+        -27404,
+        652,
+        8017
+      ]
+    ]
+  },
+  "notes": "Proposed viewpoints put the camera 250-400 cm from a landmark actor, about 60 cm above the floor for floor-level targets, aimed with -bioshockshotlook. Every one marked validated:false has never been captured: a wall may sit between camera and target. Capture each, Read the PNG, then either set validated:true or move/prune it.",
+  "viewpoints": [
+    {
+      "name": "arrival-porthole-steinman",
+      "abs": [
+        -17250,
+        1280,
+        7740
+      ],
+      "look": [
+        -17250,
+        3000,
+        7740
+      ],
+      "extra": [],
+      "why": "The user's 30 Sept white-wedge screenshot spot: from the arrival room, looking +Y through the porthole into Steinman's waiting room (poster, couch, chequered floor). Arrival Light_Beams StaticMeshActor2098/2099 hang just in front of the camera.",
+      "validated": true
+    },
+    {
+      "name": "arrival-loadroom-lookback",
+      "abs": [
+        -17312,
+        1560,
+        7748
+      ],
+      "look": [
+        -17320,
+        1272,
+        7748
+      ],
+      "extra": [],
+      "why": "First room the player stands in. Camera at the MedicalLoadRoomDoor (LoadRoomDoor2, -17312,1632,7688) looking back -Y over the MedicalStart PlayerStart (-17320,1272,7778) toward the arrival dock.",
+      "validated": true
+    },
+    {
+      "name": "waiting-room-interior",
+      "abs": [
+        -17100,
+        1800,
+        7756
+      ],
+      "look": [
+        -17280,
+        2068,
+        7800
+      ],
+      "extra": [],
+      "why": "Inside the waiting room seen through the arrival porthole (zone 39): the Long_Couch (StaticMeshActor1583, -17216,2064,7696) and the steinman_ad poster above it (StaticMeshActor241, -17333,2071,7918).",
+      "validated": true
+    },
+    {
+      "name": "foyer-vita-chamber",
+      "abs": [
+        -16744,
+        1558,
+        7758
+      ],
+      "look": [
+        -16744,
+        1888,
+        7780
+      ],
+      "extra": [],
+      "why": "The first Vita-Chamber, ResStation_Foyer (ResurrectionStation0, -16744,1888,7698). Its yaw is -90 so the camera stands 330 cm along -Y, assuming the door faces its actor forward.",
+      "validated": true
+    },
+    {
+      "name": "foyer-godray-corridor",
+      "abs": [
+        -19480,
+        2240,
+        7764
+      ],
+      "look": [
+        -19768,
+        2260,
+        8000
+      ],
+      "extra": [],
+      "why": "God-ray beams seen from a few metres: Light_Beams StaticMeshActor2079 (-19768,2260,8106, measured in UE today) in the foyer corridor toward the MedicalGate (zone 38, floor about 7704 per FoyerVending).",
+      "validated": true
+    },
+    {
+      "name": "lobby-red-wash",
+      "abs": [
+        -17250,
+        2650,
+        7760
+      ],
+      "look": [
+        -17250,
+        2300,
+        7740
+      ],
+      "extra": [],
+      "why": "The saturated red light wash (30 Sept screenshots 13/14). On 2 Oct a capture from (-17250,2300,7760) looking -Y (beam_distance.png) showed a red-drenched wall; the 'quarantine' red lights Light609 (radius 2000) and Light90 light this lobby (zone 36). This backs off 350 cm along +Y to frame the same wall.",
+      "validated": true
+    },
+    {
+      "name": "quarantine-switch",
+      "abs": [
+        -17450,
+        3002,
+        8100
+      ],
+      "look": [
+        -17131,
+        3002,
+        8080
+      ],
+      "extra": [],
+      "why": "The quarswitch (Med_MedicalGateSwitch1, -17131,3002,8080, yaw 180 so it faces -X) that the Fisheries quarantine sequence turns on. Wall-mounted, so the camera is level with it rather than at floor eye height.",
+      "validated": true
+    },
+    {
+      "name": "fisheries-quarantine-gate",
+      "abs": [
+        -17104,
+        4030,
+        7741
+      ],
+      "look": [
+        -17104,
+        4368,
+        7760
+      ],
+      "extra": [],
+      "why": "The Fisheries quarantine gate, FisheriesAccordian (AccordianGateDoor1, -17104,4368,7681), from the lobby side under the red Light609 (-17108,4086,7753).",
+      "validated": true
+    },
+    {
+      "name": "bathysphere-neptune",
+      "abs": [
+        -17104,
+        4990,
+        7745
+      ],
+      "look": [
+        -17102,
+        5303,
+        7745
+      ],
+      "extra": [],
+      "why": "The bathysphere dock beyond the Fisheries gate: camera at the Backtrack_MedicalStart PlayerStart (-17104,5048,7685) looking +Y at ToNeptuneSwitch (BathysphereSwitch1, -17102,5303,7708).",
+      "validated": true
+    },
+    {
+      "name": "steinman-surgery-waiting",
+      "abs": [
+        -31750,
+        1000,
+        8180
+      ],
+      "look": [
+        -31390,
+        992,
+        8160
+      ],
+      "extra": [],
+      "why": "Steinman's Aesthetic Ideals waiting area (zone 65): SteinmanGirlInChair (AggToastyBooty6, -31390,992,8209) with the groupie markers around -31950,1000; floor about 8120 per the SteinmanSignRubble actors.",
+      "validated": true
+    },
+    {
+      "name": "flooded-room-caustics",
+      "abs": [
+        -20560,
+        3220,
+        7700
+      ],
+      "look": [
+        -20560,
+        3556,
+        7640
+      ],
+      "extra": [],
+      "why": "Water: the flooded room (zone 31) with CascadingWaterVolume8 (-20560,3556,7624), Caustic_Projector5 (-20678,3630,7604) and FluidVolume6. Camera kept above the probable water line.",
+      "validated": true
+    },
+    {
+      "name": "dental-glass-panels",
+      "abs": [
+        -23580,
+        4544,
+        7790
+      ],
+      "look": [
+        -23917,
+        4544,
+        7838
+      ],
+      "extra": [],
+      "why": "Glass: the wall of six BreakingGlassMesh_128x128 panels (x -23917, y 4352-4736, z 7780-7896) by the PainlessDentalSwitch, seen from inside zone 7 (ZoneInfo3 at -23580,4625).",
+      "validated": true
+    }
+  ]
+}

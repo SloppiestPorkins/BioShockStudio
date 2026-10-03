@@ -12,12 +12,37 @@
 #   RunUAT BuildPlugin: ~10min (do NOT use for daily C++ tweaks)
 #
 # First-time / wiped PluginBuild: run tools/ue5/seed_hostproject.ps1, then this script.
+#
+# The last line is always exactly one of "Result: Succeeded" or "FAILED: <reason>". UBT's own
+# "Result:" line is relabelled "UBT Result:" so a grep for the verdict cannot match it.
 
 param(
   [switch]$CleanModule
 )
 
 $ErrorActionPreference = 'Stop'
+
+$guardPy = Join-Path $PSScriptRoot 'ue_guard.py'
+$script:FailCode = 1
+trap {
+  try { & python $guardPy release --owner-pid $PID | Out-Null } catch {}
+  Write-Host "FAILED: $($_.Exception.Message)"
+  exit $script:FailCode
+}
+
+# Refuse BEFORE compiling while any Unreal process is alive: an open editor holds the plugin DLL,
+# so the compile would run for minutes and then fail on the copy. Never kill it - report and stop.
+# The shared lock (ue_guard.py) also keeps ue_run / capture_shot from starting mid-rebuild.
+$guard = & python $guardPy acquire --for rebuild --task 'rebuild_runtime_fast' --owner-pid $PID
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ("FAILED: " + (($guard -join ' ') -replace '^BUSY \(rebuild\): ', ''))
+  exit 1
+}
+if ($guard) { $guard | ForEach-Object { Write-Host $_ } }
+
+# finally (not just the trap) releases the lock: Ctrl+C skips traps but runs finally blocks, and
+# an in-process run's owner pid is the interactive shell, which would otherwise hold it until closed.
+try {
 
 $EngineRoot = 'G:\Games\UE_5.7'
 $UeProject = 'C:\Users\Jack\Documents\BioShockUE5'
@@ -88,10 +113,13 @@ Write-Host 'UBT UnrealEditor Win64 Development (incremental)...'
   "-Project=$HostUproject" `
   "-plugin=$HostUplugin" `
   -noubtmakefiles `
-  -NoHotReloadFromIDE
+  -NoHotReloadFromIDE | ForEach-Object { if ($_ -match '^\s*Result: ') { "UBT $($_.Trim())" } else { $_ } }
 $ubtExit = $LASTEXITCODE
 Write-Host ("UBT finished in {0:n1}s exit={1}" -f $sw.Elapsed.TotalSeconds, $ubtExit)
-if ($ubtExit -ne 0) { exit $ubtExit }
+if ($ubtExit -ne 0) {
+  $script:FailCode = $ubtExit
+  throw "UBT compile failed (exit $ubtExit) - see the compiler errors above"
+}
 
 $srcBin = Join-Path $HostPlugin 'Binaries\Win64'
 $dstBin = Join-Path $LivePlugin 'Binaries\Win64'
@@ -99,4 +127,8 @@ New-Item -ItemType Directory -Force -Path $dstBin | Out-Null
 Copy-Item -Force (Join-Path $srcBin '*') $dstBin
 Write-Host "Copied binaries -> $dstBin"
 Write-Host ("Total {0:n1}s" -f $sw.Elapsed.TotalSeconds)
+} finally {
+  & python $guardPy release --owner-pid $PID | Out-Null
+}
+Write-Host 'Result: Succeeded'
 exit 0

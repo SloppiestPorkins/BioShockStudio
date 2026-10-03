@@ -1,0 +1,22 @@
+# medical-core -- the Medical regression set run 8 times on 29 Sept 2026.
+#   python tools/ue5/ue_run.py --suite medical-core
+#
+# Every script here runs main() from its __main__ block with no required arguments (each reads
+# its report path from BIOSHOCK_ACTION_OUT, falling back to a %TEMP% default) and raises on failure.
+#
+# All five share ONE editor boot, so world state can leak between them: actors one script spawns
+# or imports are still in the editor world when the next one runs. Order matters:
+#   - verify_vita_chamber loads /Game/BioShockSlice/1-Medical and SAVES it at the end. It stays
+#     ahead of verify_import_scripts, which imports scripts into the loaded world, so that import
+#     is never saved into the map.
+#   - --env BIOSHOCK_ACTION_OUT=... would point every script at the same report file. Leave it
+#     unset for a suite run.
+# If a script passes alone but fails here, rerun it on its own before calling it a regression.
+#
+# -nullrhi by default: these check data and gameplay state, never how anything looks.
+
+verify_gameplay_fidelity
+verify_scripting_movers
+verify_vita_chamber
+verify_import_scripts
+verify_water

@@ -40,6 +40,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# One Unreal process per project at a time (ue_guard.py). Refuse before touching the previous shot;
+# if the user's editor is open, say so and stop -- never kill it.
+$guardPy = Join-Path $PSScriptRoot 'ue_guard.py'
+$busy = & python $guardPy check --for capture
+if ($LASTEXITCODE -ne 0) { Write-Output ($busy -join ' '); exit 1 }
+
 if ([string]::IsNullOrWhiteSpace($Out)) {
   $leaf = ($Map -split '/')[-1]
   $Out = Join-Path (Split-Path $Project -Parent) "Exports\shots\$leaf.png"
@@ -67,13 +73,29 @@ $args = @(
 ) + $Extra
 if ($Extra.Count) { Write-Output "extra   : $($Extra -join ' ')" }
 
+# Take the shared lock, then hand it to the game process itself: it is held exactly as long as the
+# game runs, so a crashed or killed capture can never leave a permanent lock behind.
+$held = & python $guardPy acquire --for capture --task "capture_shot $Map" --owner-pid $PID
+if ($LASTEXITCODE -ne 0) { Write-Output ($held -join ' '); exit 1 }
+if ($held) { $held | ForEach-Object { Write-Output $_ } }
+
 # NOT Minimized: a minimised game window can present an empty backbuffer, so the shot comes back
 # black and reads as "the level is unlit" when it is really "nothing was drawn".
-$proc = Start-Process -FilePath $ueCmd -ArgumentList $args -PassThru
+try {
+  $proc = Start-Process -FilePath $ueCmd -ArgumentList $args -PassThru
+} catch {
+  & python $guardPy release --owner-pid $PID | Out-Null
+  throw
+}
+& python $guardPy adopt --owner-pid $PID --new-pid $proc.Id | Out-Null
 if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
   Write-Output "TIMEOUT after ${TimeoutSeconds}s - killing"
   try { $proc.Kill() } catch {}
+  # Kill() is asynchronous: wait for the D3D12 process to really exit, or the next capture in a
+  # set sees it in tasklist and is skipped as 'busy'.
+  if (-not $proc.WaitForExit(60000)) { Write-Output "WARNING: killed game pid $($proc.Id) still alive after 60s" }
 }
+& python $guardPy release --owner-pid $proc.Id | Out-Null
 
 if (Test-Path $Out) {
   $size = [math]::Round((Get-Item $Out).Length / 1KB)
