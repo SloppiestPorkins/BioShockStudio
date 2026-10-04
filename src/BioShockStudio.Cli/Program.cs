@@ -1810,6 +1810,13 @@ static int ExportScriptActions(string root, string[] args)
                     UnrealPropertyType.Bool => property.BoolValue,
                     UnrealPropertyType.Str => PropertyValues.AsString(property),
                     UnrealPropertyType.Name => PropertyValues.AsName(property, package),
+                    // Object/class references as the referenced object's name (e.g. a getter's
+                    // ItemClass = SteinmanQuarantineKey). parentScript is the owning Script's
+                    // back-pointer, not an action parameter; null references carry nothing.
+                    UnrealPropertyType.Object when property.Name != "parentScript"
+                                                   && property.TryAsObjectReference(out var reference)
+                                                   && !reference.IsNull
+                        => package.ResolveName(reference),
                     _ => null,
                 };
                 if (value is null) continue;

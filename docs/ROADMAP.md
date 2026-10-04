@@ -71,7 +71,9 @@ Take items in order; finish one before starting the next (§60 "Roadmap discipli
    `1-Medical` (arrival, Steinman's waiting room, Fisheries gate, bathysphere, …), capture each, and
    diff against committed reference captures; a large change flags for a human look. Build on
    `tools/ue5/capture_shot.ps1`. This is the check that would have caught the 30 Sept screenshot bugs.
-4. **Medical critical-path test.** An ordered list of Medical's progression gates (arrival → Steinman
+4. **Medical critical-path test — done 4 Oct 2026** (`tools/ue5/verify_medical_critical_path.py`, in
+   the `medical-core` suite: 10 gates from the hallway switch to the Neptune's Bounty bathysphere, each
+   fired through its real trigger; it found 4 real blockers, all fixed). Original scope: An ordered list of Medical's progression gates (arrival → Steinman
    → Fisheries quarantine gate → … → bathysphere departure); fire each gate's real trigger in order
    and assert it opens/advances. This is the executable definition of "Medical is playable".
 5. **One-process suite runner — done 3 Oct 2026** (`tools/ue5/ue_run.py --suite medical-core`: 5

@@ -287,6 +287,22 @@ def apply_instance_props(action, action_class, source_key, props_by_key, stats):
                 action.configure(actor_one, actor_two)
                 stats["instance_applied"] += 1
                 return True
+        if action_class == "ActionUnlockBathysphereDestination":
+            # Without this the action kept MapName=None and RequestUnlock() refused, so Medical's
+            # ToFisheries script never unlocked 2-Fisheries (found by verify_medical_critical_path).
+            # BathysphereSystem falls back to the class default from ShockGame.schema.
+            map_name = _prop(bag, "MapName", "mapName")
+            system = _prop(bag, "BathysphereSystem", "bathysphereSystem") or "BioshockBathyspheres"
+            if map_name is not None and hasattr(action, "configure"):
+                action.configure(str(map_name), str(system))
+                stats["instance_applied"] += 1
+                return True
+        if action_class == "ActionGetNumItemsInPlayersInventory":
+            item_class = _prop(bag, "ItemClass", "itemClass")
+            if item_class is not None and hasattr(action, "configure"):
+                action.configure(str(item_class))
+                stats["instance_applied"] += 1
+                return True
         if action_class == "ActionRandomNumber":
             minimum = _prop(bag, "minimum", "Minimum")
             maximum = _prop(bag, "maximum", "Maximum")

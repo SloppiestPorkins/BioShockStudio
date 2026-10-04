@@ -536,6 +536,37 @@ these as provisional until someone plays them:
   (not just the sandboxed worker pass) — see the w18 entry for what was actually re-checked and what
   wasn't.
 
+## Medical critical path (4 Oct 2026)
+
+`verify_medical_critical_path` drives the slice's own imported scripts through Medical's 10
+progression gates in game order (hallway switch, maintenance-hall look trigger, Steinman's waiting
+room, the padlock, Eternal Flame, Steinman's death, the quarantine key, the Fisheries gate with and
+without the key, the bathysphere). 10/10 pass. Getting there fixed four real blockers, any one of
+which made Medical impossible to finish:
+
+1. **Core reader:** an array of structs declares a size that omits each nested Object property's
+   explicit size byte. Census over all 21 packages: 8,296 arrays affected (Materials 6,406,
+   resolveInfoList 1,581, MaterialSlot 184, SequenceItems 121, PatrolEntries 4), none exact. The
+   reader now corrects it exactly like the struct-size rule (`ArraySizeTests`). This dropped script
+   getter links everywhere, including the Fisheries gate's "holds Steinman's key" check.
+2. **Runtime:** no `ActionGetNumItemsInPlayersInventory` getter; added.
+3. **Runtime:** resolve sources were evaluated once and cached, freezing live getters; now
+   re-evaluated on every resolve.
+4. **Importer:** `ActionUnlockBathysphereDestination` never got its MapName, so ToFisheries never
+   unlocked 2-Fisheries.
+
+The script-actions export (`1-Medical.script-actions.json`) is now format 3 (was a 27 Aug format 2
+file) and also carries Object references by name (e.g. ItemClass).
+
+**Follow-up, not yet done:** the reader fix also changes how 6,406 static meshes' `Materials`
+arrays decode game-wide. The 1-Medical level manifest predates it; re-exporting it and checking the
+capture set is the next step for material slots.
+
+**Pre-existing failing verifies (not regressions — same failure with the old code):**
+verify_script_ai_spawn ("no spawned turret"), verify_script_ai_tweak, verify_script_physics_exec
+("impulse_velocity"), verify_script_spawn_attack ("no spawned AI"). verify_script_movement fails
+only when run after other scripts in one boot (state leakage), and passes alone.
+
 ## Open bugs — the live PIE bug list
 
 The user played the `1-Medical` slice live on 28 Sept 2026 and reported three groups of problems.

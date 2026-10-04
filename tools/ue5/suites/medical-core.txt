@@ -20,3 +20,4 @@ verify_scripting_movers
 verify_vita_chamber
 verify_import_scripts
 verify_water
+verify_medical_critical_path

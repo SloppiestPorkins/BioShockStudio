@@ -100,15 +100,13 @@ bool UShockAction::ResolveParameters(const FShockActionContext& Ctx)
 		}
 		else if (Info.SourceAction)
 		{
+			// Resolver actions are expression nodes in shipped packages (often outered to the
+			// consumer rather than present in Script.Actions). Evaluate on every resolve, not once:
+			// a cached first value froze live getters -- Medical's Fisheries gate read its "holds
+			// Steinman's key" count once (0) and then refused forever, even after the key was taken.
+			Info.SourceAction->ResolveParameters(Ctx);
+			Info.SourceAction->ApplyInWorld(Ctx);
 			SourceValue = Info.SourceAction->GetReturnValue();
-			if (!SourceValue)
-			{
-				// Resolver actions are expression nodes in shipped packages (often outered to the
-				// consumer rather than present in Script.Actions). Evaluate once on first use.
-				Info.SourceAction->ResolveParameters(Ctx);
-				Info.SourceAction->ApplyInWorld(Ctx);
-				SourceValue = Info.SourceAction->GetReturnValue();
-			}
 		}
 
 		FString Text;

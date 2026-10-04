@@ -118,6 +118,13 @@ public static class UnrealPropertyReader
     /// <summary>Offset at which the property list begins within an export payload.</summary>
     public const int PayloadPropertyOffset = 8;
 
+    /// <summary>
+    /// Diagnostics only: called for every Array property <see cref="Read(ReadOnlySpan{byte}, IReadOnlyList{NameEntry}, out int, out bool, int)"/>
+    /// walks, with how its value measures as an array of property-list structs. Null (the default)
+    /// costs nothing. Used by the struct-array size census; never set in production code.
+    /// </summary>
+    public static Action<string, StructArrayMeasure>? ArrayMeasured { get; set; }
+
     public static List<UnrealProperty> Read(
         ReadOnlySpan<byte> payload, IReadOnlyList<NameEntry> names, out int endOffset, int start = PayloadPropertyOffset)
         => Read(payload, names, out endOffset, out _, start);
@@ -175,6 +182,13 @@ public static class UnrealPropertyReader
             // own content. Corrected only where the struct's own terminator proves it.
             if (type == UnrealPropertyType.Struct)
                 size = CorrectedStructSize(payload, offset, size, names);
+
+            if (type == UnrealPropertyType.Array)
+            {
+                var measure = MeasureStructArray(payload, offset, size, names);
+                ArrayMeasured?.Invoke(name, measure);
+                size = CorrectedArraySize(measure, offset, payload.Length);
+            }
 
             if (size < 0 || offset + size > payload.Length) throw new InvalidDataException($"Property '{name}' overruns the payload.");
 
@@ -235,7 +249,7 @@ public static class UnrealPropertyReader
         if (declared <= 0 || start + declared > payload.Length) return declared;
 
         // Where the nested list actually ends, and what its own size bytes cost.
-        if (!TryMeasureNestedList(payload, start, names, out int needed, out int sizeBytes)) return declared;
+        if (!TryMeasureNestedList(payload, start, names, out int needed, out int sizeBytes, out _)) return declared;
 
         // Already correct, or correct for a reason this does not understand: leave it alone.
         if (needed == declared || sizeBytes == 0) return declared;
@@ -248,16 +262,79 @@ public static class UnrealPropertyReader
     }
 
     /// <summary>
+    /// The true length of an Array whose elements are property-list structs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>CONFIRMED_BYTES</b>, the array counterpart of <see cref="CorrectedStructSize"/>: an array
+    /// of structs declares a size that <b>omits the explicit size byte of every nested Object
+    /// property</b> (encoding 5/6/7 on an Object). Census of every Array property in all 21 shipped
+    /// packages (4 Oct 2026, 786,871 exports): of the arrays that walk cleanly as structs and carry
+    /// Object size bytes, <b>8,296 are short by exactly those bytes and none declare them</b> -
+    /// Materials 6,406, resolveInfoList 1,581, MaterialSlot 184, SequenceItems 121,
+    /// PatrolEntries 4. Arrays with no Object size bytes (281,147) are always exact, even when
+    /// they carry Name size bytes. Found through Medical's Fisheries gate: BooleanStatement61's
+    /// resolveInfoList (lhs &lt;- ActionGetNumItemsInPlayersInventory89) is one byte short, so the
+    /// getter link was dropped and the gate could never open.
+    /// </para>
+    /// <code>
+    /// ActionFilterItem6.resolveInfoList   declared 39, content 39
+    ///   32 00000000  05 00               Action, encoding 0 - no size byte
+    /// BooleanStatement61.resolveInfoList  declared 40, content 41
+    ///   32 00000000  55 03 7AC603        Action, encoding 5 - one size byte, uncounted
+    /// </code>
+    /// <para>
+    /// Corrected only when the walk is a clean struct list that lands exactly on its terminators at
+    /// declared + Object-size-bytes; anything else (plain arrays, other shortfalls) is untouched.
+    /// </para>
+    /// </remarks>
+    private static int CorrectedArraySize(StructArrayMeasure measure, int start, int payloadLength)
+    {
+        if (!measure.IsStructList || measure.ObjectSizeBytes == 0) return measure.Declared;
+        if (measure.Needed != measure.Declared + measure.ObjectSizeBytes) return measure.Declared;
+        if (start + measure.Needed > payloadLength) return measure.Declared;
+        return measure.Needed;
+    }
+
+    /// <summary>
+    /// Measures an Array value as <c>FCompactIndex count</c> followed by that many property-list
+    /// structs, without trusting the declared length. <see cref="StructArrayMeasure.IsStructList"/>
+    /// is false when the bytes are not that shape (plain arrays of ints, names, object refs...).
+    /// </summary>
+    public static StructArrayMeasure MeasureStructArray(
+        ReadOnlySpan<byte> payload, int start, int declared, IReadOnlyList<NameEntry> names)
+    {
+        var none = new StructArrayMeasure(false, declared, 0, 0, 0, 0);
+        if (declared <= 0 || start >= payload.Length) return none;
+        int offset = start;
+        int count;
+        try { count = ReadCompactIndex(payload, ref offset); }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return none; }
+        if (count <= 0 || count > 4096) return none;
+        int sizeBytes = 0, objectSizeBytes = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryMeasureNestedList(payload, offset, names, out int needed, out int sb, out int osb)) return none;
+            offset += needed;
+            sizeBytes += sb;
+            objectSizeBytes += osb;
+        }
+        return new StructArrayMeasure(true, declared, offset - start, sizeBytes, objectSizeBytes, count);
+    }
+
+    /// <summary>
     /// Walks a nested property list to its terminator, without trusting any declared length.
     /// </summary>
     /// <param name="needed">Bytes from <paramref name="start"/> to the end of the terminator.</param>
     /// <param name="sizeBytes">Size-encoding bytes the nested properties carry between them.</param>
     /// <returns>False if the bytes are not a property list, which is the common case.</returns>
     private static bool TryMeasureNestedList(
-        ReadOnlySpan<byte> payload, int start, IReadOnlyList<NameEntry> names, out int needed, out int sizeBytes)
+        ReadOnlySpan<byte> payload, int start, IReadOnlyList<NameEntry> names, out int needed, out int sizeBytes,
+        out int objectSizeBytes)
     {
         needed = 0;
         sizeBytes = 0;
+        objectSizeBytes = 0;
         int offset = start;
 
         // A nested list is short; a runaway walk means these are not properties.
@@ -294,6 +371,7 @@ public static class UnrealPropertyReader
             }
 
             int size;
+            int sizeBytesBefore = sizeBytes;
             try
             {
                 size = sizeEncoding switch
@@ -311,6 +389,7 @@ public static class UnrealPropertyReader
             catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return false; }
 
             if (size < 0) return false;
+            if (type == UnrealPropertyType.Object) objectSizeBytes += sizeBytes - sizeBytesBefore;
             offset += size;
             if (offset > payload.Length) return false;
         }
@@ -399,3 +478,13 @@ public static class UnrealPropertyReader
         return negative ? -value : value;
     }
 }
+
+/// <summary>How an Array property's value measures as property-list structs (see <see cref="UnrealPropertyReader.MeasureStructArray"/>).</summary>
+/// <param name="IsStructList">The bytes walk cleanly as a count plus that many terminated property lists.</param>
+/// <param name="Declared">The size the property tag declared.</param>
+/// <param name="Needed">Bytes the walk actually needed.</param>
+/// <param name="SizeBytes">Explicit size-encoding bytes carried by the nested properties.</param>
+/// <param name="ObjectSizeBytes">The part of <paramref name="SizeBytes"/> carried by Object properties.</param>
+/// <param name="Count">Element count.</param>
+public readonly record struct StructArrayMeasure(
+    bool IsStructList, int Declared, int Needed, int SizeBytes, int ObjectSizeBytes, int Count);
