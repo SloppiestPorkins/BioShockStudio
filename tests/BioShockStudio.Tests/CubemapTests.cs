@@ -108,7 +108,10 @@ public sealed class CubemapTests(GameFixture game)
         using var package = BioShockPackage.Open(game.MedicalPackage);
         var context = LevelAnalyzer.Analyze(package);
         int probes = context.Actors.Count(a => a.Source.ClassName == "CubemapProbe");
-        Assert.Equal(29, probes);
+        // 1-Medical ships 31 CubemapProbe exports (`inspect 1-Medical CubemapProbe`). This pinned 29
+        // until 4 Oct 2026: two probes' property lists misaligned on a struct array the reader
+        // under-sized (ArraySizeTests), so the analyzer never saw them as actors.
+        Assert.Equal(31, probes);
 
         string directory = Path.Combine(Path.GetTempPath(), "bioshock-medical-cubemaps-" + Guid.NewGuid().ToString("N"));
         try

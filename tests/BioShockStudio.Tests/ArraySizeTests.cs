@@ -28,6 +28,26 @@ public sealed class ArraySizeTests(GameFixture game)
         return list;
     }
 
+    /// <summary>
+    /// Measuring an array is a probe and must never abort the read it serves. The first version
+    /// let an FCompactIndex overflow (InvalidDataException) escape from plain, non-struct arrays —
+    /// ColorCycle.ColorItems on Med_Floor_Sign_Surgery — which made 14 Medical actors and two
+    /// material animators vanish from the level export.
+    /// </summary>
+    [RequiresGameFact]
+    public void MeasuringArraysNeverAbortsAPropertyRead()
+    {
+        using var package = BioShockPackage.Open(game.MedicalPackage);
+        int read = 0;
+        foreach (var export in package.Exports.Where(e => package.GetClassName(e) == "ColorCycle"))
+        {
+            var list = UnrealPropertyReader.Read(package.ReadExportData(export), package.Names, out _, out _);
+            Assert.Contains(list, p => p.Name == "ColorItems");
+            read++;
+        }
+        Assert.True(read > 0, "1-Medical has ColorCycle exports");
+    }
+
     /// <summary>One array on each side of the rule, both from 1-Medical.</summary>
     [RequiresGameFact]
     public void BothSidesOfTheArraySizeRuleDecodeCompletely()

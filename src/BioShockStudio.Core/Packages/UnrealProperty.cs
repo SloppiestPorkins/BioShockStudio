@@ -309,7 +309,7 @@ public static class UnrealPropertyReader
         int offset = start;
         int count;
         try { count = ReadCompactIndex(payload, ref offset); }
-        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return none; }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException) { return none; }
         if (count <= 0 || count > 4096) return none;
         int sizeBytes = 0, objectSizeBytes = 0;
         for (int i = 0; i < count; i++)
@@ -344,7 +344,7 @@ public static class UnrealPropertyReader
 
             int nameIndex;
             try { nameIndex = ReadCompactIndex(payload, ref offset); }
-            catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return false; }
+            catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException) { return false; }
 
             if (nameIndex < 0 || nameIndex >= names.Count) return false;
 
@@ -365,7 +365,7 @@ public static class UnrealPropertyReader
             if (type == UnrealPropertyType.Struct)
             {
                 try { ReadCompactIndex(payload, ref offset); }
-                catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return false; }
+                catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException) { return false; }
                 offset += 4;
                 if (offset > payload.Length) return false;
             }
@@ -386,7 +386,7 @@ public static class UnrealPropertyReader
                     _ => Count(payload, ref offset, ref sizeBytes, 4),
                 };
             }
-            catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException) { return false; }
+            catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidDataException) { return false; }
 
             if (size < 0) return false;
             if (type == UnrealPropertyType.Object) objectSizeBytes += sizeBytes - sizeBytesBefore;
