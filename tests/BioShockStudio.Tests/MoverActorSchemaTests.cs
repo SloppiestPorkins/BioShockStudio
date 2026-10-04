@@ -23,7 +23,9 @@ public sealed class MoverActorSchemaTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var movers = context.Actors.Where(actor => actor.Source.ClassName == "ScriptableMover").ToList();
 
-        Assert.Equal(8, movers.Count);
+        // 1-Medical ships 9 ScriptableMover exports. This pinned 8 until 4 Oct 2026: one mover's
+        // property list misaligned on a struct array the reader under-sized (ArraySizeTests).
+        Assert.Equal(9, movers.Count);
         Assert.All(movers, actor => Assert.True(actor.Mover is { Complete: true }));
 
         var meatLockerDoor = movers.Single(actor => actor.Source.ExportIndex == 10011);
@@ -67,7 +69,7 @@ public sealed class MoverActorSchemaTests(GameFixture game)
         var coverage = LevelCoverageReport.Build(context);
         Assert.Equal(0, coverage.Classes.Sum(row => row.ClassName == "ScriptableMover"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.MoverPending) : 0));
-        Assert.Equal(8, coverage.Classes.Sum(row => row.ClassName == "ScriptableMover"
+        Assert.Equal(9, coverage.Classes.Sum(row => row.ClassName == "ScriptableMover"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.GeometryInScene) : 0));
     }
 

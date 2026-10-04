@@ -17,13 +17,15 @@ public sealed class TrainingScriptActorTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var scripts = context.Actors.Where(actor => actor.Source.ClassName == "TrainingScript").ToList();
 
-        Assert.Equal(26, scripts.Count);
+        // 1-Medical ships 27 TrainingScript exports. This pinned 26 until 4 Oct 2026: one script's
+        // property list misaligned on a struct array the reader under-sized (ArraySizeTests).
+        Assert.Equal(27, scripts.Count);
         Assert.All(scripts, actor => Assert.NotEmpty(actor.TrainingConcepts));
         Assert.All(scripts.SelectMany(actor => actor.TrainingConcepts), concept =>
             Assert.False(string.IsNullOrWhiteSpace(concept)));
 
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(26, coverage.Classes.Sum(row => row.ClassName == "TrainingScript"
+        Assert.Equal(27, coverage.Classes.Sum(row => row.ClassName == "TrainingScript"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ScriptPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);

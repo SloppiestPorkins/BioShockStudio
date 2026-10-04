@@ -18,9 +18,13 @@ public sealed class EffectActorSchemaTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var effects = context.Actors.Where(actor => actor.Emitters is not null).ToList();
 
-        Assert.Equal(142, effects.Count);
+        // 146 Medical actors carry a decoded Emitters array (8 of them also resolve geometry, so
+        // coverage buckets them as GeometryInScene and EffectPending is 138). This pinned 142 / 134
+        // until 4 Oct 2026: four emitters' property lists misaligned on a struct array the reader
+        // under-sized (ArraySizeTests).
+        Assert.Equal(146, effects.Count);
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(134, coverage.Classes.Sum(row =>
+        Assert.Equal(138, coverage.Classes.Sum(row =>
             row.StatusCounts.GetValueOrDefault(LevelActorCoverage.EffectPending)));
         Assert.All(effects, actor =>
         {

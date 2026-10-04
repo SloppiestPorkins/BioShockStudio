@@ -33,10 +33,13 @@ public sealed class CubemapProbeActorTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var probes = context.Actors.Where(actor => actor.Source.ClassName == "CubemapProbe").ToList();
 
-        Assert.Equal(29, probes.Count);
+        // 1-Medical ships 31 CubemapProbe exports (`inspect 1-Medical CubemapProbe`). This pinned 29
+        // until 4 Oct 2026: two probes' property lists misaligned on a struct array the reader
+        // under-sized (ArraySizeTests), so the analyzer never saw them as actors.
+        Assert.Equal(31, probes.Count);
         Assert.All(probes, probe => Assert.Equal(ResolutionStatus.Resolved, probe.Cubemap?.Status));
         var coverage = LevelCoverageReport.Build(context);
-        Assert.Equal(29, coverage.Classes.Sum(row => row.ClassName == "CubemapProbe"
+        Assert.Equal(31, coverage.Classes.Sum(row => row.ClassName == "CubemapProbe"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.ReflectionProbePending) : 0));
 
         var document = BioShockStudio.Core.Export.LevelSceneExporter.ToDocument(

@@ -427,7 +427,9 @@ public static class LevelAnalyzer
     private static VendingActorData? Vending(
         BioShockPackage package, ClassDefaults defaults, string className, ActorPayload payload)
     {
-        if (className != "PlaceableVendingStation") return null;
+        // PlaceableVendingStationAlt is the Bandit-station subclass; same tagged fields
+        // (verified on 1-Medical PlaceableVendingStationAlt0).
+        if (className is not ("PlaceableVendingStation" or "PlaceableVendingStationAlt")) return null;
         string? tableName = ReadName(package, payload, "VendingTableName");
         string? hackInfo = ReadName(package, payload, "HackInfoName");
         var table = Reference(package, defaults, payload, "VendingTable", null);

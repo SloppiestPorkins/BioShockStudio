@@ -18,12 +18,14 @@ public sealed class MarkerActorSchemaTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var markers = context.Actors.Where(actor => actor.Source.ClassName == "Marker").ToList();
 
-        Assert.Equal(150, markers.Count);
+        // 1-Medical ships 155 Marker exports. This pinned 150 until 4 Oct 2026: five markers'
+        // property lists misaligned on a struct array the reader under-sized (ArraySizeTests).
+        Assert.Equal(155, markers.Count);
 
         var coverage = LevelCoverageReport.Build(context);
         var markerRow = Assert.Single(coverage.Classes, row => row.ClassName == "Marker");
         Assert.Equal(new[] { "CheckpointTypePadding", "Level", "PhysicsVolume" }, markerRow.OutstandingProperties);
-        Assert.Equal(150, coverage.Classes.Sum(row => row.ClassName == "Marker"
+        Assert.Equal(155, coverage.Classes.Sum(row => row.ClassName == "Marker"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.MarkerPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);
