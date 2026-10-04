@@ -341,7 +341,7 @@ def _import_lights(manifest, existing, report, handled):
         light = _with_light_rotation(light, actors_by_key)
 
         # Wrong class (placeholder TargetPoint, or a prior PointLight under a spot key) → replace.
-        if actor is not None and not isinstance(actor, expected_cls):
+        if actor is not None and not _is_actor_of(actor, expected_cls):
             _actor_subsystem().destroy_actor(actor)
             actor = None
 
@@ -592,7 +592,7 @@ def _import_actors(manifest, existing, report, handled):
         # A previous run placed everything as a TargetPoint, including the PlayerStarts. Recreate
         # when the existing actor is the wrong class, the same way _import_instances does for a
         # mesh whose rig appeared later.
-        if actor is not None and not isinstance(actor, spawn_class):
+        if actor is not None and not _is_actor_of(actor, spawn_class):
             _actor_subsystem().destroy_actor(actor)
             actor = None
 
@@ -1031,6 +1031,18 @@ _VOLUME_SPAWN_CLASS = {
 }
 
 
+def _is_actor_of(actor, cls):
+    """isinstance for an expected class that may be a Python type (unreal.PointLight) or a UClass
+    from unreal.load_class (ShockWaterVolume). isinstance() raises on the latter; that only showed
+    up once import_level ran over a map that already held those actors (4 Oct 2026)."""
+    if isinstance(cls, type):
+        return isinstance(actor, cls)
+    try:
+        return actor.get_class() == cls
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _resolve_volume_class(bio_class):
     if bio_class in _WATER_VOLUME_CLASSES:
         water_cls = unreal.load_class(None, "/Script/BioShockRuntime.ShockWaterVolume")
@@ -1292,7 +1304,7 @@ def _import_region_volumes(manifest, manifest_dir, existing, report, handled):
         _, rotation, _ = _decompose(instance["transform"])
 
         actor = existing.get(key)
-        if actor is not None and not isinstance(actor, spawn_class):
+        if actor is not None and not _is_actor_of(actor, spawn_class):
             _actor_subsystem().destroy_actor(actor)
             actor = None
 
@@ -1351,7 +1363,7 @@ def _import_trigger_radius(entry, spawn_class, existing, report):
     radius = max(1.0, float(_property_float(entry, "CollisionRadius", 100.0)))
 
     actor = existing.get(key)
-    if actor is not None and not isinstance(actor, spawn_class):
+    if actor is not None and not _is_actor_of(actor, spawn_class):
         _actor_subsystem().destroy_actor(actor)
         actor = None
 
@@ -1492,6 +1504,37 @@ def _import_skeletal_rigs(manifest, manifest_dir, report, character_content_root
         rig_dir = os.path.join(manifest_dir, "Rigs", asset["name"])
         if not os.path.exists(os.path.join(rig_dir, "ue5_manifest.json")):
             continue
+
+        # BIOSHOCK_REUSE_RIGS=1: take an already-imported skeletal mesh as-is instead of
+        # re-importing it. A fresh export changes the rig files, so import_bioshock's fingerprint
+        # reuse misses and re-imports every rig -- and re-importing door rigs (Gate01Anim) headless
+        # hit an engine assertion in AsyncLoading2 on 4 Oct 2026, killing a slice refresh.
+        if os.environ.get("BIOSHOCK_REUSE_RIGS") == "1":
+            # Agg_BabyJane is the one rig imported without a name override (see below), so its
+            # content lives under the FBX object name. Missing it re-imported the corpse rig and
+            # swapped its skeleton out from under the loaded map; the save then asserted.
+            # Earlier imports left meshes under several folder/name combinations (e.g.
+            # AccGateAnimMesh/AccGateAnim, SecurityCameraSmall/SecurityCameraSmall for asset
+            # SecCameraSmall), so try every pairing of the asset name and the rig's own name.
+            try:
+                with open(os.path.join(rig_dir, "ue5_manifest.json"), encoding="utf-8") as handle:
+                    rig_names_in_export = [r.get("name") for r in json.load(handle).get("rigs") or []]
+            except (OSError, ValueError):
+                rig_names_in_export = []
+            names = [asset["name"]] + [n for n in rig_names_in_export if n]
+            existing_mesh = None
+            for folder in names:
+                for name in names:
+                    path = "%s/%s/%s" % (character_content_root, folder, name)
+                    if unreal.EditorAssetLibrary.does_asset_exist(path):
+                        existing_mesh = unreal.EditorAssetLibrary.load_asset(path)
+                        break
+                if existing_mesh is not None:
+                    break
+            if isinstance(existing_mesh, unreal.SkeletalMesh):
+                skeletal_meshes[asset["key"]] = existing_mesh
+                report["rigsReused"] = report.get("rigsReused", 0) + 1
+                continue
 
         try:
             # Every Medical corpse export comes from UAPW_AggressorBabyJane and therefore calls

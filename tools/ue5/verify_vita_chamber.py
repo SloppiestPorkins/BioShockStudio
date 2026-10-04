@@ -148,14 +148,17 @@ def main(out_path=None, manifest_path=MANIFEST):
     imported_keys = {
         str(actor.get_editor_property("source_key")) for actor in chambers
     }
-    if len(expected) != 2 or imported_keys != expected_keys:
+    # 1-Medical places three (Foyer, Dental, Surgery). This expected exactly two until 4 Oct 2026,
+    # when the struct-array size fix recovered ResStation_Dental the old export had dropped.
+    if len(expected) < 2 or imported_keys != expected_keys:
         failures.append(
-            "expected two manifest chambers %s, imported %s"
-            % (sorted(expected_keys), sorted(imported_keys)))
+            "expected the manifest's %d chambers %s, imported %s"
+            % (len(expected), sorted(expected_keys), sorted(imported_keys)))
 
     spawned = []
     if len(chambers) >= 2:
-        near, far = sorted(chambers, key=lambda chamber: chamber.get_actor_location().x)
+        ordered = sorted(chambers, key=lambda chamber: chamber.get_actor_location().x)
+        near, far = ordered[0], ordered[-1]  # the two farthest apart along X
         # Stand 300 uu from `near`, while remaining much farther from the other authored chamber.
         start = near.get_actor_location() + unreal.Vector(300.0, 0.0, 100.0)
         player = actors.spawn_actor_from_class(player_cls, start)
