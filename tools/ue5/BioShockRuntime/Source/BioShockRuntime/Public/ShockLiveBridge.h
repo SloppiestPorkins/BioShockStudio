@@ -21,6 +21,10 @@ struct FPostProcessSettings;
  *   C x y z pitch yaw roll hfovDeg             camera (world units, degrees)
  *   B <BioShockKey> x y z pitch yaw roll       the actor's pose in the level file (= its import pose)
  *   A <BioShockKey> x y z pitch yaw roll hid   the actor's live pose and bHidden
+ *   S key static|skel meshName                 spawn a stand-in for an actor the level file lacks
+ *                                              (runtime-spawned: enemies, door leaves, pickups...)
+ *   D key x y z pitch yaw roll sx sy sz hid    absolute pose of a spawned stand-in
+ *   X key                                      the game destroyed it
  *   Z r g b intensity                          the player's zone ambient (BioShock ZoneInfo
  *                                              CurrentAmbientColorHigh x multiplier), applied as a
  *                                              post-process ambient cubemap on the view
@@ -65,6 +69,8 @@ private:
 	void CaptureFrame();
 	void ApplyAmbient(FPostProcessSettings& PP) const;
 	void SetBakedExposure(float Value);
+	void BuildMeshIndex();
+	void SpawnStandIn(const FName& Key, bool bSkeletal, const FString& MeshName);
 
 	bool bActive = false;
 	FSocket* Socket = nullptr;
@@ -86,6 +92,11 @@ private:
 	float AmbientIntensity = -1.f;  // < 0: not driven yet
 
 	TMap<FName, FTracked> Tracked;
+	UPROPERTY()
+	TMap<FName, TObjectPtr<AActor>> Spawned;
+	TMap<FString, FSoftObjectPath> StaticMeshByName;
+	TMap<FString, FSoftObjectPath> SkeletalMeshByName;
+	TSet<FString> MissingMeshes;
 	TSet<FName> UnknownKeys;
 	int64 LastFrame = -1;
 	float LastGameSeconds = 0.f;

@@ -135,6 +135,59 @@ def main():
         moving.append((o, a["key"], f"B {a['key']} {lx:.2f} {ly:.2f} {lz:.2f} {deg(rp):.4f} {deg(ry):.4f} {deg(rr):.4f}"))
     print(f"streaming camera + {len(moving)} non-static actors at {args.hz} Hz to :{args.port}", flush=True)
 
+    # Actors the level file lacks (spawned at runtime: enemies, door leaves, pickups, or missing from
+    # an old export): found by scanning new objects, sent as S (spawn), D (pose), X (destroyed).
+    O_DT = off("Engine.Actor.DrawType")
+    O_SMESH, O_SKMESH = off("Engine.Actor.StaticMesh"), off("Engine.Actor.Mesh")
+    O_DSCALE = off("Engine.Actor.DrawScale")  # DrawScale3D follows it (0x2AC, 0x2B0)
+    level_pkg = objs[level]
+    actor_cls = objs["Engine.Actor"]
+    is_actor_cache = {}
+
+    def is_actor(cls):
+        if cls in is_actor_cache:
+            return is_actor_cache[cls]
+        c, n, r = cls, 0, False
+        while c and n < 40:
+            if c == actor_cls:
+                r = True
+                break
+            c = p.u32(c + 0x40)  # UStruct::SuperField
+            n += 1
+        is_actor_cache[cls] = r
+        return r
+
+    dyn = {}           # obj -> (key, kind, mesh)
+    seen_ptrs = set()
+
+    def discover():
+        w.refresh()
+        current = set(x for x in w.obj_ptrs if x)
+        out = []
+        for o in current - seen_ptrs:
+            h = w.header(o)
+            if not h or h["outer"] != level_pkg:
+                continue
+            name = w._fname(h)
+            if name in by_name or not is_actor(h["cls"]):
+                continue
+            dt = p.read(o + O_DT, 1)
+            if not dt or dt[0] not in (2, 8):
+                continue
+            mesh = p.u32(o + (O_SMESH if dt[0] == 8 else O_SKMESH))
+            mname = w.obj_name(mesh) if mesh else None
+            if not mname:
+                continue
+            dyn[o] = ("dyn:" + name, "static" if dt[0] == 8 else "skel", mname)
+        gone = [o for o in dyn if o not in current]
+        for o in gone:
+            out.append(f"X {dyn.pop(o)[0]}")
+        seen_ptrs.clear()
+        seen_ptrs.update(current)
+        return out
+
+    next_discover = 0.0
+
     hwnd = user32.FindWindowW(None, "Bioshock")
     grabber = Grabber(hwnd) if hwnd else None
     if args.grab_dir:
@@ -211,10 +264,28 @@ def main():
                 sweep_log.append((dstage, dbg, frame))
                 print(f"debug stage {dstage}: mode {dbg} from frame {frame}", flush=True)
         lines.append(f"L {bexp:.5f}" + (" " + dbg.replace(",", " ") if dbg else ""))
+        if now >= next_discover:
+            next_discover = now + 1.0
+            lines += discover()
         if now >= next_base:
             next_base = now + 2.0
             lines += [b for _, _, b in moving]
+            lines += [f"S {k} {kind} {mesh}" for k, kind, mesh in dyn.values()]
             last.clear()  # resend every pose after a baseline refresh
+        for o, (key, _, _) in list(dyn.items()):
+            b = p.read(o + O_LOC, 24)
+            sc = p.read(o + O_DSCALE, 16)
+            fl = p.read(o + O_FLAGS, 4)
+            if not b or not sc or not fl or len(b) < 24 or len(sc) < 16:
+                continue
+            state = (b, sc, bool(struct.unpack("<I", fl)[0] & HIDDEN_MASK))
+            if last.get(key) == state:
+                continue
+            last[key] = state
+            x, y, z, rp, ry, rr = struct.unpack("<3f3i", b)
+            ds, sx, sy, sz = struct.unpack("<4f", sc)
+            lines.append(f"D {key} {x:.2f} {y:.2f} {z:.2f} {deg(rp):.4f} {deg(ry):.4f} {deg(rr):.4f} "
+                         f"{sx * ds:.4f} {sy * ds:.4f} {sz * ds:.4f} {int(state[2])}")
         for o, key, _ in moving:
             b = p.read(o + O_LOC, 24)
             if not b or len(b) < 24:

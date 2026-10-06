@@ -1,6 +1,13 @@
 #include "ShockLiveBridge.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Animation/SkeletalMeshActor.h"
 #include "Camera/CameraActor.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Camera/CameraComponent.h"
 #include "Common/UdpSocketBuilder.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -73,6 +80,8 @@ void UShockLiveBridge::OnWorldBeginPlay(UWorld& InWorld)
 			}
 		}
 	}
+
+	BuildMeshIndex();
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -157,6 +166,35 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		{
 			ApplyAmbient(Camera->GetCameraComponent()->PostProcessSettings);
 			Camera->GetCameraComponent()->PostProcessBlendWeight = 1.f;
+		}
+	}
+	else if (Op == TEXT("S") && Tok.Num() >= 4)
+	{
+		const FName Key(*Tok[1]);
+		if (!Spawned.Contains(Key))
+		{
+			SpawnStandIn(Key, Tok[2] == TEXT("skel"), Tok[3]);
+		}
+	}
+	else if (Op == TEXT("D") && Tok.Num() >= 11)
+	{
+		if (TObjectPtr<AActor>* Found = Spawned.Find(FName(*Tok[1])))
+		{
+			if (AActor* A = Found->Get())
+			{
+				A->SetActorLocationAndRotation(GameVec(Tok[2], Tok[3], Tok[4]), GameRot(Tok[5], Tok[6], Tok[7]),
+					false, nullptr, ETeleportType::TeleportPhysics);
+				A->SetActorScale3D(GameVec(Tok[8], Tok[9], Tok[10]));
+				A->SetActorHiddenInGame(Tok.Num() >= 12 && Tok[11] == TEXT("1"));
+			}
+		}
+	}
+	else if (Op == TEXT("X") && Tok.Num() >= 2)
+	{
+		TObjectPtr<AActor> Gone;
+		if (Spawned.RemoveAndCopyValue(FName(*Tok[1]), Gone) && Gone)
+		{
+			Gone->Destroy();
 		}
 	}
 	else if (Op == TEXT("L") && Tok.Num() >= 2)
@@ -281,8 +319,10 @@ void UShockLiveBridge::Tick(float DeltaTime)
 	if (LogClock >= 5.f)
 	{
 		LogClock = 0.f;
-		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE frame=%lld game_t=%.2f lines=%lld moves=%lld unknown_keys=%d"),
-			LastFrame, LastGameSeconds, Lines, Moves, UnknownKeys.Num());
+		int32 Live = 0;
+		for (const auto& Pair : Spawned) { Live += Pair.Value ? 1 : 0; }
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE frame=%lld game_t=%.2f lines=%lld moves=%lld unknown_keys=%d spawned=%d/%d missing_meshes=%d"),
+			LastFrame, LastGameSeconds, Lines, Moves, UnknownKeys.Num(), Live, Spawned.Num(), MissingMeshes.Num());
 	}
 	if (ExitAfter > 0.f && RunClock >= ExitAfter)
 	{
@@ -291,6 +331,89 @@ void UShockLiveBridge::Tick(float DeltaTime)
 		bActive = false;
 		FGenericPlatformMisc::RequestExit(false);
 	}
+}
+
+void UShockLiveBridge::BuildMeshIndex()
+{
+	// Every static and skeletal mesh in the project, by asset name and by the name with the importer's
+	// "_<exportIndex>" suffix stripped, so a game mesh name ("Med_DoorRight") finds its asset.
+	// Also by the asset's FOLDER name: character imports reuse rigs, so Agg_LadySmith/ holds an
+	// asset named AggressorBabyJane. An uncooked -game run scans the registry asynchronously, which
+	// had indexed only 5 skeletal meshes by BeginPlay -- so block for a full scan first.
+	IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	Registry.SearchAllAssets(true);
+	auto Index = [&Registry](UClass* Class, TMap<FString, FSoftObjectPath>& Out)
+	{
+		TArray<FAssetData> Assets;
+		Registry.GetAssetsByClass(Class->GetClassPathName(), Assets, true);
+		for (const FAssetData& A : Assets)
+		{
+			const FString Name = A.AssetName.ToString().ToLower();
+			Out.FindOrAdd(Name, A.GetSoftObjectPath());
+			const FString Folder = FPaths::GetCleanFilename(A.PackagePath.ToString()).ToLower();
+			if (!Folder.IsEmpty())
+			{
+				Out.FindOrAdd(Folder, A.GetSoftObjectPath());
+			}
+			int32 Underscore = INDEX_NONE;
+			if (Name.FindLastChar(TEXT('_'), Underscore) && Underscore > 0)
+			{
+				const FString Tail = Name.Mid(Underscore + 1);
+				if (Tail.Len() > 0 && Tail.IsNumeric())
+				{
+					Out.FindOrAdd(Name.Left(Underscore), A.GetSoftObjectPath());
+				}
+			}
+		}
+	};
+	Index(UStaticMesh::StaticClass(), StaticMeshByName);
+	Index(USkeletalMesh::StaticClass(), SkeletalMeshByName);
+	UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE mesh index static=%d skeletal=%d"), StaticMeshByName.Num(), SkeletalMeshByName.Num());
+}
+
+void UShockLiveBridge::SpawnStandIn(const FName& Key, bool bSkeletal, const FString& MeshName)
+{
+	UWorld* World = GetWorld();
+	const FString Lookup = MeshName.ToLower();
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* Spawn = nullptr;
+	if (bSkeletal)
+	{
+		const FSoftObjectPath* Path = SkeletalMeshByName.Find(Lookup);
+		USkeletalMesh* Mesh = Path ? Cast<USkeletalMesh>(Path->TryLoad()) : nullptr;
+		if (Mesh)
+		{
+			ASkeletalMeshActor* A = World->SpawnActor<ASkeletalMeshActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+			A->GetSkeletalMeshComponent()->SetSkeletalMeshAsset(Mesh);
+			Spawn = A;
+		}
+	}
+	else
+	{
+		const FSoftObjectPath* Path = StaticMeshByName.Find(Lookup);
+		UStaticMesh* Mesh = Path ? Cast<UStaticMesh>(Path->TryLoad()) : nullptr;
+		if (Mesh)
+		{
+			AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+			A->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+			A->GetStaticMeshComponent()->SetStaticMesh(Mesh);
+			Spawn = A;
+		}
+	}
+	if (!Spawn)
+	{
+		if (!MissingMeshes.Contains(Lookup))
+		{
+			MissingMeshes.Add(Lookup);
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE no %s mesh named %s (for %s)"),
+				bSkeletal ? TEXT("skeletal") : TEXT("static"), *MeshName, *Key.ToString());
+		}
+		Spawned.Add(Key, nullptr);  // do not retry every frame
+		return;
+	}
+	Spawn->Tags.Add(Key);
+	Spawned.Add(Key, Spawn);
 }
 
 void UShockLiveBridge::SetBakedExposure(float Value)
