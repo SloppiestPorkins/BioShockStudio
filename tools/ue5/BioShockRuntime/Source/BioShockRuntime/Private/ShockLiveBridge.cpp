@@ -13,6 +13,7 @@
 #include "HAL/FileManager.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
 #include "Sockets.h"
@@ -148,6 +149,26 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 			Camera->GetCameraComponent()->PostProcessBlendWeight = 1.f;
 		}
 	}
+	else if (Op == TEXT("L") && Tok.Num() >= 2)
+	{
+		SetBakedExposure(FCString::Atof(*Tok[1]));
+		// Optional debug factors: L <exposure> <useBase> <useLightmap>
+		if (Tok.Num() >= 4)
+		{
+			for (UMaterialInstanceDynamic* Mid : BakedMids)
+			{
+				if (Mid)
+				{
+					Mid->SetScalarParameterValue(TEXT("UseBase"), FCString::Atof(*Tok[2]));
+					Mid->SetScalarParameterValue(TEXT("UseLightmap"), FCString::Atof(*Tok[3]));
+					if (Tok.Num() >= 5)
+					{
+						Mid->SetScalarParameterValue(TEXT("LightmapFromUV0"), FCString::Atof(*Tok[4]));
+					}
+				}
+			}
+		}
+	}
 	else if ((Op == TEXT("B") || Op == TEXT("A")) && Tok.Num() >= 8)
 	{
 		const FName Key(*Tok[1]);
@@ -255,6 +276,46 @@ void UShockLiveBridge::Tick(float DeltaTime)
 			LastFrame, Lines, Moves, UnknownKeys.Num());
 		bActive = false;
 		FGenericPlatformMisc::RequestExit(false);
+	}
+}
+
+void UShockLiveBridge::SetBakedExposure(float Value)
+{
+	if (FMath::IsNearlyEqual(Value, BakedExposure) && BakedMids.Num() > 0)
+	{
+		return;
+	}
+	BakedExposure = Value;
+	if (BakedMids.Num() == 0)
+	{
+		// The actor import_baked_world.py places; its materials get dynamic instances once.
+		for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+		{
+			if (!It->Tags.Contains(FName(TEXT("BIOSHOCK_BAKED_WORLD"))))
+			{
+				continue;
+			}
+			TArray<UPrimitiveComponent*> Prims;
+			It->GetComponents<UPrimitiveComponent>(Prims);
+			for (UPrimitiveComponent* P : Prims)
+			{
+				for (int32 i = 0; i < P->GetNumMaterials(); ++i)
+				{
+					if (UMaterialInstanceDynamic* Mid = P->CreateAndSetMaterialInstanceDynamic(i))
+					{
+						BakedMids.Add(Mid);
+					}
+				}
+			}
+		}
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE baked world materials=%d"), BakedMids.Num());
+	}
+	for (UMaterialInstanceDynamic* Mid : BakedMids)
+	{
+		if (Mid)
+		{
+			Mid->SetScalarParameterValue(TEXT("BakedExposure"), BakedExposure);
+		}
 	}
 }
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import struct
 
 import unreal
 
@@ -37,6 +38,9 @@ FROM = os.environ.get("BIOSHOCK_BAKED_FROM", "/Game/BioShockSlice/1-Medical")
 DEST = os.environ.get("BIOSHOCK_BAKED_DEST", "/Game/BioShockLive/BakedWorld/1-Medical")
 SCALE_MULT = float(os.environ.get("BIOSHOCK_BAKED_SCALE", "1"))
 MASTER = "/Game/BioShockLive/M_BioShock_BakedWorld"
+# Global multiplier the live bridge drives at runtime ("L <value>" -> BakedExposure): the slice pins a
+# manual exposure tuned for its dynamic lights, so the right emissive level is found by measurement.
+MPC = "/Game/BioShockLive/MPC_BioShockLive"
 MI_DIR = "/Game/BioShockLevel/1-Medical/Materials"
 TAG = "BIOSHOCK_BAKED_WORLD"
 
@@ -46,29 +50,90 @@ mel = unreal.MaterialEditingLibrary
 
 
 # ---------------------------------------------------------------- materials
-def _ensure_master():
+def _ensure_mpc():
+    if eal.does_asset_exist(MPC):
+        mpc = eal.load_asset(MPC)
+    else:
+        pkg, name = MPC.rsplit("/", 1)
+        mpc = assets.create_asset(name, pkg, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    params = list(mpc.get_editor_property("scalar_parameters") or [])
+    if not any(str(p.get_editor_property("parameter_name")) == "BakedExposure" for p in params):
+        sp = unreal.CollectionScalarParameter()
+        sp.set_editor_property("parameter_name", "BakedExposure")
+        sp.set_editor_property("default_value", 1.0)
+        params.append(sp)
+        mpc.set_editor_property("scalar_parameters", params)
+        eal.save_loaded_asset(mpc)
+    return mpc
+
+
+def _ensure_master(default_lightmap):
+    """Build the unlit master fresh: Emissive = BaseColor x Lightmap(UV1) x LightmapScale x BakedExposure.
+
+    Rebuilt from scratch each run: delete_all_material_expressions left the previous graph in place
+    (14 expressions where 8 were made). The Lightmap parameter samples LinearColor, so its default
+    texture must be linear too -- the engine default is sRGB, and that sampler mismatch fails the
+    compile, which silently renders every instance with the default checker material.
+    """
     if eal.does_asset_exist(MASTER):
-        return eal.load_asset(MASTER)
+        eal.delete_asset(MASTER)
     pkg, name = MASTER.rsplit("/", 1)
     mat = assets.create_asset(name, pkg, unreal.Material, unreal.MaterialFactoryNew())
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     base = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, -100)
     base.set_editor_property("parameter_name", "BaseColor")
-    uv1 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -950, 200)
+    uv1 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1150, 200)
     uv1.set_editor_property("coordinate_index", 1)
+    uv0 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1150, 330)
+    uv0.set_editor_property("coordinate_index", 0)
+    # Debug: LightmapFromUV0 = 1 samples the lightmap with the material UV, to tell a missing
+    # UV1 apart from an unreadable texture.
+    uvsw = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1150, 450)
+    uvsw.set_editor_property("parameter_name", "LightmapFromUV0")
+    uvsw.set_editor_property("default_value", 0.0)
+    uvl = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -950, 250)
+    mel.connect_material_expressions(uv1, "", uvl, "A")
+    mel.connect_material_expressions(uv0, "", uvl, "B")
+    mel.connect_material_expressions(uvsw, "", uvl, "Alpha")
     lm = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, 200)
     lm.set_editor_property("parameter_name", "Lightmap")
-    mel.connect_material_expressions(uv1, "", lm, "UVs")
+    lm.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    if default_lightmap is not None:
+        lm.set_editor_property("texture", default_lightmap)
+    mel.connect_material_expressions(uvl, "", lm, "UVs")
     scale = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -700, 450)
     scale.set_editor_property("parameter_name", "LightmapScale")
     scale.set_editor_property("default_value", 1.0)
-    mul1 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -350, 50)
-    mel.connect_material_expressions(base, "RGB", mul1, "A")
-    mel.connect_material_expressions(lm, "RGB", mul1, "B")
-    mul2 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -150, 150)
+    # A plain scalar (not a parameter-collection read): the live bridge sets it on dynamic instances
+    # of this actor's materials. The MPC route rendered black at every value (6 Oct 2026).
+    expo = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -700, 600)
+    expo.set_editor_property("parameter_name", "BakedExposure")
+    expo.set_editor_property("default_value", 1.0)
+    # Debug switches (default 1 = normal): UseBase / UseLightmap replace their factor with 1 when 0,
+    # so a capture can show base colour alone or baked light alone.
+    def factor(src, src_pin, name, x, y):
+        sw = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, x - 250, y + 120)
+        sw.set_editor_property("parameter_name", name)
+        sw.set_editor_property("default_value", 1.0)
+        one = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, x - 250, y - 60)
+        one.set_editor_property("constant", unreal.LinearColor(1, 1, 1, 1))
+        lerp = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, x, y)
+        mel.connect_material_expressions(one, "", lerp, "A")
+        mel.connect_material_expressions(src, src_pin, lerp, "B")
+        mel.connect_material_expressions(sw, "", lerp, "Alpha")
+        return lerp
+    fb = factor(base, "RGB", "UseBase", -350, -150)
+    fl = factor(lm, "RGB", "UseLightmap", -350, 250)
+    mul1 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -100, 50)
+    mel.connect_material_expressions(fb, "", mul1, "A")
+    mel.connect_material_expressions(fl, "", mul1, "B")
+    mul2 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, 100, 150)
     mel.connect_material_expressions(mul1, "", mul2, "A")
     mel.connect_material_expressions(scale, "", mul2, "B")
-    mel.connect_material_property(mul2, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mul3 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, 300, 250)
+    mel.connect_material_expressions(mul2, "", mul3, "A")
+    mel.connect_material_expressions(expo, "", mul3, "B")
+    mel.connect_material_property(mul3, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(mat)
     eal.save_loaded_asset(mat)
     return mat
@@ -114,7 +179,9 @@ def _import_lightmap(png):
     if tex:
         # The exporter writes LINEAR light (value*255, no sRGB curve; BakedLightMapExporter).
         tex.set_editor_property("srgb", False)
-        tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_LIGHTMAP)
+        # WORLD, not LIGHTMAP: the Lightmap group is meant for UE's own baked lightmaps.
+        tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+        tex.set_editor_property("never_stream", True)
         tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_HDR)
         eal.save_loaded_asset(tex)
     return tex
@@ -160,6 +227,7 @@ def _import_mesh(gltf_path, model_name):
         doc["materials"].append({"name": name})
         p["material"] = i
         slots.append((name, extras))
+    _to_gltf_convention(doc, os.path.dirname(gltf_path), model_name)
     slotted = os.path.join(os.path.dirname(gltf_path), "%s_slots.gltf" % model_name)
     with open(slotted, "w", encoding="utf-8") as fh:
         json.dump(doc, fh)
@@ -182,6 +250,62 @@ def _import_mesh(gltf_path, model_name):
     return _ordered_slots(mesh, slots)
 
 
+def _to_gltf_convention(doc, folder, model_name):
+    """Rewrite POSITION/NORMAL from UE space (cm, Z-up) into glTF space (m, Y-up) in a new .bin.
+
+    The export writes UE coordinates (same as the BuiltWorld OBJ), but UE's glTF importer converts
+    from glTF convention (m, Y-up). Measured 6 Oct 2026 by comparing mesh bounds against the compiled
+    world: writing (X/100, Z/100, -Y/100) lands every vertex where it belongs. That is a rotation
+    (determinant +1), so triangle winding is unchanged.
+    """
+    src = doc["buffers"][0]["uri"]
+    with open(os.path.join(folder, src), "rb") as fh:
+        data = bytearray(fh.read())
+    done = set()
+    for m in doc["meshes"]:
+        for p in m["primitives"]:
+            for attr, scale in (("POSITION", 0.01), ("NORMAL", 1.0)):
+                ai = p["attributes"].get(attr)
+                if ai is None or ai in done:
+                    continue
+                done.add(ai)
+                acc = doc["accessors"][ai]
+                view = doc["bufferViews"][acc["bufferView"]]
+                stride = view.get("byteStride") or 12
+                base = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+                lo, hi = [1e30] * 3, [-1e30] * 3
+                for k in range(acc["count"]):
+                    o = base + k * stride
+                    x, y, z = struct.unpack_from("<3f", data, o)
+                    v = (x * scale, z * scale, -y * scale)
+                    struct.pack_into("<3f", data, o, *v)
+                    lo = [min(a, b) for a, b in zip(lo, v)]
+                    hi = [max(a, b) for a, b in zip(hi, v)]
+                if attr == "POSITION":
+                    acc["min"], acc["max"] = lo, hi
+            # UE's glTF importer flips V. Measured: rendered UV1 hit lit atlas texels like a V-flip
+            # (27.7%) while the exported UV1 as written hits 73.5% (6 Oct 2026). Pre-flip both sets.
+            for attr in ("TEXCOORD_0", "TEXCOORD_1"):
+                ai = p["attributes"].get(attr)
+                if ai is None or ai in done:
+                    continue
+                done.add(ai)
+                acc = doc["accessors"][ai]
+                view = doc["bufferViews"][acc["bufferView"]]
+                stride = view.get("byteStride") or 8
+                base = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+                for k in range(acc["count"]):
+                    o = base + k * stride
+                    u, v = struct.unpack_from("<2f", data, o)
+                    struct.pack_into("<2f", data, o, u, 1.0 - v)
+                acc.pop("min", None)
+                acc.pop("max", None)
+    out = "%s_slots.bin" % model_name
+    with open(os.path.join(folder, out), "wb") as fh:
+        fh.write(data)
+    doc["buffers"][0]["uri"] = out
+
+
 def _find_mesh(model_name):
     for path in eal.list_assets(DEST, recursive=True):
         if "SM_%s_Baked" % model_name in path:
@@ -192,6 +316,12 @@ def _find_mesh(model_name):
 
 
 def _ordered_slots(mesh, slots):
+    # The import builds with "Generate Lightmap UVs" on (destination channel 1), which replaces our
+    # baked-light UV1 in the RENDER data while the source description keeps it -- the lightmap then
+    # samples atlas padding and the world renders black (6 Oct 2026). Turn it off and rebuild.
+    lib = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem) or unreal.EditorStaticMeshLibrary
+    lib.set_generate_lightmap_uv(mesh, False)
+    eal.save_loaded_asset(mesh)
     # get_num_uv_channels reports 0 under -run=pythonscript even for channel 0, so check the data:
     # sampled UV1 must exist, lie in 0..1 and differ from UV0 (the material UV).
     desc = mesh.get_static_mesh_description(0)
@@ -221,8 +351,9 @@ def main():
     model_name = os.path.splitext(gltfs[0])[0]
     if not eal.does_directory_exist(DEST):
         eal.make_directory(DEST)
-    master = _ensure_master()
-    _import_lightmaps([os.path.join(DIR, f) for f in sorted(os.listdir(DIR)) if f.startswith("baked_") and f.endswith(".png")])
+    pngs = [os.path.join(DIR, f) for f in sorted(os.listdir(DIR)) if f.startswith("baked_") and f.endswith(".png")]
+    _import_lightmaps(pngs)
+    master = _ensure_master(_import_lightmap(pngs[0]) if pngs else None)
     mesh, slots = _import_mesh(os.path.join(DIR, gltfs[0]), model_name)
 
     report = {"slots": len(slots), "lightmaps": {}, "missingBaseColor": []}

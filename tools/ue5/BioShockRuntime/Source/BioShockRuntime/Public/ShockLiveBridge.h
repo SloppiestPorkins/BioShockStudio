@@ -9,6 +9,7 @@ class ACameraActor;
 class ASceneCapture2D;
 class UTextureRenderTarget2D;
 class UTextureCube;
+class UMaterialInstanceDynamic;
 struct FPostProcessSettings;
 
 /**
@@ -23,6 +24,9 @@ struct FPostProcessSettings;
  *   Z r g b intensity                          the player's zone ambient (BioShock ZoneInfo
  *                                              CurrentAmbientColorHigh x multiplier), applied as a
  *                                              post-process ambient cubemap on the view
+ *   L value                                    BakedExposure on the baked-world actor's materials:
+ *                                              brightness of the original's baked BSP lighting
+ *                                              (import_baked_world.py)
  * Actors move by the game's change from B, applied to their imported transform, so import-time
  * pivot and axis conventions carry through untouched.
  *
@@ -60,6 +64,7 @@ private:
 	void ApplyLine(const TArray<FString>& Tok);
 	void CaptureFrame();
 	void ApplyAmbient(FPostProcessSettings& PP) const;
+	void SetBakedExposure(float Value);
 
 	bool bActive = false;
 	FSocket* Socket = nullptr;
@@ -73,6 +78,9 @@ private:
 	TObjectPtr<UTextureRenderTarget2D> Target;
 	UPROPERTY()
 	TObjectPtr<UTextureCube> AmbientCube;
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> BakedMids;
+	float BakedExposure = -1.f;
 
 	FLinearColor AmbientTint = FLinearColor::Black;
 	float AmbientIntensity = -1.f;  // < 0: not driven yet
