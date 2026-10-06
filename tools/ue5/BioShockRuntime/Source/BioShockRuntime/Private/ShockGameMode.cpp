@@ -4067,6 +4067,13 @@ void AShockGameMode::TickScreenshotCapture()
 			{
 				Comp->FOVAngle = PC->PlayerCameraManager->GetFOVAngle();
 			}
+			// -bioshockshotfov=<deg> matches a camera read from the running original game
+			// (PlayerController.DesiredFOV), so the two frames can be compared side by side.
+			float ShotFov = 0.0f;
+			if (FParse::Value(FCommandLine::Get(), TEXT("bioshockshotfov="), ShotFov) && ShotFov > 1.0f)
+			{
+				Comp->FOVAngle = ShotFov;
+			}
 
 			// -bioshockshotev=<stops> brightens the CAPTURE only, without touching the level.
 			// The Medical lighting repair pins a dark manual exposure; a wall inspection shot

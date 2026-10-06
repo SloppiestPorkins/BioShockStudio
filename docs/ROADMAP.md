@@ -66,7 +66,11 @@ truth to match against).
 
 Take items in order (§60 "Roadmap discipline").
 
-### Phase 0 — Feasibility test (go / no-go)
+### Phase 0 — Feasibility test (go / no-go) — PASSED 6 Oct 2026
+
+Both steps pass; method, memory layout and evidence in
+[`docs/research/live-game-bridge-2026-10-06.md`](research/live-game-bridge-2026-10-06.md), tools in
+`tools/livegame/`.
 
 1. **Read the running game.** Attach read-only to `BioshockHD.exe` with Medical loaded (no patching,
    no injection yet). Find the name and object tables; list live actors with class, name, Location
