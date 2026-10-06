@@ -6,7 +6,7 @@ OUT_WIN="$1"; STREAM="${2:-90}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="$(cygpath -u "$OUT_WIN")"; mkdir -p "$OUT"
 LOG="$OUT/live_view.log"; rm -f "$LOG"
-powershell -NoProfile -ExecutionPolicy Bypass -File "$HERE/live_view.ps1" -Seconds $((STREAM + 240)) -CaptureDir "$OUT_WIN" -CaptureEvery 1 > "$OUT/live_view.out" 2>&1 &
+MSYS_NO_PATHCONV=1 powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/live_view.ps1")" ${MAP:+-Map $MAP} -Seconds $((STREAM + 240)) -CaptureDir "$OUT_WIN" -CaptureEvery 1 > "$OUT/live_view.out" 2>&1 &
 VIEW=$!
 for i in $(seq 1 300); do
   if [ -f "$LOG" ] && grep -q "BIOSHOCK_LIVE start" "$LOG"; then break; fi
