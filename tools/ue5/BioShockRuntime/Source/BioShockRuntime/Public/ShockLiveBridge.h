@@ -1,0 +1,84 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "ShockLiveBridge.generated.h"
+
+class FSocket;
+class ACameraActor;
+class ASceneCapture2D;
+class UTextureRenderTarget2D;
+
+/**
+ * Live bridge from the running original game (ROADMAP "original engine plays, UE5 renders").
+ *
+ * tools/livegame/live_bridge.py reads BioshockHD.exe's memory and sends UDP text lines to
+ * 127.0.0.1:<port>; this subsystem follows them:
+ *   F <frame> <gameSeconds>
+ *   C x y z pitch yaw roll hfovDeg             camera (world units, degrees)
+ *   B <BioShockKey> x y z pitch yaw roll       the actor's pose in the level file (= its import pose)
+ *   A <BioShockKey> x y z pitch yaw roll hid   the actor's live pose and bHidden
+ * Actors move by the game's change from B, applied to their imported transform, so import-time
+ * pivot and axis conventions carry through untouched.
+ *
+ * Active only with -bioshocklive[=port] (default 7781), in a game world. Run it under a plain
+ * GameModeBase so this project's own gameplay code does not fight the original's.
+ *   -bioshocklivecapture=<dir>   write a frame from the live camera every -bioshocklivecapevery=<s>
+ *   -bioshockliveseconds=<s>     exit after that long
+ */
+UCLASS()
+class BIOSHOCKRUNTIME_API UShockLiveBridge : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	virtual void Deinitialize() override;
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+
+private:
+	struct FTracked
+	{
+		TWeakObjectPtr<AActor> Actor;
+		FVector UeLoc0 = FVector::ZeroVector;
+		FQuat UeRot0 = FQuat::Identity;
+		FVector GameLoc0 = FVector::ZeroVector;
+		FQuat GameRot0 = FQuat::Identity;
+		bool bHaveBase = false;
+		bool bMadeMovable = false;
+		bool bHidden = false;
+	};
+
+	void ApplyLine(const TArray<FString>& Tok);
+	void CaptureFrame();
+
+	bool bActive = false;
+	FSocket* Socket = nullptr;
+	int32 Port = 7781;
+
+	UPROPERTY()
+	TObjectPtr<ACameraActor> Camera;
+	UPROPERTY()
+	TObjectPtr<ASceneCapture2D> Capture;
+	UPROPERTY()
+	TObjectPtr<UTextureRenderTarget2D> Target;
+
+	TMap<FName, FTracked> Tracked;
+	TSet<FName> UnknownKeys;
+	int64 LastFrame = -1;
+	float LastGameSeconds = 0.f;
+	float Hfov = 90.f;
+	bool bHaveCamera = false;
+
+	FString CaptureDir;
+	float CaptureEvery = 1.f;
+	float CaptureClock = 0.f;
+	float ExitAfter = 0.f;
+	float RunClock = 0.f;
+	float LogClock = 0.f;
+	int64 Lines = 0;
+	int64 Moves = 0;
+};

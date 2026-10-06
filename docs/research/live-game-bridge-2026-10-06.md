@@ -95,3 +95,56 @@ are rendering, which is the work this direction exists to do:
 - First person.
 
 All of this is in ROADMAP Phase 1.
+
+## Phase 1, first piece: the live bridge (6 Oct 2026, evening)
+
+The bridge streams continuously instead of taking snapshots.
+
+`tools/livegame/live_bridge.py` reads these from the running game and sends them over UDP to
+`127.0.0.1:7781`:
+
+- the camera;
+- `LevelInfo.TimeSeconds`;
+- the pose and `bHidden` of every non-static manifest actor.
+
+`Actor.bStatic` is bit `0x20` of the dword at `0xCC`. `BoolProperty` keeps its bit mask at `+0x9C`.
+Medical has 1,816 non-static manifest actors.
+
+`UShockLiveBridge`, a world subsystem in BioShockRuntime enabled by `-bioshocklive=<port>`, does
+three things:
+
+- points a camera at the game's view;
+- moves tagged actors by the game's change from their level-file pose (`B` lines, taken from the
+  manifest, which stores rotations in the same rotator units as memory);
+- saves `ue_<frame>.png` from the live camera.
+
+`live_view.ps1` runs it offscreen under a plain `GameModeBase`, so this project's own gameplay code
+stays out of the way.
+
+To run the whole test: `bash tools/livegame/live_test.sh <out-dir> 90`. It starts the view, waits
+for `BIOSHOCK_LIVE start`, lets shaders settle, streams while `drive.ps1` walks the player, then
+`pair_sheet.py` pairs each game frame with the nearest UE frame.
+
+First run:
+
+| Measure | Result |
+|---|---|
+| Frames streamed | 2,205 in 90 s (~24 Hz) |
+| Lines received by UE | 160,442 |
+| Actors moved in UE | 67 |
+| Keys UE did not know | 404 |
+
+All 29 paired frames show the same view as the game through the walk: Steinman's poster, the corridor,
+the Vita-Chamber hall, and the stairs under the Medical Pavilion sign. The pair sheet is kept outside
+this repo (game imagery) at `BioShockUE5/Captures/live/`.
+
+What the run showed is still wrong:
+
+- **Lighting.** UE5 is far too dark everywhere. This is the biggest gap.
+- **Missing foreground objects.** Some foliage is absent (a plant beside the sign), consistent with
+  the 404 keys UE did not know.
+
+Gotchas:
+
+- `FParse::Param` does not match `-switch=value`; use `FParse::Value`.
+- The game only advances while focused.

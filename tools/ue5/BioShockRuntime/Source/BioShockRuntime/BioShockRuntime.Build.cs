@@ -22,6 +22,7 @@ public class BioShockRuntime : ModuleRules
         {
             "AssetRegistry", "Json", "JsonUtilities",
             "SlateRHIRenderer", "RenderCore", // FWidgetRenderer + FlushRenderingCommands — HUD-overlay capture
+            "Sockets", "Networking", // UShockLiveBridge: UDP from tools/livegame/live_bridge.py
         });
     }
 }

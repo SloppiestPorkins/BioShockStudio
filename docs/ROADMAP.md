@@ -83,6 +83,10 @@ Both steps pass; method, memory layout and evidence in
 
 ### Phase 1 — The renderer (only if Phase 0 passes)
 
+**Live bridge running 6 Oct 2026**: camera and non-static actors streamed at ~24 Hz into the UE5
+slice, which follows the game through a 90 s walk (research doc above). Next: lighting parity and
+the 404 actors the slice is missing, then items 3–7.
+
 3. **Animation:** skeletal poses follow the game (its current animation and time, or bone transforms
    read directly).
 4. **Dynamic state:** actors spawned and destroyed, hidden/shown, lights switched and animated,
