@@ -447,11 +447,11 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 
 ## Active work
 
-30 Sept 2026 — the priority order in `docs/ROADMAP.md` was rewritten after a whole-project review
-(Phase 0 safety → Phase 1 verification that sees what a player sees → Phase 2 finish Medical →
-Phase 3 breadth). In flight: Phase 0 item 1 (UE project under local git + LFS) and root-causing the
-three visual bugs from the user's 30 Sept live screenshots (ROADMAP Phase 2 item 7). If picking up
-new work, update this section rather than trusting an old claim table.
+| Who | Item | Files |
+|---|---|---|
+| — | (none claimed in this worktree) | — |
+
+Cleared 6 Oct 2026 after landing `export-baked-lightmaps` on branch `baked-lightmaps`.
 
 
 ---

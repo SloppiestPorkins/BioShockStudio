@@ -863,6 +863,13 @@ public static class LevelSceneExporter
     }
 
     /// <summary>
+    /// The geometry <see cref="WriteAssetMeshes"/> writes for one instance — BSP texel UVs
+    /// normalised the same way as the BuiltWorld OBJ the UE5 pipeline imports.
+    /// </summary>
+    public static Mesh.MeshGeometry AssetObjGeometry(BioShockPackage package, LevelInstance instance) =>
+        NormaliseBspUvs(package, instance);
+
+    /// <summary>
     /// A BSP instance's geometry with its texel-space UVs divided into 0–1, or the geometry
     /// unchanged for anything that is not brush/compiled-world.
     /// </summary>
@@ -974,7 +981,7 @@ public static class LevelSceneExporter
     /// the ORIGINAL BioShock 1 texture size where known, otherwise the shipped size divided by
     /// <see cref="RemasterTextureUpscale"/>. Null when the material has no resolvable diffuse.
     /// </summary>
-    private static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
+    public static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
     {
         if (material is not { } id || id.ExportIndex < 0 || id.ExportIndex >= package.Exports.Count) return null;
 

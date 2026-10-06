@@ -53,6 +53,7 @@ try
         "level-audit" => LevelAudit(root, args),
         "export-level" => ExportLevel(root, args),
         "export-level-manifest" => ExportLevelManifest(root, args),
+        "export-baked-lightmaps" => ExportBakedLightmaps(root, args),
         "export-cubemaps" => ExportCubemaps(root, args),
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
@@ -113,6 +114,8 @@ static int Usage()
           export-level-manifest <map> <out-dir>
                                         Same scene analysis, .ue5-level.json only -- no OBJ/mesh/rig
                                         writes. For script-graph-only import passes.
+          export-baked-lightmaps <map> <out-dir>
+                                        RGB baked lightmap PNGs + two-UV glTF of the compiled world.
           export-cubemaps <map> <out-dir>
                                         Face PNGs + a probe-only UE5 manifest. Does not assemble
                                         a TextureCube (face order UNKNOWN).
@@ -416,6 +419,27 @@ static int ExportLevelManifest(string root, string[] args)
     var files = new LevelService().Extract(
         package, args[2], LevelExportFormats.Ue5Manifest, readable: true, progress, bulk);
     foreach (string file in files) Console.WriteLine(file);
+    return 0;
+}
+
+static int ExportBakedLightmaps(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-baked-lightmaps <package-or-map-name> <outDir>");
+        return 1;
+    }
+
+    string packageFile = ResolvePackage(root, args[1]);
+    using var package = BioShockPackage.Open(packageFile);
+    var bulk = BulkTextureCatalog.Load(root);
+    string directory = Path.Combine(args[2], Path.GetFileNameWithoutExtension(packageFile));
+    var result = BakedLightMapExporter.Export(package, directory, bulk);
+    foreach (string file in result.Summary.Files) Console.WriteLine(file);
+    Console.WriteLine(
+        $"scale={result.Summary.Scale.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)} "
+        + $"clip={result.Summary.ClipPercent.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}% "
+        + $"atlases={result.Summary.Atlases.Count}");
     return 0;
 }
 
