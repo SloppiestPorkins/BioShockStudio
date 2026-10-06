@@ -35,7 +35,11 @@ param(
   #   -Extra '-bioshockvmrot=90,0,0','-bioshockvmoffset=28,10,-24'
   # Framing the viewmodel is a look-at-it judgement, and the only way to look at it headlessly is
   # this harness -- so the values worth trying must not each cost a plugin rebuild.
-  [string[]]$Extra = @()
+  [string[]]$Extra = @(),
+  # Show the game window. Default is off: the shot comes from a SceneCapture2D render target
+  # (ShockGameMode), not the swap chain, so -RenderOffscreen loses nothing and nothing appears on
+  # the user's screen, steals focus, or plays sound while they work.
+  [switch]$Visible
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,8 +73,12 @@ $args = @(
   "-bioshockshotpath=$Out",
   "-bioshockshotsettle=$SettleTicks",
   "-bioshockshotinterval=$Interval",
-  '-unattended', '-nopause', '-nosplash', '-log', "-abslog=$log"
+  '-unattended', '-nopause', '-nosplash', '-nosound', '-log', "-abslog=$log"
 ) + $Extra
+if (-not $Visible) {
+  # No window, a small backbuffer, and a frame cap so it shares the GPU politely.
+  $args += @('-RenderOffscreen', '-ResX=1280', '-ResY=720', '-ExecCmds="t.MaxFPS 30"')
+}
 if ($Extra.Count) { Write-Output "extra   : $($Extra -join ' ')" }
 
 # Take the shared lock, then hand it to the game process itself: it is held exactly as long as the
@@ -79,10 +87,12 @@ $held = & python $guardPy acquire --for capture --task "capture_shot $Map" --own
 if ($LASTEXITCODE -ne 0) { Write-Output ($held -join ' '); exit 1 }
 if ($held) { $held | ForEach-Object { Write-Output $_ } }
 
-# NOT Minimized: a minimised game window can present an empty backbuffer, so the shot comes back
-# black and reads as "the level is unlit" when it is really "nothing was drawn".
+# Not -WindowStyle Minimized: the shot no longer depends on the window, but a minimised -Visible
+# run used to present an empty backbuffer. Offscreen is the supported way to keep it out of sight.
 try {
   $proc = Start-Process -FilePath $ueCmd -ArgumentList $args -PassThru
+  # Whatever the user is doing gets the CPU first.
+  try { $proc.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal } catch {}
 } catch {
   & python $guardPy release --owner-pid $PID | Out-Null
   throw
