@@ -42,81 +42,81 @@ limits (Havok licence prohibits the reverse engineering needed to recover them �
 stays declined), the 3–4 door meshes that don't decode, exact original balance numbers where no
 `defaultproperties` value exists.
 
-## Priority order, top to bottom
+## Direction change, 6 Oct 2026: the original engine plays, UE5 renders
 
-Rewritten 30 Sept 2026 after a whole-project review. The previous list pushed breadth (more systems,
-more content classes) while the one thing the project is for — a human playing `1-Medical` start to
-finish — had never been checked end to end, and almost every verification was headless with rendering
-off (`-nullrhi`), which cannot see the bugs a player actually hits. The new order is: protect the
-work, make verification see what a player sees, finish Medical properly, and only then widen.
-Take items in order; finish one before starting the next (§60 "Roadmap discipline").
+The goal is unchanged: a faithful BioShock 1 in UE5. The method changes. Until now this project has
+rebuilt BioShock's game logic by hand in UE5 (Layer C), which this file calls "the multi-year part"
+and which still has not got one map playable start to finish. Every map has also needed its own
+hand repairs: 31 fix/repair scripts and a 51-step slice setup for Medical alone.
 
-### Phase 0 — Safety
+The new model is the one Oblivion Remastered uses (and, per the user, Halo: Campaign Evolved): the
+**original engine keeps running the game** (AI, scripts, physics, weapons, plasmids, hacking, saves,
+audio), and **UE5 only draws it**. Gameplay is then faithful by construction, every map works as
+soon as the renderer does, and Layer C stops being needed.
 
-1. **Version control for the UE project — done 30 Sept 2026.** `C:/Users/Jack/Documents/BioShockUE5`
-   (25 GB of `Content/`, the slice map, every imported asset) had no version control at all; the only
-   history was hand-copied `1-Medical.umap.bak-pre-<task>` files. It is now a local git repo with Git
-   LFS for binary assets (`Exports/`, `PluginBuild/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`,
-   `Binaries/` ignored — all regenerable). Local only: 25 GB exceeds free GitHub LFS storage, so
-   off-machine backup is a separate, periodic copy to another drive. Rule: §61.
-2. **Clean the workspace.** 16 stale agent worktrees (`BioShockHavok-agents/*`), `tmp/`,
-   `artifacts/` (4.5 GB — keep what `docs/` cites, drop the rest), the retired `.bak-pre-*` map copies
-   (safe to delete once item 1's baseline commit exists).
+The difference from those remasters: their studios had the engine source and wired the renderer in
+directly. We don't. UE5 has to read the live game state from outside the running `BioshockHD.exe`
+(BioShock Remastered, `G:/SteamLibrary/steamapps/common/BioShock Remastered/Build/Final/`). Whether
+that is practical is the first thing to find out, before anything else is built.
 
-### Phase 1 — Verification that sees what the player sees
+Grounds for optimism, not yet evidence: BioShock is Unreal Engine 2 underneath, which keeps global
+name and object tables in memory with reflective class metadata, and BioShockStudio already knows
+every class's property layout and every map's placed actors (the export manifests give the ground
+truth to match against).
 
-3. **Visual capture pass — done 3 Oct 2026** (`tools/ue5/capture_set.ps1 -Set medical`: 12 validated
-   viewpoints, contact sheet, whole-frame + worst-tile diff against baselines kept in the UE repo;
-   it caught the white wedge and the Machine Gun octagon). Original scope: Launch with rendering on, teleport to ~20 named viewpoints across
-   `1-Medical` (arrival, Steinman's waiting room, Fisheries gate, bathysphere, …), capture each, and
-   diff against committed reference captures; a large change flags for a human look. Build on
-   `tools/ue5/capture_shot.ps1`. This is the check that would have caught the 30 Sept screenshot bugs.
-4. **Medical critical-path test — done 4 Oct 2026** (`tools/ue5/verify_medical_critical_path.py`, in
-   the `medical-core` suite: 10 gates from the hallway switch to the Neptune's Bounty bathysphere, each
-   fired through its real trigger; it found 4 real blockers, all fixed). Original scope: An ordered list of Medical's progression gates (arrival → Steinman
-   → Fisheries quarantine gate → … → bathysphere departure); fire each gate's real trigger in order
-   and assert it opens/advances. This is the executable definition of "Medical is playable".
-5. **One-process suite runner — done 3 Oct 2026** (`tools/ue5/ue_run.py --suite medical-core`: 5
-   scripts in one 30 s boot vs ~5 min separately). Original scope: One editor boot runs a named list of `verify_*.py` scripts and
-   writes one report, replacing the pattern of ~170 `run_*.py` wrappers each booting its own editor.
-6. **Rebuild-from-scratch diff.** Clean base import → `setup_playable_slice.py` → compare actor
-   classes/counts/labels against the committed slice. Proves the slice is still reproducible from the
-   pipeline rather than only from one-off repairs.
+Take items in order (§60 "Roadmap discipline").
 
-### Phase 2 — Finish `1-Medical` as a human-playable slice
+### Phase 0 — Feasibility test (go / no-go)
 
-7. **The live-PIE bug list** (`docs/STATUS.md` "Open bugs"), including the three found in the user's
-   30 Sept screenshots: a black octagonal shape on the Machine Gun viewmodel, a white translucent
-   wedge across the view near the arrival porthole, and a saturated red light wash in the lobby.
-8. **Interaction, measured the way a player does it.** Replace the ring-probe interact harness (36
-   residual failures after two attempts) with a test that walks the player along the navmesh to each
-   pickup/switch/container and presses Interact.
-9. **Content Medical actually contains but doesn't yet play:** the Dr. Steinman encounter
-   (`DoctorSteinman` / `DoctorSteinmanGrenadier` archetypes and his scripted beats); Medical's own
-   Gatherer/Protector beats — the Tenenbaum scene (`Med_Gatherer_Ten`), 4 `ProtectorSpawner`s,
-   7 `PlacedGathererVent`s — at the minimum needed to play through (the full ecology is Phase 3);
-   quest objective text; a clean "slice complete" at the bathysphere. Tonics are not needed for
-   Medical (its manifest places no tonic pickup or Gene Bank).
-10. **A full human playthrough.** The user plays Medical start to finish; every report goes on the
-    STATUS bug list; Phase 3 doesn't start until that list is empty.
+1. **Read the running game.** Attach read-only to `BioshockHD.exe` with Medical loaded (no patching,
+   no injection yet). Find the name and object tables; list live actors with class, name, Location
+   and Rotation. **Pass:** the list matches Medical's export manifest by actor name, and the player's
+   and enemies' positions change when they move. **Fail:** stop, and take the fallback below.
+2. **Mirror it in UE5.** A small bridge streams the camera and every actor transform to UE5 each
+   frame; the already-imported Medical map follows the real game as the player moves: camera, doors
+   opening, enemies walking. **Pass:** a frame from the original and the UE5 frame from the same
+   moment line up when captured side by side.
 
-### Phase 3 — Breadth
+### Phase 1 — The renderer (only if Phase 0 passes)
 
-11. **Level-to-level travel** — the real bathysphere/load-trigger graph (carry-state already works on
-    a hand-built test map).
-12. **A second map** (`2-Fisheries`, the natural next stop) taken through Phases 1–2's checks.
-13. **AI past Medical's archetypes** — the other 20 maps' rosters; Shotgun/Crossbow/ChemicalThrower
-    weapon resolution on an AI archetype; the remaining AI-facing `Action*` families.
-14. **Fidelity passes** — water, glass, god rays, decals/particles, weapon/plasmid icon art (never
-    located in any SWF — brass ring + name only), the HUD liquid-fill material.
-15. **The full Gatherer/Protector ecology** (harvest choice, Big Daddy protect/patrol/rage), tonics
-    and the Gene Bank, U-Invent, upgrade stations.
-16. **Menus that are still stubs** — Options, Credits, Director's Commentary, Museum, Challenge Rooms.
+3. **Animation:** skeletal poses follow the game (its current animation and time, or bone transforms
+   read directly).
+4. **Dynamic state:** actors spawned and destroyed, hidden/shown, lights switched and animated,
+   animated material parameters, particle and impact effects mapped to UE5 equivalents.
+5. **First person:** viewmodel, weapons, plasmid hands, and the HUD (the original HUD drawn as an
+   overlay first; rebuilt later if it is worth it).
+6. **One window:** the player sees UE5 and their input goes to the game; the original's own
+   rendering is suppressed to free the GPU; the original game's audio is kept as-is.
+7. **The comparison check:** automated side-by-side captures, original frame vs UE5 frame at the
+   same moment. For the first time there is a live reference to test against, replacing the
+   "no oracle" caveat under The goal.
 
-Known and deliberately not scheduled: `TrainingScript` (26 Medical instances — its `trainingConcepts`
-would feed `AShockPlayer::SetConceptEnabled`, which nothing in the runtime reads; building it is
-unobservable bookkeeping until a consumer exists), a real keypad code-entry minigame (no decoded
-keycode data exists), nested-loop critical-sub-action expansion during a level-travel flush.
+### Phase 2 — All 21 maps through one converter
+
+8. **No per-map hand work.** The 31 fix/repair scripts and Medical-specific setup steps get folded
+   into the generic import, or dropped where they only patched the hand-ported logic. A map counts
+   as done when the Phase 1 comparison passes along its route.
+
+### Phase 3 — Fidelity, the point of the exercise
+
+9. **The upgraded look:** materials, lighting, water, glass, god rays, decals, and particles, built
+   on the asset import that already covers every map.
+
+### Fallback if Phase 0 fails
+
+Keep the UE5 runtime, but make it generic: the same Phase 2 rule (no per-map hand work, one
+converter for all 21 maps), then Layer C prioritized by the action-usage census as before.
+
+### Paused by this change
+
+The Layer C hand port (AI states, weapons, plasmids, hacking, the Action library), finishing
+`1-Medical` as a hand-built slice (the 30 Sept Phase 2), and refreshing the slice with the 442 actors
+recovered on 4 Oct. The previous priority list (30 Sept) is in git history at commit 06f3b0e.
+Still useful whatever happens: the asset import for all 21 maps, materials and lighting work, the
+offscreen capture tooling, and the export manifests.
+
+Unchanged cut lines: no reverse engineering of Havok (the original engine runs its own physics; we
+only read the results). Nothing from the game's binaries or data goes into this public repo.
 
 ### Done under the previous priority list (detail in `docs/STATUS.md` and git history)
 
