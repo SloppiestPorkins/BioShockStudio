@@ -8,6 +8,8 @@ class FSocket;
 class ACameraActor;
 class ASceneCapture2D;
 class UTextureRenderTarget2D;
+class UTextureCube;
+struct FPostProcessSettings;
 
 /**
  * Live bridge from the running original game (ROADMAP "original engine plays, UE5 renders").
@@ -18,6 +20,9 @@ class UTextureRenderTarget2D;
  *   C x y z pitch yaw roll hfovDeg             camera (world units, degrees)
  *   B <BioShockKey> x y z pitch yaw roll       the actor's pose in the level file (= its import pose)
  *   A <BioShockKey> x y z pitch yaw roll hid   the actor's live pose and bHidden
+ *   Z r g b intensity                          the player's zone ambient (BioShock ZoneInfo
+ *                                              CurrentAmbientColorHigh x multiplier), applied as a
+ *                                              post-process ambient cubemap on the view
  * Actors move by the game's change from B, applied to their imported transform, so import-time
  * pivot and axis conventions carry through untouched.
  *
@@ -54,6 +59,7 @@ private:
 
 	void ApplyLine(const TArray<FString>& Tok);
 	void CaptureFrame();
+	void ApplyAmbient(FPostProcessSettings& PP) const;
 
 	bool bActive = false;
 	FSocket* Socket = nullptr;
@@ -65,6 +71,11 @@ private:
 	TObjectPtr<ASceneCapture2D> Capture;
 	UPROPERTY()
 	TObjectPtr<UTextureRenderTarget2D> Target;
+	UPROPERTY()
+	TObjectPtr<UTextureCube> AmbientCube;
+
+	FLinearColor AmbientTint = FLinearColor::Black;
+	float AmbientIntensity = -1.f;  // < 0: not driven yet
 
 	TMap<FName, FTracked> Tracked;
 	TSet<FName> UnknownKeys;

@@ -5,6 +5,7 @@
 #include "Common/UdpSocketBuilder.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/SceneCapture2D.h"
+#include "Engine/TextureCube.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -80,6 +81,15 @@ void UShockLiveBridge::OnWorldBeginPlay(UWorld& InWorld)
 		Camera->GetCameraComponent()->bConstrainAspectRatio = false;
 	}
 
+	// A uniform white cube (tools/livegame/import_white_cube.py), so the zone tint the game sends is
+	// the colour that lands. The engine's DefaultCubemap is strongly warm and turned a cool
+	// blue-grey zone ambient orange (measured 6 Oct 2026); it is only the fallback.
+	AmbientCube = LoadObject<UTextureCube>(nullptr, TEXT("/Game/BioShockLive/WhiteAmbientCube.WhiteAmbientCube"));
+	if (!AmbientCube)
+	{
+		AmbientCube = LoadObject<UTextureCube>(nullptr, TEXT("/Engine/EngineMaterials/DefaultCubemap.DefaultCubemap"));
+	}
+
 	Socket = FUdpSocketBuilder(TEXT("ShockLiveBridge"))
 		.AsNonBlocking()
 		.AsReusable()
@@ -127,6 +137,16 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		Hfov = FCString::Atof(*Tok[7]);
 		Camera->GetCameraComponent()->SetFieldOfView(Hfov);
 		bHaveCamera = true;
+	}
+	else if (Op == TEXT("Z") && Tok.Num() >= 5)
+	{
+		AmbientTint = FLinearColor(FCString::Atof(*Tok[1]), FCString::Atof(*Tok[2]), FCString::Atof(*Tok[3]));
+		AmbientIntensity = FCString::Atof(*Tok[4]);
+		if (Camera)
+		{
+			ApplyAmbient(Camera->GetCameraComponent()->PostProcessSettings);
+			Camera->GetCameraComponent()->PostProcessBlendWeight = 1.f;
+		}
 	}
 	else if ((Op == TEXT("B") || Op == TEXT("A")) && Tok.Num() >= 8)
 	{
@@ -238,6 +258,19 @@ void UShockLiveBridge::Tick(float DeltaTime)
 	}
 }
 
+void UShockLiveBridge::ApplyAmbient(FPostProcessSettings& PP) const
+{
+	if (AmbientIntensity < 0.f || !AmbientCube)
+	{
+		return;
+	}
+	PP.bOverride_AmbientCubemapIntensity = true;
+	PP.bOverride_AmbientCubemapTint = true;
+	PP.AmbientCubemap = AmbientCube;
+	PP.AmbientCubemapIntensity = AmbientIntensity;
+	PP.AmbientCubemapTint = AmbientTint;
+}
+
 void UShockLiveBridge::CaptureFrame()
 {
 	UWorld* World = GetWorld();
@@ -269,6 +302,8 @@ void UShockLiveBridge::CaptureFrame()
 	Capture->SetActorLocationAndRotation(Camera->GetActorLocation(), Camera->GetActorRotation());
 	USceneCaptureComponent2D* Comp = Capture->GetCaptureComponent2D();
 	Comp->FOVAngle = Hfov;
+	ApplyAmbient(Comp->PostProcessSettings);
+	Comp->PostProcessBlendWeight = 1.f;
 	Comp->CaptureScene();
 	UKismetRenderingLibrary::ExportRenderTarget(World, Target, CaptureDir,
 		FString::Printf(TEXT("ue_%06lld.png"), LastFrame));

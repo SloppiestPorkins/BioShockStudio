@@ -80,6 +80,12 @@ def main():
     ap.add_argument("--seconds", type=float, default=60)
     ap.add_argument("--grab-dir", default="")
     ap.add_argument("--grab-every", type=float, default=2.0)
+    ap.add_argument("--ambient-scale", type=float, default=8.0,
+                    help="UE AmbientCubemapIntensity per unit of BioShock zone ambient (multiplier/40); 8 matched the game frame within 0.4 EV at the Medical Pavilion sign (6 Oct 2026)")
+    ap.add_argument("--ambient-sweep", default="",
+                    help="comma list of --ambient-scale values, each held --sweep-hold s (calibration)")
+    ap.add_argument("--sweep-hold", type=float, default=12.0)
+    ap.add_argument("--ambient-tint", default="", help="override r,g,b (0-1) instead of the zone colour (calibration)")
     args = ap.parse_args()
 
     w = World()
@@ -91,6 +97,11 @@ def main():
     HIDDEN_MASK = p.u32(objs["Engine.Actor.bHidden"] + 0x9C)
     O_PAWN, O_EYE = off("Engine.Controller.Pawn"), off("Engine.Pawn.EyeHeight")
     O_FOV, O_TIME = off("Engine.PlayerController.DesiredFOV"), off("Engine.LevelInfo.TimeSeconds")
+    O_REGION = off("Engine.Actor.Region")  # FPointRegion; Zone is its first field
+    O_AMB_COL = off("Engine.ZoneInfo.CurrentAmbientColorHigh")
+    O_AMB_MUL = off("Engine.ZoneInfo.CurrentAmbientColorHighMultiplier")
+    sweep = [float(v) for v in args.ambient_sweep.split(",") if v.strip()]
+    sweep_log = []
 
     level = "1-Medical"
     manifest = json.load(open(MANIFEST, encoding="utf-8"))
@@ -152,6 +163,19 @@ def main():
             cw, ch = grabber.size() if grabber else (16, 9)
             hfov = math.degrees(2 * math.atan(math.tan(math.radians(fov / 2)) * (cw / max(ch, 1)) / (4 / 3)))
             lines.append(f"C {x:.2f} {y:.2f} {z + eye:.2f} {deg(cp):.4f} {deg(cy):.4f} {deg(cr):.4f} {hfov:.3f}")
+            zone = p.u32(pawn + O_REGION)
+            if zone:
+                b_, g_, r_, _ = p.read(zone + O_AMB_COL, 4)
+                mul = struct.unpack("<f", p.read(zone + O_AMB_MUL, 4))[0]
+                scale = args.ambient_scale
+                if sweep:
+                    stage = min(int(now // args.sweep_hold), len(sweep) - 1)
+                    scale = sweep[stage]
+                    if not sweep_log or sweep_log[-1][0] != stage:
+                        sweep_log.append((stage, scale, frame))
+                        print(f"sweep stage {stage}: scale {scale} from frame {frame}", flush=True)
+                tint = [float(v) for v in args.ambient_tint.split(",")] if args.ambient_tint else [r_ / 255, g_ / 255, b_ / 255]
+                lines.append(f"Z {tint[0]:.4f} {tint[1]:.4f} {tint[2]:.4f} {mul / 40 * scale:.4f}")
         if now >= next_base:
             next_base = now + 2.0
             lines += [b for _, _, b in moving]
@@ -175,6 +199,8 @@ def main():
         if sleep > 0:
             time.sleep(sleep)
     print(f"sent {frame} frames in {time.perf_counter() - t0:.1f}s", flush=True)
+    if sweep and args.grab_dir:
+        json.dump(sweep_log, open(os.path.join(args.grab_dir, "sweep.json"), "w"))
 
 
 if __name__ == "__main__":

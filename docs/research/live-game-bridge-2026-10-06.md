@@ -148,3 +148,61 @@ Gotchas:
 
 - `FParse::Param` does not match `-switch=value`; use `FParse::Value`.
 - The game only advances while focused.
+
+## Lighting, round 1: zone ambient (6 Oct 2026, late)
+
+What the walk frames showed:
+
+| Measure | UE5 | Game |
+|---|---|---|
+| Pixels pure black | over half | darkest areas still visible |
+| Mean brightness gap | 4–7 stops darker | — |
+
+**Cause.** BioShock's `ZoneInfo` has a hemispheric ambient term, read live as:
+
+| Property | Medical value |
+|---|---|
+| `CurrentAmbientColorHigh` + `...HighMultiplier` | most of the 75 zones: (32, 44, 53) ×40; dark rooms 0; one teal ×80; two warm ×5 |
+| `CurrentAmbientVectorHigh` / `...Low` | — |
+| `...ContrastPower` | 2 |
+| `...XGroundRatio` | 0.15 |
+
+UE5 had nothing equivalent. The player's zone is `Actor.Region` (the zone pointer is the first field
+of the struct).
+
+**What changed:**
+
+- The bridge sends `Z r g b intensity` from the player's zone.
+- `UShockLiveBridge` applies it as a post-process ambient cubemap on the view camera and the
+  capture.
+- The engine `DefaultCubemap` is strongly warm: a blue-grey tint came out orange. The bridge now
+  uses `/Game/BioShockLive/WhiteAmbientCube`, a uniform white HDR made by `make_white_hdr.py` and
+  imported by `import_white_cube.py`.
+- Headless `AssetImportTask` crashes after saving, on a Slate assert, but the asset it wrote is good.
+- `calibrate_ambient.sh` holds the game paused and sweeps the ambient scale in one UE run.
+
+**Calibration at the Medical Pavilion sign:**
+
+| Ambient scale | Gap to game | Black pixels |
+|---|---|---|
+| ×0 | +4.1 EV (darker) | 90.7% |
+| ×8 | +0.4 EV | 18.8% |
+
+Colour came out neutral and cool, matching the game. The plant that looked missing was only unlit.
+
+**The 90 s walk at ×8:**
+
+| Measure | Result |
+|---|---|
+| Black pixels | 8.5% (was more than half) |
+| Mean gap | −1.9 EV (UE5 now too bright) |
+| Structural correlation | 0.21 |
+
+A flat ambient lifts everything evenly, but the original's look is its baked falloff and shadow.
+Next is to import the original's baked static lighting: BSP lightmaps and per-instance vertex
+lighting (`StaticMeshInstance`, 2,017 live in Medical). That replaces the guesswork.
+
+**Other gaps seen:**
+
+- The handbag at the sign uses a different skin (pink floral in UE5, green camo in the game).
+- Pairs taken during fast turns are a fraction of a second apart, so they don't line up.
