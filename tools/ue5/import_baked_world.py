@@ -37,6 +37,9 @@ MAP = os.environ.get("BIOSHOCK_BAKED_MAP", "/Game/BioShockLive/1-Medical_Baked")
 FROM = os.environ.get("BIOSHOCK_BAKED_FROM", "/Game/BioShockSlice/1-Medical")
 DEST = os.environ.get("BIOSHOCK_BAKED_DEST", "/Game/BioShockLive/BakedWorld/1-Medical")
 SCALE_MULT = float(os.environ.get("BIOSHOCK_BAKED_SCALE", "1"))
+# 1: lightmap UV in channel 0 and material UV in channel 1. The rendered UV1 came out wrong although
+# the mesh description held it (6 Oct 2026); UV0 is known to render.
+SWAP_UV = os.environ.get("BIOSHOCK_BAKED_SWAP_UV", "1") == "1"
 MASTER = "/Game/BioShockLive/M_BioShock_BakedWorld"
 # Global multiplier the live bridge drives at runtime ("L <value>" -> BakedExposure): the slice pins a
 # manual exposure tuned for its dynamic lights, so the right emissive level is found by measurement.
@@ -82,12 +85,14 @@ def _ensure_master(default_lightmap):
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     base = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, -100)
     base.set_editor_property("parameter_name", "BaseColor")
+    base_uv = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -950, -100)
+    base_uv.set_editor_property("coordinate_index", 1 if SWAP_UV else 0)
+    mel.connect_material_expressions(base_uv, "", base, "UVs")
     uv1 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1150, 200)
-    uv1.set_editor_property("coordinate_index", 1)
+    uv1.set_editor_property("coordinate_index", 0 if SWAP_UV else 1)   # the lightmap's own channel
     uv0 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1150, 330)
-    uv0.set_editor_property("coordinate_index", 0)
-    # Debug: LightmapFromUV0 = 1 samples the lightmap with the material UV, to tell a missing
-    # UV1 apart from an unreadable texture.
+    uv0.set_editor_property("coordinate_index", 1 if SWAP_UV else 0)   # debug: the material channel
+    # Debug: LightmapFromUV0 = 1 samples the lightmap with the material channel instead of its own.
     uvsw = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1150, 450)
     uvsw.set_editor_property("parameter_name", "LightmapFromUV0")
     uvsw.set_editor_property("default_value", 0.0)
@@ -124,16 +129,46 @@ def _ensure_master(default_lightmap):
         return lerp
     fb = factor(base, "RGB", "UseBase", -350, -150)
     fl = factor(lm, "RGB", "UseLightmap", -350, 250)
-    mul1 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -100, 50)
-    mel.connect_material_expressions(fb, "", mul1, "A")
-    mel.connect_material_expressions(fl, "", mul1, "B")
+    # albedo x (baked x LightmapScale + ZoneAmbient) x BakedExposure: the original adds its zone's
+    # ambient to the baked light, so surfaces no static light reaches are dim, not black. ZoneAmbient
+    # is set live by the bridge from the player's zone (Z line).
+    lmscaled = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -100, 250)
+    mel.connect_material_expressions(fl, "", lmscaled, "A")
+    mel.connect_material_expressions(scale, "", lmscaled, "B")
+    amb = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -350, 450)
+    amb.set_editor_property("parameter_name", "ZoneAmbient")
+    amb.set_editor_property("default_value", unreal.LinearColor(0, 0, 0, 0))
+    light = mel.create_material_expression(mat, unreal.MaterialExpressionAdd, 50, 300)
+    mel.connect_material_expressions(lmscaled, "", light, "A")
+    mel.connect_material_expressions(amb, "", light, "B")
     mul2 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, 100, 150)
-    mel.connect_material_expressions(mul1, "", mul2, "A")
-    mel.connect_material_expressions(scale, "", mul2, "B")
+    mel.connect_material_expressions(fb, "", mul2, "A")
+    mel.connect_material_expressions(light, "", mul2, "B")
     mul3 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, 300, 250)
     mel.connect_material_expressions(mul2, "", mul3, "A")
     mel.connect_material_expressions(expo, "", mul3, "B")
-    mel.connect_material_property(mul3, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Debug: ShowLightmapUV = 1 outputs the lightmap UV itself as colour (R = U, G = V), to see what
+    # the GPU actually receives.
+    show = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, 300, 450)
+    show.set_editor_property("parameter_name", "ShowLightmapUV")
+    show.set_editor_property("default_value", 0.0)
+    uvcol = mel.create_material_expression(mat, unreal.MaterialExpressionAppendVector, 300, 600)
+    zero = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, 150, 650)
+    # frac(uv * 32): a tile ~30 texels wide shows as one gradient ramp, so a constant UV is obvious.
+    k32 = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -100, 700)
+    k32.set_editor_property("r", 32.0)
+    uvm = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, 0, 650)
+    mel.connect_material_expressions(uvl, "", uvm, "A")
+    mel.connect_material_expressions(k32, "", uvm, "B")
+    uvf = mel.create_material_expression(mat, unreal.MaterialExpressionFrac, 120, 650)
+    mel.connect_material_expressions(uvm, "", uvf, "")
+    mel.connect_material_expressions(uvf, "", uvcol, "A")
+    mel.connect_material_expressions(zero, "", uvcol, "B")
+    out = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, 500, 300)
+    mel.connect_material_expressions(mul3, "", out, "A")
+    mel.connect_material_expressions(uvcol, "", out, "B")
+    mel.connect_material_expressions(show, "", out, "Alpha")
+    mel.connect_material_property(out, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(mat)
     eal.save_loaded_asset(mat)
     return mat
@@ -227,6 +262,11 @@ def _import_mesh(gltf_path, model_name):
         doc["materials"].append({"name": name})
         p["material"] = i
         slots.append((name, extras))
+    if SWAP_UV:
+        for p in prims:
+            a = p["attributes"]
+            if "TEXCOORD_0" in a and "TEXCOORD_1" in a:
+                a["TEXCOORD_0"], a["TEXCOORD_1"] = a["TEXCOORD_1"], a["TEXCOORD_0"]
     _to_gltf_convention(doc, os.path.dirname(gltf_path), model_name)
     slotted = os.path.join(os.path.dirname(gltf_path), "%s_slots.gltf" % model_name)
     with open(slotted, "w", encoding="utf-8") as fh:
@@ -283,23 +323,9 @@ def _to_gltf_convention(doc, folder, model_name):
                     hi = [max(a, b) for a, b in zip(hi, v)]
                 if attr == "POSITION":
                     acc["min"], acc["max"] = lo, hi
-            # UE's glTF importer flips V. Measured: rendered UV1 hit lit atlas texels like a V-flip
-            # (27.7%) while the exported UV1 as written hits 73.5% (6 Oct 2026). Pre-flip both sets.
-            for attr in ("TEXCOORD_0", "TEXCOORD_1"):
-                ai = p["attributes"].get(attr)
-                if ai is None or ai in done:
-                    continue
-                done.add(ai)
-                acc = doc["accessors"][ai]
-                view = doc["bufferViews"][acc["bufferView"]]
-                stride = view.get("byteStride") or 8
-                base = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
-                for k in range(acc["count"]):
-                    o = base + k * stride
-                    u, v = struct.unpack_from("<2f", data, o)
-                    struct.pack_into("<2f", data, o, u, 1.0 - v)
-                acc.pop("min", None)
-                acc.pop("max", None)
+            # No V flip: measured in the imported mesh data, the lightmap UVs hit lit atlas texels 74%
+            # of the time as exported and 28% when flipped -- UE's glTF importer keeps V as written
+            # (6 Oct 2026; an earlier pre-flip, from a bad inference, is what made the world black).
     out = "%s_slots.bin" % model_name
     with open(os.path.join(folder, out), "wb") as fh:
         fh.write(data)
@@ -327,14 +353,15 @@ def _ordered_slots(mesh, slots):
     desc = mesh.get_static_mesh_description(0)
     n = desc.get_vertex_instance_count()
     step = max(1, n // 400)
-    uv1 = [desc.get_vertex_instance_uv(unreal.VertexInstanceID(k), 1) for k in range(0, n, step)]
-    uv0 = [desc.get_vertex_instance_uv(unreal.VertexInstanceID(k), 0) for k in range(0, n, step)]
+    lm_ch, mat_ch = (0, 1) if SWAP_UV else (1, 0)
+    uv1 = [desc.get_vertex_instance_uv(unreal.VertexInstanceID(k), lm_ch) for k in range(0, n, step)]
+    uv0 = [desc.get_vertex_instance_uv(unreal.VertexInstanceID(k), mat_ch) for k in range(0, n, step)]
     nonzero = sum(1 for u in uv1 if abs(u.x) > 1e-6 or abs(u.y) > 1e-6)
     inrange = sum(1 for u in uv1 if -1e-3 <= u.x <= 1.001 and -1e-3 <= u.y <= 1.001)
     differ = sum(1 for a, b in zip(uv0, uv1) if abs(a.x - b.x) > 1e-4 or abs(a.y - b.y) > 1e-4)
     unreal.log("BAKED_UV1 sampled=%d nonzero=%d inrange=%d differFromUV0=%d" % (len(uv1), nonzero, inrange, differ))
     if nonzero < len(uv1) * 0.5 or inrange < len(uv1) * 0.95:
-        raise RuntimeError("lightmap UV1 did not survive import (nonzero %d, in range %d of %d)" % (nonzero, inrange, len(uv1)))
+        raise RuntimeError("lightmap UV (channel %d) did not survive import" % lm_ch + "  (nonzero %d, in range %d of %d)" % (nonzero, inrange, len(uv1)))
     # Order the slot list by the mesh's own material slots, matched on name.
     by_name = dict(slots)
     ordered = []

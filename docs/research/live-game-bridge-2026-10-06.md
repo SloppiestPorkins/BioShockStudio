@@ -206,3 +206,53 @@ lighting (`StaticMeshInstance`, 2,017 live in Medical). That replaces the guessw
 
 - The handbag at the sign uses a different skin (pink floral in UE5, green camo in the game).
 - Pairs taken during fast turns are a fraction of a second apart, so they don't line up.
+
+## Lighting, round 2: the original's baked BSP light in UE5 (7 Oct 2026)
+
+The pipeline:
+
+1. `BioShockStudio.Cli export-baked-lightmaps <map> <dir>` (`BakedLightMapExporter`, from the Cursor
+   branch) writes:
+   - RGB atlases: each layer's luminance (`.yzx` unswizzle) × light colour × brightness × N·L,
+     evaluated per texel, written as linear 8-bit;
+   - a two-UV glTF of the compiled world.
+2. `tools/ue5/import_baked_world.py` imports it into a **copy** of the slice,
+   `/Game/BioShockLive/1-Medical_Baked`, which hides the copy's compiled world. Run the live view with
+   `MAP=/Game/BioShockLive/1-Medical_Baked`.
+3. The unlit master computes `Emissive = albedo × (baked × LightmapScale + ZoneAmbient) × BakedExposure`.
+   The bridge sets `ZoneAmbient` live from the player's zone, on dynamic instances of the actor's
+   materials.
+
+Headless UE 5.7 traps, each confirmed by measurement:
+
+| Trap | Fix |
+|---|---|
+| Every Interchange import asserts in Slate after saving | Importer is resumable; assets already on disk are skipped |
+| The glTF importer converts from metres, Y-up | Write (X/100, Z/100, −Y/100); mesh bounds then equal the compiled world's |
+| It does NOT flip V (an early pre-flip, from a bad inference, blacked out the whole world) | No V flip |
+| "Generate Lightmap UVs" overwrites UV1 in the render data | Switched off |
+| `delete_all_material_expressions` leaves the old graph behind | Recreate the master each run |
+| A LinearColor sampler with an sRGB default texture fails the compile silently, giving the default checker | Default the Lightmap parameter to a linear texture |
+| Lightmap UVs vs material UVs | Lightmap UVs now go in channel 0 and material UVs in channel 1 (`BIOSHOCK_BAKED_SWAP_UV=1`, the default) |
+
+**Why it looked black:**
+
+- In an offline raycast from the live camera, 9 of the 12 BSP hits had pure-black lightmap texels. Much
+  of Medical's BSP receives no static light; the original lights it with zone ambient.
+- Without that term the surfaces were black.
+- Calibration at a paused view: ambient ×4 matched the game within 0.3 EV.
+
+**The 90 s walk** shows the lobby's lamp-lit floors, the desk-lamp pools, the sign wall and the
+stairwell lit where the game lights them.
+
+**Still missing:**
+
+- per-vertex baked light on static meshes (`StaticMeshInstance`): props are a large part of the view;
+- the hemispheric (high/low) ambient term, instead of a flat one;
+- dynamic lights.
+
+**Process rule adopted after the first Cursor review** (`cursor-reports/review-20261007-0023.md`):
+
+- At most 2 UE launches per written hypothesis.
+- Identical frames across a sweep mean stop.
+- Prove with an artifact (data dump, offline raycast) before sweeping.

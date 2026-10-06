@@ -143,6 +143,16 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 	{
 		AmbientTint = FLinearColor(FCString::Atof(*Tok[1]), FCString::Atof(*Tok[2]), FCString::Atof(*Tok[3]));
 		AmbientIntensity = FCString::Atof(*Tok[4]);
+		// The baked world is unlit, so it takes the zone ambient as a material term instead.
+		// Optional 6th token: its own scale (default: the same intensity).
+		const float BakedAmb = Tok.Num() >= 6 ? FCString::Atof(*Tok[5]) : AmbientIntensity;
+		for (UMaterialInstanceDynamic* Mid : BakedMids)
+		{
+			if (Mid)
+			{
+				Mid->SetVectorParameterValue(TEXT("ZoneAmbient"), AmbientTint * BakedAmb);
+			}
+		}
 		if (Camera)
 		{
 			ApplyAmbient(Camera->GetCameraComponent()->PostProcessSettings);
@@ -164,6 +174,10 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 					if (Tok.Num() >= 5)
 					{
 						Mid->SetScalarParameterValue(TEXT("LightmapFromUV0"), FCString::Atof(*Tok[4]));
+					}
+					if (Tok.Num() >= 6)
+					{
+						Mid->SetScalarParameterValue(TEXT("ShowLightmapUV"), FCString::Atof(*Tok[5]));
 					}
 				}
 			}

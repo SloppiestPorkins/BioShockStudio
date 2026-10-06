@@ -85,9 +85,14 @@ def main():
     ap.add_argument("--ambient-sweep", default="",
                     help="comma list of --ambient-scale values, each held --sweep-hold s (calibration)")
     ap.add_argument("--sweep-hold", type=float, default=12.0)
+    ap.add_argument("--baked-ambient", type=float, default=4.0,
+                    help="ZoneAmbient on the baked world = zone colour x (multiplier/40) x this; 4 matched the game within 0.3 EV (7 Oct 2026)")
+    ap.add_argument("--baked-ambient-sweep", default="", help="comma list of --baked-ambient values, each held --sweep-hold s")
     ap.add_argument("--baked-exposure", type=float, default=1.0,
                     help="BakedExposure for maps with the original's baked BSP light (import_baked_world.py)")
     ap.add_argument("--baked-sweep", default="", help="comma list of --baked-exposure values, each held --sweep-hold s")
+    ap.add_argument("--baked-debug-sweep", default="",
+                    help="semicolon list of debug modes (e.g. '1,0,0;0,1,0;0,0,0'), each held --sweep-hold s")
     ap.add_argument("--baked-debug", default="", help="useBase,useLightmap (debug: 1,0 = base colour only; 0,1 = baked light only)")
     ap.add_argument("--ambient-tint", default="", help="override r,g,b (0-1) instead of the zone colour (calibration)")
     args = ap.parse_args()
@@ -107,6 +112,7 @@ def main():
     sweep = [float(v) for v in args.ambient_sweep.split(",") if v.strip()]
     bsweep = [float(v) for v in args.baked_sweep.split(",") if v.strip()]
     sweep_log = []
+    printed_amb = set()
 
     level = "1-Medical"
     manifest = json.load(open(MANIFEST, encoding="utf-8"))
@@ -180,7 +186,15 @@ def main():
                         sweep_log.append((stage, scale, frame))
                         print(f"sweep stage {stage}: scale {scale} from frame {frame}", flush=True)
                 tint = [float(v) for v in args.ambient_tint.split(",")] if args.ambient_tint else [r_ / 255, g_ / 255, b_ / 255]
-                lines.append(f"Z {tint[0]:.4f} {tint[1]:.4f} {tint[2]:.4f} {mul / 40 * scale:.4f}")
+                bamb = args.baked_ambient
+                if args.baked_ambient_sweep:
+                    vals = [float(v) for v in args.baked_ambient_sweep.split(",") if v.strip()]
+                    ast_ = min(int(now // args.sweep_hold), len(vals) - 1)
+                    bamb = vals[ast_]
+                    if ast_ not in printed_amb:
+                        printed_amb.add(ast_)
+                        print(f"baked ambient stage {ast_}: {bamb} from frame {frame}", flush=True)
+                lines.append(f"Z {tint[0]:.4f} {tint[1]:.4f} {tint[2]:.4f} {mul / 40 * scale:.4f} {mul / 40 * bamb:.4f}")
         bexp = args.baked_exposure
         if bsweep:
             bstage = min(int(now // args.sweep_hold), len(bsweep) - 1)
@@ -188,7 +202,15 @@ def main():
             if not sweep_log or sweep_log[-1][0] != bstage:
                 sweep_log.append((bstage, bexp, frame))
                 print(f"baked sweep stage {bstage}: exposure {bexp} from frame {frame}", flush=True)
-        lines.append(f"L {bexp:.5f}" + (" " + args.baked_debug.replace(",", " ") if args.baked_debug else ""))
+        dbg = args.baked_debug
+        if args.baked_debug_sweep:
+            modes = [m for m in args.baked_debug_sweep.split(";") if m.strip()]
+            dstage = min(int(now // args.sweep_hold), len(modes) - 1)
+            dbg = modes[dstage]
+            if not sweep_log or sweep_log[-1][0] != dstage:
+                sweep_log.append((dstage, dbg, frame))
+                print(f"debug stage {dstage}: mode {dbg} from frame {frame}", flush=True)
+        lines.append(f"L {bexp:.5f}" + (" " + dbg.replace(",", " ") if dbg else ""))
         if now >= next_base:
             next_base = now + 2.0
             lines += [b for _, _, b in moving]
@@ -212,7 +234,7 @@ def main():
         if sleep > 0:
             time.sleep(sleep)
     print(f"sent {frame} frames in {time.perf_counter() - t0:.1f}s", flush=True)
-    if (sweep or bsweep) and args.grab_dir:
+    if (sweep or bsweep or args.baked_debug_sweep) and args.grab_dir:
         json.dump(sweep_log, open(os.path.join(args.grab_dir, "sweep.json"), "w"))
 
 
