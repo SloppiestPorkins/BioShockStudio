@@ -48,7 +48,9 @@ ue() {  # ue <script> <done-marker-regex> [KEY=VALUE env ...]: run until the mar
 }
 
 step "missing material instances"; ue create_missing_materials.py "MISSING_MATERIALS (created|0 of)" || exit 1
-step "baked world (creates the copy)"; ue import_baked_world.py "BAKED_WORLD slots" || exit 1
+# BIOSHOCK_BAKED_REIMPORT=1 bash prepare_map.sh <map>: re-import the baked world over the existing
+# mesh (needed after an exporter change, e.g. the BSP UV rule).
+step "baked world (creates the copy)"; ue import_baked_world.py "BAKED_WORLD slots" BIOSHOCK_BAKED_REIMPORT="${BIOSHOCK_BAKED_REIMPORT:-0}" || exit 1
 # Base maps were imported before the struct-array reader fix and lack actors (Fisheries had lost its
 # central staircase). Bring the copy's actors up to the fresh export -- materials additive only, so
 # instances shared with the hand-built slice are never re-configured.
