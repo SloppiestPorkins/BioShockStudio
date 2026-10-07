@@ -32,6 +32,9 @@ ue() {  # ue <script> <done-marker-regex> [KEY=VALUE env ...]: run until the mar
   for i in $(seq 1 30); do
     touch "$stamp"
     python tools/ue5/ue_run.py "tools/ue5/$script" --env BIOSHOCK_MAP="$MAP" "${extra[@]}" --timeout 7200 > /dev/null 2>&1
+    # A re-import saves before the headless crash; repeating it would re-import forever (Fisheries,
+    # 7 Oct: 30 runs). Only the first attempt re-imports.
+    extra=("${extra[@]/BIOSHOCK_BAKED_REIMPORT=1/BIOSHOCK_BAKED_REIMPORT=0}")
     log=$(ls -t /c/Users/Jack/Documents/BioShockUE5/Saved/ue_run/*"${script%.py}".log | head -1)
     if grep -q -E "$marker" "$log"; then grep -h -o -E "$marker.*" "$log" | head -1 | cut -c1-240; rm -f "$stamp"; return 0; fi
     # Python exceptions only: the post-save Slate crash also logs "GetLastError: ...".
