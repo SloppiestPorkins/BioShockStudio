@@ -81,54 +81,95 @@ Both steps pass; method, memory layout and evidence in
    opening, enemies walking. **Pass:** a frame from the original and the UE5 frame from the same
    moment line up when captured side by side.
 
-### Phase 1 — The renderer (only if Phase 0 passes)
+### Phase 1 onward — two tracks of equal priority
 
-**Status 7 Oct 2026** (detail in `docs/research/live-game-bridge-2026-10-06.md`). Done:
+From 7 Oct 2026 the work runs on two tracks with equal weight; neither waits for the other except
+where a dependency is named. **Track E** takes BioShock's renderer out of the loop, turning the game
+into a headless simulation that feeds UE5. **Track R** makes what UE5 draws match and then exceed
+the original. Today's overlay (an external process reads game memory over UDP, and UE5 draws in a
+click-through window over the still-rendering game) is the scaffold both tracks replace or build
+on. Most of today's visible bugs trace back to it: up to a frame of lag, reads that catch the game
+mid-update, two renderers paying for one picture, and UI only where it has been rebuilt by hand.
 
-- **Live bridge:** the camera and every non-static actor stream at about 24 Hz.
-- **Lighting:** the original's baked BSP lightmaps and per-vertex prop light render on a copy of the
-  slice (`/Game/BioShockLive/1-Medical_Baked`), plus the zone ambient term.
-- **Item 3 (animation):** skeletal actors are driven by the game's evaluated bones.
-- **Item 4, partly (dynamic state):** stand-ins for runtime-spawned actors (340 of 382 in Medical,
-  among them enemies, door leaves and pickups), spawned and destroyed as the game does.
-- **Material overrides (Skins):** applied.
+**Status 7 Oct 2026** (detail in `docs/research/live-game-bridge-2026-10-06.md`):
 
-Open, in order:
+- **Live bridge (overlay scaffold):** the camera and every non-static actor stream at about 24 Hz.
+  A double-click launcher is `tools/livegame/Play Medical.cmd`.
+- **Lighting:** the original's baked BSP lightmaps, per-vertex prop light (Medical) and the zone
+  ambient term.
+- **Animation:** skeletal actors are driven by the game's evaluated bones. Fixed 7 Oct: the FBX
+  import keeps `SOCKET_*` nulls as bones, which scrambled index-based posing on every character.
+  Bones now map with sockets skipped; proven offline on all 38 level rigs and the player hands
+  (`tools/ue5/dump_skeleton_orders.py`). Still to confirm live.
+- **Dynamic state:** runtime-spawned actors (377 of 382 in Medical), spawned and destroyed as the
+  game does. Material overrides (Skins) are applied.
+- **HUD:** health, EVE, first-aid kits and EVE hypos are live. Weapon, ammo and money are not, and
+  other UI screens are missing.
+- **Conversion layer:** `tools/livegame/prepare_map.sh <map>` builds a level in one command and
+  re-syncs its actors. Medical and Fisheries are done; the view follows the game across levels.
 
-1. Item 5, first person: viewmodel and hands, then the HUD.
-2. Import the 20 meshes never imported (vending machine, Vita-Chamber parts, cameras, security bot,
-   Baby Jane).
-3. Material fidelity: the dirt-blend wall shaders, some ceilings.
-4. Dynamic and animated lights.
-5. The hemispheric ambient term.
-6. Item 6, a single window.
+#### Track E — Engine integration: the original renderer out, UE5 in
 
-3. **Animation:** skeletal poses follow the game (its current animation and time, or bone transforms
-   read directly).
-4. **Dynamic state:** actors spawned and destroyed, hidden/shown, lights switched and animated,
-   animated material parameters, particle and impact effects mapped to UE5 equivalents.
-5. **First person:** viewmodel, weapons, plasmid hands, and the HUD (the original HUD drawn as an
-   overlay first; rebuilt later if it is worth it).
-6. **One window:** the player sees UE5 and their input goes to the game; the original's own
-   rendering is suppressed to free the GPU; the original game's audio is kept as-is.
-7. **The comparison check:** automated side-by-side captures, original frame vs UE5 frame at the
-   same moment. For the first time there is a live reference to test against, replacing the
-   "no oracle" caveat under The goal.
+The model is the one Oblivion Remastered and Halo: Campaign Evolved use. Without the engine source
+it is two processes joined by shared memory: a 32-bit game cannot host the 64-bit UE5. The game
+renders through Direct3D 11 (it ships `d3d11`/`dxgi` imports and AMD AGS), so the way in is a
+proxy `dxgi.dll` in the game folder, which the game loads itself. No injector is needed.
 
-### Phase 2 — All 21 maps through one converter
+E1. **Get inside.** A proxy DLL that only logs the game's frame tick. **Pass:** it loads under Steam
+    (check for a DRM wrapper first) and the log shows one line per game tick.
+E2. **In-process state feed.** At the end of each tick the DLL writes a snapshot (the camera's real
+    view matrices and FOV, actor transforms and visibility, bones, spawn and destroy events, zone
+    ambient) to a shared-memory ring that UE5 reads. This replaces memory polling and UDP, keeping
+    the same message semantics so Track R code is untouched. **Pass:** no torn frames, and
+    game-to-UE latency of at most one frame, measured.
+E3. **Stop the original drawing the world.** Hook the engine's world-render call (below the HUD)
+    and skip it. The game keeps simulating, playing audio, and running AI and physics. The class
+    layouts already mapped, plus the unofficial SDK (read and cite only), are the guide to finding
+    it. **Pass:** the game's GPU time falls to near zero and gameplay is unaffected.
+E4. **The UI through a shared texture.** The game's own HUD, menus, hacking, vending machines, the
+    map, subtitles and Bink videos render into an offscreen texture, shared with UE5 through a D3D
+    shared handle and composited on top. Every UI screen works with full fidelity on day one;
+    native UMG replacements come later, one screen at a time, where worth it. **Pass:** every
+    screen reachable in Medical shows in the UE5 window.
+E5. **One window.** UE5 is the only visible window. The game's window is hidden, its
+    pause-when-unfocused behaviour is patched out, and keyboard, mouse and controller input are
+    forwarded. This retires the overlay. **Pass:** a full Medical playthrough is done entirely in
+    the UE5 window.
+E6. **Package as a mod.** The proxy DLL, a UE5 build, and the converter, which runs on the
+    player's own game files. No game assets are distributed.
 
-8. **No per-map hand work.** The 31 fix/repair scripts and Medical-specific setup steps get folded
-   into the generic import, or dropped where they only patched the hand-ported logic. A map counts
-   as done when the Phase 1 comparison passes along its route.
+#### Track R — Rendering and content: what UE5 draws
 
-### Phase 3 — Fidelity, the point of the exercise
+R1. **First person:** a dedicated viewmodel pass for hands, weapons and plasmid hands, with the
+    game's own viewmodel FOV and no wall clipping. First confirm the bridge sees the viewmodel at
+    all (`tools/livegame/fp_probe.py`).
+R2. **Missing HUD pieces** (weapon, ammo, money) until E4 lands; after that, UI is native only by
+    choice.
+R3. **Every level through one converter:** run `prepare_map.sh` on the remaining 19 levels. Per-map
+    hand work is folded into it or dropped. A level counts as done when the comparison check (R7)
+    passes along its route.
+R4. **Light fidelity:** per-vertex prop light on every level (the decoder generalisation is in
+    progress), automatic per-level brightness calibration against the game's frame (Fisheries
+    reads +2.1 EV), the hemispheric ambient term, and dynamic and animated lights driven by the
+    game's light state.
+R5. **Effects:** particles and impacts to Niagara, decals, water and glass, plasmid screen effects,
+    and hit and damage effects.
+R6. **The upgraded look:** materials (the dirt-blend wall shaders first), god rays, and the Rapture
+    look, built on the asset import that already covers every map.
+R7. **The comparison check:** automated side-by-side captures (original frame vs UE5 frame at the
+    same moment) for every level. This is the live oracle that replaces the "no oracle" caveat
+    under The goal. It keeps running after E3, with the original's rendering re-enabled on demand
+    for the check.
 
-9. **The upgraded look:** materials, lighting, water, glass, god rays, decals, and particles, built
-   on the asset import that already covers every map.
+#### Order
+
+E1–E2 come first on Track E: every later step builds on the in-process feed, and it removes the lag
+and torn reads. E4 is next, because it is the shortest route to all UI working. Track R runs
+alongside throughout, R1 and R3 first. Each item ships with its own pass check.
 
 ### Fallback if Phase 0 fails
 
-Keep the UE5 runtime, but make it generic: the same Phase 2 rule (no per-map hand work, one
+Keep the UE5 runtime, but make it generic: the same R3 rule (no per-map hand work, one
 converter for all 21 maps), then Layer C prioritized by the action-usage census as before.
 
 ### Paused by this change
