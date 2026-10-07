@@ -15,7 +15,10 @@ param(
   [double]$CaptureEvery = 1.0,
   [string]$Engine = 'G:\Games\UE_5.7',
   [string]$Project = 'C:\Users\Jack\Documents\BioShockUE5\BioShockUE5.uproject',
-  [switch]$Visible
+  [switch]$Visible,
+  # With -Visible: the window's size (the bridge's --overlay then lays it over the game window).
+  [int]$ResX = 0,
+  [int]$ResY = 0
 )
 $ErrorActionPreference = 'Stop'
 $guardPy = Join-Path $PSScriptRoot '..\ue5\ue_guard.py'
@@ -33,6 +36,7 @@ $args = @($Project, $url, '-game', "-bioshocklive=$Port", "-bioshockliveseconds=
   '-unattended', '-nopause', '-nosplash', '-nosound', '-log', "-abslog=$log")
 if ($CaptureDir) { $args += @("-bioshocklivecapture=$CaptureDir", "-bioshocklivecapevery=$CaptureEvery") }
 if (-not $Visible) { $args += @('-RenderOffscreen', '-ResX=1280', '-ResY=720') }
+elseif ($ResX -gt 0 -and $ResY -gt 0) { $args += @('-windowed', "-ResX=$ResX", "-ResY=$ResY") }
 
 $held = & python $guardPy acquire --for capture --task "live_view $Map" --owner-pid $PID
 if ($LASTEXITCODE -ne 0) { Write-Output ($held -join ' '); exit 1 }

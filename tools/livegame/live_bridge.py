@@ -73,6 +73,62 @@ class Grabber:
         img.crop((ox, oy, ox + cr.right, oy + cr.bottom)).save(path)
 
 
+class Overlay:
+    """Keep the UE live view's window exactly over the game's client area: borderless, topmost,
+    click-through and never activated, so the player sees UE5 while keyboard and mouse stay with the
+    original game (which only advances while it has focus). ROADMAP Phase 1 item 6."""
+
+    GWL_STYLE, GWL_EXSTYLE = -16, -20
+    WS_CAPTION, WS_THICKFRAME, WS_POPUP = 0x00C00000, 0x00040000, 0x80000000
+    EX = 0x00080000 | 0x00000020 | 0x00000008 | 0x08000000 | 0x00000080  # LAYERED|TRANSPARENT|TOPMOST|NOACTIVATE|TOOLWINDOW
+
+    def __init__(self, game_hwnd):
+        self.game = game_hwnd
+        self.ue = None
+        user32.GetWindowLongW.restype = ctypes.c_long
+        user32.SetWindowLongW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_long]
+
+    def _find_ue(self):
+        import subprocess
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq UnrealEditor-Cmd.exe", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True).stdout
+        pids = {int(l.split('","')[1]) for l in out.splitlines() if l.startswith('"UnrealEditor-Cmd')}
+        found = []
+
+        @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+        def cb(hwnd, _):
+            pid = wt.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            r = wt.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(r))
+            if pid.value in pids and user32.IsWindowVisible(hwnd) and (r.right - r.left) > 200:
+                found.append(hwnd)
+            return True
+        user32.EnumWindows(cb, 0)
+        return found[0] if found else None
+
+    def update(self):
+        if not self.ue:
+            self.ue = self._find_ue()
+            if not self.ue:
+                return False
+            style = user32.GetWindowLongW(self.ue, self.GWL_STYLE)
+            user32.SetWindowLongW(self.ue, self.GWL_STYLE, (style & ~(self.WS_CAPTION | self.WS_THICKFRAME)) | self.WS_POPUP)
+            ex = user32.GetWindowLongW(self.ue, self.GWL_EXSTYLE)
+            user32.SetWindowLongW(self.ue, self.GWL_EXSTYLE, ex | self.EX)
+            user32.SetLayeredWindowAttributes(self.ue, 0, 255, 2)  # LWA_ALPHA, opaque
+            print("overlay: attached to UE window", hex(self.ue), flush=True)
+            # UE took focus when its window opened; the game only runs while focused.
+            user32.SetForegroundWindow(self.game)
+        cr = wt.RECT()
+        user32.GetClientRect(self.game, ctypes.byref(cr))
+        pt = wt.POINT(0, 0)
+        user32.ClientToScreen(self.game, ctypes.byref(pt))
+        # HWND_TOPMOST; SWP_NOACTIVATE | SWP_SHOWWINDOW
+        user32.SetWindowPos(self.ue, wt.HWND(-1), pt.x, pt.y, cr.right, cr.bottom, 0x0010 | 0x0040)
+        return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=7781)
@@ -94,6 +150,8 @@ def main():
     ap.add_argument("--baked-debug-sweep", default="",
                     help="semicolon list of debug modes (e.g. '1,0,0;0,1,0;0,0,0'), each held --sweep-hold s")
     ap.add_argument("--baked-debug", default="", help="useBase,useLightmap (debug: 1,0 = base colour only; 0,1 = baked light only)")
+    ap.add_argument("--overlay", action="store_true",
+                    help="place the (visible) UE live view over the game window, click-through; the game keeps input")
     ap.add_argument("--camera-target", default="",
                     help="debug: frame this spawned actor (e.g. dyn:SpawnedRangedAggressorPistol0) instead of following the player")
     ap.add_argument("--ambient-tint", default="", help="override r,g,b (0-1) instead of the zone colour (calibration)")
@@ -211,6 +269,8 @@ def main():
     if args.grab_dir:
         os.makedirs(args.grab_dir, exist_ok=True)
 
+    overlay = Overlay(hwnd) if (args.overlay and hwnd) else None
+    next_overlay = 0.0
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dest = ("127.0.0.1", args.port)
 
@@ -282,6 +342,9 @@ def main():
                 sweep_log.append((dstage, dbg, frame))
                 print(f"debug stage {dstage}: mode {dbg} from frame {frame}", flush=True)
         lines.append(f"L {bexp:.5f}" + (" " + dbg.replace(",", " ") if dbg else ""))
+        if overlay and now >= next_overlay:
+            next_overlay = now + 1.0
+            overlay.update()
         if now >= next_discover:
             next_discover = now + 1.0
             lines += discover()
