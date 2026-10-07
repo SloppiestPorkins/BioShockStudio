@@ -48,6 +48,7 @@ try
         "export-blender" => ExportBlender(root, args),
         "export-fbx" => ExportFbx(root, args),
         "export-staticmesh" => ExportStaticMesh(root, args),
+        "export-assets" => ExportAssets(root, args),
         "meshes" => Meshes(root, args),
         "context" => Context(root, args),
         "level-audit" => LevelAudit(root, args),
@@ -161,6 +162,12 @@ static int Usage()
                                         Write FBX + ue5_manifest.json for a StaticMesh export
                                         (no skeleton). Package may be a map .bsm or a script .U
                                         (e.g. ShockGame WP_WrenchMesh).
+          export-assets <out-dir> <name> [<name> ...]
+                                        Search every shipped package for each StaticMesh /
+                                        SkeletalMesh name. Writes Meshes/<name>_<idx>.obj (+ .mtl)
+                                        and materials/textures into assets.json (static), or
+                                        Rigs/<name>/ FBX + ue5_manifest.json (skeletal). Reports
+                                        per name: found where, exported, or why not.
           audit-animations [out.csv]    Decode every animation in the game and report coverage.
           diagnose [package] [--animations] [--code C] [--out report.csv]
                                         Report every asset this tool knows is broken or degraded,
@@ -2087,6 +2094,34 @@ static int ExportFbx(string root, string[] args)
     var scene = AnimationSceneExporter.Build(animationPackage, owner, sockets, geometry, events, material);
 
     return WriteFbx(scene, outputDirectory);
+}
+
+/// <summary>
+/// Exports named StaticMesh / SkeletalMesh objects from any shipped package (asset index), for
+/// stand-in meshes the level exporter never placed.
+/// </summary>
+static int ExportAssets(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-assets <out-dir> <name> [<name> ...]");
+        return 1;
+    }
+
+    string outputDirectory = args[1];
+    var names = args.Skip(2).ToList();
+    var result = NamedAssetExporter.Export(root, outputDirectory, names);
+
+    foreach (var report in result.Reports)
+    {
+        Console.WriteLine($"{report.Name,-28} {report.Status,-10} {report.Detail}");
+    }
+
+    Console.WriteLine($"\nmanifest: {result.ManifestPath}");
+    int exported = result.Reports.Count(r => r.Status == "exported");
+    int skipped = result.Reports.Count(r => r.Status is "skipped" or "not-found" or "failed");
+    Console.WriteLine($"{exported} exported, {skipped} not exported, {result.Reports.Count} named.");
+    return result.Reports.Any(r => r.Status == "failed") ? 1 : 0;
 }
 
 /// <summary>
