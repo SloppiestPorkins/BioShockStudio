@@ -76,6 +76,21 @@ verify against what the package kept.
 ### What the original sizes are used for
 
 The BSP UV normaliser (`LevelSceneExporter.AuthoredTextureSize`) reads these PNG dimensions via
-`BIOSHOCK_ORIGINAL_TEXTURE_DIR` and divides texel UVs by the real authored size instead of the
-guessed `shipped / 4`. The upscale factor is per-texture (2x or 4x), not constant. Extending this
-past 1-Medical needs UModel run on the other level packages, or the compressed-package reader.
+`BIOSHOCK_ORIGINAL_TEXTURE_DIR` and divides texel UVs by **`AuthoredTextureScale` × original size**
+(default scale **2**; `BIOSHOCK_BSP_UV_AUTHORED_SCALE=1` restores the old divide-by-original). When
+the directory is unset it falls back to `AuthoredTextureScale × (shipped / BIOSHOCK_BSP_UV_UPSCALE)`
+(defaults 2 × shipped/4 = shipped/2).
+
+**Why ×2 (measured 7 Oct 2026 against the live Remaster, Medical):**
+
+| material | remaster `\|TextureU\|` | original | shipped `USize` | period @ original | period @ ×2 original | live |
+|---|---|---|---|---|---|---|
+| `Bathroom_Tile_BW_Diffuse_shader` | 4.0 | 512 | 2048 | 128 | **256** | autocorrelation vs export: **exactly 2×** |
+| `Medical_ceilling_Diffuse_shader` | 4.0 | 512 | 512 (not upscaled) | 128 | **256** | large plaster panels vs tiny export grid |
+| `med_wall_public_shader` | 2.667 | 1024 | 2048 | 384 | **768** | trim band mid-wall under ÷original (texture is ~70% plaster / ~30% base trim) |
+
+Dividing by shipped `USize` alone fails the floor (would give period 512 = 4× original, not 2×).
+2007 `1-Medical` is **not** on the install used for this measurement (only compressed
+`0-Lighthouse.rbd` remains; `BioShockPackage` is Remastered 142-only), so remaster-vs-2007
+`TextureU` vector equality is **unverified** — the ×2 rule is pinned to live Remaster output, not
+to a proven “remaster vectors = 2007 × k” identity.

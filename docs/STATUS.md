@@ -451,7 +451,7 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 |---|---|---|
 | — | (none claimed in this worktree) | — |
 
-Cleared 7 Oct 2026 after landing CLI `export-assets` (named StaticMesh/SkeletalMesh export for live stand-ins).
+Cleared 7 Oct 2026 after landing BSP UV divisor = 2× original (`BIOSHOCK_BSP_UV_AUTHORED_SCALE`, default 2).
 
 
 ---
