@@ -742,6 +742,27 @@ def _import_level_materials(manifest, manifest_dir, destination, content_root, r
     if not materials:
         return {}
 
+    if os.environ.get("BIOSHOCK_MATERIALS_ADDITIVE") == "1":
+        # Live-renderer map preparation: never re-configure an existing instance (they are shared
+        # with the hand-built slice); create only the missing ones, reuse the rest as they are.
+        def existing(material):
+            return unreal.EditorAssetLibrary.load_asset(
+                "%s/Materials/MI_%s" % (destination, import_bioshock._safe_name(material["name"])))
+        found = {m["key"]: existing(m) for m in materials}
+        missing = [m for m in materials if found[m["key"]] is None]
+        if missing:
+            names = {m["name"] for m in missing}
+            filtered = dict(manifest)
+            filtered["materials"] = missing
+            filtered["textures"] = [t for t in manifest.get("textures") or [] if t.get("material") in names]
+            os.environ["BIOSHOCK_MATERIALS_ADDITIVE"] = "0"
+            try:
+                found.update(_import_level_materials(filtered, manifest_dir, destination, content_root, report))
+            finally:
+                os.environ["BIOSHOCK_MATERIALS_ADDITIVE"] = "1"
+        _log("additive material pass: %d reused, %d created" % (len(materials) - len(missing), len(missing)))
+        return {k: v for k, v in found.items() if v is not None}
+
     textures, imported_by_file = import_bioshock._import_textures(
         manifest, manifest_dir, destination, report)
     if textures:

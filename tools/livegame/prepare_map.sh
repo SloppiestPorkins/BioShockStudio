@@ -22,10 +22,11 @@ step "export level";            cli export-level "$MAP" "$UE_EXPORTS\\live\\$MAP
 step "export baked lightmaps";  cli export-baked-lightmaps "$MAP" "$UE_EXPORTS\\baked\\$MAP"
 step "export vertex lighting";  cli export-vertex-lighting "$MAP" "$UE_EXPORTS\\live\\$MAP\\vertex_lighting.json"
 
-ue() {  # ue <script> <done-marker-regex>: run until the marker appears (max 12 tries)
-  local script="$1" marker="$2" log
+ue() {  # ue <script> <done-marker-regex> [KEY=VALUE env ...]: run until the marker appears (max 12 tries)
+  local script="$1" marker="$2" log; shift 2
+  local extra=(); for kv in "$@"; do extra+=(--env "$kv"); done
   for i in $(seq 1 12); do
-    python tools/ue5/ue_run.py "tools/ue5/$script" --env BIOSHOCK_MAP="$MAP" --timeout 5400 > /dev/null 2>&1
+    python tools/ue5/ue_run.py "tools/ue5/$script" --env BIOSHOCK_MAP="$MAP" "${extra[@]}" --timeout 7200 > /dev/null 2>&1
     log=$(ls -t /c/Users/Jack/Documents/BioShockUE5/Saved/ue_run/*"${script%.py}".log | head -1)
     if grep -q -E "$marker" "$log"; then grep -h -o -E "$marker.*" "$log" | head -1 | cut -c1-240; return 0; fi
     # Python exceptions only: the post-save Slate crash also logs "GetLastError: ...".
@@ -38,6 +39,12 @@ ue() {  # ue <script> <done-marker-regex>: run until the marker appears (max 12 
 
 step "missing material instances"; ue create_missing_materials.py "MISSING_MATERIALS (created|0 of)" || exit 1
 step "baked world (creates the copy)"; ue import_baked_world.py "BAKED_WORLD slots" || exit 1
+# Base maps were imported before the struct-array reader fix and lack actors (Fisheries had lost its
+# central staircase). Bring the copy's actors up to the fresh export -- materials additive only, so
+# instances shared with the hand-built slice are never re-configured.
+LIVE_JSON="C:/Users/Jack/Documents/BioShockUE5/Exports/live/$MAP/$MAP/$MAP.ue5-level.json"
+step "sync actors to the fresh export"; ue reimport_slice_level.py "\[reimport-slice-level\]"   BIOSHOCK_SLICE_MAP="/Game/BioShockLive/${MAP}_Baked" BIOSHOCK_LEVEL_JSON="$LIVE_JSON" BIOSHOCK_MATERIALS_ADDITIVE=1 || exit 1
+step "baked world again (re-hide the compiled world)"; ue import_baked_world.py "BAKED_WORLD slots" || exit 1
 step "material overrides";          ue apply_material_overrides.py "MATERIAL_OVERRIDES" || exit 1
 VL="$(cygpath -u "$UE_EXPORTS")/live/$MAP/vertex_lighting.json"
 if [ -f "$VL" ]; then step "baked prop light"; ue apply_baked_props.py "BAKED_PROPS" || exit 1
