@@ -7,6 +7,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dxgi1_2.h>
+#include <d3d11.h>
+#include <string>
 #include <cstdio>
 #include <share.h>
 
@@ -188,15 +190,169 @@ static void* HookSlot(void* object, int slot, void* replacement)
     return original;
 }
 
+// ---- E3/E4 groundwork: one-frame trace of render-target switches and draws ------------------
+// Create %TEMP%\bioshock-trace-request and the next whole frame is written to
+// %TEMP%\bioshock-frame-trace.txt: every OMSetRenderTargets (target size/format, whether it is the
+// back buffer), clears, copies and how many draws went to each target - to find where the world
+// ends and the HUD begins.
+namespace trace
+{
+static volatile LONG g_active;  // 1 while recording the current frame
+static std::string g_buf;
+static int g_draws;
+static ID3D11Resource* g_backbuffer;
+static IDXGISwapChain* g_chain;
+
+static void Flush()
+{
+    if (g_draws)
+    {
+        char line[64];
+        sprintf_s(line, "    %d draws\n", g_draws);
+        g_buf += line;
+        g_draws = 0;
+    }
+}
+
+static void Describe(ID3D11RenderTargetView* rtv, char* out, size_t n)
+{
+    if (!rtv) { strcpy_s(out, n, "null"); return; }
+    ID3D11Resource* res = nullptr;
+    rtv->GetResource(&res);
+    D3D11_RESOURCE_DIMENSION dim;
+    res->GetType(&dim);
+    if (dim == D3D11_RESOURCE_DIMENSION_TEXTURE2D)
+    {
+        D3D11_TEXTURE2D_DESC d;
+        static_cast<ID3D11Texture2D*>(res)->GetDesc(&d);
+        sprintf_s(out, n, "%p %ux%u fmt%u%s", (void*)res, d.Width, d.Height, d.Format, res == g_backbuffer ? " BACKBUFFER" : "");
+    }
+    else
+        sprintf_s(out, n, "%p dim%d", (void*)res, int(dim));
+    res->Release();
+}
+
+typedef void(STDMETHODCALLTYPE* OMSetRTFn)(ID3D11DeviceContext*, UINT, ID3D11RenderTargetView* const*, ID3D11DepthStencilView*);
+typedef void(STDMETHODCALLTYPE* DrawIndexedFn)(ID3D11DeviceContext*, UINT, UINT, INT);
+typedef void(STDMETHODCALLTYPE* DrawFn)(ID3D11DeviceContext*, UINT, UINT);
+typedef void(STDMETHODCALLTYPE* DrawIndexedInstancedFn)(ID3D11DeviceContext*, UINT, UINT, UINT, INT, UINT);
+typedef void(STDMETHODCALLTYPE* DrawInstancedFn)(ID3D11DeviceContext*, UINT, UINT, UINT, UINT);
+typedef void(STDMETHODCALLTYPE* ClearRTFn)(ID3D11DeviceContext*, ID3D11RenderTargetView*, const FLOAT[4]);
+typedef void(STDMETHODCALLTYPE* CopyResourceFn)(ID3D11DeviceContext*, ID3D11Resource*, ID3D11Resource*);
+static OMSetRTFn o_omset;
+static DrawIndexedFn o_drawIndexed;
+static DrawFn o_draw;
+static DrawIndexedInstancedFn o_drawIndexedInstanced;
+static DrawInstancedFn o_drawInstanced;
+static ClearRTFn o_clear;
+static CopyResourceFn o_copy;
+
+static void STDMETHODCALLTYPE OMSet(ID3D11DeviceContext* c, UINT n, ID3D11RenderTargetView* const* rtvs, ID3D11DepthStencilView* dsv)
+{
+    if (g_active)
+    {
+        Flush();
+        char d[160];
+        Describe(n && rtvs ? rtvs[0] : nullptr, d, sizeof d);
+        char line[256];
+        sprintf_s(line, "RT[%u] %s%s\n", n, d, dsv ? " +depth" : "");
+        g_buf += line;
+    }
+    o_omset(c, n, rtvs, dsv);
+}
+static void STDMETHODCALLTYPE DrawIndexed(ID3D11DeviceContext* c, UINT a, UINT b, INT d) { if (g_active) ++g_draws; o_drawIndexed(c, a, b, d); }
+static void STDMETHODCALLTYPE Draw(ID3D11DeviceContext* c, UINT a, UINT b) { if (g_active) ++g_draws; o_draw(c, a, b); }
+static void STDMETHODCALLTYPE DrawIndexedInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, INT e, UINT f) { if (g_active) ++g_draws; o_drawIndexedInstanced(c, a, b, d, e, f); }
+static void STDMETHODCALLTYPE DrawInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, UINT e) { if (g_active) ++g_draws; o_drawInstanced(c, a, b, d, e); }
+static void STDMETHODCALLTYPE Clear(ID3D11DeviceContext* c, ID3D11RenderTargetView* rtv, const FLOAT col[4])
+{
+    if (g_active)
+    {
+        Flush();
+        char d[160];
+        Describe(rtv, d, sizeof d);
+        g_buf += "  clear " + std::string(d) + "\n";
+    }
+    o_clear(c, rtv, col);
+}
+static void STDMETHODCALLTYPE Copy(ID3D11DeviceContext* c, ID3D11Resource* dst, ID3D11Resource* src)
+{
+    if (g_active)
+    {
+        Flush();
+        char line[128];
+        sprintf_s(line, "  copy %p -> %p%s\n", (void*)src, (void*)dst, dst == g_backbuffer ? " (BACKBUFFER)" : "");
+        g_buf += line;
+    }
+    o_copy(c, dst, src);
+}
+
+static void Install(IDXGISwapChain* chain);
+}  // namespace trace
+
 typedef HRESULT(STDMETHODCALLTYPE* PresentFn)(IDXGISwapChain*, UINT, UINT);
 static PresentFn g_present;
 
 static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     const LONG n = InterlockedIncrement(&g_frames);
+    {
+        // End a recorded frame; start one if requested.
+        char req[MAX_PATH], out[MAX_PATH];
+        GetTempPathA(MAX_PATH, req);
+        strcpy_s(out, req);
+        strcat_s(req, "bioshock-trace-request");
+        strcat_s(out, "bioshock-frame-trace.txt");
+        if (trace::g_active)
+        {
+            trace::Flush();
+            trace::g_active = 0;
+            FILE* f = nullptr;
+            fopen_s(&f, out, "w");
+            if (f) { fprintf(f, "frame %ld\n%s", n, trace::g_buf.c_str()); fclose(f); }
+            Log("frame trace written (%u bytes)", unsigned(trace::g_buf.size()));
+            trace::g_buf.clear();
+        }
+        else if ((n & 31) == 0 && GetFileAttributesA(req) != INVALID_FILE_ATTRIBUTES)
+        {
+            DeleteFileA(req);
+            trace::Install(self);
+            ID3D11Texture2D* bb = nullptr;
+            if (SUCCEEDED(self->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&bb))) && bb)
+            {
+                trace::g_backbuffer = bb;
+                bb->Release();  // keep the pointer for identity only
+            }
+            trace::g_buf.clear();
+            trace::g_active = 1;
+        }
+    }
     if (n <= 3 || n % 3600 == 0) Log("frame %ld (present thread %lu, main thread %lu)", n, GetCurrentThreadId(), g_mainThread);
     snap::Take(n);
     return g_present(self, sync, flags);
+}
+
+void trace::Install(IDXGISwapChain* chain)
+{
+    static bool done;
+    if (done) return;
+    ID3D11Device* dev = nullptr;
+    if (FAILED(chain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&dev))) || !dev) return;
+    ID3D11DeviceContext* ctx = nullptr;
+    dev->GetImmediateContext(&ctx);
+    dev->Release();
+    if (!ctx) return;
+    // ID3D11DeviceContext vtable slots.
+    o_drawIndexed = reinterpret_cast<DrawIndexedFn>(HookSlot(ctx, 12, reinterpret_cast<void*>(&DrawIndexed)));
+    o_draw = reinterpret_cast<DrawFn>(HookSlot(ctx, 13, reinterpret_cast<void*>(&Draw)));
+    o_drawIndexedInstanced = reinterpret_cast<DrawIndexedInstancedFn>(HookSlot(ctx, 20, reinterpret_cast<void*>(&DrawIndexedInstanced)));
+    o_drawInstanced = reinterpret_cast<DrawInstancedFn>(HookSlot(ctx, 21, reinterpret_cast<void*>(&DrawInstanced)));
+    o_omset = reinterpret_cast<OMSetRTFn>(HookSlot(ctx, 33, reinterpret_cast<void*>(&OMSet)));
+    o_copy = reinterpret_cast<CopyResourceFn>(HookSlot(ctx, 47, reinterpret_cast<void*>(&Copy)));
+    o_clear = reinterpret_cast<ClearRTFn>(HookSlot(ctx, 50, reinterpret_cast<void*>(&Clear)));
+    ctx->Release();
+    done = o_draw && o_omset;
+    Log("device context hooked for frame traces (%s)", done ? "ok" : "FAILED");
 }
 
 static void HookSwapChain(IDXGISwapChain* chain)
