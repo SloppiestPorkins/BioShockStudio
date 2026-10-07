@@ -181,6 +181,13 @@ R4. **Light fidelity:** per-vertex prop light on every level (the decoder genera
     game's light state.
 R5. **Effects:** particles and impacts to Niagara, decals, water and glass, plasmid screen effects,
     and hit and damage effects.
+R5b. **Open bug, parked 7 Oct 2026: blue tile grid on Medical's lobby wall** (above the sofa by the
+    bathysphere dock; pairs in Captures/live/tex3_*, long_*). Ruled out: material/texture assignment
+    (slots and instances correct), back-face culling (two-sided changed nothing), shader compilation
+    (persists after it finishes), material-less and zoning slots (now hidden). My software render of
+    the same glTF shows med_wall_public there, so UE's imported mesh differs from the export.
+    Hypothesis for the one next attempt: compare UE's imported mesh with the glTF in UE's own
+    coordinate frame (section ownership of the triangles on that wall), in a single run.
 R6. **The upgraded look:** materials (the dirt-blend wall shaders first), god rays, and the Rapture
     look, built on the asset import that already covers every map.
 R7. **The comparison check:** automated side-by-side captures (original frame vs UE5 frame at the
