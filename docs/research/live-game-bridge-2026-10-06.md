@@ -256,3 +256,37 @@ stairwell lit where the game lights them.
 - At most 2 UE launches per written hypothesis.
 - Identical frames across a sweep mean stop.
 - Prove with an artifact (data dump, offline raycast) before sweeping.
+
+## Lighting, round 3: baked per-vertex light on props, and material overrides (7 Oct 2026)
+
+**Props.**
+
+- `export-vertex-lighting` (Cursor branch, `591e7c1`) decodes `StaticMeshInstance` light per vertex,
+  in the exported OBJ's vertex order.
+- `tools/ue5/apply_baked_props.py` writes it into each placed prop's LOD0 `OverrideVertexColors`
+  through `UShockBakedLightLibrary::ApplyBakedVertexLight`. That function matches render vertices to
+  OBJ vertices by position and detects the axis/scale convention from bounding boxes.
+- Opaque slots switch to the unlit `M_BioShock_BakedProp`:
+  `BaseColor × (VertexColor × 4.96 + ZoneAmbient) × BakedExposure`. That is the same raw × 1.70 scale
+  the BSP path ends up at, so props and walls agree.
+- Medical: 3,745 props; 3,718 matched; 3.24 M render vertices; 3,644 slots switched; 1,294
+  masked/translucent slots kept lit.
+- 90 s walk: mean gap +1.2 EV (it was +3.1 with BSP light only), 30% black pixels.
+
+**Material overrides (Skins).**
+
+- The exporter dropped materials named only by an actor's `Skins`. Fixed in `ed05c5d`; Medical goes
+  from 455 to 541 materials.
+- `create_missing_materials.py` adds the 89 missing instances without touching existing ones.
+- `apply_material_overrides.py` applies 447 of the 452 slots on the live-view copy.
+- The same fix (instance tags are `instance:<actorKey>:<asset>`) ended the bridge's "404 unknown
+  keys".
+
+**Visible gaps now:**
+
+- Wall base colour uses the `*_dirt` texture where the game's shader blends it, so our walls look
+  mossy and the game's look clean. This is material graphs, roadmap D2.
+- Some lamp-adjacent floor tiles blow out.
+- Enemies are unanimated. Live bones are at actor `+0x3FC` → native SkeletonInstance, `TArray` at
+  `+0x48`: 73 × 48-byte hkQsTransform (translation, quaternion, scale) for a Lady Smith splicer,
+  model space.
