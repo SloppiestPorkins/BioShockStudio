@@ -40,6 +40,8 @@ public static class VertexLightingExporter
         float AverageB,
         IReadOnlyList<float> VerticesRgb);
 
+    public sealed record SkippedInstance(string Actor, string Reason);
+
     public sealed record ExportSummary(
         string Package,
         float Scale,
@@ -48,7 +50,8 @@ public static class VertexLightingExporter
         int InstanceCount,
         int LitInstanceCount,
         int PoolBase,
-        IReadOnlyList<InstanceExport> Instances);
+        IReadOnlyList<InstanceExport> Instances,
+        IReadOnlyList<SkippedInstance> Skipped);
 
     public sealed record ExportResult(ExportSummary Summary, string Path);
 
@@ -60,15 +63,28 @@ public static class VertexLightingExporter
         var lightsByExport = scene.Lights.ToDictionary(l => l.Source.ExportIndex);
 
         var live = StaticMeshInstanceReader.EnumerateLive(package, context);
-        var decoded = live
-            .Where(x => x.Instance is not null)
-            .Select(x => (x.Actor, Instance: x.Instance!))
-            .ToList();
+        var skipped = new List<SkippedInstance>();
+        var decoded = new List<(LevelActor Actor, StaticMeshInstance Instance)>();
+        foreach (var (actor, instance) in live)
+        {
+            if (instance is null)
+            {
+                skipped.Add(new SkippedInstance(actor.Source.ObjectName, "StaticMeshInstance body did not parse"));
+                continue;
+            }
 
-        if (StaticMeshInstanceReader.LocateLuminancePool(
-                package, decoded.Select(x => x.Instance).ToList()) is not { } pool)
-            throw new InvalidDataException($"{context.PackageName}: luminance pool not located in Level.");
-        var (poolBase, levelData) = pool;
+            decoded.Add((actor, instance));
+        }
+
+        int poolBase = 0;
+        byte[] levelData = [];
+        if (decoded.Count > 0)
+        {
+            if (StaticMeshInstanceReader.LocateLuminancePool(
+                    package, decoded.Select(x => x.Instance).ToList()) is not { } pool)
+                throw new InvalidDataException($"{context.PackageName}: luminance pool not located in Level.");
+            (poolBase, levelData) = pool;
+        }
 
         var meshCache = new Dictionary<int, MeshGeometry?>();
         MeshGeometry? MeshOf(PackageIndex mesh)
@@ -89,8 +105,19 @@ public static class VertexLightingExporter
             var geom = MeshOf(instance.Mesh);
             // A few StaticMeshInstance exports point at meshes StaticMeshReader cannot decode yet
             // (e.g. some vending shells). The instance still decodes; skip RGB evaluation for those.
-            if (geom is null || geom.Vertices.Count != instance.VertexCount)
+            if (geom is null)
+            {
+                skipped.Add(new SkippedInstance(actor.Source.ObjectName, "StaticMesh geometry did not decode"));
                 continue;
+            }
+
+            if (geom.Vertices.Count != instance.VertexCount)
+            {
+                skipped.Add(new SkippedInstance(
+                    actor.Source.ObjectName,
+                    $"mesh vertex count {geom.Vertices.Count} != instance {instance.VertexCount}"));
+                continue;
+            }
 
             var rgb = new Vector3[instance.VertexCount];
             var world = LevelSceneBuilder.MeshPlacement(actor.Transform);
@@ -184,7 +211,8 @@ public static class VertexLightingExporter
             instances.Count,
             lit,
             poolBase,
-            instances);
+            instances,
+            skipped);
 
         string json = JsonSerializer.Serialize(new
         {
@@ -195,6 +223,7 @@ public static class VertexLightingExporter
             instanceCount = summary.InstanceCount,
             litInstanceCount = summary.LitInstanceCount,
             poolBase = summary.PoolBase,
+            skipped = skipped.Select(s => new { actor = s.Actor, reason = s.Reason }),
             instances = instances.Select(i => new
             {
                 i.Key,
@@ -211,7 +240,7 @@ public static class VertexLightingExporter
         File.WriteAllText(outputPath, json);
         Console.Error.WriteLine(
             $"vertex lighting: scale={scale.ToString("0.###", CultureInfo.InvariantCulture)} "
-            + $"instances={instances.Count} lit={lit} poolBase={poolBase}");
+            + $"instances={instances.Count} lit={lit} skipped={skipped.Count} poolBase={poolBase}");
         return new ExportResult(summary, outputPath);
     }
 

@@ -468,7 +468,7 @@ static int ExportVertexLighting(string root, string[] args)
     Console.WriteLine(
         $"scale={result.Summary.Scale.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)} "
         + $"instances={result.Summary.InstanceCount} lit={result.Summary.LitInstanceCount} "
-        + $"poolBase={result.Summary.PoolBase}");
+        + $"skipped={result.Summary.Skipped.Count} poolBase={result.Summary.PoolBase}");
     return 0;
 }
 
