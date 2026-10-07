@@ -318,3 +318,34 @@ script packages) plus `import_extra_assets.py`.
 - Medical stand-in coverage is now 377/382.
 - The remaining miss is `NullSkeletalMesh`, an intentional 5-vertex placeholder.
 - The player's hands (`NEWPlayerHands`) are imported; they appear once the game draws a weapon.
+
+## Second level: 2-Fisheries through the converter (7 Oct 2026)
+
+`prepare_map.sh 2-Fisheries`:
+
+| Step | Result |
+|---|---|
+| Baked world | 142 sections, 11 lightmaps |
+| Material overrides | 549 applied |
+| Missing material instances | 3 created |
+| Live exposure | set |
+| Baked prop light | skipped: `export-vertex-lighting` fails ("luminance pool not located"; the pool search is Medical-only; Cursor fixing for all 21 maps) |
+
+The headless one-texture-per-run Slate crash meant 11 retries; that is a speed problem only.
+
+**Live run.** The game was relaunched straight into Fisheries (`steam -applaunch 409710 2-Fisheries`).
+
+- The UE live view started on the Medical copy.
+- The bridge detected `2-Fisheries` and sent `M`.
+- UE opened `/Game/BioShockLive/2-Fisheries_Baked` by itself (19 s load) and drew the level over the
+  game, which kept focus.
+- Framing matches the game (door frame, porthole lamp, floor).
+
+**Open problems on Fisheries:**
+
+- 2.1 EV too bright and cyan-washed. Props are still on lit materials (no vertex light yet), and the
+  base map's lights and zone ambient were never calibrated the way Medical's were.
+- The central staircase is missing; a railing structure with a sphere stands where it should be.
+  The cause is not yet known.
+
+Side-by-side kept at `BioShockUE5/Captures/live/fisheries-first-live-2026-10-07.png`.

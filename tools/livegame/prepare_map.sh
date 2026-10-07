@@ -28,7 +28,8 @@ ue() {  # ue <script> <done-marker-regex>: run until the marker appears (max 12 
     python tools/ue5/ue_run.py "tools/ue5/$script" --env BIOSHOCK_MAP="$MAP" --timeout 5400 > /dev/null 2>&1
     log=$(ls -t /c/Users/Jack/Documents/BioShockUE5/Saved/ue_run/*"${script%.py}".log | head -1)
     if grep -q -E "$marker" "$log"; then grep -h -o -E "$marker.*" "$log" | head -1 | cut -c1-240; return 0; fi
-    local err; err=$(grep -h -o -E '[A-Za-z]+Error: .{0,160}' "$log" | head -1)
+    # Python exceptions only: the post-save Slate crash also logs "GetLastError: ...".
+    local err; err=$(grep -h -o -E '(Value|Type|Key|Attribute|Runtime|Index|Name|FileNotFound|Assertion|OS)Error: .{0,160}' "$log" | head -1)
     if [ -n "$err" ]; then echo "FAILED: $err ($log)"; return 1; fi
     echo "  (run $i ended without the marker -- headless import crash after save; retrying)"
   done
@@ -38,6 +39,8 @@ ue() {  # ue <script> <done-marker-regex>: run until the marker appears (max 12 
 step "missing material instances"; ue create_missing_materials.py "MISSING_MATERIALS (created|0 of)" || exit 1
 step "baked world (creates the copy)"; ue import_baked_world.py "BAKED_WORLD slots" || exit 1
 step "material overrides";          ue apply_material_overrides.py "MATERIAL_OVERRIDES" || exit 1
-step "baked prop light";            ue apply_baked_props.py "BAKED_PROPS" || exit 1
+VL="$(cygpath -u "$UE_EXPORTS")/live/$MAP/vertex_lighting.json"
+if [ -f "$VL" ]; then step "baked prop light"; ue apply_baked_props.py "BAKED_PROPS" || exit 1
+else echo; echo "== baked prop light SKIPPED: no vertex lighting export for $MAP (props keep their lit materials)"; fi
 step "live exposure";               ue setup_live_postprocess.py "LIVE_PP" || exit 1
 echo; echo "$MAP ready: /Game/BioShockLive/${MAP}_Baked -- play.sh follows the game onto it automatically"
