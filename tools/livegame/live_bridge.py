@@ -332,6 +332,20 @@ def run(args):
         seen_ptrs.update(current)
         return out
 
+    # Level actors whose mesh comes from class defaults (vending machines, first-aid kits, keypads):
+    # the export records no staticMesh for them, so the import placed nothing. Treat them as stand-ins.
+    for a in manifest["actors"]:
+        if a.get("staticMesh") or a.get("mesh") or a.get("skeletalMesh"):
+            continue
+        o = objs.get(f"{level}.{a['name']}")
+        dt = p.read(o + O_DT, 1) if o else None
+        if not dt or dt[0] not in (2, 8):
+            continue
+        mesh = p.u32(o + (O_SMESH if dt[0] == 8 else O_SKMESH))
+        mname = w.obj_name(mesh) if mesh else None
+        if mname:
+            dyn[o] = ("dyn:" + a["name"], "static" if dt[0] == 8 else "skel", mname)
+    print(f"{len(dyn)} level actors drawn from class-default meshes", flush=True)
     next_discover = 0.0
 
     hwnd = user32.FindWindowW(None, "Bioshock")
