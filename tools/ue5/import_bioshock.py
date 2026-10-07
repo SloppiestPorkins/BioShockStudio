@@ -342,7 +342,9 @@ def _import_textures(rig, export_directory, destination, report=None):
     """
     entries = rig.get("textures") or []
     if not entries:
-        return []
+        # Same (imported, by_file) shape as the normal return: a rig with no textures (the security
+        # cameras) used to crash main()'s tuple unpack after its mesh had already imported.
+        return [], {}
     if report is None:
         # The one call site in main() always passes a real dict; this default exists so a caller
         # importing just the textures (no full created/updated/skipped/unsupported report of its
