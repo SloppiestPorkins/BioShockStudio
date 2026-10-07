@@ -83,9 +83,25 @@ Both steps pass; method, memory layout and evidence in
 
 ### Phase 1 — The renderer (only if Phase 0 passes)
 
-**Live bridge running 6 Oct 2026**: camera and non-static actors streamed at ~24 Hz into the UE5
-slice, which follows the game through a 90 s walk (research doc above). Next: lighting parity and
-the 404 actors the slice is missing, then items 3–7.
+**Status 7 Oct 2026** (detail in `docs/research/live-game-bridge-2026-10-06.md`). Done:
+
+- **Live bridge:** the camera and every non-static actor stream at about 24 Hz.
+- **Lighting:** the original's baked BSP lightmaps and per-vertex prop light render on a copy of the
+  slice (`/Game/BioShockLive/1-Medical_Baked`), plus the zone ambient term.
+- **Item 3 (animation):** skeletal actors are driven by the game's evaluated bones.
+- **Item 4, partly (dynamic state):** stand-ins for runtime-spawned actors (340 of 382 in Medical,
+  among them enemies, door leaves and pickups), spawned and destroyed as the game does.
+- **Material overrides (Skins):** applied.
+
+Open, in order:
+
+1. Item 5, first person: viewmodel and hands, then the HUD.
+2. Import the 20 meshes never imported (vending machine, Vita-Chamber parts, cameras, security bot,
+   Baby Jane).
+3. Material fidelity: the dirt-blend wall shaders, some ceilings.
+4. Dynamic and animated lights.
+5. The hemispheric ambient term.
+6. Item 6, a single window.
 
 3. **Animation:** skeletal poses follow the game (its current animation and time, or bone transforms
    read directly).
