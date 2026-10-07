@@ -278,7 +278,8 @@ def _import_mesh(gltf_path, model_name):
 
     name = "SM_%s_Baked" % model_name
     existing = _find_mesh(model_name)
-    if existing is not None:
+    # BIOSHOCK_BAKED_REIMPORT=1: import over the existing mesh (the export changed, e.g. new UVs).
+    if existing is not None and os.environ.get("BIOSHOCK_BAKED_REIMPORT") != "1":
         return _ordered_slots(existing, slots)
     task = unreal.AssetImportTask()
     task.filename = slotted

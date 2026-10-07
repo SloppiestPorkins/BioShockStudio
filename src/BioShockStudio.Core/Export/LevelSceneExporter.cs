@@ -1065,26 +1065,37 @@ public static class LevelSceneExporter
 
         if (decoded?.DiffuseTexture is not { } name) return null;
 
-        int scale = AuthoredTextureScale;
-        if (OriginalTextureSizes.TryGetValue(name, out var authored))
-            return (Math.Max(1, authored.Width * scale), Math.Max(1, authored.Height * scale));
-
+        // The rule, measured against the live Remaster (7 Oct 2026): BSP texel UVs divide by HALF the
+        // shipped texture size. The Medical floor (shipped 2048, original 512) repeats every 256
+        // units and the public wall (shipped 2048, original 1024) puts its brass rail and arch band
+        // where the game does only at 384: both a 1024-texel divisor, which neither "original" nor
+        // "2 x original" gives for both. BIOSHOCK_BSP_UV_RULE=original | original-x2 restores the
+        // earlier guesses.
+        string rule = Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_RULE") ?? "shipped-half";
+        (int Width, int Height)? shipped = null;
         var export = package.Exports
             .Where(e => e.ObjectName == name && package.GetClassName(e) == TextureReader.ClassName)
             .MaxBy(e => e.SerialSize);
-        if (export is null) return null;
+        if (export is not null)
+        {
+            try
+            {
+                var header = TextureReader.ReadHeader(package, export);
+                if (header is { Width: > 0, Height: > 0 }) shipped = (header.Value.Width, header.Value.Height);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException) { }
+        }
 
-        try
-        {
-            var header = TextureReader.ReadHeader(package, export);
-            if (header is not { Width: > 0, Height: > 0 }) return null;
-            return (Math.Max(1, header.Value.Width / RemasterTextureUpscale * scale),
-                    Math.Max(1, header.Value.Height / RemasterTextureUpscale * scale));
-        }
-        catch (Exception ex) when (ex is IOException or InvalidDataException)
-        {
-            return null;
-        }
+        if (rule == "shipped-half" && shipped is { } sh)
+            return (Math.Max(1, sh.Width / 2), Math.Max(1, sh.Height / 2));
+
+        int scale = rule == "original" ? 1 : AuthoredTextureScale;
+        if (OriginalTextureSizes.TryGetValue(name, out var authored))
+            return (Math.Max(1, authored.Width * scale), Math.Max(1, authored.Height * scale));
+        if (shipped is { } fallback)
+            return (Math.Max(1, fallback.Width / RemasterTextureUpscale * scale),
+                    Math.Max(1, fallback.Height / RemasterTextureUpscale * scale));
+        return null;
     }
 
     /// <summary>One asset's geometry, untransformed.</summary>

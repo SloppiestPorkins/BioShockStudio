@@ -30,6 +30,13 @@
 #include "ShockPlayer.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
+#include "Engine/Texture2D.h"
+#include "Engine/GameViewportClient.h"
+#include "Widgets/Images/SImage.h"
+#include "UnrealClient.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
 
 namespace
 {
@@ -131,6 +138,21 @@ void UShockLiveBridge::OnWorldBeginPlay(UWorld& InWorld)
 
 void UShockLiveBridge::Deinitialize()
 {
+	if (GameHudOverlay && GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(GameHudOverlay.ToSharedRef());
+	}
+	GameHudOverlay.Reset();
+	if (GameHudView)
+	{
+		UnmapViewOfFile(GameHudView);
+		GameHudView = nullptr;
+	}
+	if (GameHudMapping)
+	{
+		CloseHandle(GameHudMapping);
+		GameHudMapping = nullptr;
+	}
 	if (Socket)
 	{
 		Socket->Close();
@@ -294,7 +316,10 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 	}
 	else if (Op == TEXT("H") && Tok.Num() >= 6)
 	{
-		UpdateHud(Tok);
+		if (!bGameHud)  // the game's own HUD replaces the rebuilt one
+		{
+			UpdateHud(Tok);
+		}
 	}
 	else if (Op == TEXT("L") && Tok.Num() >= 2)
 	{
@@ -395,6 +420,8 @@ void UShockLiveBridge::Tick(float DeltaTime)
 			ApplyLine(Tok);
 		}
 	}
+
+	TickGameHud();
 
 	if (Camera && World)
 	{
@@ -666,6 +693,114 @@ void UShockLiveBridge::CaptureFrame()
 	ApplyAmbient(Comp->PostProcessSettings);
 	Comp->PostProcessBlendWeight = 1.f;
 	Comp->CaptureScene();
+	// The scene capture has no UI; a viewport screenshot (with UI) shows the HUD overlay.
+	if (bGameHud)
+	{
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(CaptureDir, FString::Printf(TEXT("ui_%06lld.png"), LastFrame)), true, false);
+	}
 	UKismetRenderingLibrary::ExportRenderTarget(World, Target, CaptureDir,
 		FString::Printf(TEXT("ue_%06lld.png"), LastFrame));
+}
+
+void UShockLiveBridge::TickGameHud()
+{
+	struct FHeader { uint32 Magic, Width, Height, Pitch; volatile int32 Frame, Seq; uint32 Reserved[10]; };
+	if (!GameHudView)
+	{
+		GameHudRetry -= GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.f;
+		if (GameHudRetry > 0.f)
+		{
+			return;
+		}
+		GameHudRetry = 1.f;
+		HANDLE Map = OpenFileMappingW(FILE_MAP_READ, 0, L"Local\\BioShockLiveHud");
+		if (!Map)
+		{
+			return;
+		}
+		GameHudMapping = Map;
+		GameHudView = static_cast<const uint8*>(MapViewOfFile(Map, FILE_MAP_READ, 0, 0, 0));
+		if (!GameHudView)
+		{
+			return;
+		}
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE game HUD stream found"));
+	}
+	const FHeader* H = reinterpret_cast<const FHeader*>(GameHudView);
+	const int32 Seq = H->Seq;
+	// Show the stream only while it is live (the proxy writes it only while the game's world is
+	// suppressed); otherwise fall back to the rebuilt HUD.
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	if (bGameHud && Now - GameHudLastNew > 1.0)
+	{
+		bGameHud = false;
+		if (GameHudOverlay)
+		{
+			GameHudOverlay->SetVisibility(EVisibility::Collapsed);
+		}
+		if (Hud && !Hud->IsInViewport())
+		{
+			Hud->AddToViewport();
+		}
+	}
+	if (H->Magic != 0x48554431 || (Seq & 1) || Seq == GameHudSeq || H->Width == 0 || H->Width > 3840 || H->Height > 2160)
+	{
+		return;
+	}
+	const uint32 W = H->Width, Ht = H->Height, Pitch = H->Pitch;
+	uint8* Pixels = static_cast<uint8*>(FMemory::Malloc(W * Ht * 4));
+	for (uint32 Y = 0; Y < Ht; ++Y)
+	{
+		FMemory::Memcpy(Pixels + Y * W * 4, GameHudView + sizeof(FHeader) + Y * Pitch, W * 4);
+	}
+	if (H->Seq != Seq)  // rewritten while we copied
+	{
+		FMemory::Free(Pixels);
+		return;
+	}
+	const bool bFirst = GameHudSeq < 0;
+	GameHudSeq = Seq;
+	if (bFirst)  // a frame left in the mapping from an earlier session: wait for a new one
+	{
+		FMemory::Free(Pixels);
+		return;
+	}
+	GameHudLastNew = Now;
+	if (!bGameHud && GameHudOverlay)
+	{
+		bGameHud = true;
+		GameHudOverlay->SetVisibility(EVisibility::HitTestInvisible);
+		if (Hud)
+		{
+			Hud->RemoveFromParent();
+		}
+	}
+	if (!GameHudTexture || GameHudTexture->GetSizeX() != int32(W) || GameHudTexture->GetSizeY() != int32(Ht))
+	{
+		GameHudTexture = UTexture2D::CreateTransient(W, Ht, PF_R8G8B8A8);
+		GameHudTexture->SRGB = true;
+		GameHudTexture->UpdateResource();
+		if (UMaterialInterface* Mat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/BioShockLive/M_LiveHud.M_LiveHud")))
+		{
+			GameHudMid = UMaterialInstanceDynamic::Create(Mat, this);
+			GameHudMid->SetTextureParameterValue(TEXT("Hud"), GameHudTexture);
+		}
+		if (GameHudMid && GEngine && GEngine->GameViewport && !GameHudOverlay)
+		{
+			GameHudBrush.SetResourceObject(GameHudMid);
+			GameHudBrush.ImageSize = FVector2D(W, Ht);
+			GameHudBrush.DrawAs = ESlateBrushDrawType::Image;
+			GameHudOverlay = SNew(SImage).Image(&GameHudBrush);
+			GEngine->GameViewport->AddViewportWidgetContent(GameHudOverlay.ToSharedRef(), 100);
+			bGameHud = true;
+			if (Hud)
+			{
+				Hud->RemoveFromParent();
+			}
+			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE game HUD overlay %ux%u"), W, Ht);
+		}
+	}
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, W, Ht);
+	GameHudTexture->UpdateTextureRegions(0, 1, Region, W * 4, 4, Pixels,
+		[](uint8* Data, const FUpdateTextureRegion2D* R) { FMemory::Free(Data); delete R; });
 }

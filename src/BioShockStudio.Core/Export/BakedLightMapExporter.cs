@@ -536,9 +536,11 @@ public static class BakedLightMapExporter
                 normals[i * 3] = v.Normal.X;
                 normals[i * 3 + 1] = v.Normal.Y;
                 normals[i * 3 + 2] = v.Normal.Z;
-                // Same V-flip as LevelSceneExporter.BuildAssetObj.
+                // No V flip: glTF, D3D and UE all put V=0 at the top of the texture. (The OBJ writer
+                // flips because OBJ does not; copying that flip here put the Medical wall's trim band
+                // at the wrong height - live comparison, 7 Oct 2026.)
                 uv0[i * 2] = v.Uv.X;
-                uv0[i * 2 + 1] = 1f - v.Uv.Y;
+                uv0[i * 2 + 1] = v.Uv.Y;
                 uv1[i * 2] = v.LightMapUv.X;
                 uv1[i * 2 + 1] = v.LightMapUv.Y;
                 minX = MathF.Min(minX, v.Position.X); maxX = MathF.Max(maxX, v.Position.X);

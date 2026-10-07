@@ -168,6 +168,8 @@ def parse_args():
     ap.add_argument("--baked-debug-sweep", default="",
                     help="semicolon list of debug modes (e.g. '1,0,0;0,1,0;0,0,0'), each held --sweep-hold s")
     ap.add_argument("--baked-debug", default="", help="useBase,useLightmap (debug: 1,0 = base colour only; 0,1 = baked light only)")
+    ap.add_argument("--keep-game-world", action="store_true",
+                    help="let the game keep drawing its world (default: the proxy suppresses it and streams the HUD)")
     ap.add_argument("--no-snapshot", action="store_true", help="read game memory directly even if the proxy dxgi.dll is loaded")
     ap.add_argument("--overlay", action="store_true",
                     help="place the (visible) UE live view over the game window, click-through; the game keeps input")
@@ -177,13 +179,25 @@ def parse_args():
     return ap.parse_args()
 
 
+SUPPRESS = os.path.join(os.environ.get("TEMP", "."), "bioshock-suppress")
+
+
 def main():
     args = parse_args()
     end = time.perf_counter() + args.seconds
-    while True:
-        args.seconds = end - time.perf_counter()
-        if args.seconds <= 1 or run(args) != "level-changed":
-            break
+    # Track E3/E4: with the proxy dxgi.dll loaded, the game skips drawing its world (h) and shadows
+    # (s) while UE renders, and streams its own HUD to UE instead. Restored on exit.
+    if not args.keep_game_world:
+        with open(SUPPRESS, "w") as f:
+            f.write("hs")
+    try:
+        while True:
+            args.seconds = end - time.perf_counter()
+            if args.seconds <= 1 or run(args) != "level-changed":
+                break
+    finally:
+        if not args.keep_game_world and os.path.exists(SUPPRESS):
+            os.remove(SUPPRESS)
 
 
 def run(args):

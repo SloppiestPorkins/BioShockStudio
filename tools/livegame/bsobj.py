@@ -51,7 +51,12 @@ class World:
         e = self.name_ptrs[i] if 0 <= i < len(self.name_ptrs) else 0
         s = None
         if e:
-            b = self.p.read(e + 16, 256)
+            # A 256-byte read fails outright when the entry sits near the end of an allocation
+            # (which name breaks changes with every launch: 7 Oct it was "Region"); retry shorter.
+            for n in (256, 96, 48, 24):
+                b = self.p.read(e + 16, n)
+                if b:
+                    break
             s = b.decode("utf-16-le", "replace").split("\0")[0] if b else None
         self._names[i] = s
         return s

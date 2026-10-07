@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Styling/SlateBrush.h"
+
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "ShockLiveBridge.generated.h"
@@ -12,6 +14,8 @@ class UTextureCube;
 class UMaterialInstanceDynamic;
 class AShockPlayer;
 class UShockHudWidget;
+class UTexture2D;
+class SWidget;
 struct FPostProcessSettings;
 
 /**
@@ -110,6 +114,23 @@ private:
 	// Per skeletal stand-in: the mesh's bones in the game's (Havok) order. The FBX import keeps
 	// SOCKET_* nulls as bones, interleaved; without them the order matches the game exactly.
 	TMap<FName, TArray<FName>> GameBoneOrder;
+
+	// Track E4: the original game's own HUD, streamed by the proxy dxgi.dll (Local\BioShockLiveHud)
+	// and drawn over the whole viewport through M_LiveHud. While it arrives, the rebuilt HUD widget
+	// is hidden.
+	void TickGameHud();
+	void* GameHudMapping = nullptr;
+	const uint8* GameHudView = nullptr;
+	int32 GameHudSeq = -1;
+	float GameHudRetry = 0.f;
+	double GameHudLastNew = -1.0;  // world time of the newest HUD frame
+	bool bGameHud = false;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> GameHudTexture;
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> GameHudMid;
+	TSharedPtr<SWidget> GameHudOverlay;
+	FSlateBrush GameHudBrush;
 	TMap<FString, FSoftObjectPath> StaticMeshByName;
 	TMap<FString, FSoftObjectPath> SkeletalMeshByName;
 	TSet<FString> MissingMeshes;

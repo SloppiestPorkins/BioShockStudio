@@ -21,9 +21,11 @@ public sealed class BspUvAuthoredSizeTests(GameFixture game)
 
     private static readonly (string Shader, float ExpectedPeriod)[] MedicalExpected =
     [
+        // Half the shipped size (live Remaster, 7 Oct 2026): floor 2048 -> 1024 / |U| 4; ceiling art
+        // ships at 512 -> 256 / 4; wall 2048 -> 1024 / 2.667.
         ("Bathroom_Tile_BW_Diffuse_shader", 256f),
-        ("Medical_ceilling_Diffuse_shader", 256f),
-        ("med_wall_public_shader", 768f),
+        ("Medical_ceilling_Diffuse_shader", 64f),
+        ("med_wall_public_shader", 384f),
     ];
 
     [RequiresGameFact]
@@ -64,11 +66,11 @@ public sealed class BspUvAuthoredSizeTests(GameFixture game)
                 float period = size!.Value.Width / uMed;
                 Assert.InRange(period, expectedPeriod - 0.5f, expectedPeriod + 0.5f);
 
-                Environment.SetEnvironmentVariable("BIOSHOCK_BSP_UV_AUTHORED_SCALE", "1");
+                // The earlier guess stays reachable: divide by the 2007 original.
+                Environment.SetEnvironmentVariable("BIOSHOCK_BSP_UV_RULE", "original");
                 var legacy = LevelSceneExporter.AuthoredTextureSize(package, materialId);
+                Environment.SetEnvironmentVariable("BIOSHOCK_BSP_UV_RULE", null);
                 Assert.NotNull(legacy);
-                Assert.Equal(size.Value.Width / 2, legacy!.Value.Width);
-                Environment.SetEnvironmentVariable("BIOSHOCK_BSP_UV_AUTHORED_SCALE", null);
             }
         }
         finally
