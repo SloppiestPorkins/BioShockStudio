@@ -290,3 +290,31 @@ stairwell lit where the game lights them.
 - Enemies are unanimated. Live bones are at actor `+0x3FC` → native SkeletonInstance, `TArray` at
   `+0x48`: 73 × 48-byte hkQsTransform (translation, quaternion, scale) for a Lady Smith splicer,
   model space.
+
+## Playable overlay, HUD and the last missing meshes (7 Oct 2026, night)
+
+**Play mode.** `bash tools/livegame/play.sh [minutes]` with BioShock Remastered running.
+
+- UE5 opens a borderless, topmost, click-through window exactly over the game's client area
+  (`live_bridge.py --overlay`), then hands focus back to the game, which only advances while focused.
+- Verified: the game keeps focus, its clock runs at real time, input reaches it, and the screen shows
+  the UE render.
+
+**HUD.** The runtime's Scaleform-art `UShockHudWidget`, bound to a hidden `AShockPlayer` proxy, fed
+from the game:
+
+| Field | Source |
+|---|---|
+| Health | `Pawn.Health` / `ShockPawn.MaxHealth` |
+| EVE | `ShockPlayer.BioAmmo` / `MaxBioAmmo` |
+| ADAM | `ShockPlayer.ADAM` |
+| Kits and hypos | `InventoryManager → ItemInventory → ItemSlots` (InventoryItemStack {ItemClass, StackSize}; MedHypo, BioAmmoHypo) |
+
+Shows 200/200, 35/35, 1 kit, 1 hypo, matching the game. Weapon, ammo and money are not yet streamed.
+
+**Missing meshes.** `export-assets <dir> <names…>` (Cursor, `90cc26a`; the asset index now includes
+script packages) plus `import_extra_assets.py`.
+
+- Medical stand-in coverage is now 377/382.
+- The remaining miss is `NullSkeletalMesh`, an intentional 5-vertex placeholder.
+- The player's hands (`NEWPlayerHands`) are imported; they appear once the game draws a weapon.
