@@ -3,6 +3,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Animation/SkeletalMeshActor.h"
 #include "Camera/CameraActor.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -201,6 +202,23 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 			}
 		}
 	}
+	else if (Op == TEXT("P") && Tok.Num() >= 3)
+	{
+		TObjectPtr<AActor>* Found = Spawned.Find(FName(*Tok[1]));
+		UPoseableMeshComponent* Pose = (Found && Found->Get()) ? Cast<UPoseableMeshComponent>(Found->Get()->GetRootComponent()) : nullptr;
+		if (Pose && Pose->GetSkinnedAsset())
+		{
+			const FReferenceSkeleton& Ref = Pose->GetSkinnedAsset()->GetRefSkeleton();
+			const int32 N = FMath::Min3(FCString::Atoi(*Tok[2]), Ref.GetNum(), (Tok.Num() - 3) / 7);
+			for (int32 i = 0; i < N; ++i)
+			{
+				const int32 o = 3 + i * 7;
+				const FVector T(FCString::Atof(*Tok[o]), FCString::Atof(*Tok[o + 1]), FCString::Atof(*Tok[o + 2]));
+				const FQuat Q(FCString::Atof(*Tok[o + 3]), FCString::Atof(*Tok[o + 4]), FCString::Atof(*Tok[o + 5]), FCString::Atof(*Tok[o + 6]));
+				Pose->SetBoneTransformByName(Ref.GetBoneName(i), FTransform(Q.GetNormalized(), T), EBoneSpaces::ComponentSpace);
+			}
+		}
+	}
 	else if (Op == TEXT("X") && Tok.Num() >= 2)
 	{
 		TObjectPtr<AActor> Gone;
@@ -396,8 +414,13 @@ void UShockLiveBridge::SpawnStandIn(const FName& Key, bool bSkeletal, const FStr
 		USkeletalMesh* Mesh = Path ? Cast<USkeletalMesh>(Path->TryLoad()) : nullptr;
 		if (Mesh)
 		{
-			ASkeletalMeshActor* A = World->SpawnActor<ASkeletalMeshActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
-			A->GetSkeletalMeshComponent()->SetSkeletalMeshAsset(Mesh);
+			// A poseable mesh so the game's evaluated bones (P lines) can drive it directly.
+			AActor* A = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, Params);
+			UPoseableMeshComponent* Pose = NewObject<UPoseableMeshComponent>(A, TEXT("Pose"));
+			A->SetRootComponent(Pose);
+			Pose->SetMobility(EComponentMobility::Movable);
+			Pose->RegisterComponent();
+			Pose->SetSkinnedAssetAndUpdate(Mesh);
 			Spawn = A;
 		}
 	}

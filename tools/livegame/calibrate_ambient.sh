@@ -16,6 +16,6 @@ done
 grep "BIOSHOCK_LIVE start" "$LOG" || { echo "no BIOSHOCK_LIVE start after 600s"; exit 1; }
 sleep 30   # let shaders/textures settle before frames are judged
 : no walk during calibration
-PYTHONIOENCODING=utf-8 python "$HERE/live_bridge.py" --seconds "$STREAM" --grab-dir "$OUT_WIN" --grab-every 100000 ${SWEEP:+--ambient-sweep $SWEEP} --sweep-hold 10 ${TINT:+--ambient-tint $TINT} ${BSWEEP:+--baked-sweep $BSWEEP} ${AMB:+--ambient-scale $AMB} ${BDEBUG:+--baked-debug $BDEBUG} ${BDSWEEP:+--baked-debug-sweep "$BDSWEEP"} ${BASWEEP:+--baked-ambient-sweep $BASWEEP}
+PYTHONIOENCODING=utf-8 python "$HERE/live_bridge.py" --seconds "$STREAM" --grab-dir "$OUT_WIN" --grab-every 100000 ${SWEEP:+--ambient-sweep $SWEEP} --sweep-hold 10 ${TINT:+--ambient-tint $TINT} ${BSWEEP:+--baked-sweep $BSWEEP} ${AMB:+--ambient-scale $AMB} ${BDEBUG:+--baked-debug $BDEBUG} ${BDSWEEP:+--baked-debug-sweep "$BDSWEEP"} ${BASWEEP:+--baked-ambient-sweep $BASWEEP} ${CAMTARGET:+--camera-target $CAMTARGET}
 wait $VIEW
 cat "$OUT/live_view.out"

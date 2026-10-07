@@ -94,6 +94,8 @@ def main():
     ap.add_argument("--baked-debug-sweep", default="",
                     help="semicolon list of debug modes (e.g. '1,0,0;0,1,0;0,0,0'), each held --sweep-hold s")
     ap.add_argument("--baked-debug", default="", help="useBase,useLightmap (debug: 1,0 = base colour only; 0,1 = baked light only)")
+    ap.add_argument("--camera-target", default="",
+                    help="debug: frame this spawned actor (e.g. dyn:SpawnedRangedAggressorPistol0) instead of following the player")
     ap.add_argument("--ambient-tint", default="", help="override r,g,b (0-1) instead of the zone colour (calibration)")
     args = ap.parse_args()
 
@@ -142,7 +144,18 @@ def main():
     O_DSCALE = off("Engine.Actor.DrawScale")  # DrawScale3D follows it (0x2AC, 0x2B0)
     level_pkg = objs[level]
     actor_cls = objs["Engine.Actor"]
+    pawn_cls = objs["Engine.Pawn"]
+    O_CHEIGHT = off("Engine.Actor.CollisionHeight")
     is_actor_cache = {}
+
+    def derives(cls, base):
+        c, n = cls, 0
+        while c and n < 40:
+            if c == base:
+                return True
+            c = p.u32(c + 0x40)
+            n += 1
+        return False
 
     def is_actor(cls):
         if cls in is_actor_cache:
@@ -158,6 +171,9 @@ def main():
         return r
 
     dyn = {}           # obj -> (key, kind, mesh)
+    # Pawns: Location is the collision cylinder's centre and the mesh origin is at its base, so
+    # the stand-in drops by CollisionHeight (a Lady Smith otherwise floated 76 units up).
+    pawns = set()
     seen_ptrs = set()
 
     def discover():
@@ -179,6 +195,8 @@ def main():
             if not mname:
                 continue
             dyn[o] = ("dyn:" + name, "static" if dt[0] == 8 else "skel", mname)
+            if dt[0] == 2 and derives(h["cls"], pawn_cls):
+                pawns.add(o)
         gone = [o for o in dyn if o not in current]
         for o in gone:
             out.append(f"X {dyn.pop(o)[0]}")
@@ -284,8 +302,39 @@ def main():
             last[key] = state
             x, y, z, rp, ry, rr = struct.unpack("<3f3i", b)
             ds, sx, sy, sz = struct.unpack("<4f", sc)
+            if o in pawns:
+                z -= struct.unpack("<f", p.read(o + O_CHEIGHT, 4))[0]
             lines.append(f"D {key} {x:.2f} {y:.2f} {z:.2f} {deg(rp):.4f} {deg(ry):.4f} {deg(rr):.4f} "
                          f"{sx * ds:.4f} {sy * ds:.4f} {sz * ds:.4f} {int(state[2])}")
+        # Skeletal stand-ins: the game's evaluated bones, actor +0x3FC -> native SkeletonInstance,
+        # TArray<hkQsTransform> at +0x48 (48 bytes: translation, quaternion xyzw, scale), model space.
+        for o, (key, kind, _) in dyn.items():
+            if kind != "skel":
+                continue
+            si = p.u32(o + 0x3FC)
+            hdr = p.read(si + 0x48, 8) if si else None
+            if not hdr or len(hdr) < 8:
+                continue
+            bptr, nb = struct.unpack("<2I", hdr)
+            if not bptr or not (0 < nb <= 256):
+                continue
+            raw = p.read(bptr, nb * 48)
+            if not raw or len(raw) < nb * 48:
+                continue
+            parts = [f"P {key} {nb}"]
+            for i in range(nb):
+                tx, ty, tz, _, qx, qy, qz, qw = struct.unpack_from("<8f", raw, i * 48)
+                parts.append(f"{tx:.2f} {ty:.2f} {tz:.2f} {qx:.4f} {qy:.4f} {qz:.4f} {qw:.4f}")
+            lines.append(" ".join(parts))
+        if args.camera_target:
+            tgt = next((o for o, (k, _, _) in dyn.items() if k == args.camera_target), None)
+            if tgt:
+                tx, ty, tz, _, tyaw, _ = struct.unpack("<3f3i", p.read(tgt + O_LOC, 24))
+                ya = math.radians(deg(tyaw))
+                cx, cy, cz = tx + 260 * math.cos(ya), ty + 260 * math.sin(ya), tz + 30
+                lines = [l for l in lines if not l.startswith("C ")]
+                cyaw = math.degrees(math.atan2(ty - cy, tx - cx))
+                lines.append(f"C {cx:.2f} {cy:.2f} {cz:.2f} 2 {cyaw:.3f} 0 80")
         for o, key, _ in moving:
             b = p.read(o + O_LOC, 24)
             if not b or len(b) < 24:

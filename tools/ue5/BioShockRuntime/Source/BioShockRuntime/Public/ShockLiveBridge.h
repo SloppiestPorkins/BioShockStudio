@@ -25,6 +25,8 @@ struct FPostProcessSettings;
  *                                              (runtime-spawned: enemies, door leaves, pickups...)
  *   D key x y z pitch yaw roll sx sy sz hid    absolute pose of a spawned stand-in
  *   X key                                      the game destroyed it
+ *   P key n (tx ty tz qx qy qz qw) x n         a skeletal stand-in's bones, component space, in
+ *                                              the game's (= the imported rig's) bone order
  *   Z r g b intensity                          the player's zone ambient (BioShock ZoneInfo
  *                                              CurrentAmbientColorHigh x multiplier), applied as a
  *                                              post-process ambient cubemap on the view
