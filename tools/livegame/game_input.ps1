@@ -11,16 +11,17 @@ public static class GI {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  public static void Key(ushort scan, bool up) {
-    var i = new INPUT[1]; i[0].type = 1; i[0].ki.scan = scan; i[0].ki.flags = 0x0008u | (up ? 0x0002u : 0u);
+  public static void Key(ushort scan, bool up, bool ext) {
+    var i = new INPUT[1]; i[0].type = 1; i[0].ki.scan = scan; i[0].ki.flags = 0x0008u | (up ? 0x0002u : 0u) | (ext ? 0x0001u : 0u);
     SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
   }
 }
 "@
-$scan = @{ W = 0x11; A = 0x1E; S = 0x1F; D = 0x20; E = 0x12; Space = 0x39; Esc = 0x01 }[$Key]
+$scan = @{ W = 0x11; A = 0x1E; S = 0x1F; D = 0x20; E = 0x12; Space = 0x39; Esc = 0x01; Enter = 0x1C; Up = 0x48; Down = 0x50; Left = 0x4B; Right = 0x4D }[$Key]
+$ext = @('Up', 'Down', 'Left', 'Right') -contains $Key
 $h = (Get-Process BioshockHD).MainWindowHandle
 [GI]::ShowWindow($h, 9) | Out-Null; [GI]::SetForegroundWindow($h) | Out-Null
 Start-Sleep -Milliseconds 700
 "foreground=$([GI]::GetForegroundWindow() -eq $h)"
 for ($k = 0; $k -lt 20; $k++) { if ($MouseDX -or $MouseDY) { [GI]::Move([int]($MouseDX / 20), [int]($MouseDY / 20)); Start-Sleep -Milliseconds 15 } }
-if ($HoldMs -gt 0) { [GI]::Key($scan, $false); Start-Sleep -Milliseconds $HoldMs; [GI]::Key($scan, $true) }
+if ($HoldMs -gt 0) { [GI]::Key($scan, $false, $ext); Start-Sleep -Milliseconds $HoldMs; [GI]::Key($scan, $true, $ext) }
