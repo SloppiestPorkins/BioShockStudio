@@ -114,6 +114,11 @@ private:
 	// Per skeletal stand-in: the mesh's bones in the game's (Havok) order. The FBX import keeps
 	// SOCKET_* nulls as bones, interleaved; without them the order matches the game exactly.
 	TMap<FName, TArray<FName>> GameBoneOrder;
+	// Every placed actor by the game key it stands for (instance:/door:/aprop: prefixes stripped), so
+	// a stand-in that replaces a level actor can hide all of its copies (e.g. the slice's hand-built
+	// ShockDoor next to the imported door). Replaced keys ignore later A lines.
+	TMultiMap<FName, TWeakObjectPtr<AActor>> ByGameKey;
+	TSet<FName> ReplacedKeys;
 
 	// Track E4: the original game's own HUD, streamed by the proxy dxgi.dll (Local\BioShockLiveHud)
 	// and drawn over the whole viewport through M_LiveHud. While it arrives, the rebuilt HUD widget

@@ -95,6 +95,13 @@ void UShockLiveBridge::OnWorldBeginPlay(UWorld& InWorld)
 						Key = Key.Left(Colon);
 					}
 				}
+				// door:<key>, aprop:<key> and other lowercase prefixes name the same game actor.
+				int32 Colon = INDEX_NONE;
+				if (Key.FindChar(TEXT(':'), Colon) && Colon > 0 && Colon <= 12 && FChar::IsLower(Key[0]))
+				{
+					Key = Key.Mid(Colon + 1);
+				}
+				ByGameKey.Add(FName(*Key), *It);
 				FTracked& T = Tracked.Add(FName(*Key));
 				T.Actor = *It;
 				T.UeLoc0 = It->GetActorLocation();
@@ -225,9 +232,32 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		{
 			SpawnStandIn(Key, Tok[2] == TEXT("skel"), Tok[3]);
 		}
-		// "fp": the player owns it (hands, held weapon) -> UE's first-person rendering.
 		TObjectPtr<AActor>* Found = Spawned.Find(Key);
-		if (Tok.Num() >= 5 && Tok[4] == TEXT("fp") && Found && Found->Get())
+		// "r=<key>": the stand-in replaces a placed level actor; hide every copy of it once the
+		// stand-in exists (if its mesh is missing, the placed copy stays).
+		for (int32 t = 4; t < Tok.Num() && Found && Found->Get(); ++t)
+		{
+			if (Tok[t].StartsWith(TEXT("r=")))
+			{
+				const FName Replaced(*Tok[t].Mid(2));
+				if (!ReplacedKeys.Contains(Replaced))
+				{
+					TArray<TWeakObjectPtr<AActor>> Copies;
+					ByGameKey.MultiFind(Replaced, Copies);
+					for (const TWeakObjectPtr<AActor>& C : Copies)
+					{
+						if (C.IsValid())
+						{
+							C->SetActorHiddenInGame(true);
+							C->SetActorEnableCollision(false);
+						}
+					}
+					ReplacedKeys.Add(Replaced);
+				}
+			}
+		}
+		// "fp": the player owns it (hands, held weapon) -> UE's first-person rendering.
+		if (Tok.Num() >= 5 && Tok.Contains(TEXT("fp")) && Found && Found->Get())
 		{
 			TInlineComponentArray<UPrimitiveComponent*> Prims(Found->Get());
 			for (UPrimitiveComponent* Prim : Prims)
@@ -348,6 +378,10 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 	else if ((Op == TEXT("B") || Op == TEXT("A")) && Tok.Num() >= 8)
 	{
 		const FName Key(*Tok[1]);
+		if (ReplacedKeys.Contains(Key))
+		{
+			return;  // drawn by its stand-in now
+		}
 		FTracked* T = Tracked.Find(Key);
 		if (!T || !T->Actor.IsValid())
 		{

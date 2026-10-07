@@ -365,6 +365,44 @@ def run(args):
         if mname:
             dyn[o] = ("dyn:" + a["name"], "static" if dt[0] == 8 else "skel", mname)
     print(f"{len(dyn)} level actors drawn from class-default meshes", flush=True)
+    # Every non-static level actor the game draws becomes a stand-in the game drives (pose, bones,
+    # visibility, destruction), replacing the placed copies - the import's rest-pose skeletal
+    # actors and the old slice's hand-built gameplay actors (a closed ShockDoor sat across Medical's
+    # load-room door, 7 Oct 2026). UE hides the copies only once the stand-in exists.
+    replaces = {}
+    moving_keys = {k for _, k, _ in moving}
+    for a in manifest["actors"]:
+        o = objs.get(f"{level}.{a['name']}")
+        if not o or a["key"] not in moving_keys or o in dyn:
+            continue
+        dt = p.read(o + O_DT, 1)
+        if not dt or dt[0] not in (2, 8):
+            continue
+        mesh = p.u32(o + (O_SMESH if dt[0] == 8 else O_SKMESH))
+        mname = w.obj_name(mesh) if mesh else None
+        if not mname:
+            continue
+        dyn[o] = ("dyn:" + a["name"], "static" if dt[0] == 8 else "skel", mname)
+        replaces["dyn:" + a["name"]] = a["key"]
+        if dt[0] == 2 and derives(w.header(o)["cls"], pawn_cls):
+            pawns.add(o)
+    print(f"{len(replaces)} moving level actors replaced by game-driven stand-ins", flush=True)
+    # Game skeletal-mesh names are often the rig folder (LoadRoomDoorMESH, BHBuckle_Mesh) while the
+    # UE asset is named after the rig (LoadRoomDoorAnim, BHDoorBuckle): map them from the manifests.
+    mesh_alias = {}
+    for root in (os.path.join(os.path.dirname(mpath), "Rigs"),
+                 os.path.join(r"C:/Users/Jack/Documents/BioShockUE5/Exports/slice", level, "Rigs")):
+        if not os.path.isdir(root):
+            continue
+        for folder in os.listdir(root):
+            mf = os.path.join(root, folder, "ue5_manifest.json")
+            try:
+                rigs = json.load(open(mf, encoding="utf-8")).get("rigs") or []
+            except (OSError, ValueError):
+                continue
+            if rigs and rigs[0].get("name") and rigs[0]["name"].lower() != folder.lower():
+                mesh_alias.setdefault(folder.lower(), rigs[0]["name"])
+    ue_mesh = lambda m: mesh_alias.get(m.lower(), m)
     next_discover = 0.0
 
     hwnd = user32.FindWindowW(None, "Bioshock")
@@ -474,7 +512,8 @@ def run(args):
             next_base = now + 2.0
             lines.append(f"M {level}")
             lines += [b for _, _, b in moving]
-            lines += [f"S {k} {kind} {mesh}" + (" fp" if k in first_person else "") for k, kind, mesh in dyn.values()]
+            lines += [f"S {k} {kind} {ue_mesh(mesh)}" + (" fp" if k in first_person else "") + (f" r={replaces[k]}" if k in replaces else "")
+                      for k, kind, mesh in dyn.values()]
             last.clear()  # resend every pose after a baseline refresh
         for o, (key, _, _) in list(dyn.items()):
             b = p.read(o + O_LOC, 24)
