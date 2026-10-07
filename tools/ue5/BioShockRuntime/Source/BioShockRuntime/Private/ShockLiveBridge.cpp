@@ -749,10 +749,22 @@ void UShockLiveBridge::TickGameHud()
 	}
 	const uint32 W = H->Width, Ht = H->Height, Pitch = H->Pitch;
 	uint8* Pixels = static_cast<uint8*>(FMemory::Malloc(W * Ht * 4));
+	uint32 Lit = 0, Sampled = 0;
 	for (uint32 Y = 0; Y < Ht; ++Y)
 	{
-		FMemory::Memcpy(Pixels + Y * W * 4, GameHudView + sizeof(FHeader) + Y * Pitch, W * 4);
+		const uint8* Row = GameHudView + sizeof(FHeader) + Y * Pitch;
+		FMemory::Memcpy(Pixels + Y * W * 4, Row, W * 4);
+		if ((Y & 15) == 0)
+		{
+			for (uint32 X = 0; X < W; X += 16, ++Sampled)
+			{
+				Lit += (FMath::Max3(Row[X * 4], Row[X * 4 + 1], Row[X * 4 + 2]) > 8) ? 1 : 0;
+			}
+		}
 	}
+	// Normal play lights ~1% of the frame; the pause menu ~24%, the map ~58% (7 Oct 2026). Those
+	// cover the view in the game, so draw them opaque instead of keying out their dark parts.
+	const bool bFullScreenUi = Sampled && Lit * 10 > Sampled;
 	if (H->Seq != Seq)  // rewritten while we copied
 	{
 		FMemory::Free(Pixels);
@@ -799,6 +811,10 @@ void UShockLiveBridge::TickGameHud()
 			}
 			UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE game HUD overlay %ux%u"), W, Ht);
 		}
+	}
+	if (GameHudMid)
+	{
+		GameHudMid->SetScalarParameterValue(TEXT("Opaque"), bFullScreenUi ? 1.f : 0.f);
 	}
 	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, W, Ht);
 	GameHudTexture->UpdateTextureRegions(0, 1, Region, W * 4, 4, Pixels,

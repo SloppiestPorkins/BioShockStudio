@@ -151,8 +151,9 @@ E4. **First cut WORKING 7 Oct 2026.** With the world suppressed, the proxy strea
     back buffer at <=30 Hz through staging textures into `Local\BioShockLiveHud`; UShockLiveBridge
     draws it over the viewport with `M_LiveHud` (opacity keyed from brightness) while frames arrive,
     hiding the rebuilt HUD. Verified side by side: the game's own gauges and captions over UE's
-    world. Next: proper alpha (HUD drawn over a key colour), a zero-copy shared GPU texture, and
-    checking the menus, hacking, vending machines and map.
+    world. Screens checked: in-play HUD, pause menu and map all stream complete; full-screen
+    screens (>10% of pixels lit) draw opaque, as in the game. Next: vending and hacking screens
+    (need interaction), proper per-pixel alpha, a zero-copy shared GPU texture.
     Original plan: **The UI through a shared texture.** The game's own HUD, menus, hacking, vending machines, the
     map, subtitles and Bink videos render into an offscreen texture, shared with UE5 through a D3D
     shared handle and composited on top. Every UI screen works with full fidelity on day one;
