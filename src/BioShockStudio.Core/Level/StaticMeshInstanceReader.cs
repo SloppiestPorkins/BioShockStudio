@@ -52,10 +52,12 @@ public sealed record StaticMeshInstance(
 /// [padding zeros]
 /// </code>
 /// <para>
-/// Pool address is <c>PageIndex * 262144 + PageOffset</c>. Across Medical the merged coverage of
+/// Pool address is <c>PageIndex * 262144 + PageOffset</c> relative to the start of page 0 inside
+/// the package's <c>Level</c> export. Across Medical the merged coverage of
 /// <c>[addr, addr + VertexCount*4)</c> equals Σ VertexCount*4 with zero overlaps. Multi-layer
 /// instances on the same page advance by exactly <c>VertexCount*4</c>; a handful of page-boundary
-/// placements leave padding and resume at the next page start.
+/// placements leave padding and resume at the next page start. Page indices reach 119 on Welcome;
+/// the old Medical-only cap of 63 rejected whole maps.
 /// </para>
 /// </remarks>
 public static class StaticMeshInstanceReader
@@ -96,10 +98,22 @@ public static class StaticMeshInstanceReader
     }
 
     /// <summary>
-    /// Locates the luminance pool inside the package's <c>Level</c> export. Returns null when no
-    /// <c>Level</c> export exists or the pool cannot be placed so that single-light layers show
-    /// energy in luminance slot 0 (byte 1).
+    /// Locates the luminance pool inside the package's <c>Level</c> export.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Instances address the pool as <c>PageIndex * 262144 + PageOffset</c>. Those banks are
+    /// contiguous inside the <c>Level</c> export; page 0 is the first bank. The absolute file
+    /// offset of page 0 is <b>not</b> stored as an <c>int32</c> in <c>Level</c>, <c>Model</c>, or
+    /// <c>LevelInfo</c> (exhaustive search on Medical / Fisheries / Lighthouse). It is recovered by
+    /// placing the arena so that single-light layers show luminance energy in byte 1 (slot 0) —
+    /// the layout CONFIRMED on Medical and the same consensus that lands Medical at 60224.
+    /// </para>
+    /// <para>
+    /// Returns null when there is no <c>Level</c> export, no usable probes, the covered span does
+    /// not fit, or the best placement scores below a quarter of the probes (false-positive guard).
+    /// </para>
+    /// </remarks>
     public static (int BaseOffset, byte[] LevelData)? LocateLuminancePool(
         BioShockPackage package, IReadOnlyList<StaticMeshInstance> instances)
     {
@@ -131,7 +145,22 @@ public static class StaticMeshInstanceReader
             }
         }
 
-        if (bestBase < 0 || bestScore < probes.Count / 2) return null;
+        // Refine to 4-byte alignment around the coarse peak (Medical's 60224 is 4-aligned).
+        int refineFrom = Math.Max(0, bestBase - 64);
+        int refineTo = bestBase + 64;
+        for (int b = refineFrom; b <= refineTo && b + maxEnd <= level.Length; b += 4)
+        {
+            int score = ScoreBase(level, b, probes);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestBase = b;
+            }
+        }
+
+        // Quarter-of-probes (not half): Fisheries / Lighthouse / SubBay peak in the mid-teens of 48
+        // while still lighting ~70% of layers. Medical stays at 60224 with score 25/48.
+        if (bestBase < 0 || bestScore < Math.Max(8, probes.Count / 4)) return null;
         return (bestBase, level);
     }
 
@@ -244,7 +273,8 @@ public static class StaticMeshInstanceReader
                 int fieldA = ReadInt32(body, ref o);
                 int page = ReadInt32(body, ref o);
                 int pageOffset = ReadInt32(body, ref o);
-                if (page is < 0 or > 63) return false;
+                // Welcome uses page indices up to 119; Medical only reaches 63. Cap was package-local.
+                if (page is < 0 or > 255) return false;
                 if (pageOffset < 0 || pageOffset >= PoolPageSize || (pageOffset & 3) != 0) return false;
                 layers.Add(new StaticMeshInstanceLayer(
                     lights, fieldA, page, pageOffset, page * (long)PoolPageSize + pageOffset));
