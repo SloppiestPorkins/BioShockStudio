@@ -972,22 +972,47 @@ public static class LevelSceneExporter
             ? scale
             : 4;
 
-    private static readonly Lazy<IReadOnlyDictionary<string, (int Width, int Height)>> _originalTextureSizes =
-        new(LoadOriginalTextureSizes);
+    /// <summary>
+    /// Multiplier applied to the authored (original / estimated-original) texture size before it
+    /// is used as the BSP UV divisor. Default <c>2</c>: the live Remaster tiles the Medical floor
+    /// and wall trim at twice the period you get from dividing by the 2007 size alone
+    /// (<c>docs/research/remastered.md</c>). <c>BIOSHOCK_BSP_UV_AUTHORED_SCALE=1</c> restores the
+    /// previous "divide by original" behaviour.
+    /// </summary>
+    public static int AuthoredTextureScale =>
+        int.TryParse(Environment.GetEnvironmentVariable("BIOSHOCK_BSP_UV_AUTHORED_SCALE"), out int scale)
+        && scale >= 1
+            ? scale
+            : 2;
+
+    private static string? _originalTextureDirCached;
+    private static IReadOnlyDictionary<string, (int Width, int Height)>? _originalTextureSizes;
 
     /// <summary>
-    /// <c>name (lower-case) -&gt; (width, height)</c> for the ORIGINAL BioShock 1 textures, read
-    /// from a directory of reference PNGs named after the texture object
+    /// <c>name -&gt; (width, height)</c> for the ORIGINAL BioShock 1 textures, read from a
+    /// directory of reference PNGs named after the texture object
     /// (<c>BIOSHOCK_ORIGINAL_TEXTURE_DIR</c>, e.g. a UModel export of the 2007 game). Empty when
     /// the variable is unset or the directory is missing - the pipeline then falls back to
-    /// <see cref="RemasterTextureUpscale"/>.
+    /// <see cref="RemasterTextureUpscale"/>. Reloads when the env var changes.
     /// </summary>
-    private static IReadOnlyDictionary<string, (int Width, int Height)> OriginalTextureSizes => _originalTextureSizes.Value;
+    private static IReadOnlyDictionary<string, (int Width, int Height)> OriginalTextureSizes
+    {
+        get
+        {
+            string dir = Environment.GetEnvironmentVariable("BIOSHOCK_ORIGINAL_TEXTURE_DIR") ?? "";
+            if (_originalTextureSizes is null
+                || !string.Equals(_originalTextureDirCached, dir, StringComparison.OrdinalIgnoreCase))
+            {
+                _originalTextureDirCached = dir;
+                _originalTextureSizes = LoadOriginalTextureSizes(dir);
+            }
+            return _originalTextureSizes;
+        }
+    }
 
-    private static IReadOnlyDictionary<string, (int Width, int Height)> LoadOriginalTextureSizes()
+    private static IReadOnlyDictionary<string, (int Width, int Height)> LoadOriginalTextureSizes(string dir)
     {
         var map = new Dictionary<string, (int, int)>(StringComparer.OrdinalIgnoreCase);
-        string? dir = Environment.GetEnvironmentVariable("BIOSHOCK_ORIGINAL_TEXTURE_DIR");
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return map;
 
         foreach (string file in Directory.EnumerateFiles(dir, "*.png", SearchOption.AllDirectories))
@@ -1015,10 +1040,18 @@ public static class LevelSceneExporter
     }
 
     /// <summary>
-    /// The pixel dimensions the BSP UVs of a surface with this material were authored against:
-    /// the ORIGINAL BioShock 1 texture size where known, otherwise the shipped size divided by
-    /// <see cref="RemasterTextureUpscale"/>. Null when the material has no resolvable diffuse.
+    /// The pixel dimensions to divide BSP texel UVs by for a surface with this material:
+    /// <see cref="AuthoredTextureScale"/> × (ORIGINAL BioShock 1 texture size where known,
+    /// otherwise shipped ÷ <see cref="RemasterTextureUpscale"/>). Null when the material has no
+    /// resolvable diffuse.
     /// </summary>
+    /// <remarks>
+    /// UE2 divides by the bound texture's <c>USize</c>/<c>VSize</c>. Remastered upscales many
+    /// textures without a matching full rescale of <c>TextureU</c>/<c>TextureV</c>; matching the
+    /// live Remaster (Medical floor autocorrelation 2× vs divide-by-original, wall trim mid-face
+    /// under divide-by-original) needs <b>twice</b> the 2007 size as the divisor — not the shipped
+    /// <c>USize</c> (floor would then be 4×) and not the bare original (floor 1× / wall trim wrong).
+    /// </remarks>
     public static (int Width, int Height)? AuthoredTextureSize(BioShockPackage package, Level.SourceId? material)
     {
         if (material is not { } id || id.ExportIndex < 0 || id.ExportIndex >= package.Exports.Count) return null;
@@ -1032,8 +1065,9 @@ public static class LevelSceneExporter
 
         if (decoded?.DiffuseTexture is not { } name) return null;
 
+        int scale = AuthoredTextureScale;
         if (OriginalTextureSizes.TryGetValue(name, out var authored))
-            return authored;
+            return (Math.Max(1, authored.Width * scale), Math.Max(1, authored.Height * scale));
 
         var export = package.Exports
             .Where(e => e.ObjectName == name && package.GetClassName(e) == TextureReader.ClassName)
@@ -1044,8 +1078,8 @@ public static class LevelSceneExporter
         {
             var header = TextureReader.ReadHeader(package, export);
             if (header is not { Width: > 0, Height: > 0 }) return null;
-            return (Math.Max(1, header.Value.Width / RemasterTextureUpscale),
-                    Math.Max(1, header.Value.Height / RemasterTextureUpscale));
+            return (Math.Max(1, header.Value.Width / RemasterTextureUpscale * scale),
+                    Math.Max(1, header.Value.Height / RemasterTextureUpscale * scale));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
