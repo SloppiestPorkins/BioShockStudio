@@ -406,6 +406,14 @@ void UShockLiveBridge::UpdateHud(const TArray<FString>& Tok)
 	HudPlayer->MaxEve = FMath::Max(FCString::Atof(*Tok[4]), 1.0f);
 	HudPlayer->SetCurrentEveForVerify(FCString::Atof(*Tok[3]));
 	HudPlayer->PlayerAdam = FCString::Atoi(*Tok[5]);
+	if (Tok.Num() >= 8)
+	{
+		// First-aid kits and EVE hypos: the digits beside the two meters.
+		TMap<FName, int32> Stacks;
+		Stacks.Add(FName(TEXT("FirstAidKit")), FCString::Atoi(*Tok[6]));
+		Stacks.Add(FName(TEXT("EveHypo")), FCString::Atoi(*Tok[7]));
+		HudPlayer->RestoreInventoryStacksForTravel(Stacks);
+	}
 	Hud->RefreshDisplayNow();
 }
 

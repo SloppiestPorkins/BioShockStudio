@@ -167,6 +167,34 @@ def main():
     O_PAWN, O_EYE = off("Engine.Controller.Pawn"), off("Engine.Pawn.EyeHeight")
     O_HP, O_MAXHP = off("Engine.Pawn.Health"), off("ShockGame.ShockPawn.MaxHealth")
     O_EVE, O_MAXEVE, O_ADAM = off("ShockGame.ShockPlayer.BioAmmo"), off("ShockGame.ShockPlayer.MaxBioAmmo"), off("ShockGame.ShockPlayer.ADAM")
+    # Consumables: ShockPlayer.InventoryManager -> ItemInventory -> ItemSlots (fixed array of
+    # InventoryItemStack: ItemClass, StackSize). MedHypo = first-aid kit, BioAmmoHypo = EVE hypo.
+    O_INVMGR = off("ShockGame.ShockPlayer.InventoryManager")
+    O_ITEMINV = off("ShockGame.InventoryManager.ItemInventory")
+    O_SLOTS = off("ShockGame.Inventory.ItemSlots")
+    O_STACK_CLS, O_STACK_N = off("ShockGame.ItemStack.ItemClass"), off("ShockGame.ItemStack.StackSize")
+    item_name_cache = {}
+
+    def consumables(pawn):
+        kits = hypos = 0
+        im = p.u32(pawn + O_INVMGR)
+        inv = p.u32(im + O_ITEMINV) if im else 0
+        if not inv:
+            return 0, 0
+        raw = p.read(inv + O_SLOTS, 4 * 120) or b""
+        for i in range(len(raw) // 4):
+            st = struct.unpack_from("<I", raw, i * 4)[0]
+            if not st:
+                continue
+            cls = p.u32(st + O_STACK_CLS)
+            if cls not in item_name_cache:
+                item_name_cache[cls] = w.obj_name(cls) if cls else None
+            name = item_name_cache[cls]
+            if name == "MedHypo":
+                kits += p.u32(st + O_STACK_N) or 0
+            elif name == "BioAmmoHypo":
+                hypos += p.u32(st + O_STACK_N) or 0
+        return kits, hypos
     O_FOV, O_TIME = off("Engine.PlayerController.DesiredFOV"), off("Engine.LevelInfo.TimeSeconds")
     O_REGION = off("Engine.Actor.Region")  # FPointRegion; Zone is its first field
     O_AMB_COL = off("Engine.ZoneInfo.CurrentAmbientColorHigh")
@@ -288,6 +316,7 @@ def main():
             sock.sendto("\n".join(chunk).encode(), dest)
 
     last = {}
+    last_consumables = (0, 0)
     frame, t0, next_base, next_grab = 0, time.perf_counter(), 0.0, 0.0
     period = 1.0 / args.hz
     while True:
@@ -310,7 +339,9 @@ def main():
             hp, mhp = struct.unpack("<f", p.read(pawn + O_HP, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXHP, 4))[0]
             eve, meve = struct.unpack("<f", p.read(pawn + O_EVE, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXEVE, 4))[0]
             adam = struct.unpack("<i", p.read(pawn + O_ADAM, 4))[0]
-            lines.append(f"H {hp:.1f} {mhp:.1f} {eve:.1f} {meve:.1f} {adam}")
+            kits, hypos = consumables(pawn) if frame % 10 == 1 else last_consumables
+            last_consumables = (kits, hypos)
+            lines.append(f"H {hp:.1f} {mhp:.1f} {eve:.1f} {meve:.1f} {adam} {kits} {hypos}")
             zone = p.u32(pawn + O_REGION)
             if zone:
                 b_, g_, r_, _ = p.read(zone + O_AMB_COL, 4)
