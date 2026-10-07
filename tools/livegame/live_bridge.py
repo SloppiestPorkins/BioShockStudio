@@ -17,6 +17,7 @@ import struct
 import time
 
 from bsobj import World
+from snapshot import SnapshotProc
 
 EXPORTS = "C:/Users/Jack/Documents/BioShockUE5/Exports"
 
@@ -167,6 +168,7 @@ def parse_args():
     ap.add_argument("--baked-debug-sweep", default="",
                     help="semicolon list of debug modes (e.g. '1,0,0;0,1,0;0,0,0'), each held --sweep-hold s")
     ap.add_argument("--baked-debug", default="", help="useBase,useLightmap (debug: 1,0 = base colour only; 0,1 = baked light only)")
+    ap.add_argument("--no-snapshot", action="store_true", help="read game memory directly even if the proxy dxgi.dll is loaded")
     ap.add_argument("--overlay", action="store_true",
                     help="place the (visible) UE live view over the game window, click-through; the game keeps input")
     ap.add_argument("--camera-target", default="",
@@ -188,6 +190,9 @@ def run(args):
     """One session on one level; returns "level-changed" when the game travels."""
     w = World()
     p = w.p
+    # Track E2: with the proxy dxgi.dll loaded, per-frame reads come from one game frame's snapshot.
+    snap = None if args.no_snapshot else SnapshotProc.attach(p)
+    print("state feed: " + ("proxy snapshot (frame-consistent)" if snap else "live memory reads"), flush=True)
     objs = {w.full_name(o): o for o in w.obj_ptrs if o}
     off = lambda n: p.u32(objs[n] + 0x74)  # UProperty::Offset
     O_LOC, O_ROT = off("Engine.Actor.Location"), off("Engine.Actor.Rotation")
@@ -373,12 +378,16 @@ def run(args):
     last_consumables = (0, 0)
     frame, t0, next_base, next_grab = 0, time.perf_counter(), 0.0, 0.0
     period = 1.0 / args.hz
+    if snap:
+        p = snap  # the frame loop and its helpers now read from snapshots
     while True:
         now = time.perf_counter() - t0
         if now >= args.seconds:
             break
         frame += 1
         lines = []
+        if snap:
+            snap.begin_frame()
         gt = struct.unpack("<f", p.read(li + O_TIME, 4))[0]
         lines.append(f"F {frame} {gt:.3f}")
         pawn = p.u32(pc + O_PAWN)
@@ -517,6 +526,8 @@ def run(args):
         if sleep > 0:
             time.sleep(sleep)
     print(f"sent {frame} frames in {time.perf_counter() - t0:.1f}s", flush=True)
+    if snap:
+        print(f"snapshot: {snap.stats}, regions {len(snap.table)}, last lag {getattr(snap, 'lag', '?')} frames", flush=True)
     if (sweep or bsweep or args.baked_debug_sweep) and args.grab_dir:
         json.dump(sweep_log, open(os.path.join(args.grab_dir, "sweep.json"), "w"))
 

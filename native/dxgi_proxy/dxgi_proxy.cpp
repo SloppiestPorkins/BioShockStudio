@@ -8,11 +8,146 @@
 #include <windows.h>
 #include <dxgi1_2.h>
 #include <cstdio>
+#include <share.h>
 
 static HMODULE g_real;
 static FILE* g_log;
 static LARGE_INTEGER g_freq, g_start;
 static LONG g_frames;
+static DWORD g_mainThread;
+
+// ---- E2 snapshot ---------------------------------------------------------------------------
+namespace snap
+{
+const DWORD kMagic = 0x42534E50;  // 'BSNP'
+const DWORD kMaxRegions = 16384;
+const DWORD kSlotBytes = 8u << 20;
+const DWORD kHeaderBytes = 1u << 20;
+const DWORD kSlots = 3;
+
+struct Region { DWORD addr, offset, size, flags; };  // flags bit0: indirect (*(DWORD*)addr + offset)
+
+#pragma pack(push, 4)
+struct Header
+{
+    DWORD magic, version;
+    volatile LONG request_seq;   // odd while the reader rewrites the region table
+    volatile LONG applied_seq;   // DLL echoes request_seq once it has used that table
+    DWORD region_count;
+    volatile LONG latest;        // slot index of the newest complete snapshot (-1: none)
+    volatile LONG frame;         // game frames presented so far
+    DWORD present_thread, main_thread;
+    DWORD min_interval_us;       // reader's requested minimum time between snapshots
+    DWORD reserved[6];
+    Region regions[kMaxRegions];
+};
+struct SlotHeader
+{
+    volatile LONG seq_begin;     // == seq_end when the slot is consistent
+    DWORD frame;
+    LARGE_INTEGER qpc;
+    DWORD bytes, failed;         // payload bytes, regions that could not be read
+    volatile LONG seq_end;
+    DWORD pad;
+};
+#pragma pack(pop)
+
+static HANDLE g_map;
+static BYTE* g_base;
+static Header* g_hdr;
+static LARGE_INTEGER g_last;
+
+static bool Open()
+{
+    if (g_base) return true;
+    const DWORD total = kHeaderBytes + kSlots * kSlotBytes;
+    g_map = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, total, "Local\\BioShockLiveSnapshot");
+    if (!g_map) return false;
+    g_base = static_cast<BYTE*>(MapViewOfFile(g_map, FILE_MAP_ALL_ACCESS, 0, 0, total));
+    if (!g_base) return false;
+    g_hdr = reinterpret_cast<Header*>(g_base);
+    g_hdr->version = 1;
+    g_hdr->latest = -1;
+    g_hdr->main_thread = g_mainThread;
+    g_hdr->magic = kMagic;
+    return true;
+}
+
+// ReadProcessMemory on our own process: a dead pointer just fails. Never fault here - the game's
+// vectored exception handlers would run, and with the main thread paused one of them deadlocked
+// the game (7 Oct: frozen at frame 9670 the moment the reader's region list arrived).
+static bool Copy(BYTE* dst, const Region& r)
+{
+    const HANDLE self = GetCurrentProcess();
+    DWORD src = r.addr;
+    SIZE_T got = 0;
+    if (r.flags & 1)
+    {
+        DWORD ptr = 0;
+        if (!ReadProcessMemory(self, reinterpret_cast<LPCVOID>(r.addr), &ptr, 4, &got) || !ptr)
+        {
+            memset(dst, 0, r.size);
+            return false;
+        }
+        src = ptr + r.offset;
+    }
+    if (!ReadProcessMemory(self, reinterpret_cast<LPCVOID>(src), dst, r.size, &got) || got != r.size)
+    {
+        memset(dst, 0, r.size);
+        return false;
+    }
+    return true;
+}
+
+static void Take(LONG frame)
+{
+    if (!Open()) return;
+    Header* h = g_hdr;
+    h->frame = frame;
+    h->present_thread = GetCurrentThreadId();
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (h->min_interval_us && g_last.QuadPart &&
+        double(now.QuadPart - g_last.QuadPart) * 1e6 / double(g_freq.QuadPart) < h->min_interval_us)
+        return;
+    g_last = now;
+    const LONG seq = h->request_seq;
+    if (seq & 1) return;  // the reader is rewriting the region table
+    const DWORD n = h->region_count < kMaxRegions ? h->region_count : kMaxRegions;
+    const LONG slot = (h->latest + 1 + kSlots) % kSlots;
+    BYTE* base = g_base + kHeaderBytes + slot * kSlotBytes;
+    SlotHeader* sh = reinterpret_cast<SlotHeader*>(base);
+    InterlockedIncrement(&sh->seq_begin);
+    BYTE* out = base + sizeof(SlotHeader);
+    const BYTE* end = base + kSlotBytes;
+    DWORD failed = 0;
+    // Present runs on the render thread; the game logic runs on the main thread. Pause the main
+    // thread for the copy (microseconds; memcpy only, no locks) so nothing changes mid-snapshot.
+    static HANDLE mainThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, g_mainThread);
+    const bool paused = mainThread && GetCurrentThreadId() != g_mainThread && SuspendThread(mainThread) != DWORD(-1);
+    for (DWORD i = 0; i < n; ++i)
+    {
+        const Region r = h->regions[i];
+        if (out + r.size > end) break;
+        if (!Copy(out, r)) ++failed;
+        out += r.size;
+    }
+    if (paused) ResumeThread(mainThread);
+    if (h->request_seq != seq)  // table changed under us: this copy mixes layouts
+    {
+        sh->seq_end = sh->seq_begin - 1;
+        return;
+    }
+    sh->frame = frame;
+    sh->qpc = now;
+    sh->bytes = DWORD(out - (base + sizeof(SlotHeader)));
+    sh->failed = failed;
+    sh->seq_end = sh->seq_begin;
+    MemoryBarrier();
+    h->latest = slot;
+    h->applied_seq = seq;
+}
+}  // namespace snap
 
 static void Log(const char* fmt, ...)
 {
@@ -59,7 +194,8 @@ static PresentFn g_present;
 static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     const LONG n = InterlockedIncrement(&g_frames);
-    if (n <= 300 || n % 600 == 0) Log("frame %ld", n);
+    if (n <= 3 || n % 3600 == 0) Log("frame %ld (present thread %lu, main thread %lu)", n, GetCurrentThreadId(), g_mainThread);
+    snap::Take(n);
     return g_present(self, sync, flags);
 }
 
@@ -171,12 +307,13 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID)
 {
     if (reason == DLL_PROCESS_ATTACH)
     {
+        g_mainThread = GetCurrentThreadId();
         QueryPerformanceFrequency(&g_freq);
         QueryPerformanceCounter(&g_start);
         char path[MAX_PATH];
         GetTempPathA(MAX_PATH, path);
         strcat_s(path, "bioshock-e1.log");
-        fopen_s(&g_log, path, "w");
+        g_log = _fsopen(path, "w", _SH_DENYNO);  // readable while the game runs
         char exe[MAX_PATH];
         GetModuleFileNameA(nullptr, exe, MAX_PATH);
         Log("dxgi proxy loaded into %s (pid %lu)", exe, GetCurrentProcessId());

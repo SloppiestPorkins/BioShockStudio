@@ -119,9 +119,19 @@ it is two processes joined by shared memory: a 32-bit game cannot host the 64-bi
 renders through Direct3D 11 (it ships `d3d11`/`dxgi` imports and AMD AGS), so the way in is a
 proxy `dxgi.dll` in the game folder, which the game loads itself. No injector is needed.
 
-E1. **Get inside.** A proxy DLL that only logs the game's frame tick. **Pass:** it loads under Steam
+E1. **DONE 7 Oct 2026.** `native/dxgi_proxy` (proxy `dxgi.dll`, 32-bit, all 20 exports forwarded)
+    loads into `BioshockHD.exe`, hooks the 2560x1440 swap chain, and counts every Present (~16,800
+    frames in 83 s). No SteamStub; dxgi is not a KnownDLL. `build.ps1 -Install/-Uninstall`.
+    Original goal: a proxy DLL that only logs the game's frame tick. **Pass:** it loads under Steam
     (check for a DRM wrapper first) and the log shows one line per game tick.
-E2. **In-process state feed.** At the end of each tick the DLL writes a snapshot (the camera's real
+E2. **WORKING 7 Oct 2026** (first cut). The bridge lists memory regions in the shared mapping
+    `Local\BioShockLiveSnapshot`; at each Present (render thread) the DLL pauses the game thread,
+    copies them with ReadProcessMemory on itself (never faulting: an access fault ran the game's
+    exception handlers and deadlocked it), and publishes a triple-buffered, seq-locked snapshot.
+    `tools/livegame/snapshot.py` serves the bridge's reads from it: 99.4% of reads, 0 torn, ~4,300
+    regions, lag one 60 Hz snapshot (~16 ms). Note the game stops presenting when unfocused, so
+    snapshots stop too. Next: tick-aligned capture on the game thread instead of Present.
+    Original plan: **In-process state feed.** At the end of each tick the DLL writes a snapshot (the camera's real
     view matrices and FOV, actor transforms and visibility, bones, spawn and destroy events, zone
     ambient) to a shared-memory ring that UE5 reads. This replaces memory polling and UDP, keeping
     the same message semantics so Track R code is untouched. **Pass:** no torn frames, and
