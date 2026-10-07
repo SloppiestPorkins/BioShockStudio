@@ -51,7 +51,8 @@ public sealed class AssetIndex
     }
 
     /// <summary>
-    /// Indexes every package under the install.
+    /// Indexes every package under the install — map <c>.bsm</c> files and baked script
+    /// <c>.U</c> packages (weapon/AI meshes live in the latter).
     /// <paramref name="classFilter"/> limits which classes are retained; null keeps everything.
     /// </summary>
     public static AssetIndex Build(string gameRoot, IReadOnlySet<string>? classFilter = null)
@@ -59,7 +60,8 @@ public sealed class AssetIndex
         var assets = new List<AssetRecord>();
         var packages = new List<PackageScanResult>();
 
-        foreach (string file in GameLocator.EnumeratePackages(gameRoot))
+        foreach (string file in GameLocator.EnumeratePackages(gameRoot)
+                     .Concat(GameLocator.EnumerateScriptPackages(gameRoot)))
         {
             string packageName = Path.GetFileNameWithoutExtension(file);
             try

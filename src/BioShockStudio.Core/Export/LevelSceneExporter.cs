@@ -708,34 +708,53 @@ public static class LevelSceneExporter
             var geometry = NormaliseBspUvs(package, group.First());
             if (geometry.Vertices.Count == 0) continue;
 
-            string stem = Sanitise(group.Key.ObjectName) + "_" + group.Key.ExportIndex;
-            string relative = subdirectory + "/" + stem + ".obj";
-            string path = Path.Combine(meshDirectory, stem + ".obj");
-
-            File.WriteAllText(path, BuildAssetObj(group.Key.ObjectName, stem, geometry));
+            string relative = WriteLocalAssetObj(
+                directory, group.Key.ObjectName, group.Key.ExportIndex, geometry, written);
             files[group.Key.Key] = relative;
-            written.Add(path);
-
-            // UE5's OBJ importer silently drops `usemtl` groups unless a companion `.mtl` is
-            // present, collapsing a multi-section mesh to one materialless slot (walls import
-            // grey). The names are placeholders — the importer, and import_level._assign_asset_
-            // material, bind real materials by slot position, not by parsing these.
-            if (geometry.Sections.Count > 1)
-            {
-                var mtl = new StringBuilder();
-                mtl.AppendLine("# BioShockStudio slot names — real materials are bound by position");
-                for (int s = 0; s < geometry.Sections.Count; s++)
-                {
-                    mtl.Append("newmtl BioShock_").Append(s).AppendLine();
-                    mtl.AppendLine("Kd 0.5 0.5 0.5");
-                }
-                string mtlPath = Path.Combine(meshDirectory, stem + ".mtl");
-                File.WriteAllText(mtlPath, mtl.ToString());
-                written.Add(mtlPath);
-            }
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// Writes one asset's local-space OBJ (+ companion <c>.mtl</c> when multi-section) under
+    /// <c>Meshes/</c>, exactly as level export does for placed static meshes. Returns the path of
+    /// the <c>.obj</c> relative to <paramref name="directory"/>.
+    /// </summary>
+    public static string WriteLocalAssetObj(
+        string directory, string objectName, int exportIndex, Mesh.MeshGeometry geometry,
+        ICollection<string>? written = null)
+    {
+        const string subdirectory = "Meshes";
+        string meshDirectory = Path.Combine(directory, subdirectory);
+        Directory.CreateDirectory(meshDirectory);
+
+        string stem = Sanitise(objectName) + "_" + exportIndex;
+        string relative = subdirectory + "/" + stem + ".obj";
+        string path = Path.Combine(meshDirectory, stem + ".obj");
+
+        File.WriteAllText(path, BuildAssetObj(objectName, stem, geometry));
+        written?.Add(path);
+
+        // UE5's OBJ importer silently drops `usemtl` groups unless a companion `.mtl` is
+        // present, collapsing a multi-section mesh to one materialless slot (walls import
+        // grey). The names are placeholders — the importer, and import_level._assign_asset_
+        // material, bind real materials by slot position, not by parsing these.
+        if (geometry.Sections.Count > 1)
+        {
+            var mtl = new StringBuilder();
+            mtl.AppendLine("# BioShockStudio slot names — real materials are bound by position");
+            for (int s = 0; s < geometry.Sections.Count; s++)
+            {
+                mtl.Append("newmtl BioShock_").Append(s).AppendLine();
+                mtl.AppendLine("Kd 0.5 0.5 0.5");
+            }
+            string mtlPath = Path.Combine(meshDirectory, stem + ".mtl");
+            File.WriteAllText(mtlPath, mtl.ToString());
+            written?.Add(mtlPath);
+        }
+
+        return relative;
     }
 
     /// <summary>
@@ -1318,7 +1337,7 @@ public static class LevelSceneExporter
     /// <see cref="LevelSectionDocument.MaterialKey"/> find its entry in
     /// <see cref="LevelDocument.Materials"/> unconditionally.
     /// </summary>
-    private static LevelMaterialDocument MaterialDocument(Level.SourceId id, SceneMaterial material) => new()
+    public static LevelMaterialDocument ToMaterialDocument(Level.SourceId id, SceneMaterial material) => new()
     {
         Key = id.Key,
         Name = material.Name,
@@ -1343,6 +1362,9 @@ public static class LevelSceneExporter
         SwitchName = material.SwitchName,
         SwitchCandidates = material.SwitchCandidates.ToList(),
     };
+
+    private static LevelMaterialDocument MaterialDocument(Level.SourceId id, SceneMaterial material) =>
+        ToMaterialDocument(id, material);
 }
 
 /// <summary>The level scene's serialised shape.</summary>
