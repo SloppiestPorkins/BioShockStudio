@@ -190,6 +190,39 @@ static void* HookSlot(void* object, int slot, void* replacement)
     return original;
 }
 
+// Inline hook through Windows' hot-patch layout: "mov edi, edi" (8B FF) at the entry and five
+// padding bytes (CC or 90) before it. The padding becomes "jmp hook", the entry "jmp $-5"; the
+// original is called at entry+2. Unlike a vtable slot this catches callers that cached the
+// function pointer. Returns the original, or null when the layout isn't there.
+static void* HotPatch(void* fn, void* hook)
+{
+    BYTE* f = static_cast<BYTE*>(fn);
+    if (!f || f[0] != 0x8B || f[1] != 0xFF) return nullptr;
+    for (int k = 1; k <= 5; ++k)
+        if (f[-k] != 0xCC && f[-k] != 0x90) return nullptr;
+    DWORD old;
+    if (!VirtualProtect(f - 5, 7, PAGE_EXECUTE_READWRITE, &old)) return nullptr;
+    f[-5] = 0xE9;
+    *reinterpret_cast<INT32*>(f - 4) = INT32(static_cast<BYTE*>(hook) - f);
+    *reinterpret_cast<volatile WORD*>(f) = 0xF9EB;  // jmp short -7 (to f-5), written atomically
+    VirtualProtect(f - 5, 7, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), f - 5, 7);
+    return f + 2;
+}
+
+// Hook one context method: inline when possible (catches cached pointers), else the vtable slot.
+static void* HookMethod(void* object, int slot, void* hook, const char* name)
+{
+    void** vtable = *reinterpret_cast<void***>(object);
+    if (void* original = HotPatch(vtable[slot], hook))
+    {
+        Log("  %s: inline", name);
+        return original;
+    }
+    Log("  %s: vtable only", name);
+    return HookSlot(object, slot, hook);
+}
+
 // ---- E3/E4 groundwork: one-frame trace of render-target switches and draws ------------------
 // Create %TEMP%\bioshock-trace-request and the next whole frame is written to
 // %TEMP%\bioshock-frame-trace.txt: every OMSetRenderTargets (target size/format, whether it is the
@@ -252,8 +285,39 @@ static ExecuteFn o_execute;
 static ClearDsvFn o_clearDsv;
 static int g_lists;
 
+// E3 experiment: skip draws by the kind of render target they go to. %TEMP%ioshock-suppress
+// holds letters, re-read every 64 frames: b = back buffer, h = full-res HDR (R11G11B10),
+// s = 1024² R32F (shadows), l = 640x360 (bloom), o = other full-res targets.
+enum Kind { kOther, kBack, kHdr, kShadow, kBloom, kMisc };
+static volatile int g_kind;
+static volatile unsigned g_skip;  // bit per Kind
+static bool Skip() { return (g_skip >> g_kind) & 1; }
+
+static int Classify(ID3D11RenderTargetView* rtv)
+{
+    if (!rtv) return kMisc;
+    ID3D11Resource* res = nullptr;
+    rtv->GetResource(&res);
+    int k = kMisc;
+    D3D11_RESOURCE_DIMENSION dim;
+    res->GetType(&dim);
+    if (res == g_backbuffer) k = kBack;
+    else if (dim == D3D11_RESOURCE_DIMENSION_TEXTURE2D)
+    {
+        D3D11_TEXTURE2D_DESC d;
+        static_cast<ID3D11Texture2D*>(res)->GetDesc(&d);
+        if (d.Format == DXGI_FORMAT_R11G11B10_FLOAT && d.Width >= 1280) k = kHdr;
+        else if (d.Format == DXGI_FORMAT_R32_FLOAT) k = kShadow;
+        else if (d.Format == DXGI_FORMAT_R11G11B10_FLOAT) k = kBloom;
+        else if (d.Width >= 1280) k = kOther;
+    }
+    res->Release();
+    return k;
+}
+
 static void STDMETHODCALLTYPE OMSet(ID3D11DeviceContext* c, UINT n, ID3D11RenderTargetView* const* rtvs, ID3D11DepthStencilView* dsv)
 {
+    if (g_skip) g_kind = Classify(n && rtvs ? rtvs[0] : nullptr);
     if (g_active)
     {
         Flush();
@@ -265,10 +329,10 @@ static void STDMETHODCALLTYPE OMSet(ID3D11DeviceContext* c, UINT n, ID3D11Render
     }
     o_omset(c, n, rtvs, dsv);
 }
-static void STDMETHODCALLTYPE DrawIndexed(ID3D11DeviceContext* c, UINT a, UINT b, INT d) { if (g_active) ++g_draws; o_drawIndexed(c, a, b, d); }
-static void STDMETHODCALLTYPE Draw(ID3D11DeviceContext* c, UINT a, UINT b) { if (g_active) ++g_draws; o_draw(c, a, b); }
-static void STDMETHODCALLTYPE DrawIndexedInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, INT e, UINT f) { if (g_active) ++g_draws; o_drawIndexedInstanced(c, a, b, d, e, f); }
-static void STDMETHODCALLTYPE DrawInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, UINT e) { if (g_active) ++g_draws; o_drawInstanced(c, a, b, d, e); }
+static void STDMETHODCALLTYPE DrawIndexed(ID3D11DeviceContext* c, UINT a, UINT b, INT d) { if (g_active) ++g_draws; if (g_skip && Skip()) return; o_drawIndexed(c, a, b, d); }
+static void STDMETHODCALLTYPE Draw(ID3D11DeviceContext* c, UINT a, UINT b) { if (g_active) ++g_draws; if (g_skip && Skip()) return; o_draw(c, a, b); }
+static void STDMETHODCALLTYPE DrawIndexedInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, INT e, UINT f) { if (g_active) ++g_draws; if (g_skip && Skip()) return; o_drawIndexedInstanced(c, a, b, d, e, f); }
+static void STDMETHODCALLTYPE DrawInstanced(ID3D11DeviceContext* c, UINT a, UINT b, UINT d, UINT e) { if (g_active) ++g_draws; if (g_skip && Skip()) return; o_drawInstanced(c, a, b, d, e); }
 static void STDMETHODCALLTYPE Clear(ID3D11DeviceContext* c, ID3D11RenderTargetView* rtv, const FLOAT col[4])
 {
     if (g_active)
@@ -335,6 +399,33 @@ static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, 
             Log("frame trace written (%u bytes)", unsigned(trace::g_buf.size()));
             trace::g_buf.clear();
         }
+        if ((n & 63) == 0)
+        {
+            char sup[MAX_PATH];
+            GetTempPathA(MAX_PATH, sup);
+            strcat_s(sup, "bioshock-suppress");
+            unsigned mask = 0;
+            if (FILE* f = _fsopen(sup, "r", _SH_DENYNO))
+            {
+                for (int ch; (ch = fgetc(f)) != EOF;)
+                    mask |= ch == 'b' ? 1u << trace::kBack : ch == 'h' ? 1u << trace::kHdr : ch == 's' ? 1u << trace::kShadow
+                          : ch == 'l' ? 1u << trace::kBloom : ch == 'o' ? 1u << trace::kOther : 0u;
+                fclose(f);
+            }
+            if (mask && !trace::g_backbuffer)
+            {
+                trace::Install(self);
+                ID3D11Texture2D* bb = nullptr;
+                if (SUCCEEDED(self->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&bb))) && bb)
+                {
+                    trace::g_backbuffer = bb;
+                    bb->Release();
+                }
+            }
+            if (mask != trace::g_skip) Log("suppress mask %u", mask);
+            trace::g_skip = mask;
+        }
+        if (trace::g_active) {}
         else if ((n & 31) == 0 && GetFileAttributesA(req) != INVALID_FILE_ATTRIBUTES)
         {
             DeleteFileA(req);
@@ -366,15 +457,15 @@ void trace::Install(IDXGISwapChain* chain)
     dev->Release();
     if (!ctx) return;
     // ID3D11DeviceContext vtable slots.
-    o_drawIndexed = reinterpret_cast<DrawIndexedFn>(HookSlot(ctx, 12, reinterpret_cast<void*>(&DrawIndexed)));
-    o_draw = reinterpret_cast<DrawFn>(HookSlot(ctx, 13, reinterpret_cast<void*>(&Draw)));
-    o_drawIndexedInstanced = reinterpret_cast<DrawIndexedInstancedFn>(HookSlot(ctx, 20, reinterpret_cast<void*>(&DrawIndexedInstanced)));
-    o_drawInstanced = reinterpret_cast<DrawInstancedFn>(HookSlot(ctx, 21, reinterpret_cast<void*>(&DrawInstanced)));
-    o_omset = reinterpret_cast<OMSetRTFn>(HookSlot(ctx, 33, reinterpret_cast<void*>(&OMSet)));
-    o_copy = reinterpret_cast<CopyResourceFn>(HookSlot(ctx, 47, reinterpret_cast<void*>(&Copy)));
-    o_clear = reinterpret_cast<ClearRTFn>(HookSlot(ctx, 50, reinterpret_cast<void*>(&Clear)));
-    o_clearDsv = reinterpret_cast<ClearDsvFn>(HookSlot(ctx, 53, reinterpret_cast<void*>(&ClearDsv)));
-    o_execute = reinterpret_cast<ExecuteFn>(HookSlot(ctx, 58, reinterpret_cast<void*>(&Execute)));
+    o_drawIndexed = reinterpret_cast<DrawIndexedFn>(HookMethod(ctx, 12, reinterpret_cast<void*>(&DrawIndexed), "DrawIndexed"));
+    o_draw = reinterpret_cast<DrawFn>(HookMethod(ctx, 13, reinterpret_cast<void*>(&Draw), "Draw"));
+    o_drawIndexedInstanced = reinterpret_cast<DrawIndexedInstancedFn>(HookMethod(ctx, 20, reinterpret_cast<void*>(&DrawIndexedInstanced), "DrawIndexedInstanced"));
+    o_drawInstanced = reinterpret_cast<DrawInstancedFn>(HookMethod(ctx, 21, reinterpret_cast<void*>(&DrawInstanced), "DrawInstanced"));
+    o_omset = reinterpret_cast<OMSetRTFn>(HookMethod(ctx, 33, reinterpret_cast<void*>(&OMSet), "OMSet"));
+    o_copy = reinterpret_cast<CopyResourceFn>(HookMethod(ctx, 47, reinterpret_cast<void*>(&Copy), "Copy"));
+    o_clear = reinterpret_cast<ClearRTFn>(HookMethod(ctx, 50, reinterpret_cast<void*>(&Clear), "Clear"));
+    o_clearDsv = reinterpret_cast<ClearDsvFn>(HookMethod(ctx, 53, reinterpret_cast<void*>(&ClearDsv), "ClearDsv"));
+    o_execute = reinterpret_cast<ExecuteFn>(HookMethod(ctx, 58, reinterpret_cast<void*>(&Execute), "Execute"));
     Log("context type %d (0 immediate)", int(ctx->GetType()));
     ctx->Release();
     done = o_draw && o_omset;

@@ -136,12 +136,13 @@ E2. **WORKING 7 Oct 2026** (first cut). The bridge lists memory regions in the s
     ambient) to a shared-memory ring that UE5 reads. This replaces memory polling and UDP, keeping
     the same message semantics so Track R code is untouched. **Pass:** no torn frames, and
     game-to-UE latency of at most one frame, measured.
-E3. **In progress 7 Oct 2026.** A one-frame D3D11 trace from the proxy (`%TEMP%\bioshock-trace-request`)
-    shows the world drawn at 2560x1440 into an R11G11B10 HDR target and the back buffer, 1024²
-    R32F targets (likely shadow maps) and 640x360 targets (likely bloom). No command lists are
-    executed. But vtable hooks installed after startup see only ~260 draws and ~230 target switches
-    per frame, with no clears, so the engine likely caches context function pointers. Next: inline
-    hooks on the D3D11 functions themselves (or hook earlier, at device creation).
+E3. **Core result 7 Oct 2026.** The engine caches D3D11 context function pointers, so the proxy
+    inline-hooks the context methods through Windows' hot-patch layout. Frame structure: shadows into
+    1024² R32F targets, the scene into a 2560x1440 R11G11B10 HDR target, bloom at 640x360, then the
+    composite and HUD into the back buffer. Skipping draws into the HDR target (`%TEMP%\bioshock-suppress`
+    = `h`) removes the whole world while the HUD (health/EVE, captions) still draws, on black.
+    Skipping world and shadows: 572 -> 651 fps (CPU-bound; culling and submission still run). Next:
+    make it the default when UE renders; cut the CPU-side world work if it matters.
     Original plan: **Stop the original drawing the world.** Hook the engine's world-render call (below the HUD)
     and skip it. The game keeps simulating, playing audio, and running AI and physics. The class
     layouts already mapped, plus the unofficial SDK (read and cite only), are the guide to finding
