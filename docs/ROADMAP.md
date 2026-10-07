@@ -100,7 +100,11 @@ mid-update, two renderers paying for one picture, and UI only where it has been 
 - **Animation:** skeletal actors are driven by the game's evaluated bones. Fixed 7 Oct: the FBX
   import keeps `SOCKET_*` nulls as bones, which scrambled index-based posing on every character.
   Bones now map with sockets skipped; proven offline on all 38 level rigs and the player hands
-  (`tools/ue5/dump_skeleton_orders.py`). Still to confirm live.
+  (`tools/ue5/dump_skeleton_orders.py`), and confirmed live on the first-person hands.
+- **First person:** the hands and held weapon draw with the game's own viewmodel FOV
+  (`Controller.ForegroundFovAngle`, 60) through UE's first-person rendering, and the pistol sits in
+  the hand as in the game (side-by-side capture, 7 Oct). Weapons are `WP_<Name>Mesh` in the game
+  and `WP_<Name>` in UE.
 - **Dynamic state:** runtime-spawned actors (377 of 382 in Medical), spawned and destroyed as the
   game does. Material overrides (Skins) are applied.
 - **HUD:** health, EVE, first-aid kits and EVE hypos are live. Weapon, ammo and money are not, and
@@ -140,9 +144,9 @@ E6. **Package as a mod.** The proxy DLL, a UE5 build, and the converter, which r
 
 #### Track R — Rendering and content: what UE5 draws
 
-R1. **First person:** a dedicated viewmodel pass for hands, weapons and plasmid hands, with the
-    game's own viewmodel FOV and no wall clipping. First confirm the bridge sees the viewmodel at
-    all (`tools/livegame/fp_probe.py`).
+R1. **First person:** done for hands and the pistol (viewmodel FOV, no wall clipping). Still to
+    check: every other weapon, plasmid hands, and the muzzle flash and plasmid effects
+    (`tools/livegame/fp_probe.py` lists what the game draws near the eye).
 R2. **Missing HUD pieces** (weapon, ammo, money) until E4 lands; after that, UI is native only by
     choice.
 R3. **Every level through one converter:** run `prepare_map.sh` on the remaining 19 levels. Per-map

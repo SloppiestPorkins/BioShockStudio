@@ -857,12 +857,20 @@ static IReadOnlyDictionary<string, IReadOnlyList<AnimationEvent>> ResolveEvents(
 
 static int Skeleton(string root, string[] args)
 {
-    if (args.Length < 3) { Console.Error.WriteLine("usage: skeleton <package> <object>"); return 1; }
+    if (args.Length < 3) { Console.Error.WriteLine("usage: skeleton <package> <object> [--pose]"); return 1; }
 
     var animationPackage = LoadAnimationPackage(root, args[1], args[2]);
     var skeleton = animationPackage.Skeleton;
 
     Console.WriteLine($"{skeleton.Name} — {skeleton.BoneCount} bones (from {skeleton.SourceSection}+{skeleton.SourceOffset})");
+    if (args.Contains("--pose"))
+    {
+        // Model-space reference pose, one bone per line: index, name, translation (cm).
+        var global = skeleton.ComputeGlobalTransforms();
+        for (int i = 0; i < global.Length; i++)
+            { var b = skeleton.Bones[i]; Console.WriteLine(FormattableString.Invariant($"{i} {b.Name} {global[i].Translation.X:F2} {global[i].Translation.Y:F2} {global[i].Translation.Z:F2} local {b.LocalTranslation.X:F3} {b.LocalTranslation.Y:F3} {b.LocalTranslation.Z:F3} {b.LocalRotation.X:F4} {b.LocalRotation.Y:F4} {b.LocalRotation.Z:F4} {b.LocalRotation.W:F4}")); }
+        return 0;
+    }
     foreach (string line in skeleton.DescribeHierarchy()) Console.WriteLine(line);
     return 0;
 }

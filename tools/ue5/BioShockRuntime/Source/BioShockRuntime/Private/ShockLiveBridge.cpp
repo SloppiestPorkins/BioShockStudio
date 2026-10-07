@@ -163,6 +163,17 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		Camera->SetActorLocationAndRotation(GameVec(Tok[1], Tok[2], Tok[3]), GameRot(Tok[4], Tok[5], Tok[6]));
 		Hfov = FCString::Atof(*Tok[7]);
 		Camera->GetCameraComponent()->SetFieldOfView(Hfov);
+		if (Tok.Num() >= 9)
+		{
+			// The viewmodel's own FOV, and a scale toward the camera so it never clips into walls (the
+			// original clears depth before drawing it).
+			UCameraComponent* Cam = Camera->GetCameraComponent();
+			Cam->SetEnableFirstPersonFieldOfView(true);
+			FirstPersonHfov = FCString::Atof(*Tok[8]);
+			Cam->SetFirstPersonFieldOfView(FirstPersonHfov);
+			Cam->SetEnableFirstPersonScale(true);
+			Cam->SetFirstPersonScale(0.2f);
+		}
 		bHaveCamera = true;
 	}
 	else if (Op == TEXT("Z") && Tok.Num() >= 5)
@@ -191,6 +202,19 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		if (!Spawned.Contains(Key))
 		{
 			SpawnStandIn(Key, Tok[2] == TEXT("skel"), Tok[3]);
+		}
+		// "fp": the player owns it (hands, held weapon) -> UE's first-person rendering.
+		TObjectPtr<AActor>* Found = Spawned.Find(Key);
+		if (Tok.Num() >= 5 && Tok[4] == TEXT("fp") && Found && Found->Get())
+		{
+			TInlineComponentArray<UPrimitiveComponent*> Prims(Found->Get());
+			for (UPrimitiveComponent* Prim : Prims)
+			{
+				if (Prim->FirstPersonPrimitiveType != EFirstPersonPrimitiveType::FirstPerson)
+				{
+					Prim->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::FirstPerson);
+				}
+			}
 		}
 	}
 	else if (Op == TEXT("D") && Tok.Num() >= 11)
@@ -497,7 +521,12 @@ void UShockLiveBridge::BuildMeshIndex()
 void UShockLiveBridge::SpawnStandIn(const FName& Key, bool bSkeletal, const FString& MeshName)
 {
 	UWorld* World = GetWorld();
-	const FString Lookup = MeshName.ToLower();
+	FString Lookup = MeshName.ToLower();
+	// Held weapons are WP_<Name>Mesh in the game and imported as WP_<Name>.
+	if (!SkeletalMeshByName.Contains(Lookup) && !StaticMeshByName.Contains(Lookup) && Lookup.EndsWith(TEXT("mesh")))
+	{
+		Lookup.LeftChopInline(4);
+	}
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* Spawn = nullptr;
@@ -628,6 +657,12 @@ void UShockLiveBridge::CaptureFrame()
 	Capture->SetActorLocationAndRotation(Camera->GetActorLocation(), Camera->GetActorRotation());
 	USceneCaptureComponent2D* Comp = Capture->GetCaptureComponent2D();
 	Comp->FOVAngle = Hfov;
+	// A scene capture has its own first-person settings; without them the viewmodel is drawn at the
+	// world FOV in captures only, unlike the visible window.
+	Comp->bEnableFirstPersonFieldOfView = FirstPersonHfov > 0.f;
+	Comp->FirstPersonFieldOfView = FirstPersonHfov > 0.f ? FirstPersonHfov : Hfov;
+	Comp->bEnableFirstPersonScale = true;
+	Comp->FirstPersonScale = 0.2f;
 	ApplyAmbient(Comp->PostProcessSettings);
 	Comp->PostProcessBlendWeight = 1.f;
 	Comp->CaptureScene();

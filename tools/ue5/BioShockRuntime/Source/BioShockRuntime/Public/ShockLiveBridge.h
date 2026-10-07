@@ -120,6 +120,8 @@ private:
 	float LastGameSeconds = 0.f;
 	float Hfov = 90.f;
 	bool bHaveCamera = false;
+	// The viewmodel's horizontal FOV from the C line (0 = none); mirrored onto the capture too.
+	float FirstPersonHfov = 0.f;
 
 	FString CaptureDir;
 	float CaptureEvery = 1.f;

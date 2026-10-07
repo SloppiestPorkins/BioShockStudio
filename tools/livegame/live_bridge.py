@@ -225,6 +225,7 @@ def run(args):
                 hypos += p.u32(st + O_STACK_N) or 0
         return kits, hypos
     O_FOV, O_TIME = off("Engine.PlayerController.DesiredFOV"), off("Engine.LevelInfo.TimeSeconds")
+    O_FGFOV = off("Engine.Controller.ForegroundFovAngle")
     O_REGION = off("Engine.Actor.Region")  # FPointRegion; Zone is its first field
     O_AMB_COL = off("Engine.ZoneInfo.CurrentAmbientColorHigh")
     O_AMB_MUL = off("Engine.ZoneInfo.CurrentAmbientColorHighMultiplier")
@@ -269,6 +270,8 @@ def run(args):
     actor_cls = objs["Engine.Actor"]
     pawn_cls = objs["Engine.Pawn"]
     O_CHEIGHT = off("Engine.Actor.CollisionHeight")
+    O_OWNER = off("Engine.Actor.Owner")
+    first_person = set()  # keys of actors the player owns (hands, held weapon): UE draws them as first person
     is_actor_cache = {}
 
     def derives(cls, base):
@@ -318,6 +321,8 @@ def run(args):
             if not mname:
                 continue
             dyn[o] = ("dyn:" + name, "static" if dt[0] == 8 else "skel", mname)
+            if p.u32(o + O_OWNER) == p.u32(pc + O_PAWN):
+                first_person.add("dyn:" + name)
             if dt[0] == 2 and derives(h["cls"], pawn_cls):
                 pawns.add(o)
         gone = [o for o in dyn if o not in current]
@@ -370,7 +375,10 @@ def run(args):
             fov = struct.unpack("<f", p.read(pc + O_FOV, 4))[0]
             cw, ch = grabber.size() if grabber else (16, 9)
             hfov = math.degrees(2 * math.atan(math.tan(math.radians(fov / 2)) * (cw / max(ch, 1)) / (4 / 3)))
-            lines.append(f"C {x:.2f} {y:.2f} {z + eye:.2f} {deg(cp):.4f} {deg(cy):.4f} {deg(cr):.4f} {hfov:.3f}")
+            # The viewmodel (hands, held weapon) has its own FOV, Controller.ForegroundFovAngle (60 vs the
+            # world's 75): live hand bones projected at it land on the game's drawn hand (7 Oct).
+            fgfov = math.degrees(2 * math.atan(math.tan(math.radians((struct.unpack("<f", p.read(pc + O_FGFOV, 4))[0] or fov) / 2)) * (cw / max(ch, 1)) / (4 / 3)))
+            lines.append(f"C {x:.2f} {y:.2f} {z + eye:.2f} {deg(cp):.4f} {deg(cy):.4f} {deg(cr):.4f} {hfov:.3f} {fgfov:.3f}")
             hp, mhp = struct.unpack("<f", p.read(pawn + O_HP, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXHP, 4))[0]
             eve, meve = struct.unpack("<f", p.read(pawn + O_EVE, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXEVE, 4))[0]
             adam = struct.unpack("<i", p.read(pawn + O_ADAM, 4))[0]
@@ -429,7 +437,7 @@ def run(args):
             next_base = now + 2.0
             lines.append(f"M {level}")
             lines += [b for _, _, b in moving]
-            lines += [f"S {k} {kind} {mesh}" for k, kind, mesh in dyn.values()]
+            lines += [f"S {k} {kind} {mesh}" + (" fp" if k in first_person else "") for k, kind, mesh in dyn.values()]
             last.clear()  # resend every pose after a baseline refresh
         for o, (key, _, _) in list(dyn.items()):
             b = p.read(o + O_LOC, 24)
