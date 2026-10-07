@@ -54,6 +54,7 @@ try
         "export-level" => ExportLevel(root, args),
         "export-level-manifest" => ExportLevelManifest(root, args),
         "export-baked-lightmaps" => ExportBakedLightmaps(root, args),
+        "export-vertex-lighting" => ExportVertexLighting(root, args),
         "export-cubemaps" => ExportCubemaps(root, args),
         "ue5-audit" => Ue5Audit(root, args),
         "characters" => Characters(root, args),
@@ -116,6 +117,8 @@ static int Usage()
                                         writes. For script-graph-only import passes.
           export-baked-lightmaps <map> <out-dir>
                                         RGB baked lightmap PNGs + two-UV glTF of the compiled world.
+          export-vertex-lighting <map> <out.json>
+                                        Per-vertex baked lighting on StaticMeshInstance actors (JSON).
           export-cubemaps <map> <out-dir>
                                         Face PNGs + a probe-only UE5 manifest. Does not assemble
                                         a TextureCube (face order UNKNOWN).
@@ -440,6 +443,25 @@ static int ExportBakedLightmaps(string root, string[] args)
         $"scale={result.Summary.Scale.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)} "
         + $"clip={result.Summary.ClipPercent.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}% "
         + $"atlases={result.Summary.Atlases.Count}");
+    return 0;
+}
+
+static int ExportVertexLighting(string root, string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("usage: export-vertex-lighting <package-or-map-name> <out.json>");
+        return 1;
+    }
+
+    string packageFile = ResolvePackage(root, args[1]);
+    using var package = BioShockPackage.Open(packageFile);
+    var result = VertexLightingExporter.Export(package, args[2]);
+    Console.WriteLine(result.Path);
+    Console.WriteLine(
+        $"scale={result.Summary.Scale.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)} "
+        + $"instances={result.Summary.InstanceCount} lit={result.Summary.LitInstanceCount} "
+        + $"poolBase={result.Summary.PoolBase}");
     return 0;
 }
 
