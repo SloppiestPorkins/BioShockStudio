@@ -28,6 +28,7 @@ from bsobj import World  # noqa: E402
 UE = r"C:/Users/Jack/Documents/BioShockUE5"
 ORIG = r"G:/SteamLibrary/steamapps/common/Bioshock/Builds/Release/UmodelExport"
 SCALES = [4.0, 2.0, 1.0, 0.5, 0.25, 0.125]
+VARIANTS = [(1, 1, False), (1, -1, False), (-1, 1, False), (-1, -1, False), (1, 1, True), (1, -1, True), (-1, 1, True), (-1, -1, True)]
 OUT = os.path.join(os.environ["TEMP"], "uv_fit")
 os.makedirs(OUT, exist_ok=True)
 
@@ -182,7 +183,11 @@ def main():
         shipped = Image.open(path).size[0]
         scores = []
         for s in SCALES:
+          for flip in VARIANTS:
             uv = uvb[mask] * s
+            if flip[2]:
+                uv = uv[:, ::-1]
+            uv = uv * np.array(flip[:2])
             tx = (np.mod(uv[:, 0], 1) * 511).astype(int)
             ty = (np.mod(uv[:, 1], 1) * 511).astype(int)
             pred = np.zeros((h, w))
@@ -190,15 +195,15 @@ def main():
             php = highpass(np.where(mask, pred, pred[mask].mean()))
             a, b = php[mask], ghp[mask]
             r = float(np.corrcoef(a, b)[0, 1]) if a.std() > 0 and b.std() > 0 else 0.0
-            scores.append((r, s))
+            scores.append((r, s, flip))
         scores.sort(reverse=True)
         rows.append({"slot": slot, "material": base, "pixels": n, "orig": orig, "shipped": shipped,
-                     "best": scores[0][1], "r": round(scores[0][0], 3), "second": scores[1][1], "r2": round(scores[1][0], 3)})
+                     "best": scores[0][1], "flip": scores[0][2], "r": round(scores[0][0], 3), "second": scores[1][1], "flip2": scores[1][2], "r2": round(scores[1][0], 3)})
     rows.sort(key=lambda r: -r["pixels"])
     print(f"{level}: eye {eye.round(0)} rot {rot} hfov {hfov:.1f}")
     print(f"{'material':42s} {'px':>6} {'orig':>5} {'ship':>5}  best   r     2nd    r")
     for r in rows:
-        print(f"{r['material'][:42]:42s} {r['pixels']:6d} {str(r['orig']):>5} {r['shipped']:5d}  {r['best']:<5} {r['r']:<5}  {r['second']:<5} {r['r2']}")
+        print(f"{r['material'][:42]:42s} {r['pixels']:6d} {str(r['orig']):>5} {r['shipped']:5d}  {r['best']:<5} {str(r['flip']):18s} {r['r']:<6} {r['second']:<5} {str(r['flip2']):18s} {r['r2']}")
     json.dump(rows, open(os.path.join(OUT, "uv_fit.json"), "w"), indent=1)
     ids = np.zeros((h, w, 3), np.uint8)
     rng = np.random.default_rng(1)

@@ -73,3 +73,4 @@ coverage*.xml
 /tools/ue5/_reports/
 /tools/ue5/_shots/
 tools/ue5/BioShockRuntime/Config/
+native/dxgi_proxy/bin/
