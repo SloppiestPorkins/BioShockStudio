@@ -107,6 +107,9 @@ private:
 	TMap<FName, FTracked> Tracked;
 	UPROPERTY()
 	TMap<FName, TObjectPtr<AActor>> Spawned;
+	// Per skeletal stand-in: the mesh's bones in the game's (Havok) order. The FBX import keeps
+	// SOCKET_* nulls as bones, interleaved; without them the order matches the game exactly.
+	TMap<FName, TArray<FName>> GameBoneOrder;
 	TMap<FString, FSoftObjectPath> StaticMeshByName;
 	TMap<FString, FSoftObjectPath> SkeletalMeshByName;
 	TSet<FString> MissingMeshes;

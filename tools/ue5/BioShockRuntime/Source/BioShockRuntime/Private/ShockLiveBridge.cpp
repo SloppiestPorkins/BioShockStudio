@@ -212,20 +212,37 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		UPoseableMeshComponent* Pose = (Found && Found->Get()) ? Cast<UPoseableMeshComponent>(Found->Get()->GetRootComponent()) : nullptr;
 		if (Pose && Pose->GetSkinnedAsset())
 		{
-			const FReferenceSkeleton& Ref = Pose->GetSkinnedAsset()->GetRefSkeleton();
-			const int32 N = FMath::Min3(FCString::Atoi(*Tok[2]), Ref.GetNum(), (Tok.Num() - 3) / 7);
+			TArray<FName>& Order = GameBoneOrder.FindOrAdd(FName(*Tok[1]));
+			if (Order.IsEmpty())
+			{
+				const FReferenceSkeleton& Ref = Pose->GetSkinnedAsset()->GetRefSkeleton();
+				for (int32 b = 0; b < Ref.GetNum(); ++b)
+				{
+					if (!Ref.GetBoneName(b).ToString().StartsWith(TEXT("SOCKET_")))
+					{
+						Order.Add(Ref.GetBoneName(b));
+					}
+				}
+				const int32 Game = FCString::Atoi(*Tok[2]);
+				if (Game != Order.Num())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_LIVE bones %s: game %d, mesh %d (without sockets)"), *Tok[1], Game, Order.Num());
+				}
+			}
+			const int32 N = FMath::Min3(FCString::Atoi(*Tok[2]), Order.Num(), (Tok.Num() - 3) / 7);
 			for (int32 i = 0; i < N; ++i)
 			{
 				const int32 o = 3 + i * 7;
 				const FVector T(FCString::Atof(*Tok[o]), FCString::Atof(*Tok[o + 1]), FCString::Atof(*Tok[o + 2]));
 				const FQuat Q(FCString::Atof(*Tok[o + 3]), FCString::Atof(*Tok[o + 4]), FCString::Atof(*Tok[o + 5]), FCString::Atof(*Tok[o + 6]));
-				Pose->SetBoneTransformByName(Ref.GetBoneName(i), FTransform(Q.GetNormalized(), T), EBoneSpaces::ComponentSpace);
+				Pose->SetBoneTransformByName(Order[i], FTransform(Q.GetNormalized(), T), EBoneSpaces::ComponentSpace);
 			}
 		}
 	}
 	else if (Op == TEXT("X") && Tok.Num() >= 2)
 	{
 		TObjectPtr<AActor> Gone;
+		GameBoneOrder.Remove(FName(*Tok[1]));
 		if (Spawned.RemoveAndCopyValue(FName(*Tok[1]), Gone) && Gone)
 		{
 			Gone->Destroy();
