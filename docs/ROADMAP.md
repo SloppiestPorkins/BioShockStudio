@@ -147,7 +147,13 @@ E3. **Core result 7 Oct 2026.** The engine caches D3D11 context function pointer
     and skip it. The game keeps simulating, playing audio, and running AI and physics. The class
     layouts already mapped, plus the unofficial SDK (read and cite only), are the guide to finding
     it. **Pass:** the game's GPU time falls to near zero and gameplay is unaffected.
-E4. **The UI through a shared texture.** The game's own HUD, menus, hacking, vending machines, the
+E4. **First cut WORKING 7 Oct 2026.** With the world suppressed, the proxy streams the HUD-only
+    back buffer at <=30 Hz through staging textures into `Local\BioShockLiveHud`; UShockLiveBridge
+    draws it over the viewport with `M_LiveHud` (opacity keyed from brightness) while frames arrive,
+    hiding the rebuilt HUD. Verified side by side: the game's own gauges and captions over UE's
+    world. Next: proper alpha (HUD drawn over a key colour), a zero-copy shared GPU texture, and
+    checking the menus, hacking, vending machines and map.
+    Original plan: **The UI through a shared texture.** The game's own HUD, menus, hacking, vending machines, the
     map, subtitles and Bink videos render into an offscreen texture, shared with UE5 through a D3D
     shared handle and composited on top. Every UI screen works with full fidelity on day one;
     native UMG replacements come later, one screen at a time, where worth it. **Pass:** every
