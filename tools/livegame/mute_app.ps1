@@ -1,5 +1,6 @@
-param([string]$ProcessName = 'BioshockHD', [int]$Seconds = 1800)
+param([string]$ProcessName = 'BioshockHD', [int]$Seconds = 1800, [switch]$Unmute)
 # Keep every audio session belonging to $ProcessName muted (Windows per-app mute, Core Audio COM).
+# The mute outlives this script; -Unmute clears it once and exits.
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -17,7 +18,7 @@ interface IAudioSessionControl2 { int a(); int b(); int c(); int d(); int e(); i
 [Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface ISimpleAudioVolume { int SetMasterVolume(float v, ref Guid g); int GetMasterVolume(out float v); int SetMute(bool m, ref Guid g); int GetMute(out bool m); }
 public static class AppMute {
-  public static int Mute(uint[] pids) {
+  public static int Mute(uint[] pids, bool on) {
     var en = (IMMDeviceEnumerator)(new MMDeviceEnumerator()); IMMDevice dev; en.GetDefaultAudioEndpoint(0, 1, out dev);
     Guid iid = typeof(IAudioSessionManager2).GUID; object o; dev.Activate(ref iid, 23, IntPtr.Zero, out o);
     var mgr = (IAudioSessionManager2)o; IAudioSessionEnumerator se; mgr.GetSessionEnumerator(out se);
@@ -25,15 +26,19 @@ public static class AppMute {
     for (int i = 0; i < n; i++) {
       IAudioSessionControl2 s; se.GetSession(i, out s); uint pid; s.GetProcessId(out pid);
       if (Array.IndexOf(pids, pid) < 0) continue;
-      var v = (ISimpleAudioVolume)s; bool m; v.GetMute(out m); if (!m) v.SetMute(true, ref g); muted++;
+      var v = (ISimpleAudioVolume)s; bool m; v.GetMute(out m); if (m != on) v.SetMute(on, ref g); muted++;
     }
     return muted;
   }
 }
 "@
+if ($Unmute) {
+  $pids = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | ForEach-Object { [uint32]$_.Id })
+  if ($pids.Count) { Write-Output "unmuted sessions: $([AppMute]::Mute($pids, $false))" }; return
+}
 $deadline = (Get-Date).AddSeconds($Seconds); $last = -1
 while ((Get-Date) -lt $deadline) {
   $pids = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | ForEach-Object { [uint32]$_.Id })
-  if ($pids.Count) { $n = [AppMute]::Mute($pids); if ($n -ne $last) { Write-Output "muted sessions: $n"; $last = $n } }
+  if ($pids.Count) { $n = [AppMute]::Mute($pids, $true); if ($n -ne $last) { Write-Output "muted sessions: $n"; $last = $n } }
   Start-Sleep -Milliseconds 250
 }
