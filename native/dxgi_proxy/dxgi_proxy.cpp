@@ -239,6 +239,8 @@ typedef void(STDMETHODCALLTYPE* DrawIndexedInstancedFn)(ID3D11DeviceContext*, UI
 typedef void(STDMETHODCALLTYPE* DrawInstancedFn)(ID3D11DeviceContext*, UINT, UINT, UINT, UINT);
 typedef void(STDMETHODCALLTYPE* ClearRTFn)(ID3D11DeviceContext*, ID3D11RenderTargetView*, const FLOAT[4]);
 typedef void(STDMETHODCALLTYPE* CopyResourceFn)(ID3D11DeviceContext*, ID3D11Resource*, ID3D11Resource*);
+typedef void(STDMETHODCALLTYPE* ExecuteFn)(ID3D11DeviceContext*, ID3D11CommandList*, BOOL);
+typedef void(STDMETHODCALLTYPE* ClearDsvFn)(ID3D11DeviceContext*, ID3D11DepthStencilView*, UINT, FLOAT, UINT8);
 static OMSetRTFn o_omset;
 static DrawIndexedFn o_drawIndexed;
 static DrawFn o_draw;
@@ -246,6 +248,9 @@ static DrawIndexedInstancedFn o_drawIndexedInstanced;
 static DrawInstancedFn o_drawInstanced;
 static ClearRTFn o_clear;
 static CopyResourceFn o_copy;
+static ExecuteFn o_execute;
+static ClearDsvFn o_clearDsv;
+static int g_lists;
 
 static void STDMETHODCALLTYPE OMSet(ID3D11DeviceContext* c, UINT n, ID3D11RenderTargetView* const* rtvs, ID3D11DepthStencilView* dsv)
 {
@@ -287,6 +292,23 @@ static void STDMETHODCALLTYPE Copy(ID3D11DeviceContext* c, ID3D11Resource* dst, 
     o_copy(c, dst, src);
 }
 
+static void STDMETHODCALLTYPE Execute(ID3D11DeviceContext* c, ID3D11CommandList* list, BOOL restore)
+{
+    if (g_active)
+    {
+        Flush();
+        char line[96];
+        sprintf_s(line, "  execute command list %p (#%d)\n", (void*)list, ++g_lists);
+        g_buf += line;
+    }
+    o_execute(c, list, restore);
+}
+static void STDMETHODCALLTYPE ClearDsv(ID3D11DeviceContext* c, ID3D11DepthStencilView* dsv, UINT flags, FLOAT d, UINT8 st)
+{
+    if (g_active) { Flush(); g_buf += "  clear depth\n"; }
+    o_clearDsv(c, dsv, flags, d, st);
+}
+
 static void Install(IDXGISwapChain* chain);
 }  // namespace trace
 
@@ -324,6 +346,7 @@ static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, 
                 bb->Release();  // keep the pointer for identity only
             }
             trace::g_buf.clear();
+            trace::g_lists = 0;
             trace::g_active = 1;
         }
     }
@@ -350,6 +373,9 @@ void trace::Install(IDXGISwapChain* chain)
     o_omset = reinterpret_cast<OMSetRTFn>(HookSlot(ctx, 33, reinterpret_cast<void*>(&OMSet)));
     o_copy = reinterpret_cast<CopyResourceFn>(HookSlot(ctx, 47, reinterpret_cast<void*>(&Copy)));
     o_clear = reinterpret_cast<ClearRTFn>(HookSlot(ctx, 50, reinterpret_cast<void*>(&Clear)));
+    o_clearDsv = reinterpret_cast<ClearDsvFn>(HookSlot(ctx, 53, reinterpret_cast<void*>(&ClearDsv)));
+    o_execute = reinterpret_cast<ExecuteFn>(HookSlot(ctx, 58, reinterpret_cast<void*>(&Execute)));
+    Log("context type %d (0 immediate)", int(ctx->GetType()));
     ctx->Release();
     done = o_draw && o_omset;
     Log("device context hooked for frame traces (%s)", done ? "ok" : "FAILED");

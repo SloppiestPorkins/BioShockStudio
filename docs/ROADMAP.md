@@ -136,7 +136,13 @@ E2. **WORKING 7 Oct 2026** (first cut). The bridge lists memory regions in the s
     ambient) to a shared-memory ring that UE5 reads. This replaces memory polling and UDP, keeping
     the same message semantics so Track R code is untouched. **Pass:** no torn frames, and
     game-to-UE latency of at most one frame, measured.
-E3. **Stop the original drawing the world.** Hook the engine's world-render call (below the HUD)
+E3. **In progress 7 Oct 2026.** A one-frame D3D11 trace from the proxy (`%TEMP%\bioshock-trace-request`)
+    shows the world drawn at 2560x1440 into an R11G11B10 HDR target and the back buffer, 1024²
+    R32F targets (likely shadow maps) and 640x360 targets (likely bloom). No command lists are
+    executed. But vtable hooks installed after startup see only ~260 draws and ~230 target switches
+    per frame, with no clears, so the engine likely caches context function pointers. Next: inline
+    hooks on the D3D11 functions themselves (or hook earlier, at device creation).
+    Original plan: **Stop the original drawing the world.** Hook the engine's world-render call (below the HUD)
     and skip it. The game keeps simulating, playing audio, and running AI and physics. The class
     layouts already mapped, plus the unofficial SDK (read and cite only), are the guide to finding
     it. **Pass:** the game's GPU time falls to near zero and gameplay is unaffected.
