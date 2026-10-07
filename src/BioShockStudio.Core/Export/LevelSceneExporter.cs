@@ -764,35 +764,54 @@ public static class LevelSceneExporter
         var seenMaterials = new HashSet<Level.SourceId>();
         var seenTextures = new HashSet<string>(StringComparer.Ordinal);
 
+        void Resolve(Level.SourceId id)
+        {
+            if (!seenMaterials.Add(id)) return;
+            if (id.ExportIndex >= package.Exports.Count) return;
+
+            var resolved = MaterialExporter.ResolveMaterial(package, package.Exports[id.ExportIndex], directory, bulk);
+            if (resolved is null) return;
+            materials.Add((id, resolved));
+
+            foreach (var (slot, file) in resolved.Textures)
+            {
+                if (!resolved.TextureIntents.TryGetValue(slot, out var intent)) continue;
+                if (!seenTextures.Add(resolved.Name + "|" + slot)) continue;
+
+                textures.Add(new FbxTextureEntry
+                {
+                    File = file,
+                    Slot = slot,
+                    Material = resolved.Name,
+                    Usage = intent.Usage.ToString(),
+                    ColourSpace = intent.ColourSpace.ToString(),
+                    AddressU = intent.AddressU.ToString(),
+                    AddressV = intent.AddressV.ToString(),
+                    DeclaresMasked = intent.DeclaresMasked,
+                    DeclaresAlphaTexture = intent.DeclaresAlphaTexture,
+                });
+            }
+        }
+
         foreach (var group in scene.Instances.GroupBy(i => i.Asset))
         {
             foreach (var materialId in group.First().Materials)
             {
-                if (materialId is not { } id || !seenMaterials.Add(id)) continue;
-                if (id.ExportIndex >= package.Exports.Count) continue;
+                if (materialId is { } id) Resolve(id);
+            }
+        }
 
-                var resolved = MaterialExporter.ResolveMaterial(package, package.Exports[id.ExportIndex], directory, bulk);
-                if (resolved is null) continue;
-                materials.Add((id, resolved));
-
-                foreach (var (slot, file) in resolved.Textures)
-                {
-                    if (!resolved.TextureIntents.TryGetValue(slot, out var intent)) continue;
-                    if (!seenTextures.Add(resolved.Name + "|" + slot)) continue;
-
-                    textures.Add(new FbxTextureEntry
-                    {
-                        File = file,
-                        Slot = slot,
-                        Material = resolved.Name,
-                        Usage = intent.Usage.ToString(),
-                        ColourSpace = intent.ColourSpace.ToString(),
-                        AddressU = intent.AddressU.ToString(),
-                        AddressV = intent.AddressV.ToString(),
-                        DeclaresMasked = intent.DeclaresMasked,
-                        DeclaresAlphaTexture = intent.DeclaresAlphaTexture,
-                    });
-                }
+        // An actor's Skins replace its mesh's materials slot by slot. Those materials are often
+        // referenced by nothing else (posters, ad variants, puddle decals: 322 override slots in
+        // 1-Medical on 7 Oct 2026), so without this they never reached the manifest and the UE
+        // side had no instance to apply.
+        foreach (var actor in scene.Actors)
+        {
+            foreach (var skin in actor.MaterialOverrides)
+            {
+                // Same package only: the export index must index this package's export table.
+                if (skin.Source is { } id && string.Equals(id.Package, actor.Source.Package, StringComparison.OrdinalIgnoreCase))
+                    Resolve(id);
             }
         }
 

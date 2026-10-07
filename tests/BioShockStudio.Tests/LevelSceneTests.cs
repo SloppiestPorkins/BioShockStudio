@@ -843,6 +843,21 @@ public sealed class LevelSceneTests(GameFixture game)
             Assert.All(sectionKeys, key => Assert.True(byKey.ContainsKey(key!),
                 $"section names material '{key}' but no such key is in document.Materials"));
 
+            // Materials named only by an actor's Skins (poster and ad variants, puddle decals) must
+            // be exported too, or the UE side has nothing to apply. Until 7 Oct 2026 they were
+            // missing: Steinman's waiting-room poster showed another ad's art in the live view.
+            var overrideNames = scene.Actors.SelectMany(a => a.MaterialOverrides)
+                .Where(s => s.Source is { } id && id.Package == scene.PackageName
+                            && id.ClassName is "Shader" or "Material" or "FinalBlend" or "Combiner")
+                .Select(s => s.Source!.Value.ObjectName)
+                .Distinct(StringComparer.Ordinal).ToList();
+            var exportedNames = document.Materials.Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
+            int covered = overrideNames.Count(exportedNames.Contains);
+            Log($"override-only materials exported {covered}/{overrideNames.Count}");
+            Assert.Contains("stienman_ad3_shader", exportedNames);
+            Assert.True(covered >= overrideNames.Count * 0.9,
+                $"only {covered} of {overrideNames.Count} Skins materials reached the manifest");
+
             // Every texture path a material or an FbxTextureEntry names must exist where written —
             // "the manifest says a PNG is there" is not evidence the PNG is there.
             foreach (var material in document.Materials)

@@ -71,7 +71,19 @@ void UShockLiveBridge::OnWorldBeginPlay(UWorld& InWorld)
 			const FString S = Tag.ToString();
 			if (S.StartsWith(KeyTagPrefix))
 			{
-				FTracked& T = Tracked.Add(FName(*S.Mid(FCString::Strlen(KeyTagPrefix))));
+				FString Key = S.Mid(FCString::Strlen(KeyTagPrefix));
+				// Props placed from manifest `instances` are tagged instance:<actorKey>:<asset>; the
+				// game side streams by actorKey. Missing this was the "404 unknown keys".
+				if (Key.StartsWith(TEXT("instance:")))
+				{
+					Key = Key.Mid(9);
+					int32 Colon = INDEX_NONE;
+					if (Key.FindChar(TEXT(':'), Colon))
+					{
+						Key = Key.Left(Colon);
+					}
+				}
+				FTracked& T = Tracked.Add(FName(*Key));
 				T.Actor = *It;
 				T.UeLoc0 = It->GetActorLocation();
 				T.UeRot0 = It->GetActorQuat();
