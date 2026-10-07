@@ -379,6 +379,89 @@ static void Install(IDXGISwapChain* chain);
 typedef HRESULT(STDMETHODCALLTYPE* PresentFn)(IDXGISwapChain*, UINT, UINT);
 static PresentFn g_present;
 
+// ---- E4 first cut: the game's HUD to UE through shared memory ------------------------------
+// While the world is suppressed the back buffer holds only the HUD on black. At most 30 times a
+// second it is copied to one of three staging textures; the oldest one is mapped (no stall) and
+// its pixels written to Local\BioShockLiveHud: header {magic, width, height, pitch, frame, seq}
+// then height*pitch bytes of R8G8B8A8.
+namespace hud
+{
+const DWORD kMagic = 0x48554431;  // 'HUD1'
+const DWORD kMax = 3840 * 2160 * 4;
+#pragma pack(push, 4)
+struct Header { DWORD magic, width, height, pitch; volatile LONG frame, seq; DWORD reserved[10]; };
+#pragma pack(pop)
+static HANDLE g_map;
+static BYTE* g_view;
+static ID3D11Texture2D* g_staging[3];
+static int g_next, g_filled;
+static LARGE_INTEGER g_last;
+
+static void Share(IDXGISwapChain* chain, LONG frame)
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (g_last.QuadPart && double(now.QuadPart - g_last.QuadPart) / double(g_freq.QuadPart) < 1.0 / 30) return;
+    g_last = now;
+    ID3D11Texture2D* bb = nullptr;
+    if (FAILED(chain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&bb))) || !bb) return;
+    D3D11_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    ID3D11Device* dev = nullptr;
+    bb->GetDevice(&dev);
+    ID3D11DeviceContext* ctx = nullptr;
+    dev->GetImmediateContext(&ctx);
+    if (!g_staging[0])
+    {
+        D3D11_TEXTURE2D_DESC sd = d;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.BindFlags = 0;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        sd.MiscFlags = 0;
+        sd.SampleDesc.Count = 1;
+        sd.SampleDesc.Quality = 0;
+        for (auto& t : g_staging) dev->CreateTexture2D(&sd, nullptr, &t);
+        g_map = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(Header) + kMax, "Local\\BioShockLiveHud");
+        g_view = g_map ? static_cast<BYTE*>(MapViewOfFile(g_map, FILE_MAP_ALL_ACCESS, 0, 0, 0)) : nullptr;
+        Log("HUD share %ux%u fmt%u: %s", d.Width, d.Height, d.Format, g_view && g_staging[2] ? "ready" : "FAILED");
+    }
+    if (g_view && g_staging[2] && d.SampleDesc.Count == 1)
+    {
+        ctx->CopyResource(g_staging[g_next], bb);
+        g_next = (g_next + 1) % 3;
+        if (++g_filled >= 3)
+        {
+            ID3D11Texture2D* ready = g_staging[g_next];  // written two shares ago
+            D3D11_MAPPED_SUBRESOURCE m;
+            // Copied two shares (~66 ms) ago, so a blocking Map returns at once in practice.
+            const HRESULT mr = ctx->Map(ready, 0, D3D11_MAP_READ, 0, &m);
+            static int logged;
+            if (logged < 3) { ++logged; Log("HUD map -> 0x%08lx", mr); }
+            if (SUCCEEDED(mr))
+            {
+                Header* h = reinterpret_cast<Header*>(g_view);
+                const DWORD bytes = m.RowPitch * d.Height;
+                if (bytes <= kMax)
+                {
+                    InterlockedIncrement(&h->seq);  // odd: writing
+                    memcpy(g_view + sizeof(Header), m.pData, bytes);
+                    h->width = d.Width;
+                    h->height = d.Height;
+                    h->pitch = m.RowPitch;
+                    h->frame = frame;
+                    h->magic = kMagic;
+                    InterlockedIncrement(&h->seq);  // even: complete
+                }
+                ctx->Unmap(ready, 0);
+            }
+        }
+    }
+    ctx->Release();
+    dev->Release();
+    bb->Release();
+}
+}  // namespace hud
+
 static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     const LONG n = InterlockedIncrement(&g_frames);
@@ -443,6 +526,7 @@ static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* self, UINT sync, 
     }
     if (n <= 3 || n % 3600 == 0) Log("frame %ld (present thread %lu, main thread %lu)", n, GetCurrentThreadId(), g_mainThread);
     snap::Take(n);
+    if (trace::g_skip & (1u << trace::kHdr)) hud::Share(self, n);
     return g_present(self, sync, flags);
 }
 
