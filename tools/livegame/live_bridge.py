@@ -165,6 +165,8 @@ def main():
     O_FLAGS = off("Engine.Actor.bHidden")
     HIDDEN_MASK = p.u32(objs["Engine.Actor.bHidden"] + 0x9C)
     O_PAWN, O_EYE = off("Engine.Controller.Pawn"), off("Engine.Pawn.EyeHeight")
+    O_HP, O_MAXHP = off("Engine.Pawn.Health"), off("ShockGame.ShockPawn.MaxHealth")
+    O_EVE, O_MAXEVE, O_ADAM = off("ShockGame.ShockPlayer.BioAmmo"), off("ShockGame.ShockPlayer.MaxBioAmmo"), off("ShockGame.ShockPlayer.ADAM")
     O_FOV, O_TIME = off("Engine.PlayerController.DesiredFOV"), off("Engine.LevelInfo.TimeSeconds")
     O_REGION = off("Engine.Actor.Region")  # FPointRegion; Zone is its first field
     O_AMB_COL = off("Engine.ZoneInfo.CurrentAmbientColorHigh")
@@ -305,6 +307,10 @@ def main():
             cw, ch = grabber.size() if grabber else (16, 9)
             hfov = math.degrees(2 * math.atan(math.tan(math.radians(fov / 2)) * (cw / max(ch, 1)) / (4 / 3)))
             lines.append(f"C {x:.2f} {y:.2f} {z + eye:.2f} {deg(cp):.4f} {deg(cy):.4f} {deg(cr):.4f} {hfov:.3f}")
+            hp, mhp = struct.unpack("<f", p.read(pawn + O_HP, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXHP, 4))[0]
+            eve, meve = struct.unpack("<f", p.read(pawn + O_EVE, 4))[0], struct.unpack("<f", p.read(pawn + O_MAXEVE, 4))[0]
+            adam = struct.unpack("<i", p.read(pawn + O_ADAM, 4))[0]
+            lines.append(f"H {hp:.1f} {mhp:.1f} {eve:.1f} {meve:.1f} {adam}")
             zone = p.u32(pawn + O_REGION)
             if zone:
                 b_, g_, r_, _ = p.read(zone + O_AMB_COL, 4)

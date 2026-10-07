@@ -24,6 +24,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
+#include "ShockHudWidget.h"
+#include "ShockPlayer.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 
@@ -227,6 +229,10 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 			Gone->Destroy();
 		}
 	}
+	else if (Op == TEXT("H") && Tok.Num() >= 6)
+	{
+		UpdateHud(Tok);
+	}
 	else if (Op == TEXT("L") && Tok.Num() >= 2)
 	{
 		SetBakedExposure(FCString::Atof(*Tok[1]));
@@ -361,6 +367,46 @@ void UShockLiveBridge::Tick(float DeltaTime)
 		bActive = false;
 		FGenericPlatformMisc::RequestExit(false);
 	}
+}
+
+void UShockLiveBridge::UpdateHud(const TArray<FString>& Tok)
+{
+	UWorld* World = GetWorld();
+	if (!Hud)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		if (!PC)
+		{
+			return;
+		}
+		// A hidden, inert stand-in carries the game's stats for the existing HUD widget, which reads
+		// them from an AShockPlayer.
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		HudPlayer = World->SpawnActor<AShockPlayer>(FVector(0, 0, -200000), FRotator::ZeroRotator, Params);
+		if (!HudPlayer)
+		{
+			return;
+		}
+		HudPlayer->SetActorHiddenInGame(true);
+		HudPlayer->SetActorEnableCollision(false);
+		HudPlayer->SetActorTickEnabled(false);
+		Hud = CreateWidget<UShockHudWidget>(PC, UShockHudWidget::StaticClass());
+		if (!Hud)
+		{
+			return;
+		}
+		Hud->BindDisplayPlayer(HudPlayer);
+		Hud->AddToViewport();
+		UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE hud attached"));
+	}
+	const float Health = FCString::Atof(*Tok[1]);
+	HudPlayer->AuthoredMaxHealth = FMath::Max(FCString::Atof(*Tok[2]), 1.0f);
+	HudPlayer->SetCurrentHealthForVerify(Health);
+	HudPlayer->MaxEve = FMath::Max(FCString::Atof(*Tok[4]), 1.0f);
+	HudPlayer->SetCurrentEveForVerify(FCString::Atof(*Tok[3]));
+	HudPlayer->PlayerAdam = FCString::Atoi(*Tok[5]);
+	Hud->RefreshDisplayNow();
 }
 
 void UShockLiveBridge::BuildMeshIndex()

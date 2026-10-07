@@ -10,6 +10,8 @@ class ASceneCapture2D;
 class UTextureRenderTarget2D;
 class UTextureCube;
 class UMaterialInstanceDynamic;
+class AShockPlayer;
+class UShockHudWidget;
 struct FPostProcessSettings;
 
 /**
@@ -27,6 +29,8 @@ struct FPostProcessSettings;
  *   X key                                      the game destroyed it
  *   P key n (tx ty tz qx qy qz qw) x n         a skeletal stand-in's bones, component space, in
  *                                              the game's (= the imported rig's) bone order
+ *   H health maxHealth eve maxEve adam         the player's stats, shown on the runtime HUD widget
+ *                                              (the game's own HUD is underneath the overlay)
  *   Z r g b intensity                          the player's zone ambient (BioShock ZoneInfo
  *                                              CurrentAmbientColorHigh x multiplier), applied as a
  *                                              post-process ambient cubemap on the view
@@ -92,6 +96,12 @@ private:
 
 	FLinearColor AmbientTint = FLinearColor::Black;
 	float AmbientIntensity = -1.f;  // < 0: not driven yet
+
+	UPROPERTY()
+	TObjectPtr<AShockPlayer> HudPlayer;
+	UPROPERTY()
+	TObjectPtr<UShockHudWidget> Hud;
+	void UpdateHud(const TArray<FString>& Tok);
 
 	TMap<FName, FTracked> Tracked;
 	UPROPERTY()
