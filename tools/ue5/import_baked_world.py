@@ -226,6 +226,22 @@ def _import_lightmap(png):
     return tex
 
 
+def _invisible_material():
+    """/Game/BioShockLive/M_BakedInvisible: masked, opacity mask 0 - draws nothing."""
+    path = "/Game/BioShockLive/M_BakedInvisible"
+    if eal.does_asset_exist(path):
+        return eal.load_asset(path)
+    lib = unreal.MaterialEditingLibrary
+    mat = assets.create_asset("M_BakedInvisible", "/Game/BioShockLive", unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    zero = lib.create_material_expression(mat, unreal.MaterialExpressionConstant, -300, 0)
+    zero.set_editor_property("r", 0.0)
+    lib.connect_material_property(zero, "", unreal.MaterialProperty.MP_OPACITY_MASK)
+    lib.recompile_material(mat)
+    eal.save_asset(path)
+    return mat
+
+
 def _instance(master, label, base_tex, lm_tex, scale):
     name = "MI_Baked_%s" % label
     path = "%s/%s" % (DEST, name)
@@ -388,9 +404,19 @@ def main():
     master = _ensure_master(_import_lightmap(pngs[0]) if pngs else None)
     mesh, slots = _import_mesh(os.path.join(DIR, gltfs[0]), model_name)
 
-    report = {"slots": len(slots), "lightmaps": {}, "missingBaseColor": []}
+    report = {"slots": len(slots), "lightmaps": {}, "missingBaseColor": [], "hiddenSlots": []}
     lm_cache = {}
+    invisible = None
     for i, (slot, extras) in enumerate(slots):
+        # Surfaces with no material, and zoning-only brushes, are never drawn by the game (portals,
+        # zone boundaries); rendered with a default texture they showed as a blue grid on Medical's
+        # walls and ceilings (7 Oct 2026). Hide them.
+        mat_name = extras.get("material")
+        if not mat_name or mat_name == "ZoningOnlyBrushMaterial":
+            invisible = invisible or _invisible_material()
+            mesh.set_material(i, invisible)
+            report["hiddenSlots"].append(slot)
+            continue
         atlas = extras.get("bakedAtlas")
         lm = None
         scale = SCALE_MULT
