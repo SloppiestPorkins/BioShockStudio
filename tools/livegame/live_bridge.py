@@ -18,7 +18,24 @@ import time
 
 from bsobj import World
 
-MANIFEST = r"C:\Users\Jack\Documents\BioShockUE5\Exports\slice\1-Medical\1-Medical.ue5-level.json"
+EXPORTS = "C:/Users/Jack/Documents/BioShockUE5/Exports"
+
+
+def manifest_for(level):
+    """The level's export from tools/livegame/prepare_map.sh, else (Medical) the slice export."""
+    for path in (os.path.join(EXPORTS, "live", level, level, level + ".ue5-level.json"),
+                 os.path.join(EXPORTS, "slice", level, level + ".ue5-level.json")):
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def current_level(w, objs):
+    """The loaded map package: the one owning a LevelInfo0 that is not the Entry level."""
+    for name in objs:
+        if name.endswith(".LevelInfo0") and name.count(".") == 1 and not name.startswith("Entry."):
+            return name.split(".")[0]
+    return None
 ROT = 360.0 / 65536.0
 BSTATIC_MASK = 0x20  # Engine.Actor.bStatic bit in the dword at bHidden's offset (BoolProperty +0x9C)
 
@@ -129,7 +146,7 @@ class Overlay:
         return True
 
 
-def main():
+def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=7781)
     ap.add_argument("--hz", type=float, default=30)
@@ -155,8 +172,20 @@ def main():
     ap.add_argument("--camera-target", default="",
                     help="debug: frame this spawned actor (e.g. dyn:SpawnedRangedAggressorPistol0) instead of following the player")
     ap.add_argument("--ambient-tint", default="", help="override r,g,b (0-1) instead of the zone colour (calibration)")
-    args = ap.parse_args()
+    return ap.parse_args()
 
+
+def main():
+    args = parse_args()
+    end = time.perf_counter() + args.seconds
+    while True:
+        args.seconds = end - time.perf_counter()
+        if args.seconds <= 1 or run(args) != "level-changed":
+            break
+
+
+def run(args):
+    """One session on one level; returns "level-changed" when the game travels."""
     w = World()
     p = w.p
     objs = {w.full_name(o): o for o in w.obj_ptrs if o}
@@ -204,8 +233,14 @@ def main():
     sweep_log = []
     printed_amb = set()
 
-    level = "1-Medical"
-    manifest = json.load(open(MANIFEST, encoding="utf-8"))
+    level = current_level(w, objs)
+    mpath = manifest_for(level) if level else None
+    if not mpath:
+        print(f"no export for level {level!r} - run tools/livegame/prepare_map.sh {level}; waiting", flush=True)
+        time.sleep(3)
+        return "level-changed"
+    print(f"level {level}: {mpath}", flush=True)
+    manifest = json.load(open(mpath, encoding="utf-8"))
     by_name = {a["name"]: a for a in manifest["actors"]}
     pc = objs[f"{level}.ShockPlayerController0"]
     li = objs[f"{level}.LevelInfo0"]
@@ -385,8 +420,14 @@ def main():
         if now >= next_discover:
             next_discover = now + 1.0
             lines += discover()
+        if frame % 30 == 0:
+            hdr = w.header(li)
+            if not hdr or w._fname(hdr) != "LevelInfo0" or w.obj_name(hdr["outer"]) != level:
+                print(f"level {level} unloaded - re-attaching", flush=True)
+                return "level-changed"
         if now >= next_base:
             next_base = now + 2.0
+            lines.append(f"M {level}")
             lines += [b for _, _, b in moving]
             lines += [f"S {k} {kind} {mesh}" for k, kind, mesh in dyn.values()]
             last.clear()  # resend every pose after a baseline refresh

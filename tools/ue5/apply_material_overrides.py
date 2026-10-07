@@ -18,18 +18,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 import unreal
 
-MAP = os.environ.get("BIOSHOCK_OVERRIDE_MAP", "/Game/BioShockLive/1-Medical_Baked")
-MI_DIRS = ["/Game/BioShockLevel/1-Medical/Materials", "/Game/BioShockSlice/Content/1-Medical/Materials",
-           "/Game/BioShockSlice/Content/Meshes/PropMat"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import live_paths  # noqa: E402
+
+MAP = os.environ.get("BIOSHOCK_OVERRIDE_MAP") or live_paths.live_map()
+MI_DIRS = live_paths.mi_dirs()
 KEY_TAG = "BioShockKey="
 
 
 def main():
-    manifest_path = os.environ.get("BIOSHOCK_LEVEL_JSON") or os.path.join(
-        os.path.dirname(unreal.Paths.get_project_file_path()), "Exports", "slice", "1-Medical", "1-Medical.ue5-level.json")
+    manifest_path = os.environ.get("BIOSHOCK_LEVEL_JSON") or live_paths.level_json()
     with open(manifest_path, encoding="utf-8") as fh:
         manifest = json.load(fh)
     overrides = {a["key"]: a["materialOverrides"] for a in manifest["actors"] if a.get("materialOverrides")}

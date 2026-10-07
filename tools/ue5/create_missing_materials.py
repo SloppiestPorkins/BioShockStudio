@@ -23,16 +23,14 @@ import unreal
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import import_level  # noqa: E402
+import live_paths  # noqa: E402
 
-DEST = os.environ.get("BIOSHOCK_MAT_DEST", "/Game/BioShockLevel/1-Medical")
-MI_DIRS = ["/Game/BioShockLevel/1-Medical/Materials", "/Game/BioShockSlice/Content/1-Medical/Materials",
-           "/Game/BioShockSlice/Content/Meshes/PropMat"]
+DEST = os.environ.get("BIOSHOCK_MAT_DEST") or live_paths.material_dest()
+MI_DIRS = live_paths.mi_dirs()
 
 
 def main():
-    path = os.environ.get("BIOSHOCK_LEVEL_JSON") or os.path.join(
-        os.path.dirname(unreal.Paths.get_project_file_path()), "Exports", "live", "1-Medical", "1-Medical",
-        "1-Medical.ue5-level.json")
+    path = os.environ.get("BIOSHOCK_LEVEL_JSON") or live_paths.level_json()
     with open(path, encoding="utf-8") as fh:
         manifest = json.load(fh)
 

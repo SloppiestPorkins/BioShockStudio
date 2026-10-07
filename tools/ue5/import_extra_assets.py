@@ -28,14 +28,14 @@ import unreal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import import_bioshock  # noqa: E402
 import import_level  # noqa: E402
+import live_paths  # noqa: E402
 
 DIR = os.environ["BIOSHOCK_EXTRA_DIR"]
 MANIFEST = os.environ["BIOSHOCK_EXTRA_MANIFEST"]
 NAMES = [n.strip() for n in os.environ["BIOSHOCK_EXTRA_NAMES"].split(",") if n.strip()]
 STATIC_DEST = "/Game/BioShockLive/ExtraMeshes"
 CHAR_ROOT = "/Game/BioShockCharacters"
-MI_DIRS = ["/Game/BioShockLevel/1-Medical/Materials", "/Game/BioShockSlice/Content/1-Medical/Materials",
-           "/Game/BioShockSlice/Content/Meshes/PropMat"]
+MI_DIRS = live_paths.mi_dirs()
 eal = unreal.EditorAssetLibrary
 
 

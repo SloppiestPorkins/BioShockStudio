@@ -20,7 +20,9 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "Misc/PackageName.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
@@ -227,6 +229,26 @@ void UShockLiveBridge::ApplyLine(const TArray<FString>& Tok)
 		if (Spawned.RemoveAndCopyValue(FName(*Tok[1]), Gone) && Gone)
 		{
 			Gone->Destroy();
+		}
+	}
+	else if (Op == TEXT("M") && Tok.Num() >= 2)
+	{
+		// The game is on level Tok[1]: show its prepared live copy (tools/livegame/prepare_map.sh).
+		const FString LiveMap = FString::Printf(TEXT("/Game/BioShockLive/%s_Baked"), *Tok[1]);
+		UWorld* World = GetWorld();
+		if (World && !bTravelling && World->GetMapName() != FPackageName::GetShortName(LiveMap))
+		{
+			if (FPackageName::DoesPackageExist(LiveMap))
+			{
+				UE_LOG(LogTemp, Display, TEXT("BIOSHOCK_LIVE level %s -> opening %s"), *Tok[1], *LiveMap);
+				bTravelling = true;
+				UGameplayStatics::OpenLevel(World, FName(*LiveMap), true, TEXT("game=/Script/Engine.GameModeBase"));
+			}
+			else if (!MissingLevels.Contains(Tok[1]))
+			{
+				MissingLevels.Add(Tok[1]);
+				UE_LOG(LogTemp, Warning, TEXT("BIOSHOCK_LIVE level %s has no live copy (%s) - run prepare_map.sh"), *Tok[1], *LiveMap);
+			}
 		}
 	}
 	else if (Op == TEXT("H") && Tok.Num() >= 6)

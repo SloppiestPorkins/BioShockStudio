@@ -28,14 +28,18 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import struct
 
 import unreal
 
-DIR = os.environ["BIOSHOCK_BAKED_DIR"]
-MAP = os.environ.get("BIOSHOCK_BAKED_MAP", "/Game/BioShockLive/1-Medical_Baked")
-FROM = os.environ.get("BIOSHOCK_BAKED_FROM", "/Game/BioShockSlice/1-Medical")
-DEST = os.environ.get("BIOSHOCK_BAKED_DEST", "/Game/BioShockLive/BakedWorld/1-Medical")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import live_paths  # noqa: E402
+
+DIR = os.environ.get("BIOSHOCK_BAKED_DIR") or live_paths.baked_dir()
+MAP = os.environ.get("BIOSHOCK_BAKED_MAP") or live_paths.live_map()
+FROM = os.environ.get("BIOSHOCK_BAKED_FROM") or live_paths.source_map()
+DEST = os.environ.get("BIOSHOCK_BAKED_DEST") or live_paths.baked_world_dest()
 SCALE_MULT = float(os.environ.get("BIOSHOCK_BAKED_SCALE", "1"))
 # 1: lightmap UV in channel 0 and material UV in channel 1. The rendered UV1 came out wrong although
 # the mesh description held it (6 Oct 2026); UV0 is known to render.
@@ -44,7 +48,7 @@ MASTER = "/Game/BioShockLive/M_BioShock_BakedWorld"
 # Global multiplier the live bridge drives at runtime ("L <value>" -> BakedExposure): the slice pins a
 # manual exposure tuned for its dynamic lights, so the right emissive level is found by measurement.
 MPC = "/Game/BioShockLive/MPC_BioShockLive"
-MI_DIR = "/Game/BioShockLevel/1-Medical/Materials"
+MI_DIR = live_paths.mi_dirs()[0]
 TAG = "BIOSHOCK_BAKED_WORLD"
 
 assets = unreal.AssetToolsHelpers.get_asset_tools()

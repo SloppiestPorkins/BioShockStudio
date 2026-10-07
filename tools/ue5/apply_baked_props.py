@@ -28,14 +28,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 import unreal
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import live_paths  # noqa: E402
+
 PROJECT = os.path.dirname(unreal.Paths.get_project_file_path())
-VL_JSON = os.environ.get("BIOSHOCK_VL_JSON") or os.path.join(PROJECT, "Exports", "live", "1-Medical", "vertex_lighting.json")
-LEVEL_JSON = os.environ.get("BIOSHOCK_LEVEL_JSON") or os.path.join(
-    PROJECT, "Exports", "live", "1-Medical", "1-Medical", "1-Medical.ue5-level.json")
-MAP = os.environ.get("BIOSHOCK_PROPS_MAP", "/Game/BioShockLive/1-Medical_Baked")
+VL_JSON = os.environ.get("BIOSHOCK_VL_JSON") or live_paths.vertex_lighting_json()
+LEVEL_JSON = os.environ.get("BIOSHOCK_LEVEL_JSON") or live_paths.level_json()
+MAP = os.environ.get("BIOSHOCK_PROPS_MAP") or live_paths.live_map()
 MASTER = "/Game/BioShockLive/M_BioShock_BakedProp"
 MI_DIR = "/Game/BioShockLive/BakedProps"
 VERTEX_RANGE = 2.92
