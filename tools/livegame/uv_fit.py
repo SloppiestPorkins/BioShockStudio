@@ -152,6 +152,11 @@ def main():
     w, h = W // 2, H // 2
     gimg = np.asarray(game.resize((w, h)), float)
     hfov = 2 * math.degrees(math.atan(math.tan(math.radians(fov / 2)) * (W / H) / (4 / 3)))
+    pitch = ((rot[0] + 32768) % 65536 - 32768) * 360 / 65536
+    if not (40 < hfov < 130) or abs(pitch) > 60:
+        # 7 Oct: one run caught the game mid-load (wireframe frame, 165 deg, looking straight up) and
+        # "fitted" noise. Refuse instead.
+        sys.exit(f"not a normal gameplay view (hfov {hfov:.0f}, pitch {pitch:.0f}): stand still, no menu, look level")
     prims = load_gltf(level)
     mid, uvb, names = raster(prims, eye, rot, hfov, w, h)
     ghp = highpass(gimg)
