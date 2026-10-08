@@ -191,9 +191,17 @@ def _source_base_color(material_name):
     return None
 
 
+def _suppress_interchange_slate_sync():
+    # Interchange.FeatureFlags.Import.SyncToBrowser overrides ImportAssetTasks' bSyncToBrowser=false
+    # and drives SyncBrowserToAssets → FSlateApplication::Get(), which asserts under
+    # -run=pythonscript. Also set in DefaultEngine.ini and ue_run.py's shim.
+    unreal.SystemLibrary.execute_console_command(
+        None, "Interchange.FeatureFlags.Import.SyncToBrowser 0")
+
+
 def _import_lightmaps(pngs):
-    """One batched import of every missing lightmap. Headless imports crash on a Slate assert
-    AFTER saving, so a crashed run still leaves the textures; the next run skips them."""
+    """One batched import of every missing lightmap."""
+    _suppress_interchange_slate_sync()
     tasks = []
     for png in pngs:
         name = "T_" + os.path.splitext(os.path.basename(png))[0]
@@ -206,6 +214,10 @@ def _import_lightmaps(pngs):
         task.automated = True
         task.replace_existing = True
         task.save = True
+        try:
+            task.factory = unreal.TextureFactory()
+        except Exception:
+            pass
         tasks.append(task)
     if tasks:
         assets.import_asset_tasks(tasks)
@@ -297,6 +309,7 @@ def _import_mesh(gltf_path, model_name):
     # BIOSHOCK_BAKED_REIMPORT=1: import over the existing mesh (the export changed, e.g. new UVs).
     if existing is not None and os.environ.get("BIOSHOCK_BAKED_REIMPORT") != "1":
         return _ordered_slots(existing, slots)
+    _suppress_interchange_slate_sync()
     task = unreal.AssetImportTask()
     task.filename = slotted
     task.destination_path = DEST

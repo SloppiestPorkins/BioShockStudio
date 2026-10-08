@@ -397,17 +397,16 @@ def _import_textures(rig, export_directory, destination, report=None):
         task.set_editor_property("destination_name", stem)
         task.set_editor_property("automated", True)
         task.set_editor_property("replace_existing", True)
-        # save=True routes through InternalPromptForCheckoutAndSave, whose Slate notification
-        # asserts under -run=pythonscript. Persist explicitly after applying texture settings.
+        # save=False: persist explicitly after texture settings (sRGB / group / compression).
         task.set_editor_property("save", False)
-        # Pin the LEGACY texture factory. Left to itself the task goes through Interchange, which
-        # fires a Slate notification when it finishes: the log reads "Interchange import completed"
-        # and one millisecond later the process dies on Assertion failed:
-        # CurrentApplication.IsValid(). Same failure the OBJ importer has, and the project already
-        # forces legacy for FBX and OBJ via Interchange.FeatureFlags in DefaultEngine.ini - but
-        # there is NO Interchange.FeatureFlags.Import.Texture, so the choice has to be made here,
-        # per task, by naming the factory.
+        # Root cause of the old headless crash: Interchange.FeatureFlags.Import.SyncToBrowser
+        # (default true) overrides ImportAssetTasks' bSyncToBrowser=false, then
+        # SyncBrowserToAssets → FSlateApplication::Get() asserts under -run=pythonscript.
+        # DefaultEngine.ini + ue_run.py set SyncToBrowser=0; pin legacy TextureFactory too
+        # (no Interchange.FeatureFlags.Import.Texture flag exists in 5.7).
         try:
+            unreal.SystemLibrary.execute_console_command(
+                None, "Interchange.FeatureFlags.Import.SyncToBrowser 0")
             task.set_editor_property("factory", unreal.TextureFactory())
         except Exception as exc:  # noqa: BLE001
             _log(f"  could not pin the legacy texture factory ({exc}); "
