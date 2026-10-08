@@ -255,6 +255,19 @@ import traceback
 SCRIPTS = %(scripts)s
 
 
+def _suppress_interchange_slate_sync():
+    """Interchange.FeatureFlags.Import.SyncToBrowser defaults true and overrides
+    ImportAssetTasks' bSyncToBrowser=false, so post-import SyncBrowserToAssets hits
+    FSlateApplication::Get() and asserts under -run=pythonscript. Belt-and-suspenders with
+    DefaultEngine.ini; safe when the editor already has Slate (no-op for interactive use)."""
+    try:
+        import unreal
+        unreal.SystemLibrary.execute_console_command(
+            None, "Interchange.FeatureFlags.Import.SyncToBrowser 0")
+    except Exception:
+        pass
+
+
 def _describe(exc):
     lines = traceback.format_exception_only(type(exc), exc)
     text = "".join(lines).strip().splitlines() or [type(exc).__name__]
@@ -286,6 +299,7 @@ def _run_one(path):
 
 
 def _main():
+    _suppress_interchange_slate_sync()
     passed = 0
     for path in SCRIPTS:
         name = os.path.basename(path)
