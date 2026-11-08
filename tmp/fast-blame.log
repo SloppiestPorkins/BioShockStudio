@@ -1,0 +1,19 @@
+Test run for C:\Users\Jack\.cursor\worktrees\bioshockhavok\bsp-uv-rule\tests\BioShockStudio.Tests\bin\Debug\net8.0\BioShockStudio.Tests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+The active test run was aborted. Reason: Test host process crashed : baked lightmaps: scale=1.304 clip=2.81% atlases=12
+
+Data collector 'Blame' message: The specified inactivity time of 90 seconds has elapsed. Collecting hang dumps from testhost and its child processes.
+Data collector 'Blame' message: Dumping 33524 - testhost.
+
+Passed!  - Failed:     0, Passed:   247, Skipped:     0, Total:   247, Duration: 2 m 51 s - BioShockStudio.Tests.dll (net8.0)
+Test Run Aborted.
+
+The active Test Run was aborted because the host process exited unexpectedly. Please inspect the call stack above, if available, to get more information about where the exception originated from.
+The test running when the crash occurred: 
+BioShockStudio.Tests.StaticMeshInstanceLightingTests.AllStoryMapsLocatePoolAndDecodeOrSkipWithReason
+
+This test may, or may not be the source of the crash.
+
+Attachments:
+  C:\Users\Jack\.cursor\worktrees\bioshockhavok\bsp-uv-rule\tests\BioShockStudio.Tests\TestResults\eaf250c7-696a-4cd5-b880-ed19a6a28826\testhost_33524_20261007T063740_hangdump.dmp
+  C:\Users\Jack\.cursor\worktrees\bioshockhavok\bsp-uv-rule\tests\BioShockStudio.Tests\TestResults\eaf250c7-696a-4cd5-b880-ed19a6a28826\Sequence_9f0bbfbf73ac49d0a40cf011ff872f79.xml
