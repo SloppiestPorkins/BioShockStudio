@@ -447,6 +447,10 @@ default fix (`a247c4c`), and the y5–y8 scripting-fidelity SDK-audit batch (`95
 
 ## Active work
 
+| Claim | Owner | Notes |
+|---|---|---|
+| Medical manifest re-export diff (array-size fix fallout) | worktree `manifest-reexport-diff` | Investigate 14 gone / 2 added / 11 door-changed actors after `54cac6e`; add `tools/manifest_diff.py`; write `docs/research/medical-manifest-reexport-2026-10-04.md`. No UE, no production-manifest overwrite. |
+
 30 Sept 2026 — the priority order in `docs/ROADMAP.md` was rewritten after a whole-project review
 (Phase 0 safety → Phase 1 verification that sees what a player sees → Phase 2 finish Medical →
 Phase 3 breadth). In flight: Phase 0 item 1 (UE project under local git + LFS) and root-causing the
