@@ -17,7 +17,9 @@ public sealed class SpawnerActorSchemaTests(GameFixture game)
         var context = LevelAnalyzer.Analyze(package);
         var actors = context.Actors.Where(actor => actor.Source.ClassName == "AggressorSpawner").ToList();
 
-        Assert.Equal(19, actors.Count);
+        // 1-Medical ships 20 AggressorSpawner exports. This pinned 19 until 4 Oct 2026: one
+        // spawner's property list misaligned on a struct array the reader under-sized (ArraySizeTests).
+        Assert.Equal(20, actors.Count);
         Assert.All(actors, actor =>
         {
             Assert.NotNull(actor.Spawner);
@@ -29,7 +31,7 @@ public sealed class SpawnerActorSchemaTests(GameFixture game)
 
         var coverage = LevelCoverageReport.Build(context);
         // Four ProtectorSpawner actors share the same byte-backed population schema.
-        Assert.Equal(23, coverage.Classes.Sum(row => row.ClassName is "AggressorSpawner" or "ProtectorSpawner"
+        Assert.Equal(24, coverage.Classes.Sum(row => row.ClassName is "AggressorSpawner" or "ProtectorSpawner"
             ? row.StatusCounts.GetValueOrDefault(LevelActorCoverage.SpawnerPending) : 0));
 
         var document = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false);

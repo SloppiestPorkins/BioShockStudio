@@ -168,11 +168,12 @@ public sealed class DoorActorSchemaTests(GameFixture game)
             Assert.Equal(System.Numerics.Vector3.Zero, attachment.LocationOffset);
         });
 
-        // Total doubles to 26: the class-defaults fallback now also surfaces attachments on door
-        // classes that only declare them on the class (LowRentDoorsWide, FishFreezerDoorDown, ...),
-        // where before the array was read from the actor payload alone and came back empty. This is
-        // the same fallback that gives 1-Medical its Med_DoorRight / Med_DoorSolidRight geometry.
-        Assert.Equal(26, attached.Count);
+        // Class-defaults fallback surfaces attachments on door classes that only declare them on
+        // the class (LowRentDoorsWide, FishFreezerDoor*, FishGrateDoor*, PeepHoleDoor,
+        // ResurrectionStation). This pinned 26 until 4 Oct 2026: the struct-array size fix
+        // (ArraySizeTests) let the analyzer keep 14 more door actors whose property lists used to
+        // misalign — each still carries a real socket+mesh attachment, not garbage.
+        Assert.Equal(40, attached.Count);
         Assert.Contains(attached, a => a.Source.ClassName != "MedicalDoor");
 
         var exported = LevelSceneExporter.ToDocument(LevelSceneBuilder.Build(package, context), includeGeometry: false)
