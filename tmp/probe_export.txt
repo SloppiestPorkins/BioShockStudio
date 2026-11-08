@@ -1,0 +1,18 @@
+decoded=3986 live=3986
+pool base=60224
+vertex lighting: scale=2.891 instances=3979 lit=714 poolBase=60224
+export 00:00:20.5077237 scale=2.8908713 instances=3979 lit=714
+light Light184 bright=4
+nearest refs:
+  StaticMeshActor_StaticMeshActor1060_10196 dist=38 b=0
+  StaticMeshActor_StaticMeshActor2335_10692 dist=363 b=1.024
+  StaticMeshActor_StaticMeshActor2673_10282 dist=396 b=0.122
+  StaticMeshActor_StaticMeshActor2082_9802 dist=466 b=0.404
+  StaticMeshActor_StaticMeshActor3236_9204 dist=479 b=0.293
+zero-layer:
+  StaticMeshActor_StaticMeshActor4636_6471 b=0
+  StaticMeshActor_StaticMeshActor4635_6494 b=0
+  StaticMeshActor_StaticMeshActor4634_6510 b=0
+  StaticMeshActor_StaticMeshActor4820_7409 b=0
+  StaticMeshActor_StaticMeshActor3824_7414 b=0
+near 0 vs dark 0 => FAIL

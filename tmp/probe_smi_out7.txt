@@ -1,0 +1,25 @@
+intervals=4470 overlaps=4469 mergedCovered=262124 maxEnd=262124
+Level size=29137884 base+maxEnd=15484908
+L=1 nonzero-byte histogram over 10900 verts: [141,3612,5785,4065]
+L=3 nonzero-byte histogram over 11189 verts: [171,5168,7033,3346]
+L=3 mean bytes: [0.9, 44.7, 60.3, 18.4]
+level lights=765
+top lights by sample count with mean peak-luminance:
+  Light609: n=101 meanPeak=80.7 med=59.4
+  DefaultSecurityCameraSpotlight1: n=82 meanPeak=85.4 med=67.5
+  Light688: n=79 meanPeak=85.2 med=65.6
+  Light382: n=56 meanPeak=69.2 med=56.1
+  Light730: n=54 meanPeak=90.6 med=90
+  DefaultSecurityCameraSpotlight3: n=52 meanPeak=77.8 med=55.1
+  Light345: n=50 meanPeak=74.2 med=61
+  Light155: n=46 meanPeak=118.4 med=122.1
+  Light322: n=45 meanPeak=81.9 med=67.2
+  Light692: n=44 meanPeak=99.9 med=114.3
+
+base 15222728 (delta -56): L1-shape score 15/20
+base 15222732 (delta -52): L1-shape score 15/20
+base 15222772 (delta -12): L1-shape score 16/20
+base 15222776 (delta -8): L1-shape score 15/20
+base 15222800 (delta 16): L1-shape score 15/20
+base 15222804 (delta 20): L1-shape score 16/20
+base 15222808 (delta 24): L1-shape score 15/20

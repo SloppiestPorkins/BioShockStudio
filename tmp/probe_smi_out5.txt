@@ -1,0 +1,64 @@
+layers total=4235
+fieldC unique=3720
+fieldC sorted span=0..261396
+fieldC consecutive delta min/med/max=0/40/532
+fieldC delta==0 (dupes adjacent): 515
+
+=== multi-layer fieldC deltas ===
+StaticMeshActor3589 v=1984 C=[185696,193632] B=[11,11] Δ=7936 (v*Lp=5952, /1=1.33, /2=0.67)
+StaticMeshActor3583 v=644 C=[227068,229644] B=[55,55] Δ=2576 (v*Lp=1932, /1=1.33, /2=0.67)
+StaticMeshActor3584 v=176 C=[159116,159820] B=[55,55] Δ=704 (v*Lp=528, /1=1.33, /2=0.67)
+StaticMeshActor1932 v=140 C=[122208,122768] B=[59,59] Δ=560 (v*Lp=420, /1=1.33, /2=0.67)
+StaticMeshActor351 v=134 C=[237740,238276] B=[19,19] Δ=536 (v*Lp=402, /1=1.33, /2=0.67)
+StaticMeshActor3 v=932 C=[90736,94464] B=[25,25] Δ=3728 (v*Lp=2796, /1=1.33, /2=0.67)
+StaticMeshActor2258 v=1824 C=[175104,182400] B=[14,14] Δ=7296 (v*Lp=5472, /1=1.33, /2=0.67)
+StaticMeshActor2257 v=1824 C=[226176,233472] B=[14,14] Δ=7296 (v*Lp=5472, /1=1.33, /2=0.67)
+StaticMeshActor361 v=134 C=[239884,240420] B=[19,19] Δ=536 (v*Lp=402, /1=1.33, /2=0.67)
+StaticMeshActor3336 v=920 C=[62560,66240] B=[27,27] Δ=3680 (v*Lp=2760, /1=1.33, /2=0.67)
+StaticMeshActor1819 v=644 C=[198732,201308] B=[55,55] Δ=2576 (v*Lp=1932, /1=1.33, /2=0.67)
+StaticMeshActor650 v=1400 C=[214404,220004] B=[11,11] Δ=5600 (v*Lp=4200, /1=1.33, /2=0.67)
+StaticMeshActor1816 v=644 C=[216764,219340] B=[55,55] Δ=2576 (v*Lp=1932, /1=1.33, /2=0.67)
+StaticMeshActor2852 v=560 C=[174484,176724] B=[30,30] Δ=2240 (v*Lp=1680, /1=1.33, /2=0.67)
+StaticMeshActor1550 v=855 C=[181816,185236,188656] B=[24,24,24] Δ=3420 (v*Lp=2565, /1=1.33, /2=0.67) Δ=3420 (v*Lp=2565, /1=1.33, /2=0.67)
+
+records with MaxLightsStatic prop: 0/4235
+records with SpecialLit: 27/4235
+actor trailer lengths: 12:3986
+fieldB hist: 0:4 1:11 2:26 3:7 4:8 5:8 6:29 7:2 8:47 9:70 10:26 11:46 12:68 13:221 14:35 15:35 16:35 17:35 18:51 19:127 20:41 21:26 22:30 23:83 24:81 25:86 26:99 27:81 28:117 29:115 30:43 31:7 32:73 33:151 34:70 35:27 36:27 37:29 38:52 39:52 40:52 41:62 42:66 43:174 44:76 45:42 46:66 47:60 48:57 49:56 50:118 51:115 52:85 53:55 54:70 55:147 56:78 57:35 58:172 59:336 60:37 61:53 62:40 63:2
+
+=== fieldC vs smi serial order ===
+fieldC non-decreasing along smi export index: 2518/4469
+if 1 byte/vert/light total=9411176 (~8.98 MiB)
+if 4 byte/vert/light total=37644704 (~35.9 MiB)
+
+=== large non-common exports ===
+  29137884 [3348] Level:MyLevel
+   9869059 [6397] AnimationPackageWrapper:UAPW_AggressorBabyJane
+   8608268 [20761] Model:Model1
+   5593133 [28303] Texture:Res_Skybox
+   3767146 [6038] StaticMesh:Kelp_Clusters_01
+   3090387 [28758] AnimationPackageWrapper:UAPW_GathererGirl
+   2796961 [34270] Texture:Hand_NORM
+   2796955 [38614] Texture:ProtectorGlass_Overlay
+   2796947 [10592] Texture:Hand_DIFF
+   2796947 [13138] Texture:Hand_SPEC
+   2796935 [38613] Texture:ProtectorGlass_O
+   2796902 [13010] Texture:undersea1
+   1643886 [4727] SkeletalMesh:Agg_Doctor_Mesh
+   1522090 [4513] StaticMesh:Concrete_Barrier_Ceiling
+   1441333 [4915] SkeletalMesh:CorpseFemale
+   1398794 [4454] Texture:ConcCloud_Diffuse
+   1398057 [9213] SkeletalMesh:ProtectorBouncerMESH
+   1361843 [33272] AnimationPackageWrapper:UAPW_NewProtectorBouncer
+   1356401 [12768] SkeletalMesh:CorpseCrispy
+   1325624 [27024] SkeletalMesh:Agg_Toasty_Mesh
+   1294459 [11059] SkeletalMesh:TurretGrenadeLauncher
+   1238964 [8356] SkeletalMesh:CorpseMale
+   1154447 [47957] Sound:scripted_1_gathererSave
+   1101549 [9685] StaticMesh:bath_Vehicle_Complete
+   1041888 [12798] StaticMesh:kelp_01
+    932342 [7377] SkeletalMesh:TurretMachineGun
+    926424 [6880] SkeletalMesh:GathererGirl
+    913026 [34115] AnimationPackageWrapper:UAPW_NEWPlayerHands
+    866503 [21653] SkeletalMesh:BHBuckle_Mesh
+    814028 [5413] SkeletalMesh:Agg_BabyJane

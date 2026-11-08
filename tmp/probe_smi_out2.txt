@@ -1,0 +1,68 @@
+actors with StaticMeshInstance: 3986
+parsed ok: 3986 / 3986
+parse fail: 0
+lightCount hist: 0:89 1:3376 2:469 3:52
+bodyLen hist (sample): min=33 med=60 max=114
+among ok with verts>0 (3752):
+  rem==verts*lights: 1
+  rem==verts*lights*2: 2
+  rem==verts*lights*4: 0
+  rem==verts: 1
+  rem==verts*4: 0
+  luminanceBytes min/med/max: 22/48/100
+
+=== samples with lights ===
+StaticMeshActor StaticMeshActor4622: mesh=Cracked_BW_Tile_Pile verts=1531 lights=1 lightRefs=[4] unkA=3527 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 47 37 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 40 35 01 00 00 00 33 00 00 00 D4 66 01 00 FB 05 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor4907: mesh=puddle_alt verts=185 lights=1 lightRefs=[4] unkA=5517 unkB=33554432 lumBytes=44 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4D 56 01 04 00 00 00 02 00 00 00 01 4B 53 01 00 00 00 3B 00 00 00 7C 00 02 00 B9 00 00 00 04 00 00 00 02 00 00 00 B9 00
+StaticMeshActor StaticMeshActor3589: mesh=Long_Couch verts=1984 lights=2 lightRefs=[4,0] unkA=4115 unkB=131072 lumBytes=70 leftover=0 bodyHex=04 00 00 00 05 00 00 00 53 40 02 04 00 00 00 02 00 00 00 03 48 47 6C 3E 4F 3B 01 00 00 00 0B 00 00 00 60 D5 02 00 04 00 00 00 02 00 00 00 01 67
+StaticMeshActor StaticMeshActor4670: mesh=ConcreteWall_Hole verts=3019 lights=1 lightRefs=[4] unkA=4749 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4D 4A 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 63 3A 01 00 00 00 2F 00 00 00 B4 A3 02 00 CB 0B 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor503: mesh=sf_shelving02 verts=126 lights=1 lightRefs=[4] unkA=3953 unkB=33554432 lumBytes=46 leftover=0 bodyHex=04 00 00 00 05 00 00 00 71 3D 01 04 00 00 00 02 00 00 00 02 44 3B 55 3F 01 00 00 00 20 00 00 00 7C B6 02 00 7E 00 00 00 04 00 00 00 02 00 00 00
+StaticMeshActor StaticMeshActor1807: mesh=Tablefold2 verts=3016 lights=1 lightRefs=[4] unkA=4200 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 68 41 01 04 00 00 00 02 00 00 00 03 5C 3A 6A 3A 65 38 01 00 00 00 14 00 00 00 C0 79 03 00 C8 0B 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor1808: mesh=bio_sinklong verts=625 lights=1 lightRefs=[4] unkA=3843 unkB=33554432 lumBytes=46 leftover=0 bodyHex=04 00 00 00 05 00 00 00 43 3C 01 04 00 00 00 02 00 00 00 02 5C 3A 6A 3A 01 00 00 00 16 00 00 00 30 53 03 00 71 02 00 00 04 00 00 00 02 00 00 00
+StaticMeshActor StaticMeshActor1172: mesh=decor_sofa verts=1400 lights=1 lightRefs=[4] unkA=3911 unkB=33554432 lumBytes=46 leftover=0 bodyHex=04 00 00 00 05 00 00 00 47 3D 01 04 00 00 00 02 00 00 00 02 66 39 60 38 01 00 00 00 0B 00 00 00 24 87 03 00 78 05 00 00 04 00 00 00 02 00 00 00
+StaticMeshActor StaticMeshActor4625: mesh=Cracked_BW_Tile_Pile verts=1531 lights=1 lightRefs=[4] unkA=3527 unkB=33554432 lumBytes=46 leftover=0 bodyHex=04 00 00 00 05 00 00 00 47 37 01 04 00 00 00 02 00 00 00 02 40 35 41 37 01 00 00 00 33 00 00 00 E8 4E 01 00 FB 05 00 00 04 00 00 00 02 00 00 00
+StaticMeshActor StaticMeshActor4617: mesh=ConcreteWall_Hole verts=3019 lights=1 lightRefs=[4] unkA=4749 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4D 4A 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 63 3A 01 00 00 00 2F 00 00 00 88 74 02 00 CB 0B 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor4732: mesh=med_pillar_large_base verts=84 lights=1 lightRefs=[4] unkA=3355 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 5B 34 01 04 00 00 00 02 00 00 00 03 65 3A 6B 38 64 39 01 00 00 00 0D 00 00 00 D0 40 01 00 54 00 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor4909: mesh=Broken_Pipe verts=1492 lights=1 lightRefs=[4] unkA=4517 unkB=33554432 lumBytes=44 leftover=0 bodyHex=04 00 00 00 05 00 00 00 65 46 01 04 00 00 00 02 00 00 00 01 4B 53 01 00 00 00 32 00 00 00 9C 66 01 00 D4 05 00 00 04 00 00 00 02 00 00 00 D4 05
+StaticMeshActor StaticMeshActor4733: mesh=med_surgical_cabinet_searched verts=1000 lights=1 lightRefs=[4] unkA=3612 unkB=33554432 lumBytes=46 leftover=0 bodyHex=04 00 00 00 05 00 00 00 5C 38 01 04 00 00 00 02 00 00 00 02 6B 38 7E 3A 01 00 00 00 06 00 00 00 1C 48 02 00 E8 03 00 00 04 00 00 00 02 00 00 00
+StaticMeshActor StaticMeshActor4620: mesh=Cracked_BW_Tile verts=1788 lights=1 lightRefs=[4] unkA=3675 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 5B 39 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 40 35 01 00 00 00 35 00 00 00 28 F0 02 00 FC 06 00 00 04 00 00 00 02 00
+StaticMeshActor StaticMeshActor4756: mesh=decor_fridgewall verts=1698 lights=1 lightRefs=[4] unkA=3916 unkB=33554432 lumBytes=48 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4C 3D 01 04 00 00 00 02 00 00 00 03 7E 3A 52 3D 65 3A 01 00 00 00 1E 00 00 00 64 55 02 00 A2 06 00 00 04 00 00 00 02 00
+
+=== samples with 0 lights ===
+StaticMeshActor StaticMeshActor4636: mesh=Pipe_512 verts=920 unkA=3403 unkB=920 lumBytes=22 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4B 35 00 98 03 00 00 04 00 00 00 02 00 00 00 98 03 00 00 01 00 00 00 00 00
+StaticMeshActor StaticMeshActor4635: mesh=Pipe_512 verts=920 unkA=3403 unkB=920 lumBytes=22 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4B 35 00 98 03 00 00 04 00 00 00 02 00 00 00 98 03 00 00 01 00 00 00 00 00
+StaticMeshActor StaticMeshActor4634: mesh=Pipe_512 verts=920 unkA=3403 unkB=920 lumBytes=22 leftover=0 bodyHex=04 00 00 00 05 00 00 00 4B 35 00 98 03 00 00 04 00 00 00 02 00 00 00 98 03 00 00 01 00 00 00 00 00
+StaticMeshActor StaticMeshActor4820: mesh=med_pillar_full verts=1824 unkA=3351 unkB=1824 lumBytes=22 leftover=0 bodyHex=04 00 00 00 05 00 00 00 57 34 00 20 07 00 00 04 00 00 00 02 00 00 00 20 07 00 00 01 00 00 00 00 00
+StaticMeshActor StaticMeshActor3824: mesh=skybox_city verts=323 unkA=9725 unkB=323 lumBytes=22 leftover=0 bodyHex=04 00 00 00 05 00 00 00 7D 97 01 00 43 01 00 00 04 00 00 00 02 00 00 00 43 01 00 00 01 00 00 00 00 00
+
+=== layout search on 5 instances ===
+-- StaticMeshActor1550 verts=855 bodyLen=112 hex=04 00 00 00 05 00 00 00 6B 5C 03 04 00 00 00 02 00 00 00 03 57 37 65 34 62 37 01 00 00 00 18 00 00 00 38 C6 02 00 04 00
+  stream: CI@8=5931 CI@10=3 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=3543
+-- StaticMeshActor3831 verts=1979 bodyLen=110 hex=04 00 00 00 05 00 00 00 5B 46 03 04 00 00 00 02 00 00 00 03 67 37 50 36 49 37 01 00 00 00 36 00 00 00 2C 01 03 00 04 00
+  stream: CI@8=4507 CI@10=3 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=3559
+-- StaticMeshActor3145 verts=476 bodyLen=110 hex=04 00 00 00 05 00 00 00 79 36 03 04 00 00 00 02 00 00 00 03 5D 37 5E 36 52 3A 01 00 00 00 21 00 00 00 90 6F 00 00 04 00
+  stream: CI@8=3513 CI@10=3 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=3549
+-- StaticMeshActor3144 verts=614 bodyLen=110 hex=04 00 00 00 05 00 00 00 46 36 03 04 00 00 00 02 00 00 00 03 52 3A 5D 37 5E 36 01 00 00 00 21 00 00 00 50 8F 01 00 04 00
+  stream: CI@8=3462 CI@10=3 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=3730
+-- StaticMeshActor3087 verts=614 bodyLen=110 hex=04 00 00 00 05 00 00 00 46 36 03 04 00 00 00 02 00 00 00 03 4C 38 4E 3B 51 37 01 00 00 00 21 00 00 00 E0 C8 01 00 04 00
+  stream: CI@8=3462 CI@10=3 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=3596
+-- StaticMeshActor4907 verts=185 bodyLen=56 hex=04 00 00 00 05 00 00 00 4D 56 01 04 00 00 00 02 00 00 00 01 4B 53 01 00 00 00 3B 00 00 00 7C 00 02 00 B9 00 00 00 04 00
+  stream: CI@8=5517 CI@10=1 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=1 CI@20=5323
+-- StaticMeshActor503 verts=126 bodyLen=58 hex=04 00 00 00 05 00 00 00 71 3D 01 04 00 00 00 02 00 00 00 02 44 3B 55 3F 01 00 00 00 20 00 00 00 7C B6 02 00 7E 00 00 00
+  stream: CI@8=3953 CI@10=1 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=2 CI@20=3780
+  MATCH_BITS headerSkip=16 lights=2 rem=32
+-- StaticMeshActor3584 verts=176 bodyLen=83 hex=04 00 00 00 05 00 00 00 5A 36 02 04 00 00 00 02 00 00 00 03 69 3F 5F 38 7D 35 01 00 00 00 37 00 00 00 8C 6D 02 00 04 00
+  stream: CI@8=3482 CI@10=2 CI@11=4 CI@12=0 CI@13=0 CI@14=0 CI@15=2 CI@16=0 CI@17=0 CI@18=0 CI@19=3 CI@20=4073
+  MATCH_BITS headerSkip=6 lights=3 rem=66
+
+=== first CI after (4,5) vs mesh/actor ===
+StaticMeshActor4622: firstCI=3527 (export 3526 StaticMesh:Cracked_BW_Tile_Pile) mesh=Cracked_BW_Tile_Pile actorIdx=5747 smiIdx=14988
+StaticMeshActor4907: firstCI=5517 (export 5516 StaticMesh:puddle_alt) mesh=puddle_alt actorIdx=5748 smiIdx=28605
+StaticMeshActor3589: firstCI=4115 (export 4114 StaticMesh:Long_Couch) mesh=Long_Couch actorIdx=5751 smiIdx=16227
+StaticMeshActor4670: firstCI=4749 (export 4748 StaticMesh:ConcreteWall_Hole) mesh=ConcreteWall_Hole actorIdx=6455 smiIdx=20479
+StaticMeshActor503: firstCI=3953 (export 3952 StaticMesh:sf_shelving02) mesh=sf_shelving02 actorIdx=6456 smiIdx=19228
+StaticMeshActor1807: firstCI=4200 (export 4199 StaticMesh:Tablefold2) mesh=Tablefold2 actorIdx=6458 smiIdx=19199
+StaticMeshActor1808: firstCI=3843 (export 3842 StaticMesh:bio_sinklong) mesh=bio_sinklong actorIdx=6459 smiIdx=20087
+StaticMeshActor1172: firstCI=3911 (export 3910 StaticMesh:decor_sofa) mesh=decor_sofa actorIdx=6460 smiIdx=20439
+StaticMeshActor4625: firstCI=3527 (export 3526 StaticMesh:Cracked_BW_Tile_Pile) mesh=Cracked_BW_Tile_Pile actorIdx=6468 smiIdx=15158
+StaticMeshActor4636: firstCI=3403 (export 3402 StaticMesh:Pipe_512) mesh=Pipe_512 actorIdx=6471 smiIdx=19321

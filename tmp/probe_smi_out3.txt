@@ -1,0 +1,51 @@
+FAIL StaticMeshActor4622: lightCount mismatch 1!=3 body=04 00 00 00 05 00 00 00 47 37 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 40 35 01 00 00 00 33 00 00 00 D4 66 01 00 FB 05 00 00 04 00 00 00 02 00 00 00 FB 05 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor3589: lightCount mismatch 2!=3 body=04 00 00 00 05 00 00 00 53 40 02 04 00 00 00 02 00 00 00 03 48 47 6C 3E 4F 3B 01 00 00 00 0B 00 00 00 60 D5 02 00 04 00 00 00 02 00 00 00 01 67 46 01 00 00 00 0B 00 00 00 60 F4 02 00 C0 07 00 00 04 00 00 00 02 00 00 00 C0 07 00 00 01 00 00
+FAIL StaticMeshActor4670: lightCount mismatch 1!=3 body=04 00 00 00 05 00 00 00 4D 4A 01 04 00 00 00 02 00 00 00 03 41 37 4D 3B 63 3A 01 00 00 00 2F 00 00 00 B4 A3 02 00 CB 0B 00 00 04 00 00 00 02 00 00 00 CB 0B 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor503: lightCount mismatch 1!=2 body=04 00 00 00 05 00 00 00 71 3D 01 04 00 00 00 02 00 00 00 02 44 3B 55 3F 01 00 00 00 20 00 00 00 7C B6 02 00 7E 00 00 00 04 00 00 00 02 00 00 00 7E 00 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor1807: lightCount mismatch 1!=3 body=04 00 00 00 05 00 00 00 68 41 01 04 00 00 00 02 00 00 00 03 5C 3A 6A 3A 65 38 01 00 00 00 14 00 00 00 C0 79 03 00 C8 0B 00 00 04 00 00 00 02 00 00 00 C8 0B 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor1808: lightCount mismatch 1!=2 body=04 00 00 00 05 00 00 00 43 3C 01 04 00 00 00 02 00 00 00 02 5C 3A 6A 3A 01 00 00 00 16 00 00 00 30 53 03 00 71 02 00 00 04 00 00 00 02 00 00 00 71 02 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor1172: lightCount mismatch 1!=2 body=04 00 00 00 05 00 00 00 47 3D 01 04 00 00 00 02 00 00 00 02 66 39 60 38 01 00 00 00 0B 00 00 00 24 87 03 00 78 05 00 00 04 00 00 00 02 00 00 00 78 05 00 00 01 00 00 00 00 00
+FAIL StaticMeshActor4625: lightCount mismatch 1!=2 body=04 00 00 00 05 00 00 00 47 37 01 04 00 00 00 02 00 00 00 02 40 35 41 37 01 00 00 00 33 00 00 00 E8 4E 01 00 FB 05 00 00 04 00 00 00 02 00 00 00 FB 05 00 00 01 00 00 00 00 00
+ok=549 fail=3203 vertsMatch=549
+lightHist: 0:84 1:413 3:52
+lightActors class-ok=562/569
+midBlob len min/med/max=0/12/66
+
+StaticMeshActor4907 mesh=puddle_alt verts=185/185 lights=1 refs=[Light:Light583] midLen=12 mid=01 00 00 00 3B 00 00 00 7C 00 02 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4909 mesh=Broken_Pipe verts=1492/1492 lights=1 refs=[Light:Light583] midLen=12 mid=01 00 00 00 32 00 00 00 9C 66 01 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor3606 mesh=Medical_pillar verts=1247/1247 lights=1 refs=[Light:Light443] midLen=12 mid=01 00 00 00 29 00 00 00 F0 4D 00 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4792 mesh=decor_fridgewall verts=1698/1698 lights=1 refs=[Light:Light686] midLen=12 mid=01 00 00 00 1E 00 00 00 54 20 02 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor3608 mesh=Medical_pillar verts=1247/1247 lights=1 refs=[Light:Light546] midLen=12 mid=01 00 00 00 28 00 00 00 C4 93 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor219 mesh=Med_pillar_broken_top verts=1113/1113 lights=1 refs=[Light:Light356] midLen=12 mid=01 00 00 00 13 00 00 00 2C 34 00 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor206 mesh=med_pillar_large_base verts=84/84 lights=1 refs=[Light:Light161] midLen=12 mid=01 00 00 00 0D 00 00 00 50 E2 00 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4489 mesh=med_pillar_large_cap2 verts=1548/1548 lights=1 refs=[DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] midLen=12 mid=01 00 00 00 30 00 00 00 50 A9 00 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4486 mesh=med_pillar_large verts=108/108 lights=1 refs=[DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] midLen=12 mid=01 00 00 00 33 00 00 00 54 F6 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4496 mesh=med_pillar_large_cap2 verts=1548/1548 lights=1 refs=[DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] midLen=12 mid=01 00 00 00 30 00 00 00 40 22 01 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4488 mesh=med_pillar_large verts=108/108 lights=1 refs=[DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] midLen=12 mid=01 00 00 00 33 00 00 00 14 FD 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor5119 mesh=Cascade_512 verts=483/483 lights=1 refs=[Light:Light710] midLen=12 mid=01 00 00 00 3A 00 00 00 2C F1 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor1846 mesh=Pillar_03 verts=644/644 lights=1 refs=[Light:Light382] midLen=12 mid=01 00 00 00 37 00 00 00 AC 44 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor207 mesh=med_pillar_large_base verts=84/84 lights=1 refs=[Light:Light161] midLen=12 mid=01 00 00 00 0D 00 00 00 A0 E3 00 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor1845 mesh=Archway_01n verts=745/745 lights=1 refs=[Light:Light382] midLen=12 mid=01 00 00 00 2E 00 00 00 20 4D 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor1847 mesh=Pillar_03_tile verts=176/176 lights=1 refs=[Light:Light382] midLen=12 mid=01 00 00 00 37 00 00 00 CC 3E 02 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor1550 mesh=Medical_Door_Control_Housing verts=855/855 lights=3 refs=[Light:Light437,Light:Light609,Light:Light213] midLen=64 mid=01 00 00 00 18 00 00 00 38 C6 02 00 04 00 00 00 02 00 00 00 03 5F 43 6B 47 56 3E 01 00 00 00 18 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor1607 mesh=medical_pillar_doorarch verts=2410/2410 lights=1 refs=[Light:Light348] midLen=12 mid=01 00 00 00 25 00 00 00 80 5A 02 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4017 mesh=WallTechAnimC verts=506/506 lights=1 refs=[Light:Light459] midLen=12 mid=01 00 00 00 35 00 00 00 D8 7B 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+StaticMeshActor4696 mesh=med_pillar_large_cap2 verts=1548/1548 lights=1 refs=[Light:Light691] midLen=12 mid=01 00 00 00 2F 00 00 00 A0 33 03 00 a=4 b=2 c=1 d=2 e=4 f=2
+
+=== midBlob vs lights/verts ===
+lights=1 n=413 mid[min/med/max]=12/12/12 mid/verts[min/med/max]=0.0024/0.0241/3
+lights=3 n=52 mid[min/med/max]=62/64/66 mid/verts[min/med/max]=0.0068/0.1111/0.5926
+
+=== midBlob field guesses on 10 lit ===
+StaticMeshActor4907: L=1 V=185 midLen=12 asI32=[1,59,131196] asF32=[0,0,0] hex=01 00 00 00 3B 00 00 00 7C 00 02 00
+StaticMeshActor4909: L=1 V=1492 midLen=12 asI32=[1,50,91804] asF32=[0,0,0] hex=01 00 00 00 32 00 00 00 9C 66 01 00
+StaticMeshActor3606: L=1 V=1247 midLen=12 asI32=[1,41,19952] asF32=[0,0,0] hex=01 00 00 00 29 00 00 00 F0 4D 00 00
+StaticMeshActor4792: L=1 V=1698 midLen=12 asI32=[1,30,139348] asF32=[0,0,0] hex=01 00 00 00 1E 00 00 00 54 20 02 00
+StaticMeshActor3608: L=1 V=1247 midLen=12 asI32=[1,40,234436] asF32=[0,0,0] hex=01 00 00 00 28 00 00 00 C4 93 03 00
+StaticMeshActor219: L=1 V=1113 midLen=12 asI32=[1,19,13356] asF32=[0,0,0] hex=01 00 00 00 13 00 00 00 2C 34 00 00
+StaticMeshActor206: L=1 V=84 midLen=12 asI32=[1,13,57936] asF32=[0,0,0] hex=01 00 00 00 0D 00 00 00 50 E2 00 00
+StaticMeshActor4489: L=1 V=1548 midLen=12 asI32=[1,48,43344] asF32=[0,0,0] hex=01 00 00 00 30 00 00 00 50 A9 00 00
+StaticMeshActor4486: L=1 V=108 midLen=12 asI32=[1,51,259668] asF32=[0,0,0] hex=01 00 00 00 33 00 00 00 54 F6 03 00
+StaticMeshActor4496: L=1 V=1548 midLen=12 asI32=[1,48,74304] asF32=[0,0,0] hex=01 00 00 00 30 00 00 00 40 22 01 00
+StaticMeshActor4488: L=1 V=108 midLen=12 asI32=[1,51,261396] asF32=[0,0,0] hex=01 00 00 00 33 00 00 00 14 FD 03 00
+StaticMeshActor5119: L=1 V=483 midLen=12 asI32=[1,58,258348] asF32=[0,0,0] hex=01 00 00 00 3A 00 00 00 2C F1 03 00

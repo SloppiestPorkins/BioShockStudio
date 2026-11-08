@@ -1,0 +1,30 @@
+instances=3752 lit=3668
+multi sample StaticMeshActor3589 v=1984
+  layer0 C=185696 L=3 B=11 meanPeak=38.5 head=00 16 00 3E 00 15 00 41 00 14 00 39 00 11 17 35 00 14 11 39 00 15 11 41 00 11 18 3D 00 16 19 2C 00 15 19 2E 00 19 13 32 00 1A 13 2F 00 00 18 00 00 00 19 00 00 00 19 00 00 00 18 00 00 00 00 00
+  layer1 C=193632 L=1 B=11 meanPeak=21.7 head=00 74 00 00 00 62 00 00 00 57 00 00 00 45 00 00 00 28 00 00 00 21 00 00 00 3C 00 00 00 1C 00 00 00 16 00 00 00 11 00 00 00 0C 00 00 00 16 00 22 00 11 00 2E 00 1B 00 13 00 16 00 1C 00 21 00 14
+bright light Light184 bright=4 at <-26958.113, -5749.9907, 8025.375>
+near+refs:
+  StaticMeshActor1060 dist=38 meanPeak=169
+  StaticMeshActor2335 dist=363 meanPeak=9.7
+  StaticMeshActor2673 dist=396 meanPeak=0
+  StaticMeshActor2082 dist=466 meanPeak=68
+  StaticMeshActor3236 dist=479 meanPeak=35.4
+  StaticMeshActor2533 dist=484 meanPeak=56.2
+  StaticMeshActor2534 dist=484 meanPeak=84
+  StaticMeshActor2535 dist=487 meanPeak=57.4
+  StaticMeshActor2084 dist=504 meanPeak=140
+  StaticMeshActor2498 dist=846 meanPeak=0
+far+noref:
+  StaticMeshActor4777 dist=12952 meanPeak=203.4
+  StaticMeshActor4877 dist=12911 meanPeak=181.2
+  StaticMeshActor4929 dist=12831 meanPeak=67.3
+  StaticMeshActor4876 dist=12787 meanPeak=55.2
+  StaticMeshActor4870 dist=12715 meanPeak=60.2
+  StaticMeshActor4797 dist=12704 meanPeak=185.4
+  StaticMeshActor2705 dist=12692 meanPeak=190
+  StaticMeshActor4768 dist=12683 meanPeak=211.1
+  StaticMeshActor4769 dist=12683 meanPeak=9.5
+  StaticMeshActor4873 dist=12676 meanPeak=92.3
+nearRef avg meanPeak=62 farNo avg=125.6
+L=1 energy sums over 5620 verts: [1621,149381,261116,161652]
+exclusive-to-next-C bytes sum=261828

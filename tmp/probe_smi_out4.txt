@@ -1,0 +1,48 @@
+ok=3752 fail=0 vertsMatch=3752
+layerHist: 0:84 1:3153 2:463 3:52
+lightsPerLayer: 1:703 2:867 3:2665
+fieldB min/med/max=0/38/63
+fieldC min/med/max=0/124700/261396 packageSize=214215084
+fieldB unique-per-mesh: same=360 multi=41
+fieldB==sections: 10/3668; ==verts: 1/3668; ==faces: 1/3668
+fieldC in package file range: 4235/4235; align4=4235; align32k=58
+
+=== peek package@fieldC ===
+StaticMeshActor4622: @91860 verts=1531 hex=00 00 00 00 00 00 00 00 00 00 00 00 73 12 00 00 serialOff=135671919
+StaticMeshActor4907: @131196 verts=185 hex=00 6C 00 6C 00 61 00 63 00 65 00 2E 00 20 00 43 serialOff=159476619
+StaticMeshActor3589: @185696 verts=1984 hex=6F 00 66 00 20 00 74 00 68 00 6F 00 73 00 65 00 serialOff=135790244
+StaticMeshActor3589: @193632 verts=1984 hex=00 44 03 00 00 00 00 56 06 6C 0A 00 00 00 00 47 serialOff=135790244
+StaticMeshActor4670: @172980 verts=3019 hex=00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 serialOff=136526120
+StaticMeshActor503: @177788 verts=126 hex=00 00 00 00 56 06 7F 10 00 00 00 00 7D 04 00 00 serialOff=136295387
+StaticMeshActor1807: @227776 verts=3016 hex=00 00 00 00 00 00 00 00 00 00 91 00 00 00 00 00 serialOff=136292566
+StaticMeshActor1808: @217904 verts=625 hex=00 00 5D 23 11 52 00 79 00 61 00 6E 00 27 00 73 serialOff=136471084
+
+=== peek SerialOffset+fieldC ===
+StaticMeshActor4622: @135763779 hex=00 00 A0 EF 01 00 A4 03 00 00 04 00 00 00 02 00
+StaticMeshActor4907: @159607815 hex=F0 F1 F2 F3 F4 F5 F5 00 D2 4D 51 C1 44 64 D1 43
+StaticMeshActor3589: @135975940 hex=00 00 00 02 00 00 00 20 07 00 00 01 00 00 00 00
+StaticMeshActor3589: @135983876 hex=00 00 00 00 00 00 00 80 BF 00 00 80 3F 00 00 00
+StaticMeshActor4670: @136699100 hex=E9 44 00 00 04 46 00 C0 BD C6 E4 7F FF 44 00 00
+StaticMeshActor503: @136473175 hex=00 00 80 18 44 D8 FF 57 C4 00 00 80 41 03 00 C0
+StaticMeshActor1807: @136520342 hex=00 03 52 39 5A 39 4A 3D 01 00 00 00 19 00 00 00
+StaticMeshActor1808: @136688988 hex=00 46 FE 3F A2 C6 18 00 06 45 00 70 00 46 FF 3F
+
+StaticMeshActor4622 mesh=Cracked_BW_Tile_Pile verts=1531 sec=1 layers=1 :: L=3[Light:Light348,Light:Light710,DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] A=1 B=51 C=91860
+StaticMeshActor4907 mesh=puddle_alt verts=185 sec=1 layers=1 :: L=1[Light:Light583] A=1 B=59 C=131196
+StaticMeshActor3589 mesh=Long_Couch verts=1984 sec=1 layers=2 :: L=3[Light:Light325,Light:Light628,Light:Light624] A=1 B=11 C=185696 | L=1[Light:Light362] A=1 B=11 C=193632
+StaticMeshActor4670 mesh=ConcreteWall_Hole verts=3019 sec=1 layers=1 :: L=3[Light:Light348,Light:Light710,Light:Light658] A=1 B=47 C=172980
+StaticMeshActor503 mesh=sf_shelving02 verts=126 sec=1 layers=1 :: L=2[Light:Light470,Light:Light713] A=1 B=32 C=177788
+StaticMeshActor1807 mesh=Tablefold2 verts=3016 sec=2 layers=1 :: L=3[Light:Light293,Light:Light42,Light:Light295] A=1 B=20 C=227776
+StaticMeshActor1808 mesh=bio_sinklong verts=625 sec=1 layers=1 :: L=2[Light:Light293,Light:Light42] A=1 B=22 C=217904
+StaticMeshActor1172 mesh=decor_sofa verts=1400 sec=1 layers=1 :: L=2[Light:Light196,Light:Light215] A=1 B=11 C=231204
+StaticMeshActor4625 mesh=Cracked_BW_Tile_Pile verts=1531 sec=1 layers=1 :: L=2[DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3,Light:Light348] A=1 B=51 C=85736
+StaticMeshActor4636 mesh=Pipe_512 verts=920 sec=1 layers=0 :: 
+StaticMeshActor4617 mesh=ConcreteWall_Hole verts=3019 sec=1 layers=1 :: L=3[Light:Light348,Light:Light710,Light:Light658] A=1 B=47 C=160904
+StaticMeshActor4732 mesh=med_pillar_large_base verts=84 sec=1 layers=1 :: L=3[Light:Light657,Light:Light648,Light:Light670] A=1 B=13 C=82128
+StaticMeshActor4909 mesh=Broken_Pipe verts=1492 sec=1 layers=1 :: L=1[Light:Light583] A=1 B=50 C=91804
+StaticMeshActor4733 mesh=med_surgical_cabinet_searched verts=1000 sec=1 layers=1 :: L=2[Light:Light648,Light:Light687] A=1 B=6 C=149532
+StaticMeshActor4620 mesh=Cracked_BW_Tile verts=1788 sec=2 layers=1 :: L=3[Light:Light348,Light:Light710,DefaultSecurityCameraSpotlight:DefaultSecurityCameraSpotlight3] A=1 B=53 C=192552
+
+=== fieldC vs verts*lights ===
+fieldC/(verts*lightsInLayer) min/med/max=0/80.845/36904 n=4470
+count near 1: 0 near 2: 11 near 3: 0 near 4: 41

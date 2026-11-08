@@ -1,0 +1,18 @@
+totalBytes=16295548 maxC=261396 maxEnd=262124 levelLen=29137884
+aligned needle 16295548: 0 hits
+aligned needle 262124: 0 hits
+aligned needle 262144 @264464; next=3840
+aligned needle 262144 @270332; next=131072
+aligned needle 262144 @546180; next=0
+aligned needle 262144 @556648; next=369557504
+aligned needle 262144 @556692; next=65536
+aligned needle 262144: 12278 hits
+aligned needle 4470: 0 hits
+best L1-channel base=168192 score=30/30 dominantChannel=1
+  C=131196 v=185 hex=00 00 00 00 F4 00 00 0D F5 00 00 0D F5 00 00 0F F6 00 00 0F F6 00 00 0F F6 00 00 0F F6 00 00 0F
+  C=193632 v=1984 hex=00 00 00 00 00 0D 00 00 00 0D 00 00 00 0E 00 00 00 0E 00 00 00 0D 00 00 00 0D 00 00 00 0D 00 00
+  C=91804 v=1492 hex=00 0C 00 00 00 0C 00 00 00 11 00 00 00 11 00 00 00 11 00 00 00 12 00 00 00 12 00 00 00 12 00 00
+  C=159820 v=176 hex=00 79 00 DD 00 F4 00 DD 00 F4 00 DA 00 F1 00 DA 00 F1 00 DA 00 F0 00 DA 00 F1 00 00 00 00 00 00
+  C=19952 v=1247 hex=00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+endBase=28875760
+endBase L1 score=9/30

@@ -1,0 +1,162 @@
+StaticMeshInstance exports: 3986
+size min/med/max: 66/93/147
+actors with StaticMeshInstance property: 3986
+
+=== [14644] StaticMeshInstance5044 size=91 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00
+  0030: 02 00 00 00 02 56 3C 63 40 01 00 00 00 2C 00 00
+props@8 count=2 end=33 truncated=False remaining=58
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00 02
+  0010: 00 00 00 02 56 3C 63 40 01 00 00 00 2C 00 00 00
+body after props: first CI=4 (as count), remaining=57
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=52 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=90
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=85 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=82
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=50 rem/verts=? rem/(verts*lights)=?
+
+=== [14677] StaticMeshInstance4738 size=116 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 72 38 02 04 00 00 00
+  0030: 02 00 00 00 03 6E 3E 6D 35 54 5E 01 00 00 00 32
+props@8 count=2 end=33 truncated=False remaining=83
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 72 38 02 04 00 00 00 02
+  0010: 00 00 00 03 6E 3E 6D 35 54 5E 01 00 00 00 32 00
+body after props: first CI=4 (as count), remaining=82
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=77 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=115
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=110 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=107
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=75 rem/verts=? rem/(verts*lights)=?
+
+=== [14690] StaticMeshInstance4739 size=89 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 72 38 01 04 00 00 00
+  0030: 02 00 00 00 01 4F 39 01 00 00 00 32 00 00 00 08
+props@8 count=2 end=33 truncated=False remaining=56
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 72 38 01 04 00 00 00 02
+  0010: 00 00 00 01 4F 39 01 00 00 00 32 00 00 00 08 E7
+body after props: first CI=4 (as count), remaining=55
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=50 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=88
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=83 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=80
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=48 rem/verts=? rem/(verts*lights)=?
+
+=== [14703] StaticMeshInstance5041 size=89 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00
+  0030: 02 00 00 00 01 56 3C 01 00 00 00 2C 00 00 00 D4
+props@8 count=2 end=33 truncated=False remaining=56
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00 02
+  0010: 00 00 00 01 56 3C 01 00 00 00 2C 00 00 00 D4 C7
+body after props: first CI=4 (as count), remaining=55
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=50 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=88
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=83 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=80
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=48 rem/verts=? rem/(verts*lights)=?
+
+=== [14704] StaticMeshInstance5043 size=66 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 75 35 00 12 02 00 00
+  0030: 04 00 00 00 02 00 00 00 12 02 00 00 01 00 00 00
+props@8 count=2 end=33 truncated=False remaining=33
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 75 35 00 12 02 00 00 04
+  0010: 00 00 00 02 00 00 00 12 02 00 00 01 00 00 00 00
+body after props: first CI=4 (as count), remaining=32
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=27 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=65
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=60 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=57
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=25 rem/verts=? rem/(verts*lights)=?
+
+=== [14738] StaticMeshInstance4677 size=91 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 42 35 01 04 00 00 00
+  0030: 02 00 00 00 02 4C 35 65 34 01 00 00 00 2B 00 00
+props@8 count=2 end=33 truncated=False remaining=58
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 42 35 01 04 00 00 00 02
+  0010: 00 00 00 02 4C 35 65 34 01 00 00 00 2B 00 00 00
+body after props: first CI=4 (as count), remaining=57
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=52 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=90
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=85 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=82
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=50 rem/verts=? rem/(verts*lights)=?
+
+=== [14754] StaticMeshInstance5032 size=93 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00
+  0030: 02 00 00 00 03 42 3C 4B 38 44 3B 01 00 00 00 2C
+props@8 count=2 end=33 truncated=False remaining=60
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00 02
+  0010: 00 00 00 03 42 3C 4B 38 44 3B 01 00 00 00 2C 00
+body after props: first CI=4 (as count), remaining=59
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=54 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=92
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=87 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=84
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=52 rem/verts=? rem/(verts*lights)=?
+
+=== [14767] StaticMeshInstance5031 size=91 ===
+  0000: 04 00 00 00 03 00 00 00 1B 00 00 00 00 22 02 00
+  0010: 00 00 01 00 00 00 00 22 CD CD CD CD 00 00 00 00
+  0020: 00 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00
+  0030: 02 00 00 00 02 56 3C 4D 38 01 00 00 00 2C 00 00
+props@8 count=2 end=33 truncated=False remaining=58
+  CheckpointType:Int size=4 arr=0
+  CheckpointTypePadding:Int size=4 arr=0
+trailer first 32:
+  0000: 04 00 00 00 05 00 00 00 75 35 01 04 00 00 00 02
+  0010: 00 00 00 02 56 3C 4D 38 01 00 00 00 2C 00 00 00
+body after props: first CI=4 (as count), remaining=57
+  hyp lights[4]=[0,0,0,5] vertsCI=0 remBytes=52 rem/verts=? rem/(verts*lights)=?
+full: first CI=4 (as count), remaining=90
+  hyp lights[4]=[0,0,0,3] vertsCI=0 remBytes=85 rem/verts=? rem/(verts*lights)=?
+from8: first CI=27 (as count), remaining=82
+  hyp lights[27]=[0,0,0,0,34,2,0,0…] vertsCI=0 remBytes=50 rem/verts=? rem/(verts*lights)=?
+
+=== actor ↔ mesh verts ↔ SMI size ===
+StaticMeshActor StaticMeshActor4622: mesh=Cracked_BW_Tile_Pile verts=1531 smiSize=93 smi/verts=0.061
+StaticMeshActor StaticMeshActor4907: mesh=puddle_alt verts=185 smiSize=89 smi/verts=0.481
+StaticMeshActor StaticMeshActor3589: mesh=Long_Couch verts=1984 smiSize=116 smi/verts=0.058
+StaticMeshActor StaticMeshActor4670: mesh=ConcreteWall_Hole verts=3019 smiSize=93 smi/verts=0.031
+StaticMeshActor StaticMeshActor503: mesh=sf_shelving02 verts=126 smiSize=91 smi/verts=0.722
+StaticMeshActor StaticMeshActor1807: mesh=Tablefold2 verts=3016 smiSize=93 smi/verts=0.031
+StaticMeshActor StaticMeshActor1808: mesh=bio_sinklong verts=625 smiSize=91 smi/verts=0.146
+StaticMeshActor StaticMeshActor1172: mesh=decor_sofa verts=1400 smiSize=91 smi/verts=0.065
+StaticMeshActor StaticMeshActor4625: mesh=Cracked_BW_Tile_Pile verts=1531 smiSize=91 smi/verts=0.059
+StaticMeshActor StaticMeshActor4636: mesh=Pipe_512 verts=920 smiSize=66 smi/verts=0.072
+StaticMeshActor StaticMeshActor4617: mesh=ConcreteWall_Hole verts=3019 smiSize=93 smi/verts=0.031
+StaticMeshActor StaticMeshActor4732: mesh=med_pillar_large_base verts=84 smiSize=93 smi/verts=1.107
+StaticMeshActor StaticMeshActor4909: mesh=Broken_Pipe verts=1492 smiSize=89 smi/verts=0.06

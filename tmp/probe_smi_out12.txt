@@ -1,0 +1,27 @@
+FieldC == runningOffset%262144: 0/4470
+FieldC == runningOffset%262124: 0/4470
+final running offset=16295548
+searching for linear buffer size=16295548 in Level (29137884)
+linear buffer bestBase=3939328 score=19/25
+first 20: FieldC vs run%262144
+  [0] C=91860 runMod=0 run=0 v=1531 L=3
+  [1] C=131196 runMod=6124 run=6124 v=185 L=1
+  [2] C=185696 runMod=6864 run=6864 v=1984 L=3
+  [3] C=193632 runMod=14800 run=14800 v=1984 L=1
+  [4] C=172980 runMod=22736 run=22736 v=3019 L=3
+  [5] C=177788 runMod=34812 run=34812 v=126 L=2
+  [6] C=227776 runMod=35316 run=35316 v=3016 L=3
+  [7] C=217904 runMod=47380 run=47380 v=625 L=2
+  [8] C=231204 runMod=49880 run=49880 v=1400 L=2
+  [9] C=85736 runMod=55480 run=55480 v=1531 L=2
+  [10] C=160904 runMod=61604 run=61604 v=3019 L=3
+  [11] C=82128 runMod=73680 run=73680 v=84 L=3
+  [12] C=91804 runMod=74016 run=74016 v=1492 L=1
+  [13] C=149532 runMod=79984 run=79984 v=1000 L=2
+  [14] C=192552 runMod=83984 run=83984 v=1788 L=3
+  [15] C=152932 runMod=91136 run=91136 v=1698 L=3
+  [16] C=227068 runMod=97928 run=97928 v=644 L=3
+  [17] C=229644 runMod=100504 run=100504 v=644 L=2
+  [18] C=159116 runMod=103080 run=103080 v=176 L=3
+  [19] C=159820 runMod=103784 run=103784 v=176 L=1
+sorted-by-C: C==runningPacked: 1/4470 finalRun=16295548
